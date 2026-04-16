@@ -1,0 +1,42 @@
+[package]
+name = "nie-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "nie_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "nie-tui"
+path = "src/main.rs"
+
+[dependencies]
+nie-core.workspace = true
+nie-wallet = { path = "../wallet" }
+nie-cli = { path = "../cli" }
+anyhow.workspace = true
+clap = { version = "4", features = ["derive"] }
+ratatui.workspace = true
+crossterm.workspace = true
+futures.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+dirs.workspace = true
+age.workspace = true
+rpassword.workspace = true
+shlex.workspace = true
+unicode-width = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+nie-relay = { path = "../relay" }
+axum.workspace = true
+hpke.workspace = true
+rand.workspace = true

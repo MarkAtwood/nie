@@ -1,0 +1,14 @@
+# Dev Caddyfile for local wss:// testing with mkcert certs.
+#
+# Prerequisites:
+#   1. Install mkcert: https://github.com/FiloSottile/mkcert
+#   2. Run: ./mkcert-setup.sh   (generates localhost.pem / localhost-key.pem)
+#   3. Run: caddy run --config deploy/dev/Caddyfile
+#
+# Then connect with: nie --relay wss://localhost:8443/ws chat ...
+# (No --insecure flag needed — mkcert installs a system-trusted CA.)
+
+localhost:8443 {
+    tls deploy/dev/localhost.pem deploy/dev/localhost-key.pem
+    reverse_proxy 127.0.0.1:3210
+}

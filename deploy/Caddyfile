@@ -1,0 +1,13 @@
+# Production Caddyfile for nie-relay.
+#
+# Caddy auto-obtains and renews a Let's Encrypt TLS certificate for the domain.
+# Replace relay.example.com with your actual domain (must have A/AAAA DNS record).
+#
+# Run: caddy run --config Caddyfile
+# Or as a system service: install Caddy, drop this file at /etc/caddy/Caddyfile
+
+relay.example.com {
+    # Forward WebSocket and regular HTTP traffic to the relay.
+    # Caddy handles the wss:// ↔ ws:// translation automatically.
+    reverse_proxy 127.0.0.1:3210
+}

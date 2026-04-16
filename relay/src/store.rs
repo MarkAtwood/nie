@@ -1,0 +1,1293 @@
+use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
+use tracing::info;
+
+/// A group registry record.
+#[derive(Debug, Clone)]
+pub struct GroupRow {
+    pub group_id: String,
+    pub created_by: String,
+    pub name: String,
+    /// SQLite-compatible UTC datetime string: `"YYYY-MM-DD HH:MM:SS"`.
+    pub created_at: String,
+}
+
+/// A pending subscription invoice record.
+#[derive(Debug, Clone)]
+pub struct InvoiceRow {
+    pub invoice_id: String,
+    pub pub_id: String,
+    pub address: String,
+    pub amount_zatoshi: u64,
+    /// SQLite-compatible UTC datetime string: `"YYYY-MM-DD HH:MM:SS"`.
+    pub expires_at: String,
+}
+
+#[derive(Clone)]
+pub struct Store {
+    pool: SqlitePool,
+}
+
+impl Store {
+    pub async fn new(db_url: &str) -> Result<Self> {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect(db_url)
+            .await?;
+
+        // Persistent user directory: every pub_id that has ever authenticated.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS users (
+                pub_id      TEXT PRIMARY KEY,
+                nickname    TEXT,
+                first_seen  TEXT NOT NULL DEFAULT (datetime('now')),
+                last_seen   TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        // Subscription state for Phase 3 payment gating.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS subscriptions (
+                pub_id      TEXT PRIMARY KEY,
+                expires_at  TEXT NOT NULL,
+                created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        // MLS key packages: one per pub_id, replaced on each session connect.
+        // Data is opaque bytes (TLS-serialized MlsMessageOut / serde_json-encoded KeyPackage).
+        // The relay never inspects the bytes.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS key_packages (
+                pub_id      TEXT PRIMARY KEY,
+                data        BLOB NOT NULL,
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        // HPKE public keys: one per pub_id, used for sealed-sender encryption.
+        // The relay stores and returns opaque bytes; it never performs HPKE operations.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS hpke_keys (
+                pub_id      TEXT PRIMARY KEY,
+                public_key  BLOB NOT NULL,
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        // Offline message queue: enqueued for recipients who are not live.
+        // Messages expire after 72 hours via datetime() comparison.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS offline_messages (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                to_pub_id  TEXT NOT NULL,
+                payload    TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                expires_at TEXT NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_offline_messages_to_pub_id \
+             ON offline_messages(to_pub_id)",
+        )
+        .execute(&pool)
+        .await?;
+
+        // Subscription invoices: pending payment requests for subscription renewals.
+        // invoice_id is caller-supplied (e.g. UUID). address is UNIQUE: one active
+        // invoice per Zcash subaddress. expires_at uses YYYY-MM-DD HH:MM:SS UTC.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS subscription_invoices (
+                invoice_id      TEXT PRIMARY KEY,
+                pub_id          TEXT NOT NULL,
+                address         TEXT NOT NULL UNIQUE,
+                amount_zatoshi  INTEGER NOT NULL,
+                expires_at      TEXT NOT NULL
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        // Sapling diversifier index for the merchant wallet (account 0).
+        // Stored as decimal TEXT to fit the full 11-byte (2^88) diversifier space
+        // without loss.  One row per account; starts at 0 on first use.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS merchant_diversifier (
+                account         INTEGER PRIMARY KEY,
+                diversifier_idx TEXT NOT NULL DEFAULT '0'
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        // MLS group registry: one row per group, records creator and display name.
+        // group_id is caller-supplied (e.g. UUID or MLS group_id hex).
+        // The relay stores and routes; it never interprets group semantics.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS groups (
+                group_id   TEXT PRIMARY KEY,
+                created_by TEXT NOT NULL,
+                name       TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        // Group membership: maps (group_id, pub_id) pairs to join timestamps.
+        // Composite primary key prevents duplicate membership rows.
+        sqlx::query(
+            "CREATE TABLE IF NOT EXISTS group_members (
+                group_id  TEXT NOT NULL,
+                pub_id    TEXT NOT NULL,
+                joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (group_id, pub_id)
+            )",
+        )
+        .execute(&pool)
+        .await?;
+
+        info!("store ready");
+        Ok(Self { pool })
+    }
+
+    // ---- User directory ----
+
+    /// Record (or refresh last_seen for) a user who has just authenticated.
+    pub async fn register_user(&self, pub_id: &str) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO users (pub_id) VALUES (?)
+             ON CONFLICT(pub_id) DO UPDATE SET last_seen = datetime('now')",
+        )
+        .bind(pub_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// All known users in order of first appearance, with their nicknames.
+    pub async fn all_users(&self) -> Result<Vec<(String, Option<String>)>> {
+        let rows: Vec<(String, Option<String>)> =
+            sqlx::query_as("SELECT pub_id, nickname FROM users ORDER BY first_seen ASC")
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(rows)
+    }
+
+    /// Attempt to set a nickname for `pub_id`. Succeeds only if no nickname is
+    /// currently set (nicknames are immutable once assigned). Returns `true` if
+    /// the nickname was stored, `false` if one was already set.
+    pub async fn try_set_nickname(&self, pub_id: &str, nickname: &str) -> Result<bool> {
+        let result =
+            sqlx::query("UPDATE users SET nickname = ? WHERE pub_id = ? AND nickname IS NULL")
+                .bind(nickname)
+                .bind(pub_id)
+                .execute(&self.pool)
+                .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    // ---- MLS key packages ----
+
+    /// Store (or replace) the MLS key package for `pub_id`. Opaque bytes.
+    pub async fn save_key_package(&self, pub_id: &str, data: &[u8]) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO key_packages (pub_id, data) VALUES (?, ?)
+             ON CONFLICT(pub_id) DO UPDATE SET data = excluded.data,
+                                               updated_at = datetime('now')",
+        )
+        .bind(pub_id)
+        .bind(data)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Fetch the stored MLS key package for `pub_id`, or None if not found.
+    pub async fn get_key_package(&self, pub_id: &str) -> Result<Option<Vec<u8>>> {
+        let row: Option<(Vec<u8>,)> =
+            sqlx::query_as("SELECT data FROM key_packages WHERE pub_id = ?")
+                .bind(pub_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|r| r.0))
+    }
+
+    // ---- HPKE public keys (sealed sender) ----
+
+    /// Store (or replace) the HPKE public key for `pub_id`. Opaque bytes.
+    /// The relay never interprets these bytes — it stores and returns them verbatim.
+    pub async fn save_hpke_key(&self, pub_id: &str, public_key: &[u8]) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO hpke_keys (pub_id, public_key) VALUES (?, ?)
+             ON CONFLICT(pub_id) DO UPDATE SET public_key = excluded.public_key,
+                                               updated_at = datetime('now')",
+        )
+        .bind(pub_id)
+        .bind(public_key)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Fetch the stored HPKE public key for `pub_id`, or None if not published.
+    pub async fn get_hpke_key(&self, pub_id: &str) -> Result<Option<Vec<u8>>> {
+        let row: Option<(Vec<u8>,)> =
+            sqlx::query_as("SELECT public_key FROM hpke_keys WHERE pub_id = ?")
+                .bind(pub_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|r| r.0))
+    }
+
+    // ---- Offline message queue ----
+
+    /// Enqueue a JSON-encoded relay message for a recipient who is not currently live.
+    /// The payload is the serialized wire message (already a JSON string).
+    /// Expires after 72 hours via SQLite's datetime() function.
+    pub async fn enqueue(&self, to_pub_id: &str, payload_json: &str) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO offline_messages (to_pub_id, payload, expires_at) \
+             VALUES (?1, ?2, datetime('now', '+72 hours'))",
+        )
+        .bind(to_pub_id)
+        .bind(payload_json)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Drain all queued messages for `pub_id`.
+    ///
+    /// Returns only non-expired messages (expires_at > datetime('now')), ordered
+    /// by insertion order (id ASC). Deletes ALL rows for `pub_id` regardless of
+    /// expiry so stale entries cannot accumulate. The select and delete run inside
+    /// a single transaction for atomicity.
+    pub async fn drain(&self, pub_id: &str) -> Result<Vec<String>> {
+        let mut tx = self.pool.begin().await?;
+        let rows: Vec<(String,)> = sqlx::query_as(
+            "SELECT payload FROM offline_messages \
+             WHERE to_pub_id = ?1 AND expires_at > datetime('now') \
+             ORDER BY id ASC",
+        )
+        .bind(pub_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM offline_messages WHERE to_pub_id = ?1")
+            .bind(pub_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(rows.into_iter().map(|(s,)| s).collect())
+    }
+
+    // ---- Subscriptions (Phase 3) ----
+
+    /// Subscription expiry string for `pub_id`, or None if not subscribed.
+    pub async fn subscription_expiry(&self, pub_id: &str) -> Result<Option<String>> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT expires_at FROM subscriptions
+             WHERE pub_id = ? AND expires_at > datetime('now')",
+        )
+        .bind(pub_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| r.0))
+    }
+
+    /// Insert or update a subscription expiry.
+    /// Used by the payment watcher (Phase 3).
+    ///
+    /// `expires_at` must be a `DateTime<Utc>` — formatted internally as
+    /// `YYYY-MM-DD HH:MM:SS` so SQLite's `datetime('now')` comparisons
+    /// work correctly.  Passing a pre-formatted string is deliberately
+    /// not supported to prevent the silent format mismatch described in
+    /// CLAUDE.md §9.
+    pub async fn set_subscription(&self, pub_id: &str, expires_at: DateTime<Utc>) -> Result<()> {
+        // SQLite datetime() compares as strings; the format must match.
+        let expires_str = expires_at.format("%Y-%m-%d %H:%M:%S").to_string();
+        sqlx::query(
+            "INSERT INTO subscriptions (pub_id, expires_at) VALUES (?, ?)
+             ON CONFLICT(pub_id) DO UPDATE SET expires_at = excluded.expires_at",
+        )
+        .bind(pub_id)
+        .bind(&expires_str)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    // ---- Merchant diversifier (Sapling fresh-address tracking) ----
+
+    /// Atomically return-and-advance the diversifier index for `account`.
+    ///
+    /// Returns the current index (to be used as the diversifier start), then
+    /// stores `current + 1`.  The caller must call `advance_diversifier_to` if
+    /// `find_address` lands on an index > the returned value.
+    ///
+    /// Creates the account row on first use (INSERT OR IGNORE + UPDATE pattern
+    /// so the row always exists before we read it).
+    pub async fn next_diversifier(&self, account: u32) -> anyhow::Result<u128> {
+        const MAX_DIVERSIFIER: u128 = (1u128 << 88) - 1;
+
+        let mut tx = self.pool.begin().await?;
+
+        // Ensure the row exists.
+        sqlx::query(
+            "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+             VALUES (?, '0')",
+        )
+        .bind(account as i64)
+        .execute(&mut *tx)
+        .await?;
+
+        let raw: String = sqlx::query_scalar(
+            "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+        )
+        .bind(account as i64)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let current: u128 = raw
+            .parse()
+            .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+        if current >= MAX_DIVERSIFIER {
+            anyhow::bail!("diversifier index overflow for account {account}");
+        }
+
+        let next = current + 1;
+        sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
+            .bind(next.to_string())
+            .bind(account as i64)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(current)
+    }
+
+    /// Advance the diversifier index for `account` to at least `idx`.
+    ///
+    /// Monotonic: ignored if `idx` ≤ the current stored value.
+    pub async fn advance_diversifier_to(&self, account: u32, idx: u128) -> anyhow::Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        // Ensure the row exists.
+        sqlx::query(
+            "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+             VALUES (?, '0')",
+        )
+        .bind(account as i64)
+        .execute(&mut *tx)
+        .await?;
+
+        let raw: String = sqlx::query_scalar(
+            "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+        )
+        .bind(account as i64)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let current: u128 = raw
+            .parse()
+            .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+        if idx > current {
+            sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
+                .bind(idx.to_string())
+                .bind(account as i64)
+                .execute(&mut *tx)
+                .await?;
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
+    // ---- Subscription invoices (Phase 3) ----
+
+    /// Insert a new invoice. INSERT OR IGNORE — idempotent for retry safety.
+    ///
+    /// `row.amount_zatoshi` is stored as SQLite INTEGER (i64). An overflow
+    /// above `i64::MAX` is rejected with an error rather than silently
+    /// truncated.
+    pub async fn create_invoice(&self, row: &InvoiceRow) -> Result<()> {
+        let amount_i64 = i64::try_from(row.amount_zatoshi).context("amount_zatoshi overflow")?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO subscription_invoices \
+             (invoice_id, pub_id, address, amount_zatoshi, expires_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+        )
+        .bind(&row.invoice_id)
+        .bind(&row.pub_id)
+        .bind(&row.address)
+        .bind(amount_i64)
+        .bind(&row.expires_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Fetch the most recent unexpired invoice for `pub_id`, or None.
+    pub async fn get_pending_invoice(&self, pub_id: &str) -> Result<Option<InvoiceRow>> {
+        let row: Option<(String, String, String, i64, String)> = sqlx::query_as(
+            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at \
+             FROM subscription_invoices \
+             WHERE pub_id = ?1 AND expires_at > datetime('now') \
+             ORDER BY expires_at DESC \
+             LIMIT 1",
+        )
+        .bind(pub_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(
+            |(invoice_id, pub_id, address, amount_zatoshi, expires_at)| {
+                Ok(InvoiceRow {
+                    invoice_id,
+                    pub_id,
+                    address,
+                    amount_zatoshi: u64::try_from(amount_zatoshi)
+                        .context("amount_zatoshi negative in DB")?,
+                    expires_at,
+                })
+            },
+        )
+        .transpose()
+    }
+
+    /// Fetch an unexpired invoice by its payment address, or None.
+    pub async fn get_invoice_by_address(&self, address: &str) -> Result<Option<InvoiceRow>> {
+        let row: Option<(String, String, String, i64, String)> = sqlx::query_as(
+            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at \
+             FROM subscription_invoices \
+             WHERE address = ?1 AND expires_at > datetime('now')",
+        )
+        .bind(address)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(
+            |(invoice_id, pub_id, address, amount_zatoshi, expires_at)| {
+                Ok(InvoiceRow {
+                    invoice_id,
+                    pub_id,
+                    address,
+                    amount_zatoshi: u64::try_from(amount_zatoshi)
+                        .context("amount_zatoshi negative in DB")?,
+                    expires_at,
+                })
+            },
+        )
+        .transpose()
+    }
+
+    /// Delete an invoice by its invoice_id.
+    pub async fn delete_invoice(&self, invoice_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM subscription_invoices WHERE invoice_id = ?1")
+            .bind(invoice_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Delete all invoices whose `expires_at` is in the past. Returns the
+    /// number of rows deleted.
+    pub async fn purge_expired_invoices(&self) -> Result<u64> {
+        let result =
+            sqlx::query("DELETE FROM subscription_invoices WHERE expires_at <= datetime('now')")
+                .execute(&self.pool)
+                .await?;
+        Ok(result.rows_affected())
+    }
+
+    // ---- Groups ----
+
+    /// Create a group record. INSERT OR IGNORE — idempotent; a duplicate
+    /// group_id is silently ignored.
+    pub async fn create_group(&self, group_id: &str, created_by: &str, name: &str) -> Result<()> {
+        sqlx::query(
+            "INSERT OR IGNORE INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)",
+        )
+        .bind(group_id)
+        .bind(created_by)
+        .bind(name)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Fetch the group record for `group_id`, or None if not found.
+    pub async fn get_group(&self, group_id: &str) -> Result<Option<GroupRow>> {
+        let row: Option<(String, String, String, String)> = sqlx::query_as(
+            "SELECT group_id, created_by, name, created_at FROM groups WHERE group_id = ?1",
+        )
+        .bind(group_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(
+            row.map(|(group_id, created_by, name, created_at)| GroupRow {
+                group_id,
+                created_by,
+                name,
+                created_at,
+            }),
+        )
+    }
+
+    /// All groups that `pub_id` is a member of.
+    pub async fn list_groups_for_user(&self, pub_id: &str) -> Result<Vec<GroupRow>> {
+        let rows: Vec<(String, String, String, String)> = sqlx::query_as(
+            "SELECT g.group_id, g.created_by, g.name, g.created_at \
+             FROM groups g \
+             JOIN group_members m ON g.group_id = m.group_id \
+             WHERE m.pub_id = ?1",
+        )
+        .bind(pub_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(group_id, created_by, name, created_at)| GroupRow {
+                group_id,
+                created_by,
+                name,
+                created_at,
+            })
+            .collect())
+    }
+
+    /// Add `pub_id` to `group_id`. INSERT OR IGNORE — idempotent.
+    pub async fn add_group_member(&self, group_id: &str, pub_id: &str) -> Result<()> {
+        sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
+            .bind(group_id)
+            .bind(pub_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Remove `pub_id` from `group_id`. No-op if the membership does not exist.
+    pub async fn remove_group_member(&self, group_id: &str, pub_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM group_members WHERE group_id = ?1 AND pub_id = ?2")
+            .bind(group_id)
+            .bind(pub_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// All member pub_ids for `group_id`.
+    pub async fn list_group_members(&self, group_id: &str) -> Result<Vec<String>> {
+        let rows: Vec<(String,)> =
+            sqlx::query_as("SELECT pub_id FROM group_members WHERE group_id = ?1")
+                .bind(group_id)
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(rows.into_iter().map(|(s,)| s).collect())
+    }
+
+    /// Returns `true` if `pub_id` is a member of `group_id`.
+    pub async fn is_group_member(&self, group_id: &str, pub_id: &str) -> Result<bool> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM group_members WHERE group_id = ?1 AND pub_id = ?2",
+        )
+        .bind(group_id)
+        .bind(pub_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(count > 0)
+    }
+
+    /// Number of members in `group_id`.
+    pub async fn member_count(&self, group_id: &str) -> Result<u64> {
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+                .bind(group_id)
+                .fetch_one(&self.pool)
+                .await?;
+        u64::try_from(count).context("member_count overflow")
+    }
+
+    /// Delete a group and all its membership rows, atomically.
+    pub async fn delete_group(&self, group_id: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM group_members WHERE group_id = ?1")
+            .bind(group_id)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("DELETE FROM groups WHERE group_id = ?1")
+            .bind(group_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Duration;
+
+    async fn make_store() -> (Store, tempfile::NamedTempFile) {
+        let f = tempfile::NamedTempFile::new().unwrap();
+        let url = format!("sqlite:{}?mode=rwc", f.path().display());
+        let store = Store::new(&url).await.unwrap();
+        (store, f)
+    }
+
+    // ---- subscription_expiry boundary tests ----
+
+    /// Active subscription (expires 24 h from now) is found.
+    #[tokio::test]
+    async fn subscription_future_expiry_is_found() {
+        let (store, _f) = make_store().await;
+        let expires = Utc::now() + Duration::hours(24);
+        store.set_subscription("alice", expires).await.unwrap();
+        let result = store.subscription_expiry("alice").await.unwrap();
+        assert!(
+            result.is_some(),
+            "subscription expiring in 24h must be found"
+        );
+    }
+
+    /// Expired subscription (2 s in the past) is not found.
+    #[tokio::test]
+    async fn subscription_past_expiry_is_not_found() {
+        let (store, _f) = make_store().await;
+        let expires = Utc::now() - Duration::seconds(2);
+        store.set_subscription("bob", expires).await.unwrap();
+        let result = store.subscription_expiry("bob").await.unwrap();
+        assert!(
+            result.is_none(),
+            "subscription that expired 2s ago must not be found"
+        );
+    }
+
+    /// pub_id with no subscription row returns None.
+    #[tokio::test]
+    async fn no_subscription_returns_none() {
+        let (store, _f) = make_store().await;
+        let result = store.subscription_expiry("nobody").await.unwrap();
+        assert!(result.is_none(), "nonexistent pub_id must return None");
+    }
+
+    /// set_subscription stores in YYYY-MM-DD HH:MM:SS format, not RFC 3339.
+    ///
+    /// Oracle: read the raw stored string directly from SQLite and check its structure
+    /// independently of the comparison logic in subscription_expiry().
+    ///
+    /// This is the invariant from CLAUDE.md §9 — if the format is wrong, the
+    /// `expires_at > datetime('now')` comparison silently fails.
+    #[tokio::test]
+    async fn set_subscription_stores_sqlite_compatible_format() {
+        let (store, _f) = make_store().await;
+        let expires = Utc::now() + Duration::hours(1);
+        store.set_subscription("carol", expires).await.unwrap();
+
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT expires_at FROM subscriptions WHERE pub_id = ?")
+                .bind("carol")
+                .fetch_optional(&store.pool)
+                .await
+                .unwrap();
+
+        let raw = row.expect("row must exist after set_subscription").0;
+
+        // Must NOT contain RFC 3339 separators or timezone suffixes.
+        assert!(
+            !raw.contains('T'),
+            "must not be RFC 3339 (T separator), got: {raw}"
+        );
+        assert!(
+            !raw.contains('Z'),
+            "must not be RFC 3339 (Z suffix), got: {raw}"
+        );
+        assert!(
+            !raw.contains('+'),
+            "must not have timezone offset, got: {raw}"
+        );
+        // Must be exactly YYYY-MM-DD HH:MM:SS (19 chars, space at position 10).
+        assert_eq!(
+            raw.len(),
+            19,
+            "must be 19 chars (YYYY-MM-DD HH:MM:SS), got: {raw}"
+        );
+        assert_eq!(
+            raw.as_bytes()[10],
+            b' ',
+            "character 10 must be space separator (not 'T'), got: {raw}"
+        );
+    }
+
+    // ---- offline_messages tests ----
+
+    /// Enqueue one message and drain it back.
+    ///
+    /// Oracle: the expected string is a hardcoded literal, not produced by any
+    /// function under test.
+    #[tokio::test]
+    async fn test_enqueue_drain_roundtrip() {
+        let (store, _f) = make_store().await;
+        let payload = r#"{"jsonrpc":"2.0","method":"whisper_deliver","params":{"from":"bob","payload":"aGVsbG8="}}"#;
+        store.enqueue("alice", payload).await.unwrap();
+        let msgs = store.drain("alice").await.unwrap();
+        assert_eq!(
+            msgs,
+            vec![
+                r#"{"jsonrpc":"2.0","method":"whisper_deliver","params":{"from":"bob","payload":"aGVsbG8="}}"#
+            ],
+            "drained message must equal the enqueued literal"
+        );
+    }
+
+    /// Multiple messages are returned in insertion order.
+    ///
+    /// Oracle: the expected ordering is the known insertion sequence, verified
+    /// against the ORDER BY id ASC guarantee from the schema, not the drain
+    /// implementation itself.
+    #[tokio::test]
+    async fn test_drain_ordering() {
+        let (store, _f) = make_store().await;
+        store.enqueue("alice", "msg_1").await.unwrap();
+        store.enqueue("alice", "msg_2").await.unwrap();
+        let msgs = store.drain("alice").await.unwrap();
+        assert_eq!(
+            msgs,
+            vec!["msg_1", "msg_2"],
+            "messages must be in insertion order"
+        );
+    }
+
+    /// A second drain returns nothing — the first drain cleared the queue.
+    #[tokio::test]
+    async fn test_drain_clears_queue() {
+        let (store, _f) = make_store().await;
+        store.enqueue("alice", "hello").await.unwrap();
+        let first = store.drain("alice").await.unwrap();
+        assert_eq!(
+            first.len(),
+            1,
+            "first drain must return the enqueued message"
+        );
+        let second = store.drain("alice").await.unwrap();
+        assert!(
+            second.is_empty(),
+            "second drain must return empty vec after queue cleared"
+        );
+    }
+
+    /// Draining one user's queue does not remove another user's messages.
+    #[tokio::test]
+    async fn test_drain_other_user_unaffected() {
+        let (store, _f) = make_store().await;
+        store.enqueue("alice", "for_alice").await.unwrap();
+        store.enqueue("bob", "for_bob").await.unwrap();
+        let alice_msgs = store.drain("alice").await.unwrap();
+        assert_eq!(
+            alice_msgs,
+            vec!["for_alice"],
+            "alice must receive her own message"
+        );
+        let bob_msgs = store.drain("bob").await.unwrap();
+        assert_eq!(
+            bob_msgs,
+            vec!["for_bob"],
+            "bob's message must survive alice's drain"
+        );
+    }
+
+    /// Demonstrates the exact failure mode when RFC 3339 format is used instead of
+    /// the required YYYY-MM-DD HH:MM:SS format (CLAUDE.md §9 invariant).
+    ///
+    /// SQLite compares datetime strings lexicographically. At position 10, RFC 3339
+    /// uses 'T' (0x54) while datetime('now') uses ' ' (0x20). Since 'T' > ' ' in
+    /// ASCII, any RFC 3339 datetime on the same calendar day compares as "after"
+    /// datetime('now') — meaning an EXPIRED subscription on the same day appears
+    /// ACTIVE. This is the silent wrong behavior that set_subscription prevents.
+    ///
+    /// The test inserts two expired times (1 hour ago) with different formats and
+    /// verifies they produce opposite results:
+    ///   - Correct format → correctly identified as expired (not found)
+    ///   - RFC 3339 format → incorrectly identified as active (found) on same day
+    ///
+    /// Note: the RFC 3339 half is skipped if the test runs in the 00:00–01:00 UTC
+    /// window, because 1-hour-ago falls on the previous calendar day and the day
+    /// portion sorts correctly regardless of the separator.
+    #[tokio::test]
+    async fn wrong_format_rfc3339_breaks_expiry_comparison() {
+        let (store, _f) = make_store().await;
+        let one_hour_ago = Utc::now() - Duration::hours(1);
+
+        // (a) Correct format: expired subscription must NOT be found.
+        let correct_fmt = one_hour_ago.format("%Y-%m-%d %H:%M:%S").to_string();
+        sqlx::query("INSERT INTO subscriptions (pub_id, expires_at) VALUES (?, ?)")
+            .bind("alice-correct")
+            .bind(&correct_fmt)
+            .execute(&store.pool)
+            .await
+            .unwrap();
+        let correct_result = store.subscription_expiry("alice-correct").await.unwrap();
+        assert!(
+            correct_result.is_none(),
+            "correct format: expired subscription must not be found, got {correct_result:?}"
+        );
+
+        // (b) RFC 3339 format on the same calendar day: same expired time IS
+        // incorrectly found as active because 'T' > ' ' in SQLite string comparison.
+        // Skip near midnight (00:00–01:00 UTC) where 1-hour-ago is a different day.
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        if one_hour_ago.format("%Y-%m-%d").to_string() == today {
+            let rfc3339_fmt = one_hour_ago.to_rfc3339();
+            sqlx::query("INSERT INTO subscriptions (pub_id, expires_at) VALUES (?, ?)")
+                .bind("bob-rfc3339")
+                .bind(&rfc3339_fmt)
+                .execute(&store.pool)
+                .await
+                .unwrap();
+            let rfc3339_result = store.subscription_expiry("bob-rfc3339").await.unwrap();
+            assert!(
+                rfc3339_result.is_some(),
+                "RFC 3339 bug: expired subscription on same calendar day is incorrectly \
+                 found as active. 'T' (0x54) > ' ' (0x20) in SQLite string comparison \
+                 makes any same-day RFC 3339 datetime sort after datetime('now'). \
+                 If this assertion fails, SQLite's comparison behavior has changed."
+            );
+        }
+    }
+
+    // ---- subscription_invoices CRUD tests ----
+
+    fn future_expires_at() -> String {
+        (Utc::now() + Duration::hours(24))
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string()
+    }
+
+    fn past_expires_at() -> String {
+        (Utc::now() - Duration::hours(1))
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string()
+    }
+
+    /// create_invoice + get_pending_invoice: roundtrip. Fields are checked against
+    /// the literals passed in, not against any function output used as oracle.
+    #[tokio::test]
+    async fn invoice_create_and_get_pending() {
+        let (store, _f) = make_store().await;
+        let row = InvoiceRow {
+            invoice_id: "inv-001".to_string(),
+            pub_id: "alice".to_string(),
+            address: "zs1abc".to_string(),
+            amount_zatoshi: 100_000,
+            expires_at: future_expires_at(),
+        };
+        store.create_invoice(&row).await.unwrap();
+
+        let got = store.get_pending_invoice("alice").await.unwrap();
+        let got = got.expect("must find the just-created invoice");
+        assert_eq!(got.invoice_id, "inv-001");
+        assert_eq!(got.pub_id, "alice");
+        assert_eq!(got.address, "zs1abc");
+        assert_eq!(got.amount_zatoshi, 100_000u64);
+    }
+
+    /// create_invoice is idempotent: a duplicate insert is silently ignored.
+    #[tokio::test]
+    async fn invoice_create_idempotent() {
+        let (store, _f) = make_store().await;
+        let row = InvoiceRow {
+            invoice_id: "inv-idem".to_string(),
+            pub_id: "carol".to_string(),
+            address: "zs1idem".to_string(),
+            amount_zatoshi: 50_000,
+            expires_at: future_expires_at(),
+        };
+        store.create_invoice(&row).await.unwrap();
+        // Second insert with same invoice_id must not fail.
+        store.create_invoice(&row).await.unwrap();
+        let got = store.get_pending_invoice("carol").await.unwrap();
+        assert!(
+            got.is_some(),
+            "invoice must still be present after duplicate insert"
+        );
+    }
+
+    /// Expired invoice is not returned by get_pending_invoice.
+    #[tokio::test]
+    async fn invoice_expired_not_returned() {
+        let (store, _f) = make_store().await;
+        let row = InvoiceRow {
+            invoice_id: "inv-exp".to_string(),
+            pub_id: "dave".to_string(),
+            address: "zs1exp".to_string(),
+            amount_zatoshi: 1_000,
+            expires_at: past_expires_at(),
+        };
+        store.create_invoice(&row).await.unwrap();
+        let got = store.get_pending_invoice("dave").await.unwrap();
+        assert!(got.is_none(), "expired invoice must not be returned");
+    }
+
+    /// get_invoice_by_address finds an active invoice; expired one is hidden.
+    #[tokio::test]
+    async fn invoice_get_by_address() {
+        let (store, _f) = make_store().await;
+        let row = InvoiceRow {
+            invoice_id: "inv-addr".to_string(),
+            pub_id: "eve".to_string(),
+            address: "zs1addr".to_string(),
+            amount_zatoshi: 200_000,
+            expires_at: future_expires_at(),
+        };
+        store.create_invoice(&row).await.unwrap();
+
+        let got = store.get_invoice_by_address("zs1addr").await.unwrap();
+        let got = got.expect("must find invoice by address");
+        assert_eq!(got.invoice_id, "inv-addr");
+        assert_eq!(got.amount_zatoshi, 200_000u64);
+
+        // Unknown address returns None.
+        let missing = store.get_invoice_by_address("zs1unknown").await.unwrap();
+        assert!(missing.is_none(), "unknown address must return None");
+    }
+
+    /// delete_invoice removes the row; subsequent get returns None.
+    #[tokio::test]
+    async fn invoice_delete() {
+        let (store, _f) = make_store().await;
+        let row = InvoiceRow {
+            invoice_id: "inv-del".to_string(),
+            pub_id: "frank".to_string(),
+            address: "zs1del".to_string(),
+            amount_zatoshi: 9_999,
+            expires_at: future_expires_at(),
+        };
+        store.create_invoice(&row).await.unwrap();
+        store.delete_invoice("inv-del").await.unwrap();
+        let got = store.get_pending_invoice("frank").await.unwrap();
+        assert!(got.is_none(), "deleted invoice must not be returned");
+    }
+
+    /// purge_expired_invoices deletes only expired rows; active rows survive.
+    #[tokio::test]
+    async fn invoice_purge_expired() {
+        let (store, _f) = make_store().await;
+        let active = InvoiceRow {
+            invoice_id: "inv-active".to_string(),
+            pub_id: "grace".to_string(),
+            address: "zs1active".to_string(),
+            amount_zatoshi: 1_000,
+            expires_at: future_expires_at(),
+        };
+        let expired = InvoiceRow {
+            invoice_id: "inv-old".to_string(),
+            pub_id: "grace".to_string(),
+            // Different address — UNIQUE constraint.
+            address: "zs1old".to_string(),
+            amount_zatoshi: 1_000,
+            expires_at: past_expires_at(),
+        };
+        store.create_invoice(&active).await.unwrap();
+        store.create_invoice(&expired).await.unwrap();
+
+        let deleted = store.purge_expired_invoices().await.unwrap();
+        assert_eq!(
+            deleted, 1,
+            "purge must remove exactly the one expired invoice"
+        );
+
+        // Active invoice must still be retrievable.
+        let got = store.get_invoice_by_address("zs1active").await.unwrap();
+        assert!(got.is_some(), "active invoice must survive purge");
+
+        // Expired invoice must be gone.
+        let gone = store.get_invoice_by_address("zs1old").await.unwrap();
+        assert!(gone.is_none(), "expired invoice must be deleted by purge");
+    }
+
+    /// amount_zatoshi overflow: create_invoice must error, not silently truncate.
+    ///
+    /// Oracle: u64::MAX > i64::MAX; i64::try_from(u64::MAX) is Err, so the method
+    /// must propagate that error. We check that the call fails, not inspect the
+    /// exact error message.
+    #[tokio::test]
+    async fn invoice_amount_overflow_is_error() {
+        let (store, _f) = make_store().await;
+        let row = InvoiceRow {
+            invoice_id: "inv-overflow".to_string(),
+            pub_id: "heidi".to_string(),
+            address: "zs1overflow".to_string(),
+            amount_zatoshi: u64::MAX,
+            expires_at: future_expires_at(),
+        };
+        let result = store.create_invoice(&row).await;
+        assert!(
+            result.is_err(),
+            "u64::MAX must not be silently truncated to i64"
+        );
+    }
+
+    // ---- group CRUD tests ----
+
+    /// create_group + get_group: roundtrip; fields checked against the literals
+    /// passed in, not against any function output used as oracle.
+    #[tokio::test]
+    async fn group_create_and_get() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-001", "alice", "test group")
+            .await
+            .unwrap();
+
+        let got = store.get_group("grp-001").await.unwrap();
+        let got = got.expect("must find the just-created group");
+        assert_eq!(got.group_id, "grp-001");
+        assert_eq!(got.created_by, "alice");
+        assert_eq!(got.name, "test group");
+        // created_at must be non-empty (relay-generated, not caller-supplied)
+        assert!(!got.created_at.is_empty(), "created_at must be set");
+    }
+
+    /// get_group on a non-existent group_id returns None.
+    #[tokio::test]
+    async fn group_get_missing_returns_none() {
+        let (store, _f) = make_store().await;
+        let got = store.get_group("no-such-group").await.unwrap();
+        assert!(got.is_none(), "unknown group_id must return None");
+    }
+
+    /// create_group is idempotent: a duplicate insert is silently ignored.
+    #[tokio::test]
+    async fn group_create_idempotent() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-idem", "alice", "original name")
+            .await
+            .unwrap();
+        // Second insert with same group_id must not fail, and must not overwrite.
+        store
+            .create_group("grp-idem", "bob", "different name")
+            .await
+            .unwrap();
+        let got = store.get_group("grp-idem").await.unwrap().unwrap();
+        assert_eq!(
+            got.created_by, "alice",
+            "INSERT OR IGNORE must preserve the original row"
+        );
+        assert_eq!(got.name, "original name");
+    }
+
+    /// add_group_member + is_group_member: membership is visible after add.
+    #[tokio::test]
+    async fn group_add_and_is_member() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-mem", "alice", "member test")
+            .await
+            .unwrap();
+        store.add_group_member("grp-mem", "bob").await.unwrap();
+
+        let is_member = store.is_group_member("grp-mem", "bob").await.unwrap();
+        assert!(is_member, "bob must be a member after add_group_member");
+
+        let not_member = store.is_group_member("grp-mem", "carol").await.unwrap();
+        assert!(!not_member, "carol must not be a member");
+    }
+
+    /// add_group_member is idempotent: adding the same member twice is not an error.
+    #[tokio::test]
+    async fn group_add_member_idempotent() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-idem-mem", "alice", "idempotent member")
+            .await
+            .unwrap();
+        store.add_group_member("grp-idem-mem", "bob").await.unwrap();
+        store.add_group_member("grp-idem-mem", "bob").await.unwrap();
+        // Member count must still be 1, not 2.
+        let count = store.member_count("grp-idem-mem").await.unwrap();
+        assert_eq!(count, 1, "duplicate add must not create a second row");
+    }
+
+    /// list_group_members returns all added members.
+    ///
+    /// Oracle: the expected member list is the exact set of literals inserted.
+    #[tokio::test]
+    async fn group_list_members() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-list", "alice", "list test")
+            .await
+            .unwrap();
+        store.add_group_member("grp-list", "bob").await.unwrap();
+        store.add_group_member("grp-list", "carol").await.unwrap();
+
+        let mut members = store.list_group_members("grp-list").await.unwrap();
+        members.sort(); // order is not guaranteed; sort for comparison
+        assert_eq!(
+            members,
+            vec!["bob", "carol"],
+            "list_group_members must return all added members"
+        );
+    }
+
+    /// list_group_members for a group with no members returns an empty vec.
+    #[tokio::test]
+    async fn group_list_members_empty() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-empty", "alice", "empty group")
+            .await
+            .unwrap();
+        let members = store.list_group_members("grp-empty").await.unwrap();
+        assert!(
+            members.is_empty(),
+            "newly created group must have no members"
+        );
+    }
+
+    /// member_count reflects the number of members added.
+    #[tokio::test]
+    async fn group_member_count() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-count", "alice", "count test")
+            .await
+            .unwrap();
+        assert_eq!(
+            store.member_count("grp-count").await.unwrap(),
+            0,
+            "new group must have 0 members"
+        );
+        store.add_group_member("grp-count", "bob").await.unwrap();
+        assert_eq!(
+            store.member_count("grp-count").await.unwrap(),
+            1,
+            "after adding bob, count must be 1"
+        );
+        store.add_group_member("grp-count", "carol").await.unwrap();
+        assert_eq!(
+            store.member_count("grp-count").await.unwrap(),
+            2,
+            "after adding carol, count must be 2"
+        );
+    }
+
+    /// remove_group_member: membership is gone after remove; other members unaffected.
+    #[tokio::test]
+    async fn group_remove_member() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-rm", "alice", "remove test")
+            .await
+            .unwrap();
+        store.add_group_member("grp-rm", "bob").await.unwrap();
+        store.add_group_member("grp-rm", "carol").await.unwrap();
+
+        store.remove_group_member("grp-rm", "bob").await.unwrap();
+
+        assert!(
+            !store.is_group_member("grp-rm", "bob").await.unwrap(),
+            "bob must not be a member after removal"
+        );
+        assert!(
+            store.is_group_member("grp-rm", "carol").await.unwrap(),
+            "carol must still be a member"
+        );
+    }
+
+    /// remove_group_member on a non-member is a no-op (not an error).
+    #[tokio::test]
+    async fn group_remove_nonmember_is_noop() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-rm-noop", "alice", "noop test")
+            .await
+            .unwrap();
+        // Removing someone who was never added must not fail.
+        store
+            .remove_group_member("grp-rm-noop", "nobody")
+            .await
+            .unwrap();
+    }
+
+    /// delete_group removes both the group row and all membership rows.
+    ///
+    /// Oracle: after delete, get_group returns None and list_group_members
+    /// returns empty — verified against literals, not against the same
+    /// store path used to write them.
+    #[tokio::test]
+    async fn group_delete_cascades() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-del", "alice", "delete test")
+            .await
+            .unwrap();
+        store.add_group_member("grp-del", "bob").await.unwrap();
+        store.add_group_member("grp-del", "carol").await.unwrap();
+
+        store.delete_group("grp-del").await.unwrap();
+
+        let group = store.get_group("grp-del").await.unwrap();
+        assert!(group.is_none(), "group row must be deleted");
+
+        // Verify directly that no orphan membership rows remain.
+        let orphan_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = 'grp-del'")
+                .fetch_one(&store.pool)
+                .await
+                .unwrap();
+        assert_eq!(
+            orphan_count, 0,
+            "delete_group must remove all group_members rows"
+        );
+    }
+
+    /// list_groups_for_user returns groups the user belongs to, not others.
+    #[tokio::test]
+    async fn group_list_for_user() {
+        let (store, _f) = make_store().await;
+        store
+            .create_group("grp-a", "alice", "group a")
+            .await
+            .unwrap();
+        store
+            .create_group("grp-b", "alice", "group b")
+            .await
+            .unwrap();
+        store
+            .create_group("grp-c", "alice", "group c")
+            .await
+            .unwrap();
+
+        store.add_group_member("grp-a", "bob").await.unwrap();
+        store.add_group_member("grp-b", "bob").await.unwrap();
+        store.add_group_member("grp-c", "carol").await.unwrap();
+
+        let mut groups = store.list_groups_for_user("bob").await.unwrap();
+        groups.sort_by(|a, b| a.group_id.cmp(&b.group_id));
+        let ids: Vec<&str> = groups.iter().map(|g| g.group_id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec!["grp-a", "grp-b"],
+            "bob must be in grp-a and grp-b only"
+        );
+
+        let carol_groups = store.list_groups_for_user("carol").await.unwrap();
+        assert_eq!(carol_groups.len(), 1);
+        assert_eq!(carol_groups[0].group_id, "grp-c");
+    }
+}

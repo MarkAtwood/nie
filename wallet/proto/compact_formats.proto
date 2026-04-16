@@ -1,0 +1,58 @@
+// Compact block and transaction types for the Zcash light-client protocol.
+// Source: ECC lightwalletd / zcash/lightwalletd (Apache-2.0).
+// Only the subset needed by the compact-block scanner is included here.
+syntax = "proto3";
+package cash.z.wallet.sdk.rpc;
+
+// CompactBlock is the minimum block data needed for a viewer-key wallet to
+// trial-decrypt its own transactions.  The full block is not exposed.
+message CompactBlock {
+    uint32 protoVersion  = 1; // encoding version
+    uint64 height        = 2; // block height
+    bytes  hash          = 3; // block id (same bytes as zcashd block hash, little-endian)
+    bytes  prevHash      = 4; // previous block hash
+    uint32 time          = 5; // Unix epoch seconds when the block was mined
+    bytes  header        = 6; // equihash solution + nonce (partial header)
+    repeated CompactTx vtx = 7;
+    ChainMetadata chainMetadata = 8;
+}
+
+// ChainMetadata carries note-commitment tree sizes, required for witness
+// path construction when scanning.
+message ChainMetadata {
+    uint32 saplingCommitmentTreeSize = 1;
+    uint32 orchardCommitmentTreeSize = 2;
+}
+
+// CompactTx is the minimum per-transaction data for trial decryption.
+message CompactTx {
+    uint64 index = 1; // 0-based index within the block
+    bytes  hash  = 2; // txid (little-endian)
+    uint32 fee   = 3; // miner fee; 0 if server cannot provide
+
+    repeated CompactSaplingSpend  spends  = 4;
+    repeated CompactSaplingOutput outputs = 5;
+    repeated CompactOrchardAction actions = 6;
+}
+
+// CompactSaplingSpend carries only the nullifier so the wallet can check
+// whether it spent a previously received note.
+message CompactSaplingSpend {
+    bytes nf = 1; // 32-byte Sapling nullifier
+}
+
+// CompactSaplingOutput is the 64-byte ZIP-307 compact output format.
+// The wallet performs trial decryption using its incoming viewing key.
+message CompactSaplingOutput {
+    bytes cmu          = 1; // note commitment u-coordinate (32 bytes)
+    bytes ephemeralKey = 2; // ephemeral public key (32 bytes)
+    bytes ciphertext   = 3; // first 52 bytes of enc_ciphertext
+}
+
+// CompactOrchardAction is the Orchard equivalent of CompactSaplingOutput.
+message CompactOrchardAction {
+    bytes nullifier    = 1; // nf (32 bytes)
+    bytes cmx          = 2; // note commitment x-coordinate (32 bytes)
+    bytes ephemeralKey = 3; // ephemeral public key (32 bytes)
+    bytes ciphertext   = 4; // first 52 bytes of enc_ciphertext
+}

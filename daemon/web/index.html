@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nie — encrypted relay</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+#status-bar { background: #16213e; padding: 6px 12px; font-size: 12px; color: #888; border-bottom: 1px solid #0f3460; }
+#status-bar span { margin-right: 16px; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#users-panel { width: 200px; background: #16213e; border-right: 1px solid #0f3460; display: flex; flex-direction: column; }
+#users-panel h3 { padding: 8px 12px; font-size: 12px; color: #888; border-bottom: 1px solid #0f3460; text-transform: uppercase; }
+#users-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.user-item { padding: 6px 12px; font-size: 13px; cursor: default; }
+.user-item.online { color: #4ade80; }
+.user-item.offline { color: #666; }
+.user-item .seq { font-size: 10px; color: #555; margin-left: 4px; }
+#chat-panel { flex: 1; display: flex; flex-direction: column; }
+#messages { flex: 1; overflow-y: auto; padding: 12px; }
+.msg { margin-bottom: 8px; font-size: 14px; line-height: 1.4; }
+.msg .from { color: #60a5fa; font-size: 11px; margin-bottom: 2px; }
+.msg .from.me { color: #4ade80; }
+.msg .text { padding-left: 8px; word-break: break-word; }
+.msg .text.system { color: #888; font-style: italic; }
+#input-area { padding: 8px 12px; border-top: 1px solid #0f3460; display: flex; gap: 8px; background: #16213e; }
+#msg-input { flex: 1; background: #0f3460; border: 1px solid #1e4080; border-radius: 4px; color: #e0e0e0; padding: 6px 10px; font-family: monospace; font-size: 14px; outline: none; }
+#msg-input:focus { border-color: #60a5fa; }
+#send-btn { background: #0f3460; border: 1px solid #1e4080; border-radius: 4px; color: #60a5fa; padding: 6px 14px; font-family: monospace; cursor: pointer; }
+#send-btn:hover { background: #1e4080; }
+#wallet-panel { width: 200px; background: #16213e; border-left: 1px solid #0f3460; padding: 12px; }
+#wallet-panel h3 { font-size: 12px; color: #888; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #0f3460; padding-bottom: 6px; }
+.wallet-coming { color: #666; font-size: 12px; font-style: italic; }
+#token-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; z-index: 100; }
+#token-modal.show { display: flex; }
+#token-box { background: #16213e; border: 1px solid #0f3460; border-radius: 8px; padding: 24px; width: 400px; }
+#token-box h2 { margin-bottom: 12px; color: #60a5fa; }
+#token-box p { color: #888; font-size: 13px; margin-bottom: 16px; }
+#token-input { width: 100%; background: #0f3460; border: 1px solid #1e4080; border-radius: 4px; color: #e0e0e0; padding: 8px 10px; font-family: monospace; font-size: 14px; outline: none; margin-bottom: 12px; }
+#token-save-btn { background: #0f3460; border: 1px solid #1e4080; border-radius: 4px; color: #4ade80; padding: 8px 16px; font-family: monospace; cursor: pointer; width: 100%; }
+</style>
+</head>
+<body>
+
+<div id="status-bar">
+  <span id="pub-id-display">connecting…</span>
+  <span id="conn-status">●</span>
+</div>
+
+<div id="main">
+  <div id="users-panel">
+    <h3>Users</h3>
+    <div id="users-list"></div>
+  </div>
+
+  <div id="chat-panel">
+    <div id="messages"></div>
+    <div id="input-area">
+      <input id="msg-input" type="text" placeholder="Type a message…" autocomplete="off" />
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+
+  <div id="wallet-panel">
+    <h3>Wallet</h3>
+    <p class="wallet-coming">Coming in Phase 2</p>
+  </div>
+</div>
+
+<div id="token-modal">
+  <div id="token-box">
+    <h2>nie daemon token</h2>
+    <p>Enter the token from your daemon.token file<br>(~/.local/share/nie/daemon.token)</p>
+    <input id="token-input" type="password" placeholder="Paste token here…" />
+    <button id="token-save-btn">Connect</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+const TOKEN_KEY = 'nie_daemon_token';
+const DAEMON_URL = `${window.location.protocol}//${window.location.host}`;
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/events`;
+
+let myPubId = null;
+let ws = null;
+let onlineUsers = [];
+
+// --- Token management ---
+function getToken() { return localStorage.getItem(TOKEN_KEY) || ''; }
+function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+function showTokenModal() {
+  document.getElementById('token-modal').classList.add('show');
+  document.getElementById('token-input').focus();
+}
+function hideTokenModal() {
+  document.getElementById('token-modal').classList.remove('show');
+}
+
+document.getElementById('token-save-btn').addEventListener('click', () => {
+  const t = document.getElementById('token-input').value.trim();
+  if (!t) return;
+  setToken(t);
+  hideTokenModal();
+  init();
+});
+document.getElementById('token-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('token-save-btn').click();
+});
+
+// --- API helpers ---
+async function apiFetch(path, opts = {}) {
+  const token = getToken();
+  const res = await fetch(DAEMON_URL + path, {
+    ...opts,
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      ...(opts.headers || {}),
+    },
+  });
+  if (res.status === 401) {
+    clearToken();
+    showTokenModal();
+    throw new Error('unauthorized');
+  }
+  return res;
+}
+
+// --- Chat display ---
+function appendMessage(from, displayName, text, isMe) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  const fromEl = document.createElement('div');
+  fromEl.className = 'from' + (isMe ? ' me' : '');
+  fromEl.textContent = displayName || from.slice(0, 8) + '\u2026';
+  const textEl = document.createElement('div');
+  textEl.className = 'text';
+  textEl.textContent = text;
+  div.appendChild(fromEl);
+  div.appendChild(textEl);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendSystem(text) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  const textEl = document.createElement('div');
+  textEl.className = 'text system';
+  textEl.textContent = text;
+  div.appendChild(textEl);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// --- Users panel ---
+function renderUsers() {
+  const list = document.getElementById('users-list');
+  list.innerHTML = '';
+  onlineUsers.forEach(u => {
+    const el = document.createElement('div');
+    el.className = 'user-item online';
+    el.title = u.pub_id;
+    el.textContent = u.display_name || u.pub_id.slice(0, 8) + '\u2026';
+    const seq = document.createElement('span');
+    seq.className = 'seq';
+    seq.textContent = '#' + u.sequence;
+    el.appendChild(seq);
+    list.appendChild(el);
+  });
+}
+
+// --- WebSocket ---
+function connectWs() {
+  const token = getToken();
+  if (!token) return;
+  // Send token as query param (browser WebSocket API does not support custom headers)
+  const url = WS_URL + '?token=' + encodeURIComponent(token);
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    document.getElementById('conn-status').textContent = '● connected';
+    document.getElementById('conn-status').style.color = '#4ade80';
+  };
+
+  ws.onclose = () => {
+    document.getElementById('conn-status').textContent = '● disconnected';
+    document.getElementById('conn-status').style.color = '#f87171';
+    setTimeout(connectWs, 3000);
+  };
+
+  ws.onerror = () => {
+    document.getElementById('conn-status').textContent = '● error';
+    document.getElementById('conn-status').style.color = '#f87171';
+  };
+
+  ws.onmessage = (event) => {
+    let msg;
+    try { msg = JSON.parse(event.data); } catch(e) {
+      console.error('malformed daemon event:', e);
+      return;
+    }
+    switch (msg.type) {
+      case 'message_received':
+        appendMessage(msg.from, msg.from_display_name, msg.text, msg.from === myPubId);
+        break;
+      case 'user_joined': {
+        appendSystem(`${msg.display_name || msg.pub_id.slice(0,8)+'\u2026'} joined`);
+        // Insert maintaining sequence order
+        const pos = onlineUsers.findIndex(u => u.sequence > msg.sequence);
+        if (pos === -1) onlineUsers.push({pub_id: msg.pub_id, display_name: msg.display_name, sequence: msg.sequence});
+        else onlineUsers.splice(pos, 0, {pub_id: msg.pub_id, display_name: msg.display_name, sequence: msg.sequence});
+        renderUsers();
+        break;
+      }
+      case 'user_left':
+        appendSystem(`${msg.display_name || msg.pub_id.slice(0,8)+'\u2026'} left`);
+        onlineUsers = onlineUsers.filter(u => u.pub_id !== msg.pub_id);
+        renderUsers();
+        break;
+      case 'directory_updated':
+        onlineUsers = msg.online || [];
+        renderUsers();
+        break;
+      case 'connection_state_changed':
+        if (msg.status === 'reconnecting') appendSystem('relay reconnecting\u2026');
+        if (msg.status === 'connected') appendSystem('relay connected');
+        break;
+      default:
+        console.debug('unknown event type:', msg.type);
+    }
+  };
+}
+
+// --- Send message ---
+async function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  try {
+    const res = await apiFetch('/api/send', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      appendSystem(`send failed: ${err.message || res.status}`);
+    }
+  } catch(e) {
+    if (e.message !== 'unauthorized') {
+      appendSystem(`send error: ${e.message}`);
+    }
+  }
+}
+
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+document.getElementById('msg-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// --- Init ---
+async function init() {
+  const token = getToken();
+  if (!token) { showTokenModal(); return; }
+
+  try {
+    // Load own identity
+    const res = await apiFetch('/api/whoami');
+    if (res.ok) {
+      const data = await res.json();
+      myPubId = data.pub_id;
+      document.getElementById('pub-id-display').textContent =
+        (data.display_name || data.pub_id.slice(0,8)+'\u2026') + ' \u2014 ' + data.pub_id.slice(0,16)+'\u2026';
+    }
+  } catch(e) { return; }
+
+  try {
+    // Load users
+    const res = await apiFetch('/api/users');
+    if (res.ok) {
+      const data = await res.json();
+      onlineUsers = data.online || [];
+      renderUsers();
+    }
+  } catch(e) { /* non-fatal */ }
+
+  // Connect WebSocket
+  connectWs();
+}
+
+// Start on load
+init();
+</script>
+</body>
+</html>

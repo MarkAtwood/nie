@@ -1,0 +1,50 @@
+[package]
+name = "nie-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+bip39.workspace = true
+blake2b_simd.workspace = true
+chrono.workspace = true
+ed25519-dalek.workspace = true
+x25519-dalek.workspace = true
+hpke.workspace = true
+sha2.workspace = true
+futures.workspace = true
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_with.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+# uuid used by messages.rs (unconditional); works on wasm32 via getrandom/js below
+uuid.workspace = true
+
+# transport uses tokio-tungstenite, tokio-socks, native-tls — not available in wasm32
+# keyfile uses std::fs and rpassword — not available in wasm32
+# age (used by keyfile.rs) brings in scrypt which is fragile in wasm32 — not available in wasm32
+# mls (openmls, openmls_rust_crypto, openmls_basic_credential, tls_codec) — gated with mls module
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+age.workspace = true
+tokio.workspace = true
+tokio-socks.workspace = true
+tokio-tungstenite.workspace = true
+native-tls.workspace = true
+rpassword.workspace = true
+openmls.workspace = true
+openmls_rust_crypto.workspace = true
+openmls_basic_credential.workspace = true
+tls_codec.workspace = true
+
+# getrandom/js provides entropy for rand/uuid on wasm32
+# uuid needs "js" feature explicitly to select the wasm-compatible RNG backend
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+uuid = { workspace = true, features = ["js"] }

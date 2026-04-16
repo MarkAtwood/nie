@@ -1,0 +1,106 @@
+[workspace]
+members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+[workspace.dependencies]
+nie-core = { path = "core" }
+nie-wallet = { path = "wallet" }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_with = { version = "3", features = ["base64"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Crypto / identity
+ed25519-dalek = { version = "2", features = ["serde", "rand_core"] }
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+hpke = { version = "0.12", features = ["alloc", "x25519"] }
+rand = "0.8"
+base64 = "0.22"
+sha2 = "0.10"
+
+# Crypto / wallet (ZIP-32 Sapling key derivation)
+bip39 = "2"
+blake2b_simd = "1"
+# sapling-crypto 0.6.2 on crates.io still depends on the yanked core2 = 0.3.x.
+# The main branch at this rev uses corez 0.1.1 instead.  Pin the rev for
+# reproducibility; bump when ECC publishes a fixed release to crates.io.
+sapling = { package = "sapling-crypto", git = "https://github.com/zcash/sapling-crypto.git", rev = "b8a81c22f034d68f9bbd6cba728aab807b9ba2ea", default-features = false }
+zip32 = { version = "0.2", default-features = false }
+# jubjub scalar field (Fq/Fr): needed for Rseed::BeforeZip212 (pre-ZIP-212 note trapdoor).
+jubjub = "0.10"
+# PrimeField trait for jubjub::Fr::to_repr() used in SaplingIvkDecryptor.
+ff = "0.13"
+# Sapling/Orchard in-band note encryption types (ShieldedOutput, EphemeralKeyBytes, COMPACT_NOTE_SIZE).
+# Transitively depended on by sapling-crypto; pinned here so scanner.rs can implement ShieldedOutput.
+zcash_note_encryption = "0.4"
+# orchard 0.12 on crates.io uses the yanked core2.  Pin the git rev that uses corez.
+# This is the same rev librustzcash/main uses in its [patch.crates-io].
+orchard = { git = "https://github.com/zcash/orchard.git", rev = "b0bf2670e248958c6ce7c1deed466032e0dbd4d9", default-features = false }
+# zcash_address, zcash_primitives, and zcash_protocol from librustzcash main (corez, not core2).
+# Pinned to rev d8491512 for reproducibility.
+zcash_address = { git = "https://github.com/zcash/librustzcash", rev = "d8491512" }
+zcash_primitives = { git = "https://github.com/zcash/librustzcash", rev = "d8491512" }
+zcash_protocol = { git = "https://github.com/zcash/librustzcash", rev = "d8491512" }
+# TransparentSigningSet is needed to call builder.build() even with no transparent inputs.
+zcash_transparent = { git = "https://github.com/zcash/librustzcash", rev = "d8491512" }
+# incrementalmerkletree is a transitive dep of zcash_primitives; pinned here so wallet
+# can use IncrementalWitness directly (needed for witness_data deserialization).
+incrementalmerkletree = { version = "0.8", features = ["legacy-api"] }
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono", "uuid", "macros"] }
+
+# Networking
+axum = { version = "0.8", features = ["ws"] }
+tower-http = { version = "0.6", features = [] }
+tokio-socks = "0.5"
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+native-tls = "0.2"
+
+# MLS
+openmls = { version = "0.8", features = [] }
+openmls_rust_crypto = "0.5"
+openmls_basic_credential = "0.5"
+tls_codec = "0.4"
+
+# Concurrent data structures
+dashmap = "6"
+
+# Utilities
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+age = "0.10"
+rpassword = "7"
+toml = "0.8"
+rustyline = "15"
+ratatui = "0.30"
+crossterm = { version = "0.28", features = ["event-stream"] }
+tui-input = "0.15"
+dirs = "5"
+shlex = "1"
+
+# Patch crates.io to use the same git revs as librustzcash/main.
+# sapling-crypto 0.6.2 and orchard 0.12 on crates.io depend on the yanked core2 = 0.3.x.
+# These patches redirect any transitive dependency on those packages (e.g. from
+# zcash_primitives) to the corez-clean git revs we already use directly.
+[patch.crates-io]
+sapling-crypto = { git = "https://github.com/zcash/sapling-crypto.git", rev = "b8a81c22f034d68f9bbd6cba728aab807b9ba2ea" }
+orchard = { git = "https://github.com/zcash/orchard.git", rev = "b0bf2670e248958c6ce7c1deed466032e0dbd4d9" }

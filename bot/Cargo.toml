@@ -1,0 +1,33 @@
+[package]
+name = "nie-bot"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "nie-bot"
+path = "src/main.rs"
+
+[dependencies]
+nie-core.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+age.workspace = true
+rpassword.workspace = true
+toml.workspace = true
+uuid.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+clap = { version = "4", features = ["derive"] }
+dirs = "5"
+shlex = "1"
+
+[dev-dependencies]
+base64.workspace = true
+nie-relay = { path = "../relay" }
+axum.workspace = true
+tempfile = "3"

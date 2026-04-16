@@ -1,0 +1,22 @@
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+
+# Rust build artifacts
+target/
+
+# Python
+__pycache__/
+*.pyc
+
+# Archives
+*.zip
+
+# Identity key (never commit secrets)
+identity.key
+
+# Coordinator audit logs and agent worktrees
+audit/
+.claude/worktrees/

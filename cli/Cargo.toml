@@ -1,0 +1,43 @@
+[package]
+name = "nie-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "nie_cli_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "nie"
+path = "src/main.rs"
+
+[dependencies]
+nie-core.workspace = true
+nie-wallet = { path = "../wallet" }
+anyhow.workspace = true
+clap = { version = "4", features = ["derive"] }
+age.workspace = true
+dirs.workspace = true
+rpassword.workspace = true
+sqlx.workspace = true
+serde.workspace = true
+openmls.workspace = true
+openmls_rust_crypto.workspace = true
+openmls_basic_credential.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+chrono.workspace = true
+toml.workspace = true
+rustyline.workspace = true
+uuid.workspace = true
+dashmap.workspace = true
+shlex.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+nie-relay = { path = "../relay" }
+axum = { workspace = true }
+tokio = { workspace = true }

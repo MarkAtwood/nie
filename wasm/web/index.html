@@ -1,0 +1,286 @@
+<!--
+  nie WASM browser client
+
+  Build WASM first:
+    wasm-pack build --target web wasm/
+
+  Then serve this directory:
+    python3 -m http.server --directory wasm/web 8080
+    # Then open http://localhost:8080
+
+  Or use the pkg/ output directly as an npm package.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>nie (browser)</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: monospace; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+#status-bar { background: #16213e; padding: 6px 12px; font-size: 12px; color: #888; border-bottom: 1px solid #0f3460; display: flex; align-items: center; gap: 12px; }
+#status-bar span { margin-right: 4px; }
+#relay-url { background: #0f3460; border: 1px solid #1e4080; border-radius: 4px; color: #e0e0e0; padding: 3px 8px; font-family: monospace; font-size: 12px; outline: none; width: 280px; }
+#relay-url:focus { border-color: #60a5fa; }
+#connect-btn { background: #0f3460; border: 1px solid #1e4080; border-radius: 4px; color: #4ade80; padding: 3px 10px; font-family: monospace; font-size: 12px; cursor: pointer; }
+#connect-btn:hover:not(:disabled) { background: #1e4080; }
+#connect-btn:disabled { color: #555; cursor: default; }
+#conn-status { color: #888; }
+#conn-status.connected { color: #4ade80; }
+#conn-status.error { color: #f87171; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#users-panel { width: 200px; background: #16213e; border-right: 1px solid #0f3460; display: flex; flex-direction: column; }
+#users-panel h3 { padding: 8px 12px; font-size: 12px; color: #888; border-bottom: 1px solid #0f3460; text-transform: uppercase; }
+#user-list { flex: 1; overflow-y: auto; padding: 4px 0; list-style: none; }
+.user-item { padding: 6px 12px; font-size: 13px; cursor: default; color: #4ade80; }
+.user-item .seq { font-size: 10px; color: #555; margin-left: 4px; }
+#chat-panel { flex: 1; display: flex; flex-direction: column; }
+#messages { flex: 1; overflow-y: auto; padding: 12px; }
+.msg { margin-bottom: 8px; font-size: 14px; line-height: 1.4; }
+.msg .from { color: #60a5fa; font-size: 11px; margin-bottom: 2px; }
+.msg .from.me { color: #4ade80; }
+.msg .text { padding-left: 8px; word-break: break-word; }
+.msg .text.system { color: #888; font-style: italic; }
+#input-area { padding: 8px 12px; border-top: 1px solid #0f3460; display: flex; gap: 8px; background: #16213e; }
+#msg-input { flex: 1; background: #0f3460; border: 1px solid #1e4080; border-radius: 4px; color: #e0e0e0; padding: 6px 10px; font-family: monospace; font-size: 14px; outline: none; }
+#msg-input:focus { border-color: #60a5fa; }
+#send-btn { background: #0f3460; border: 1px solid #1e4080; border-radius: 4px; color: #60a5fa; padding: 6px 14px; font-family: monospace; cursor: pointer; }
+#send-btn:hover { background: #1e4080; }
+#wallet-panel { width: 200px; background: #16213e; border-left: 1px solid #0f3460; padding: 12px; }
+#wallet-panel h3 { font-size: 12px; color: #888; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #0f3460; padding-bottom: 6px; }
+.wallet-coming { color: #666; font-size: 12px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div id="status-bar">
+  <span id="conn-status">●</span>
+  <span id="my-pub-id">loading…</span>
+  <input id="relay-url" type="text" placeholder="wss://relay.example.com/ws" />
+  <button id="connect-btn">Connect</button>
+</div>
+
+<div id="main">
+  <div id="users-panel">
+    <h3>Users</h3>
+    <ul id="user-list"></ul>
+  </div>
+
+  <div id="chat-panel">
+    <div id="messages"></div>
+    <div id="input-area">
+      <input id="msg-input" type="text" placeholder="Type a message…" autocomplete="off" />
+      <button id="send-btn">Send</button>
+    </div>
+  </div>
+
+  <div id="wallet-panel">
+    <h3>Wallet</h3>
+    <p class="wallet-coming">Coming in Phase 2</p>
+  </div>
+</div>
+
+<script type="module">
+import init, { NieClient, generate_identity, pub_id_from_secret, save_identity, load_identity } from './pkg/nie_wasm.js';
+
+let client = null;
+let myPubId = null;
+let secretB64 = null;
+let onlineUsers = [];
+
+// --- Identity helpers ---
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function shortId(pubId) {
+  return pubId.substring(0, 8) + '\u2026';
+}
+
+// --- Chat display ---
+function appendMessage(from, displayName, text, isMe) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  const fromEl = document.createElement('div');
+  fromEl.className = 'from' + (isMe ? ' me' : '');
+  fromEl.textContent = displayName || shortId(from);
+  const textEl = document.createElement('div');
+  textEl.className = 'text';
+  textEl.textContent = text;
+  div.appendChild(fromEl);
+  div.appendChild(textEl);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendSystem(text) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  const textEl = document.createElement('div');
+  textEl.className = 'text system';
+  textEl.textContent = text;
+  div.appendChild(textEl);
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// --- Users panel ---
+function renderUsers(users) {
+  onlineUsers = users;
+  const list = document.getElementById('user-list');
+  list.innerHTML = '';
+  // Sort ascending by sequence — online[0] is the MLS admin (lowest seq = connected earliest)
+  const sorted = [...users].sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+  sorted.forEach((u, i) => {
+    const li = document.createElement('li');
+    li.className = 'user-item';
+    li.title = u.pub_id;
+    const name = document.createTextNode(
+      (u.nickname || shortId(u.pub_id)) + (i === 0 ? ' \u2605' : '')
+    );
+    const seq = document.createElement('span');
+    seq.className = 'seq';
+    seq.textContent = '#' + (u.sequence || 0);
+    li.appendChild(name);
+    li.appendChild(seq);
+    list.appendChild(li);
+  });
+}
+
+// --- Event handler (receives a JS object from NieClient.on_event) ---
+function handleEvent(event) {
+  switch (event.type) {
+    case 'message_received':
+      appendMessage(
+        event.from,
+        event.from_nickname || event.nickname || null,
+        event.text,
+        event.from === myPubId
+      );
+      break;
+
+    case 'whisper_received':
+      appendMessage(
+        event.from,
+        '[DM] ' + (event.from_nickname || shortId(event.from)),
+        event.text,
+        false
+      );
+      break;
+
+    case 'user_joined': {
+      appendSystem((event.nickname || shortId(event.pub_id)) + ' joined');
+      // Insert maintaining ascending sequence order (MLS admin election invariant)
+      const pos = onlineUsers.findIndex(u => (u.sequence || 0) > (event.sequence || 0));
+      const entry = { pub_id: event.pub_id, nickname: event.nickname || null, sequence: event.sequence || 0 };
+      if (pos === -1) onlineUsers.push(entry);
+      else onlineUsers.splice(pos, 0, entry);
+      renderUsers(onlineUsers);
+      break;
+    }
+
+    case 'user_left':
+      appendSystem((event.nickname || shortId(event.pub_id)) + ' left');
+      onlineUsers = onlineUsers.filter(u => u.pub_id !== event.pub_id);
+      renderUsers(onlineUsers);
+      break;
+
+    case 'directory_updated':
+      renderUsers(event.online || []);
+      break;
+
+    case 'user_nickname': {
+      const u = onlineUsers.find(u => u.pub_id === event.pub_id);
+      if (u) u.nickname = event.nickname;
+      renderUsers(onlineUsers);
+      break;
+    }
+
+    case 'key_package_ready':
+      // MLS key package published — no UI action needed in Phase 1
+      break;
+
+    default:
+      console.debug('unknown event type:', event.type);
+  }
+}
+
+// --- Connect ---
+async function connect() {
+  const relayUrl = document.getElementById('relay-url').value.trim();
+  if (!relayUrl) { appendSystem('Enter a relay URL before connecting.'); return; }
+
+  appendSystem('Connecting to ' + relayUrl + '\u2026');
+  const btn = document.getElementById('connect-btn');
+  btn.disabled = true;
+  btn.textContent = 'Connecting\u2026';
+
+  const connStatus = document.getElementById('conn-status');
+
+  client = new NieClient();
+  try {
+    const pubId = await client.connect(relayUrl, secretB64);
+    myPubId = pubId;
+    document.getElementById('my-pub-id').textContent = shortId(pubId);
+    appendSystem('Connected. pub_id: ' + shortId(pubId));
+    btn.textContent = 'Connected';
+    connStatus.textContent = '● connected';
+    connStatus.className = 'connected';
+
+    client.on_event(handleEvent);
+  } catch (e) {
+    appendSystem('Connection failed: ' + e);
+    btn.disabled = false;
+    btn.textContent = 'Connect';
+    connStatus.textContent = '● error';
+    connStatus.className = 'error';
+    client = null;
+  }
+}
+
+// --- Send message ---
+async function sendMessage() {
+  if (!client) { appendSystem('Not connected.'); return; }
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  try {
+    await client.send_message(text);
+  } catch (e) {
+    appendSystem('Send failed: ' + e);
+  }
+}
+
+// --- Wire up UI ---
+document.getElementById('connect-btn').addEventListener('click', connect);
+document.getElementById('send-btn').addEventListener('click', sendMessage);
+document.getElementById('msg-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// --- Main: load WASM, load or generate identity ---
+async function main() {
+  // Initialise WASM module (sets up panic hook via #[wasm_bindgen(start)])
+  await init();
+
+  secretB64 = await load_identity();
+  if (!secretB64) {
+    secretB64 = generate_identity();
+    await save_identity(secretB64);
+    appendSystem('New identity generated and saved.');
+  } else {
+    appendSystem('Identity loaded from storage.');
+  }
+
+  myPubId = pub_id_from_secret(secretB64);
+  document.getElementById('my-pub-id').textContent = shortId(myPubId);
+}
+
+main().catch(e => appendSystem('Init error: ' + e));
+</script>
+</body>
+</html>

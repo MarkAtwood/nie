@@ -1,0 +1,61 @@
+[package]
+name = "nie-wallet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+nie-core.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+blake2b_simd.workspace = true
+# Synchronous minimal HTTP client for Sapling params download (nie-bqe).
+# Used only at wallet-init time; blocking is fine for a one-shot startup download.
+minreq = { version = "2", features = ["https"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+# gRPC client for lightwalletd compact-block streaming (nie-ol7)
+tonic = { version = "0.12", features = ["tls", "tls-roots"] }
+prost = "0.13"
+
+# Zcash Sapling key derivation and address types (nie-fz7).
+# sapling-crypto provides ZIP-32 ExtendedSpendingKey, DiversifiableFullViewingKey,
+# PaymentAddress.  zip32 provides ChildIndex, DiversifierIndex.
+# Both use corez (not the yanked core2) at the pinned git rev.
+# "circuit" feature adds SpendParameters/OutputParameters from bellman/groth16,
+# required for spend proof generation in build_shielded_tx (nie-wdw).
+sapling = { workspace = true, features = ["circuit"] }
+# jubjub scalar field: needed for Rseed::BeforeZip212(jubjub::Fr) (pre-ZIP-212 notes).
+jubjub.workspace = true
+# PrimeField trait for jubjub::Fr::to_repr() in SaplingIvkDecryptor.
+ff.workspace = true
+# OsRng for transaction building (nie-wdw.7).
+rand.workspace = true
+zip32.workspace = true
+# Orchard key derivation and payment address (nie-1ws).
+orchard.workspace = true
+# ZIP-316 Unified Address encoding/decoding (nie-adl).
+zcash_address.workspace = true
+# Transaction building: spend proofs, SaplingBuilder, Orchard bundle (nie-wdw).
+zcash_primitives.workspace = true
+zcash_protocol.workspace = true
+# TransparentSigningSet: required by builder.build() even when there are no transparent inputs.
+zcash_transparent.workspace = true
+# IncrementalWitness deserialization for note spending (nie-wdw.4).
+incrementalmerkletree.workspace = true
+# ShieldedOutput, EphemeralKeyBytes, COMPACT_NOTE_SIZE for SaplingIvkDecryptor in scanner.rs.
+zcash_note_encryption.workspace = true
+
+[build-dependencies]
+tonic-build = "0.12"
+
+[dev-dependencies]
+tempfile = "3"
+proptest = "1"
