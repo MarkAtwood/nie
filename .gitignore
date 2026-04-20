@@ -17,6 +17,9 @@ __pycache__/
 # Identity key (never commit secrets)
 identity.key
 
+# Agent instruction files (local tooling only, not for contributors)
+AGENTS.md
+
 # Coordinator audit logs and agent worktrees
 audit/
 .claude/worktrees/

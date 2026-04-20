@@ -282,6 +282,14 @@ Payment negotiation travels inside encrypted MLS messages — the relay routes o
 
 > **Note:** `--network testnet` is the default during Phase 2 development. Mainnet support is planned for Phase 3 and will require an explicit `--network mainnet` flag.
 
+## Future projects
+
+- **Additional coin types.** Monero (XMR) is the obvious next target — ring signatures + stealth addresses pair well with the existing shielded-payment model. Bitcoin Lightning and MobileCoin are also candidates depending on demand.
+- **Native desktop apps.** A proper GUI client for macOS, Windows, and Linux — something people can install without touching a terminal.
+- **Matrix bridge.** A bridge bot that connects nie rooms to Matrix/Element, so users on either side can talk without both adopting the same client.
+- **Better file transfer.** Chunked, resumable file sends with progress reporting. The current `/cat` command is a stopgap.
+- **1:1 video calls.** Peer-to-peer WebRTC video/audio, negotiated in-band over the existing encrypted message channel. The relay stays blind to call content.
+
 ## License
 
 MIT

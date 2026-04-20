@@ -1,5 +1,9 @@
 # Agent Instructions
 
+See [DESIGN.md](DESIGN.md) for hard design invariants, the defensive
+programming checklist, wallet security rules, and MLS architectural
+constraints. These are load-bearing — do not violate them.
+
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
 
 ## Quick Reference
