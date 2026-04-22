@@ -375,31 +375,16 @@ pub async fn handle_relay_event(
                         }
                     };
 
-                    // Wire format: 64 ASCII hex bytes (sender pub_id) || MLS ciphertext
-                    // Require strictly more than 64 bytes: 64 for sender pub_id plus at
-                    // least 1 byte of ciphertext payload.
-                    if plaintext.len() <= 64 {
-                        tracing::warn!(
-                            "sealed_deliver plaintext too short: {} bytes (need >64)",
-                            plaintext.len()
-                        );
-                        return Ok(());
-                    }
-                    let from = match std::str::from_utf8(&plaintext[..64]) {
-                        Ok(s) => s.to_string(),
-                        Err(_) => {
-                            tracing::warn!("sealed_deliver: sender pub_id not valid UTF-8");
-                            return Ok(());
-                        }
-                    };
-                    let mls_ciphertext = &plaintext[64..];
-
+                    // Sealed plaintext is just the MLS ciphertext — no prefix.
+                    // Sender identity is authenticated by MLS (process_incoming
+                    // returns the credential bytes) rather than the old self-asserted
+                    // 64-byte prefix that HPKE base mode cannot authenticate.
                     if !state.mls_active {
                         // Drop sealed messages that arrive before our Welcome.
                         return Ok(());
                     }
 
-                    decrypt_and_display(state, &from, mls_ciphertext).await?;
+                    decrypt_and_display(state, "", &plaintext).await?;
                 }
 
                 // ---- Whisper: DM or MLS Welcome ----
@@ -646,9 +631,12 @@ async fn decrypt_and_display(
     from_pub_id: &str,
     payload: &[u8],
 ) -> Result<()> {
-    let plaintext: Vec<u8> = if state.mls_active {
+    // When MLS is active, use the MLS-authenticated sender (returned by
+    // process_incoming). This prevents forged from-prefixes in sealed messages
+    // — HPKE base mode provides no sender auth, but MLS does.
+    let (plaintext, effective_from): (Vec<u8>, String) = if state.mls_active {
         match state.mls_client.process_incoming(payload) {
-            Ok(Some(pt)) => pt,
+            Ok(Some((pt, mls_sender))) => (pt, mls_sender),
             Ok(None) => {
                 // MLS Commit — group state updated, advance epoch.
                 tracing::debug!(
@@ -663,13 +651,13 @@ async fn decrypt_and_display(
             }
         }
     } else {
-        payload.to_vec()
+        (payload.to_vec(), from_pub_id.to_string())
     };
 
     match serde_json::from_slice::<ClearMessage>(&plaintext) {
         Ok(ClearMessage::Chat { text }) => {
             state.push_message(ChatLine::Chat {
-                from: from_pub_id.to_string(),
+                from: effective_from.clone(),
                 text,
                 ts: Utc::now(),
             });
@@ -678,12 +666,12 @@ async fn decrypt_and_display(
             if let Some(name) = fields.get("name") {
                 state
                     .nicknames
-                    .insert(from_pub_id.to_string(), name.clone());
+                    .insert(effective_from.clone(), name.clone());
             }
         }
         Ok(ClearMessage::Payment { session_id, action }) => {
             use nie_core::messages::{PaymentAction, PaymentState};
-            let from_name = state.display_name(from_pub_id).to_string();
+            let from_name = state.display_name(&effective_from).to_string();
             let overlay_text = match &action {
                 PaymentAction::Request { chain, amount_zatoshi } => {
                     // Receiving a Request from a peer creates a new payee session.
@@ -692,7 +680,7 @@ async fn decrypt_and_display(
                         id: session_id,
                         chain: *chain,
                         amount_zatoshi: *amount_zatoshi,
-                        peer_pub_id: from_pub_id.to_string(),
+                        peer_pub_id: effective_from.clone(),
                         role: nie_core::messages::PaymentRole::Payee,
                         state: nie_core::messages::PaymentState::Requested,
                         created_at: now,
@@ -2010,18 +1998,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sealed_deliver_exactly_64_byte_payload_is_dropped() {
+    async fn sealed_deliver_before_mls_active_is_dropped() {
         use nie_core::protocol::{JsonRpcNotification, SealedDeliverParams};
 
         let (hpke_sk, hpke_pk) = gen_hpke_keypair();
         let mls = MlsClient::new(&"a".repeat(64)).unwrap();
         let mut state = AppState::new("a".repeat(64), hpke_sk, hpke_pk, mls);
-        // mls_active = false — identity key is used for unsealing
+        // MLS not yet active — sealed messages cannot be decrypted and must be dropped.
         state.mls_active = false;
 
-        // Seal exactly 64 bytes so plaintext.len() == 64, which fails the > 64 check.
-        let plaintext = vec![0u8; 64];
-        let sealed = nie_core::hpke::seal_message(&hpke_pk, &plaintext).unwrap();
+        let plaintext = b"some sealed payload";
+        let sealed = nie_core::hpke::seal_message(&hpke_pk, plaintext).unwrap();
 
         let p = SealedDeliverParams { sealed };
         let (tx, _rx) = tokio::sync::mpsc::channel(16);
@@ -2031,11 +2018,11 @@ mod tests {
             .await
             .unwrap();
 
-        // No message must have been pushed — payload was dropped
+        // No message must have been pushed — sealed message dropped before MLS join.
         assert_eq!(
             state.messages.len(),
             msg_count_before,
-            "sealed_deliver with 64-byte plaintext must be silently dropped"
+            "sealed_deliver before mls_active must be silently dropped"
         );
     }
 

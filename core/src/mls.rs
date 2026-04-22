@@ -211,10 +211,18 @@ impl MlsClient {
 
     /// Process an incoming MLS message (Commit or ApplicationMessage) for the specified group.
     ///
-    /// Returns `Some(plaintext)` for application messages.
+    /// Returns `Some((plaintext, sender_pub_id))` for application messages, where
+    /// `sender_pub_id` is the MLS-authenticated sender identity (their BasicCredential
+    /// bytes, which are the hex pub_id). The sender identity is cryptographically
+    /// bound to the MLS group state — it cannot be forged by a third party.
+    ///
     /// Returns `None` for commits (state updated internally) and proposals.
     /// Returns an error if the message cannot be parsed or processed.
-    pub fn process_for_group(&mut self, group_id: &[u8], bytes: &[u8]) -> Result<Option<Vec<u8>>> {
+    pub fn process_for_group(
+        &mut self,
+        group_id: &[u8],
+        bytes: &[u8],
+    ) -> Result<Option<(Vec<u8>, String)>> {
         let (msg_in, _) = MlsMessageIn::tls_deserialize_bytes(bytes)
             .map_err(|e| anyhow::anyhow!("deserialize MLS message: {e}"))?;
 
@@ -229,8 +237,18 @@ impl MlsClient {
             .ok_or_else(|| anyhow::anyhow!("no such group"))?;
         let processed = group.process_message(&self.provider, protocol_msg)?;
 
+        // Extract the MLS-authenticated sender identity before consuming the message.
+        // processed.credential() returns the sender's BasicCredential, whose
+        // serialized_content() bytes are the hex pub_id string set at MlsClient::new.
+        let sender_pub_id = String::from_utf8(
+            processed.credential().serialized_content().to_vec(),
+        )
+        .map_err(|_| anyhow::anyhow!("MLS sender credential is not valid UTF-8"))?;
+
         match processed.into_content() {
-            ProcessedMessageContent::ApplicationMessage(app_msg) => Ok(Some(app_msg.into_bytes())),
+            ProcessedMessageContent::ApplicationMessage(app_msg) => {
+                Ok(Some((app_msg.into_bytes(), sender_pub_id)))
+            }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
                 group.merge_staged_commit(&self.provider, *staged_commit)?;
                 Ok(None)
@@ -301,10 +319,10 @@ impl MlsClient {
 
     /// Process an incoming MLS message (Commit or ApplicationMessage).
     ///
-    /// Returns `Some(plaintext)` for application messages.
+    /// Returns `Some((plaintext, sender_pub_id))` for application messages.
     /// Returns `None` for commits (state updated internally) and proposals.
     /// Returns an error if the message cannot be parsed or processed.
-    pub fn process_incoming(&mut self, bytes: &[u8]) -> Result<Option<Vec<u8>>> {
+    pub fn process_incoming(&mut self, bytes: &[u8]) -> Result<Option<(Vec<u8>, String)>> {
         self.process_for_group(GROUP_ID, bytes)
     }
 
@@ -379,12 +397,18 @@ mod tests {
         let plaintext = b"hello from alice";
         let ciphertext = alice.encrypt(plaintext).expect("encrypt");
 
-        let decrypted = bob
+        let (decrypted, sender) = bob
             .process_incoming(&ciphertext)
             .expect("process_incoming")
             .expect("application message");
 
         assert_eq!(decrypted, plaintext);
+        // MLS sender must be Alice — this is the security property we are testing.
+        // Oracle: credential bytes are the pub_id set at MlsClient::new.
+        assert_eq!(
+            sender, "alice-pub-id",
+            "MLS-authenticated sender must match alice's pub_id credential"
+        );
     }
 
     /// Bob → Alice direction.
@@ -401,11 +425,12 @@ mod tests {
 
         let plaintext = b"reply from bob";
         let ct = bob.encrypt(plaintext).expect("bob encrypt");
-        let plain = alice
+        let (plain, sender) = alice
             .process_incoming(&ct)
             .expect("alice process")
             .expect("app msg");
         assert_eq!(plain, plaintext);
+        assert_eq!(sender, "bob", "MLS-authenticated sender must match bob's pub_id");
     }
 
     /// Three-party: Alice creates, adds Bob, then adds Carol.
@@ -439,13 +464,13 @@ mod tests {
         let msg = b"group message at epoch 2";
         let ct = alice.encrypt(msg).expect("encrypt");
 
-        let bob_plain = bob
+        let (bob_plain, _) = bob
             .process_incoming(&ct)
             .expect("bob process app msg")
             .expect("bob app msg");
         assert_eq!(bob_plain, msg);
 
-        let carol_plain = carol
+        let (carol_plain, _) = carol
             .process_incoming(&ct)
             .expect("carol process app msg")
             .expect("carol app msg");
@@ -486,7 +511,7 @@ mod tests {
 
         // Verify the session is functional.
         let ct = alice.encrypt(b"after multi-publish").expect("encrypt");
-        let pt = bob
+        let (pt, _) = bob
             .process_incoming(&ct)
             .expect("process")
             .expect("app msg");
@@ -529,14 +554,14 @@ mod tests {
 
         // Bob and Carol exchange messages at epoch 3.
         let ct_b = bob.encrypt(b"hi carol").expect("bob encrypt");
-        let pt_c = carol
+        let (pt_c, _) = carol
             .process_incoming(&ct_b)
             .expect("carol process")
             .expect("app msg");
         assert_eq!(pt_c, b"hi carol");
 
         let ct_c = carol.encrypt(b"hi bob").expect("carol encrypt");
-        let pt_b = bob
+        let (pt_b, _) = bob
             .process_incoming(&ct_c)
             .expect("bob process")
             .expect("app msg");
@@ -596,14 +621,14 @@ mod tests {
 
         // Both directions must work at epoch 3.
         let ct = alice.encrypt(b"back again bob").expect("encrypt");
-        let pt = bob_v2
+        let (pt, _) = bob_v2
             .process_incoming(&ct)
             .expect("process")
             .expect("app msg");
         assert_eq!(pt, b"back again bob");
 
         let ct2 = bob_v2.encrypt(b"yes i'm back").expect("bob v2 encrypt");
-        let pt2 = alice
+        let (pt2, _) = alice
             .process_incoming(&ct2)
             .expect("alice process")
             .expect("app msg");
@@ -720,7 +745,7 @@ mod tests {
         // Alice encrypts at epoch 3; Carol decrypts.
         let msg = b"post-remove message";
         let ct = alice.encrypt(msg).expect("encrypt");
-        let plain = carol
+        let (plain, _) = carol
             .process_incoming(&ct)
             .expect("carol process app msg")
             .expect("carol app msg");
@@ -840,7 +865,7 @@ mod tests {
         let ct_alpha = alice
             .encrypt_for_group(b"alpha", b"alpha message")
             .expect("encrypt alpha");
-        let pt_bob = bob
+        let (pt_bob, _) = bob
             .process_for_group(b"alpha", &ct_alpha)
             .expect("bob process alpha")
             .expect("app msg");
@@ -850,7 +875,7 @@ mod tests {
         let ct_beta = alice
             .encrypt_for_group(b"beta", b"beta message")
             .expect("encrypt beta");
-        let pt_carol = carol
+        let (pt_carol, _) = carol
             .process_for_group(b"beta", &ct_beta)
             .expect("carol process beta")
             .expect("app msg");

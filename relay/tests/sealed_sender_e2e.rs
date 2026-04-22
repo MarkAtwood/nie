@@ -2,13 +2,13 @@
 //! (nie-rwr7.11).
 //!
 //! The test sets up a real two-client MLS session through the relay, then sends
-//! a SEALED_BROADCAST whose plaintext carries alice's pub_id prepended to an MLS
-//! application message.  After bob unseals and decrypts, we assert:
+//! a SEALED_BROADCAST whose HPKE plaintext is the MLS application ciphertext
+//! only — no self-asserted sender prefix.  After bob unseals and decrypts, we assert:
 //!
 //! 1. The raw wire JSON of SEALED_DELIVER contains no `from` field and no trace
 //!    of alice's pub_id — the relay is demonstrably blind.
-//! 2. Bob recovers alice's pub_id and the plaintext message by unsealing and
-//!    running the MLS application message through `process_incoming`.
+//! 2. Bob recovers alice's pub_id from the MLS-authenticated sender credential
+//!    returned by `process_incoming`, not from any self-asserted wire field.
 //!
 //! Oracle: the relay cannot add information it does not possess.  Alice's pub_id
 //! and plaintext are external constants supplied by the test; they are not
@@ -99,19 +99,20 @@ async fn wait_for_response(rx: &mut tokio::sync::mpsc::Receiver<ClientEvent>) ->
 // Test
 // ---------------------------------------------------------------------------
 
-/// Proves the relay is blind to the sealed sender's identity end-to-end.
+/// Proves the relay is blind to the sealed sender's identity end-to-end, and
+/// that the receiver authenticates sender identity via MLS (not HPKE plaintext).
 ///
 /// Alice and Bob establish an MLS group through the relay.  Alice sends a
 /// SEALED_BROADCAST whose ciphertext is HPKE-sealed with the shared room key
-/// and whose plaintext is `alice_pub_id (64 bytes) || MLS_app_ciphertext`.
+/// and whose plaintext is the MLS application ciphertext only — no self-asserted
+/// sender prefix.  Sender identity is authenticated by MLS process_incoming.
 ///
-/// Oracle for relay-blindness assertion: we serialize the raw SEALED_DELIVER
-/// notification and assert that alice's pub_id does not appear anywhere in the
-/// wire JSON.  The relay never learned alice's identity; it only saw opaque bytes.
+/// Oracle for relay-blindness: serialize the raw SEALED_DELIVER notification and
+/// assert alice's pub_id does not appear anywhere in the wire JSON.
 ///
-/// Oracle for recovery assertion: bob unseals with the same room secret, recovers
-/// alice's pub_id from the prefix, and decrypts the MLS ciphertext to
-/// `b"hello from alice"`.  Both values are external constants, not roundtrip probes.
+/// Oracle for authentication: bob decrypts the MLS ciphertext and asserts that
+/// `mls_sender == alice_pub_id` — the identity is alice's MLS BasicCredential,
+/// not a self-asserted prefix that HPKE cannot authenticate.
 #[tokio::test]
 async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
     let relay_url = spawn_relay().await;
@@ -265,20 +266,19 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
     // -----------------------------------------------------------------------
     // Step 6: Alice sends a sealed broadcast.
     //
-    // Plaintext format: alice_pub_id (64 UTF-8 bytes) || MLS app ciphertext.
-    // The relay receives only opaque bytes; it cannot read alice's pub_id.
+    // HPKE plaintext is the MLS application ciphertext only — no self-asserted
+    // sender prefix.  The relay receives only opaque bytes; sender identity is
+    // authenticated by MLS when the receiver calls process_incoming.
     // -----------------------------------------------------------------------
 
     let mls_ct = alice_mls
         .encrypt(b"hello from alice")
         .expect("alice encrypt");
 
-    let mut sealed_plaintext = Vec::with_capacity(64 + mls_ct.len());
-    sealed_plaintext.extend_from_slice(alice_pub_id.0.as_bytes());
-    sealed_plaintext.extend_from_slice(&mls_ct);
-
+    // Sealed plaintext is just the MLS ciphertext — no self-asserted sender prefix.
+    // Sender identity is authenticated by MLS when the receiver calls process_incoming.
     let sealed =
-        nie_core::hpke::seal_message(&alice_room_pk, &sealed_plaintext).expect("seal_message");
+        nie_core::hpke::seal_message(&alice_room_pk, &mls_ct).expect("seal_message");
 
     let sealed_broadcast_req = JsonRpcRequest::new(
         next_request_id(),
@@ -333,26 +333,27 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
     )
     .expect("SealedDeliverParams must deserialize");
 
-    let plaintext =
+    let mls_ciphertext =
         nie_core::hpke::unseal_message(&bob_room_sk, &params.sealed).expect("bob unseal_message");
 
     assert_eq!(
-        plaintext.len(),
-        64 + mls_ct.len(),
-        "unsealed plaintext must be 64 (pub_id) + MLS ciphertext bytes"
+        mls_ciphertext.len(),
+        mls_ct.len(),
+        "unsealed ciphertext must match original MLS ciphertext length (no prefix)"
     );
 
-    assert_eq!(
-        &plaintext[..64],
-        alice_pub_id.0.as_bytes(),
-        "sealed sender identity must be alice's pub_id"
-    );
-
-    let mls_ct_from_wire = &plaintext[64..];
-    let decrypted = bob_mls
-        .process_incoming(mls_ct_from_wire)
+    let (decrypted, mls_sender) = bob_mls
+        .process_incoming(&mls_ciphertext)
         .expect("bob process_incoming")
         .expect("sealed_deliver payload must be an MLS application message");
+
+    // Critical security assertion: sender identity must come from MLS, not the wire.
+    // Oracle: alice's pub_id is set as her MLS BasicCredential at MlsClient::new.
+    assert_eq!(
+        mls_sender,
+        alice_pub_id.0.as_str(),
+        "MLS-authenticated sender must be alice's pub_id"
+    );
 
     assert_eq!(
         decrypted, b"hello from alice",

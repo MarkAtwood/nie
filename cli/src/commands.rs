@@ -1039,8 +1039,8 @@ pub async fn chat(
                                 continue;
                             }
                         };
-                        let plaintext_bytes: Vec<u8> = match mls.process_incoming(&ciphertext) {
-                            Ok(Some(pt)) => pt,
+                        let (plaintext_bytes, _mls_sender): (Vec<u8>, String) = match mls.process_incoming(&ciphertext) {
+                            Ok(Some(r)) => r,
                             Ok(None) => {
                                 // MLS Commit — group state updated, advance epoch.
                                 println!(
@@ -1179,36 +1179,21 @@ pub async fn chat(
                                 }
                             }
                         };
-                        // Wire format: 64 ASCII hex bytes (sender pub_id) || MLS ciphertext
-                        if plaintext.len() < 64 {
-                            warn!("sealed_deliver plaintext too short: {} bytes", plaintext.len());
-                            continue;
-                        }
-                        let from = match std::str::from_utf8(&plaintext[..64]) {
-                            Ok(s) => s.to_string(),
-                            Err(_) => {
-                                warn!("sealed_deliver: sender_pub_id not valid UTF-8");
-                                continue;
-                            }
-                        };
-                        let padded_ct = &plaintext[64..];
                         if !mls_active {
                             // Drop sealed messages that arrive before our Welcome.
                             continue;
                         }
-                        // NOTE: sender_pub_id_str is asserted by the sender inside the sealed payload,
-                        // not cryptographically verified. Any group member could forge this prefix.
-                        // Full per-sender authentication requires a signature over the prefix — tracked
-                        // in a follow-up issue.
-                        let mls_ciphertext = match nie_core::messages::unpad(padded_ct) {
+                        // Sealed plaintext is padded MLS ciphertext — no self-asserted prefix.
+                        // Sender identity comes from MLS process_incoming (cryptographically bound).
+                        let mls_ciphertext = match nie_core::messages::unpad(&plaintext) {
                             Ok(ct) => ct,
                             Err(e) => {
                                 warn!("sealed_deliver unpad failed: {e}");
                                 continue;
                             }
                         };
-                        let plaintext_bytes: Vec<u8> = match mls.process_incoming(&mls_ciphertext) {
-                            Ok(Some(pt)) => pt,
+                        let (plaintext_bytes, from): (Vec<u8>, String) = match mls.process_incoming(&mls_ciphertext) {
+                            Ok(Some(r)) => r,
                             Ok(None) => {
                                 // MLS Commit — group state updated, advance epoch.
                                 println!(
@@ -1331,22 +1316,11 @@ pub async fn chat(
                                 continue;
                             }
                         };
-                        // Wire format: 64 ASCII hex bytes (sender pub_id) || payload
-                        if plaintext.len() < 64 {
-                            warn!("sealed_whisper_deliver plaintext too short: {} bytes", plaintext.len());
-                            continue;
-                        }
-                        let from = match std::str::from_utf8(&plaintext[..64]) {
-                            Ok(s) => s.to_string(),
-                            Err(_) => {
-                                warn!("sealed_whisper_deliver: sender_pub_id not valid UTF-8");
-                                continue;
-                            }
-                        };
-                        let inner_payload = &plaintext[64..];
+                        // Sealed whisper: plaintext is MLS ciphertext — no prefix.
+                        // Sender identity authenticated by MLS process_incoming.
                         if mls_active {
-                            match mls.process_incoming(inner_payload) {
-                                Ok(Some(pt)) => {
+                            match mls.process_incoming(&plaintext) {
+                                Ok(Some((pt, from))) => {
                                     match serde_json::from_slice::<ClearMessage>(&pt) {
                                         Ok(ClearMessage::Chat { text }) => {
                                             let ts = Local::now().format("%H:%M");
@@ -1372,16 +1346,16 @@ pub async fn chat(
                                 }
                                 Ok(None) => {
                                     // MLS non-application message (e.g. proposal) — process silently.
-                                    tracing::debug!("sealed_whisper_deliver: MLS non-application message from {from}");
+                                    tracing::debug!("sealed_whisper_deliver: MLS non-application message");
                                 }
                                 Err(e) => {
                                     warn!("sealed_whisper_deliver MLS process_incoming: {e}");
                                 }
                             }
                         } else {
-                            // Not yet in MLS group — treat inner_payload as a raw MLS Welcome
+                            // Not yet in MLS group — treat plaintext as a raw MLS Welcome
                             // (same as WhisperDeliver before MLS is active).
-                            match mls.join_from_welcome(inner_payload) {
+                            match mls.join_from_welcome(&plaintext) {
                                 Ok(()) => {
                                     mls_active = true;
                                     println!(
@@ -1487,9 +1461,9 @@ pub async fn chat(
                         };
                         let payload = params.payload;
                         // Attempt MLS decrypt if we have a group context for this id.
-                        let plaintext = if mls.has_group_id(gid.as_bytes()) {
+                        let plaintext: Vec<u8> = if mls.has_group_id(gid.as_bytes()) {
                             match mls.process_for_group(gid.as_bytes(), &payload) {
-                                Ok(Some(pt)) => pt,
+                                Ok(Some((pt, _sender))) => pt,
                                 // Commit or other non-application message — no display.
                                 Ok(None) => continue,
                                 Err(e) => {
@@ -2392,12 +2366,9 @@ pub async fn chat(
                         }
                     };
                     if let Some(pub_key) = room_hpke_pub {
-                        // Sealed broadcast: sender_pub_id (64 ASCII bytes) || MLS ciphertext,
-                        // HPKE-sealed to the room public key so relay cannot identify sender.
-                        let mut sealed_plaintext = Vec::with_capacity(64 + mls_ciphertext.len());
-                        sealed_plaintext.extend_from_slice(my_pub_id.as_bytes());
-                        sealed_plaintext.extend_from_slice(&mls_ciphertext);
-                        match nie_hpke::seal_message(&pub_key, &sealed_plaintext) {
+                        // Sealed broadcast: MLS ciphertext HPKE-sealed to the room public key.
+                        // Sender identity is authenticated by MLS — no self-asserted prefix needed.
+                        match nie_hpke::seal_message(&pub_key, &mls_ciphertext) {
                             Ok(sealed) => {
                                 let req = JsonRpcRequest::new(
                                     next_request_id(),
@@ -5056,7 +5027,7 @@ mod tests {
         // Bob decrypts; oracle: unpad then process_incoming returns the original plaintext.
         let ciphertext =
             nie_core::messages::unpad(&payload).expect("payload must be padded ciphertext");
-        let plaintext = bob
+        let (plaintext, _sender) = bob
             .process_incoming(&ciphertext)
             .expect("Bob must process MLS message without error")
             .expect("must be an application message, not a commit");
@@ -5166,7 +5137,7 @@ mod tests {
         // Decrypt with Bob to get the plaintext — independent of Alice's serialize path.
         let ciphertext =
             nie_core::messages::unpad(&payload).expect("payload must be padded ciphertext");
-        let plaintext = bob
+        let (plaintext, _sender) = bob
             .process_incoming(&ciphertext)
             .expect("Bob must process MLS message")
             .expect("must be an application message");
@@ -5286,7 +5257,7 @@ mod tests {
         // Decrypt with Bob — independent of Alice's serialize path.
         let ciphertext =
             nie_core::messages::unpad(&payload).expect("payload must be padded ciphertext");
-        let plaintext = bob
+        let (plaintext, _sender) = bob
             .process_incoming(&ciphertext)
             .expect("Bob must process MLS message")
             .expect("must be an application message");
