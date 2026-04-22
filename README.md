@@ -9,7 +9,7 @@ Encrypted relay chat with privacy coin payments. The server is a paid pipe — i
 - **Payments = peer-to-peer, in-band.** Payment negotiation happens inside encrypted messages; the relay is architecturally blind to it.
 - **Subscription = proof of payment, not identity.** A public key plus on-chain confirmation grants access.
 
-Current status: Phase 1 complete — relay, MLS-encrypted CLI chat, offline message queue, rustyline line editing with command history.
+Current status: Phases 1–4 complete — relay, MLS-encrypted CLI chat, offline queue, Zcash Sapling wallet, subscription payments, daemon HTTP API, headless bot, WebAssembly browser client, Slack/Teams/JMAP bridges, Tauri desktop app.
 
 ## Building
 
@@ -198,9 +198,18 @@ The relay code contains no wallet logic, no private key storage, and no payment 
 
 ```
 nie/
-├── core/       nie-core (rlib): identity, auth, messages, protocol, transport, MLS
-├── relay/      nie-relay (bin): axum WebSocket server, SQLite offline queue
-└── cli/        nie-cli (bin): clap CLI, rustyline chat, contact book
+├── core/           nie-core (rlib): identity, auth, messages, protocol, transport, MLS
+├── relay/          nie-relay (bin): axum WebSocket server, SQLite offline queue
+├── cli/            nie-cli (bin): clap CLI, rustyline chat
+├── tui/            nie-tui (bin): ratatui terminal UI
+├── daemon/         nie-daemon (bin): HTTP API + WebSocket event server (localhost)
+├── bot/            nie-bot (bin): headless scripting client with shell hooks
+├── wallet/         nie-wallet (rlib): Zcash Sapling wallet, lightwalletd client
+├── wasm/           nie-wasm (cdylib): pure-browser WebAssembly client
+├── desktop/        nie-desktop (Tauri): native desktop app
+├── bridge-slack/   nie-bridge-slack (bin): Slack ↔ nie bridge
+├── bridge-teams/   nie-bridge-teams (bin): Microsoft Teams ↔ nie bridge
+└── bridge-jmap/    nie-bridge-jmap (bin): JMAP mail/messaging ↔ nie bridge
 ```
 
 The relay treats `Envelope.payload` as opaque bytes throughout. When MLS replaced plaintext in Phase 1, the relay required zero changes — the abstraction boundary held.
@@ -212,6 +221,136 @@ cargo test --workspace
 ```
 
 Includes a 16-client integration stress test (`relay/tests/stress.rs`) that spins up an in-process relay and has each client send random messages at human-typing cadence, then asserts every broadcast reached exactly N−1 recipients.
+
+## Daemon (HTTP API)
+
+`nie-daemon` exposes a local HTTP API so other programs can send messages and receive events without embedding a WebSocket client.
+
+```bash
+# Run the daemon (requires an identity — run `nie init` first)
+cargo run --bin nie-daemon
+
+# Connect the daemon to a relay
+RELAY_URL=wss://relay.example.com/ws cargo run --bin nie-daemon
+```
+
+Listens on `127.0.0.1:7734` by default (loopback only). A bearer token is generated on first run and stored at `~/.local/share/nie/daemon.token`.
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/whoami` | GET | Your public ID |
+| `/api/users` | GET | Connected users |
+| `/api/send` | POST `{"text":"…"}` | Broadcast a message |
+| `/api/wallet/balance` | GET | Wallet balance |
+| `/api/wallet/pay` | POST `{"to":"…","amount_zec":0.001}` | Send ZEC |
+| `/ws/events` | WebSocket | Stream of relay events (JSON) |
+| `/` | GET | Browser UI |
+
+All `/api/*` routes require `Authorization: Bearer <token>`.
+
+Configuration via environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `LISTEN_ADDR` | `127.0.0.1:7734` | Loopback bind address |
+| `RELAY_URL` | *(none)* | Relay WebSocket URL to connect to |
+| `KEYFILE` | `~/.local/share/nie/identity.key` | Path to identity keyfile |
+
+## Bot (headless scripting)
+
+`nie-bot` connects to a relay and invokes a shell hook on every received message. Useful for automation, notifications, or building custom integrations.
+
+```bash
+cargo run --bin nie-bot -- \
+  --relay wss://relay.example.com/ws \
+  --on-message-hook 'notify-send "nie" "$NIE_TEXT"'
+```
+
+The hook receives message context as environment variables: `NIE_FROM`, `NIE_TEXT`, `NIE_TIMESTAMP`.
+
+```bash
+# Self-test (connects, sends a message to itself, verifies round-trip, exits)
+cargo run --bin nie-bot -- --relay ws://localhost:3210/ws --self-test
+```
+
+## WebAssembly browser client
+
+`nie-wasm` compiles nie-core to WebAssembly for use directly in a browser — no server-side component needed beyond the relay.
+
+```bash
+# Build the WASM package
+wasm-pack build --target web wasm/
+
+# Serve the bundled demo (requires a static file server)
+python3 -m http.server 8080 --directory wasm/web/
+```
+
+Open `http://localhost:8080` and connect to any `ws://` or `wss://` relay. The JS API mirrors the Rust API: `NieClient.connect()`, `send_message()`, `on_event()`.
+
+## Bridges
+
+Each bridge is a standalone binary configured via a TOML file. Run `nie init` first to create a keyfile for the bridge bot identity.
+
+### Slack bridge
+
+Connects a Slack channel to the nie room via the Slack Events API. Requires a Slack app with `chat:write` and `channels:history` scopes.
+
+```toml
+# bridge.toml
+relay_url = "wss://relay.example.com/ws"
+keyfile = "/etc/nie/bridge.key"
+slack_bot_token = "xoxb-..."
+slack_signing_secret = "..."
+slack_channel_id = "C1234567890"
+bridge_prefix = "nie"   # optional — shown before sender ID in Slack
+listen_port = 9001      # default
+```
+
+```bash
+cargo run --bin nie-bridge-slack -- --config bridge.toml
+```
+
+Point your Slack app's Event Subscriptions URL at `http://yourhost:9001/slack/events`.
+
+### Teams bridge
+
+Connects a Teams channel via an outgoing webhook (for incoming messages) and an incoming webhook connector (for posting back).
+
+```toml
+# bridge.toml
+relay_url = "wss://relay.example.com/ws"
+keyfile = "/etc/nie/bridge.key"
+teams_security_token = "<base64 HMAC key from Teams admin>"
+teams_incoming_webhook_url = "https://outlook.office.com/webhook/..."
+bridge_prefix = "nie"   # optional
+listen_port = 9002      # default
+```
+
+```bash
+cargo run --bin nie-bridge-teams -- --config bridge.toml
+```
+
+Point your Teams outgoing webhook at `http://yourhost:9002/teams/webhook`.
+
+### JMAP bridge
+
+Polls a JMAP mailbox and posts new messages into the nie room; relays nie messages back as new emails.
+
+```toml
+# bridge.toml
+relay_url = "wss://relay.example.com/ws"
+keyfile = "/etc/nie/bridge.key"
+jmap_session_url = "https://mail.example.com/.well-known/jmap"
+jmap_bearer_token = "..."
+jmap_account_id = "..."
+jmap_mailbox_id = "..."
+poll_interval_secs = 30   # default
+bridge_prefix = "nie"     # optional
+```
+
+```bash
+cargo run --bin nie-bridge-jmap -- --config bridge.toml
+```
 
 ## Testnet Developer Walkthrough
 
@@ -287,13 +426,10 @@ Payment negotiation travels inside encrypted MLS messages — the relay routes o
 ## Future projects
 
 - **Additional coin types.** Monero (XMR) is the obvious next target — ring signatures + stealth addresses pair well with the existing shielded-payment model. Bitcoin Lightning and MobileCoin are also candidates depending on demand.
-- **Native desktop apps.** A proper GUI client for macOS, Windows, and Linux — something people can install without touching a terminal.
 - **Matrix bridge.** A bridge bot that connects nie rooms to Matrix/Element, so users on either side can talk without both adopting the same client.
-- **Slack bridge.** A bridge bot that connects nie rooms to Slack workspaces via the Events API.
-- **Teams bridge.** A bridge bot that connects nie rooms to Microsoft Teams channels via the Graph API.
-- **JMAP bridge.** A bridge bot that connects nie rooms to JMAP-based mail and messaging servers.
 - **Better file transfer.** Chunked, resumable file sends with progress reporting. The current `/cat` command is a stopgap.
 - **1:1 video calls.** Peer-to-peer WebRTC video/audio, negotiated in-band over the existing encrypted message channel. The relay stays blind to call content.
+- **Android and iOS clients.** Mobile clients via Flutter + flutter_rust_bridge. nie-core compiles to native ARM; Flutter handles UI.
 
 ## License
 
