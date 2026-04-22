@@ -113,6 +113,7 @@ async fn cli_testnet_payment_end_to_end() {
         std::env::var("TESTNET_ENDPOINT").unwrap_or_else(|_| DEFAULT_TESTNET_ENDPOINT.to_string());
 
     // --- Start in-process relay ---
+    // keep alive: dropping this deletes the relay's SQLite DB
     let (relay_url, _relay_db_dir) = spawn_relay().await;
     eprintln!("relay started at {relay_url}");
 

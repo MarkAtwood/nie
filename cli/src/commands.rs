@@ -248,9 +248,9 @@ pub async fn chat(
                     let params = Arc::clone(&params_arc);
                     let endpoints = lwd_endpoints.clone();
                     Box::pin(async move {
-                        let endpoint_refs: Vec<&str> =
+                        let lwd_refs: Vec<&str> =
                             endpoints.iter().map(String::as_str).collect();
-                        let mut client = nie_wallet::client::connect_with_failover(&endpoint_refs)
+                        let mut client = nie_wallet::client::connect_with_failover(&lwd_refs)
                             .await
                             .map_err(SendPaymentError::Connect)?;
                         send_payment(

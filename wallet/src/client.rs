@@ -323,22 +323,26 @@ mod tests {
         assert!(result.is_err(), "empty endpoint list must return an error");
     }
 
-    /// ENDPOINT_COUNTER increments on every call to connect_with_failover.
+    /// connect_with_failover exhausts all endpoints before returning an error.
     ///
-    /// Oracle: the counter value is read before and after a call (which fails
-    /// because the URL is unreachable, but the counter advance happens before
-    /// any connection attempt).  The increment is the independent observable.
+    /// Oracle: when every endpoint in the list is unreachable, the function
+    /// must return an error whose message contains "all lightwalletd endpoints
+    /// unreachable" — the context string appended in the exhaustion path.
+    /// This is independent of global state and deterministic under parallelism.
     #[tokio::test]
-    async fn connect_with_failover_increments_counter() {
-        let before = ENDPOINT_COUNTER.load(Ordering::Relaxed);
-        // Use an endpoint list with an unreachable URL so the test does not
-        // require network access.  The counter advances before any connect attempt.
-        let _ = connect_with_failover(&["https://127.0.0.1:1"]).await;
-        let after = ENDPOINT_COUNTER.load(Ordering::Relaxed);
-        assert!(
-            after >= before + 1,
-            "ENDPOINT_COUNTER must increment by at least 1 per call (before={before}, after={after})"
-        );
+    async fn connect_with_failover_exhausts_all_endpoints() {
+        // Two distinct unreachable addresses ensure the failover loop iterates
+        // more than once (start index varies with the global counter, but both
+        // addresses are equally unreachable, so the outcome is always an error).
+        let result =
+            connect_with_failover(&["https://127.0.0.1:1", "https://127.0.0.2:1"]).await;
+        match result {
+            Ok(_) => panic!("all unreachable endpoints must yield an error"),
+            Err(e) => assert!(
+                format!("{e:#}").contains("all lightwalletd endpoints unreachable"),
+                "error must report exhaustion of all endpoints; got: {e:#}"
+            ),
+        }
     }
 
     /// DEFAULT_MAINNET_ENDPOINTS has at least three entries (nie-060.1).
