@@ -489,40 +489,6 @@ Exceeded limit returns JSON-RPC error `{ "code": -32020, "message": "RATE_LIMITE
 `-32020` is a stable wire contract. Do not change it — clients are expected
 to branch on this code and back off accordingly.
 
-## Legal Transparency
-
-nie's threat model anticipates legal demands. The relay holds minimal data by
-design; transparency about what was demanded and what was produced deters
-speculative requests.
-
-### What the relay can produce under compulsion
-
-Exactly this, and nothing else (see Hard Design Invariants §1–6):
-
-| Field | Source |
-|-------|--------|
-| `pub_id` | hex(SHA-256(verifying_key)) — a hash, not the key |
-| `first_seen` | timestamp of first successful authentication |
-| `subscription_expires` | subscription expiry timestamp |
-
-The relay does not store IP addresses, message content, payment addresses beyond
-merchant invoices, or any identifying information beyond the above.
-
-### Transparency log
-
-Published at `GET /transparency` as JSON and rendered HTML. Each entry records:
-sequential ID, requesting entity, demand type, date received, status, and a
-link to the redacted response. The log is append-only and operator-maintained.
-
-Every received demand must be logged regardless of outcome. Do not suppress
-entries for demands that were successfully challenged or refused.
-
-### Operator billing policy
-
-If 18 USC 2706 applies (US-based relay), bill the requesting agency the
-statutory research fee before producing any records. Document this policy in
-`LEGAL.md`.
-
 ## Display Name Canonicalization
 
 This is a security invariant, not optional. User-supplied display names are

@@ -29,20 +29,7 @@ Currently there is no message rate limit within an active subscription period. A
 
 Simple, in-process, no Redis required for a single-relay deployment.
 
-## 3. Legal transparency log
-
-nie's threat model explicitly anticipates subpoenas (Tor support, anonymous payment, no-KYC identity). A public transparency log makes government access attempts visible to users and deters frivolous requests.
-
-**Design:**
-- Publish all legal demands at `<relay_domain>/transparency` as a static HTML/JSON page
-- Per-entry fields: sequential ID (e.g. LEG-0001), requesting entity name, demand type (subpoena/court order/preservation), date received, status (responded/pending/challenged), link to response ZIP (redacted as legally permitted)
-- If 18 USC 2706 applies (US relay), bill the requesting agency the statutory research fee (minimum $1,000) before producing records — document this in the relay's posted legal policy
-- What can actually be produced in response: pub_id (hash of public key), first_seen timestamp, subscription expiry timestamp. Nothing else is stored.
-- The log itself is a deterrent: agencies that know their requests will be published are less likely to issue them speculatively
-
-Publish a `LEGAL.md` or `/legal` page at the relay explaining the policy. Update the transparency log entry on every received demand regardless of outcome.
-
-## 4. Content canonicalization for user-supplied plaintext metadata
+## 3. Content canonicalization for user-supplied plaintext metadata
 
 nie passes nickname and group name strings through without normalization. These fields are visible to other clients in plaintext (DirectoryList, group_list). They are attack surfaces for:
 - RTL override: `groupname` rendered as `emanpuorg` via U+202E RIGHT-TO-LEFT OVERRIDE
@@ -54,7 +41,7 @@ nie passes nickname and group name strings through without normalization. These 
 `GROUP_CREATE` handlers. Bidi controls are rejected (not stripped); ZWS chars are
 stripped silently.
 
-## 5. Partition-based TTL for offline message queue
+## 4. Partition-based TTL for offline message queue
 
 Currently offline messages are purged with `DELETE FROM offline_messages WHERE expires_at < ?` — a row-by-row delete that becomes expensive at scale.
 
