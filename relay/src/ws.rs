@@ -46,32 +46,38 @@ const ZERO_WIDTH_CHARS: &[char] = &['\u{200B}', '\u{200C}', '\u{2060}', '\u{FEFF
 
 /// Canonicalize a user-supplied display name (nickname or group name).
 ///
+/// Prevents Unicode-based spoofing: NFC normalization collapses canonical
+/// homoglyphs (e.g. `e` + combining-acute → `é`); bidi control rejection
+/// prevents RTL-override attacks (e.g. U+202E reverses visual rendering);
+/// zero-width stripping removes invisible characters that create names
+/// that look identical but differ in bytes.
+///
 /// 1. NFC-normalize (canonical composition).
 /// 2. Reject if any bidirectional control character is present.
 /// 3. Strip zero-width characters silently.
 /// 4. Trim leading/trailing whitespace.
 /// 5. Reject if empty or longer than 32 Unicode scalar values.
 pub(crate) fn canonicalize_display_name(s: &str) -> Result<String, &'static str> {
-    let s: String = s.nfc().collect();
+    let normalized: String = s.nfc().collect();
     // SECURITY: bidi controls are REJECTED (not stripped) because they enable
     // visual reordering attacks (e.g. U+202E renders "admin" as "nimda").
     // ZWS chars are stripped silently — they are invisible formatting hints
     // with no semantic content, so stripping cannot change meaning.
-    if s.chars().any(|c| BIDI_CONTROLS.contains(&c)) {
+    if normalized.chars().any(|c| BIDI_CONTROLS.contains(&c)) {
         return Err("contains bidirectional control characters");
     }
-    let s: String = s
+    let no_zwc: String = normalized
         .chars()
         .filter(|c| !ZERO_WIDTH_CHARS.contains(c))
         .collect();
-    let s = s.trim().to_string();
-    if s.is_empty() {
+    let trimmed = no_zwc.trim().to_string();
+    if trimmed.is_empty() {
         return Err("empty after canonicalization");
     }
-    if s.chars().count() > 32 {
+    if trimmed.chars().count() > 32 {
         return Err("display name too long");
     }
-    Ok(s)
+    Ok(trimmed)
 }
 
 /// Check and update rate limit for `pub_id`. Returns `true` if the message is allowed,
