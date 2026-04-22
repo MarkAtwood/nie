@@ -97,19 +97,12 @@ impl NieRelayClient {
     /// Register a JS callback that receives client-side events as JS objects.
     ///
     /// The callback is called as `cb(eventObject)` for each relay notification.
-    /// Event objects have a `"type"` field; see the match arms in
-    /// `wire_notify_callback` for the full schema.
+    /// Event objects have a `"type"` field. Possible types: `message_received`,
+    /// `whisper_received`, `user_joined`, `user_left`, `directory_updated`,
+    /// `user_nickname`, `key_package_ready`.
     ///
     /// Replaces any previously registered callback.
-    pub fn set_event_callback(&mut self, cb: Function) {
-        self.wire_notify_callback(cb);
-    }
-
-    /// Install the persistent notify callback on the transport.
-    ///
-    /// The callback translates relay notification `Value`s into higher-level
-    /// event objects and calls `js_cb` with the event as a native JS object.
-    fn wire_notify_callback(&mut self, js_cb: Function) {
+    pub fn set_event_callback(&mut self, js_cb: Function) {
         let online_users = Rc::clone(&self.online_users);
 
         // Transport now delivers the already-parsed Value — no second JSON parse.
@@ -244,16 +237,12 @@ impl NieRelayClient {
     /// MLS insertion point — when MLS lands, the payload bytes get encrypted
     /// before base64 encoding). Returns the relay-assigned message ID.
     pub async fn send_message(&self, text: &str) -> Result<String, String> {
-        let msg = ClearMessage::Chat {
-            text: text.to_string(),
-        };
-        // serde_json::to_vec on a derived Serialize cannot fail
-        let payload_bytes = serde_json::to_vec(&msg).unwrap();
-        let payload_b64 = B64.encode(&payload_bytes);
-
         let result = self
             .transport
-            .send_request("broadcast", serde_json::json!({ "payload": payload_b64 }))
+            .send_request(
+                "broadcast",
+                serde_json::json!({ "payload": build_payload(text) }),
+            )
             .await?;
 
         let message_id = result["message_id"]
@@ -267,20 +256,11 @@ impl NieRelayClient {
     ///
     /// `to` is the recipient's pub_id (64 hex chars). Returns the message ID.
     pub async fn send_whisper(&self, to: &str, text: &str) -> Result<String, String> {
-        // ClearMessage::Chat is used for the whisper payload — the relay treats it as an opaque
-        // blob regardless of type tag, and the recipient decodes it with the same path as chat.
-        let msg = ClearMessage::Chat {
-            text: text.to_string(),
-        };
-        // serde_json::to_vec on a derived Serialize cannot fail
-        let payload_bytes = serde_json::to_vec(&msg).unwrap();
-        let payload_b64 = B64.encode(&payload_bytes);
-
         let result = self
             .transport
             .send_request(
                 "whisper",
-                serde_json::json!({ "to": to, "payload": payload_b64 }),
+                serde_json::json!({ "to": to, "payload": build_payload(text) }),
             )
             .await?;
 
@@ -321,6 +301,20 @@ impl NieRelayClient {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/// Serialize `text` as a `ClearMessage::Chat` and base64-encode the result.
+///
+/// This is the MLS insertion point: when MLS lands, replace the plaintext
+/// `serde_json::to_vec` with an MLS encrypt call. The base64 encoding and
+/// `"payload"` key in the JSON-RPC params stay the same.
+fn build_payload(text: &str) -> String {
+    let msg = ClearMessage::Chat {
+        text: text.to_string(),
+    };
+    // serde_json::to_vec on a derived Serialize cannot fail
+    let payload_bytes = serde_json::to_vec(&msg).unwrap();
+    B64.encode(payload_bytes)
+}
 
 /// Decode a base64-encoded payload string into a human-readable text.
 ///

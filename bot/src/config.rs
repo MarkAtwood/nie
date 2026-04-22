@@ -128,6 +128,12 @@ pub fn resolve(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Serialize tests that read or write the `RELAY` environment variable.
+    // Without this, `test_env_relay_overrides_file` (which sets RELAY) can race
+    // with `test_empty_toml_returns_defaults` (which expects RELAY to be unset).
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     /// Helper: call resolve() with all-None / false args and a given BotConfig.
     fn resolve_defaults(file: BotConfig) -> Result<ResolvedBotConfig> {
@@ -160,6 +166,7 @@ auto_payment_address = true
 
     #[test]
     fn test_empty_toml_returns_defaults() {
+        let _guard = ENV_LOCK.lock().unwrap();
         let cfg: BotConfig = toml::from_str("").expect("empty toml should parse");
         assert!(cfg.relay.is_none());
         assert!(cfg.keyfile.is_none());
@@ -174,9 +181,9 @@ auto_payment_address = true
 
     #[test]
     fn test_env_relay_overrides_file() {
+        let _guard = ENV_LOCK.lock().unwrap();
         // Set the env var, resolve, then unset — even if the assert panics we
         // want to clean up, so we capture the result before asserting.
-        // SAFETY: single-threaded test binary context; other tests do not write RELAY.
         unsafe {
             std::env::set_var("RELAY", "wss://env.example.com/ws");
         }

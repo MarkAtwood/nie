@@ -67,10 +67,27 @@ async fn idb_request_result(request: IdbRequest) -> Result<JsValue, String> {
     rx.await.map_err(|_| "channel dropped".to_string())?
 }
 
+// Session-scoped IdbDatabase handle.  Populated on first call to get_db() and
+// reused for the lifetime of the WASM instance — avoids reopening the database
+// on every save_identity / load_identity call.
+thread_local! {
+    static DB_CACHE: RefCell<Option<IdbDatabase>> = const { RefCell::new(None) };
+}
+
+/// Return the cached `IdbDatabase`, opening it on first call.
+async fn get_db() -> Result<IdbDatabase, String> {
+    if let Some(db) = DB_CACHE.with(|c| c.borrow().clone()) {
+        return Ok(db);
+    }
+    let db = open_db().await?;
+    DB_CACHE.with(|c| *c.borrow_mut() = Some(db.clone()));
+    Ok(db)
+}
+
 /// Open (or create) the `nie-identity` IndexedDB database at version 1.
 ///
 /// If the database is new, `onupgradeneeded` creates the `"keys"` object store.
-pub async fn open_db() -> Result<IdbDatabase, String> {
+async fn open_db() -> Result<IdbDatabase, String> {
     let window = web_sys::window().ok_or("no window")?;
     let idb_factory = window
         .indexed_db()
@@ -112,7 +129,7 @@ pub async fn open_db() -> Result<IdbDatabase, String> {
 /// Stored as `{"secret_b64": "<base64>"}` under the key `"default"`.
 /// The base64 string is never logged.
 pub async fn save_identity(secret_bytes: &[u8; 64]) -> Result<(), String> {
-    let db = open_db().await?;
+    let db = get_db().await?;
 
     let tx = db
         .transaction_with_str_and_mode("keys", IdbTransactionMode::Readwrite)
@@ -136,7 +153,7 @@ pub async fn save_identity(secret_bytes: &[u8; 64]) -> Result<(), String> {
 ///
 /// Returns `None` if no identity has been stored yet.
 pub async fn load_identity() -> Result<Option<[u8; 64]>, String> {
-    let db = open_db().await?;
+    let db = get_db().await?;
 
     let tx = db
         .transaction_with_str("keys")

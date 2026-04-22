@@ -106,6 +106,22 @@ impl Default for NieClient {
     }
 }
 
+impl NieClient {
+    /// Clone the inner `Rc<NieRelayClient>` out of the `RefCell`.
+    ///
+    /// Returns `Err("not connected")` if `connect` has not been called yet.
+    /// The `RefCell` borrow is dropped immediately — callers can safely pass
+    /// the returned `Rc` into an `async` block without holding the borrow
+    /// across a yield point.
+    fn get_client(&self) -> Result<Rc<crate::client::NieRelayClient>, JsValue> {
+        self.inner
+            .borrow()
+            .as_ref()
+            .map(Rc::clone)
+            .ok_or_else(|| JsValue::from_str("not connected"))
+    }
+}
+
 #[wasm_bindgen]
 impl NieClient {
     #[wasm_bindgen(constructor)]
@@ -171,14 +187,9 @@ impl NieClient {
     /// Returns a `Promise<string>` resolving to the relay-assigned message_id UUID.
     /// Rejects with an error string if not connected or on send failure.
     pub fn send_message(&self, text: String) -> js_sys::Promise {
-        // Clone the Rc<NieRelayClient> out of the RefCell before entering the async
-        // block.  This drops the RefCell borrow immediately, so it is not held
-        // across the await point.
-        let client_rc = match self.inner.borrow().as_ref().map(Rc::clone) {
-            Some(rc) => rc,
-            None => {
-                return future_to_promise(async move { Err(JsValue::from_str("not connected")) });
-            }
+        let client_rc = match self.get_client() {
+            Ok(rc) => rc,
+            Err(e) => return future_to_promise(async move { Err(e) }),
         };
         future_to_promise(async move {
             client_rc
@@ -193,13 +204,9 @@ impl NieClient {
     ///
     /// Returns a `Promise<undefined>`. Rejects if not connected or on failure.
     pub fn set_nickname(&self, nick: String) -> js_sys::Promise {
-        // Clone the Rc<NieRelayClient> out of the RefCell before entering the async
-        // block so the RefCell borrow does not span the await point.
-        let client_rc = match self.inner.borrow().as_ref().map(Rc::clone) {
-            Some(rc) => rc,
-            None => {
-                return future_to_promise(async move { Err(JsValue::from_str("not connected")) });
-            }
+        let client_rc = match self.get_client() {
+            Ok(rc) => rc,
+            Err(e) => return future_to_promise(async move { Err(e) }),
         };
         future_to_promise(async move {
             client_rc
@@ -216,13 +223,9 @@ impl NieClient {
     /// Returns a `Promise<string>` resolving to the relay-assigned message_id UUID.
     /// Rejects with an error string if not connected or on send failure.
     pub fn send_whisper(&self, to: String, text: String) -> js_sys::Promise {
-        // Clone the Rc<NieRelayClient> out of the RefCell before entering the async
-        // block so the RefCell borrow does not span the await point.
-        let client_rc = match self.inner.borrow().as_ref().map(Rc::clone) {
-            Some(rc) => rc,
-            None => {
-                return future_to_promise(async move { Err(JsValue::from_str("not connected")) });
-            }
+        let client_rc = match self.get_client() {
+            Ok(rc) => rc,
+            Err(e) => return future_to_promise(async move { Err(e) }),
         };
         future_to_promise(async move {
             client_rc
