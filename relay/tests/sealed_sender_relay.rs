@@ -38,7 +38,7 @@ async fn spawn_relay() -> String {
     let db_file = tempfile::NamedTempFile::new().unwrap();
     let db_url = format!("sqlite:{}?mode=rwc", db_file.path().display());
 
-    let state = AppState::new(&db_url, 60, false, 1_000_000, 30)
+    let state = AppState::new(&db_url, 60, false, 1_000_000, 30, 120u32)
         .await
         .unwrap();
     let app = Router::new()

@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::{
     extract::{
@@ -70,6 +70,39 @@ pub(crate) fn canonicalize_display_name(s: &str) -> Result<String, &'static str>
         return Err("display name too long");
     }
     Ok(s)
+}
+
+/// Check and update rate limit for `pub_id`. Returns `true` if the message is allowed,
+/// `false` if the rate limit is exceeded.
+///
+/// Uses a rolling 60-second window: counter resets when 60 seconds have elapsed
+/// since window_start. Atomic per-key update via DashMap::entry to avoid TOCTOU.
+/// A limit of 0 means unlimited.
+fn check_rate_limit(
+    rate_limits: &dashmap::DashMap<String, (u32, Instant)>,
+    pub_id: &str,
+    limit: u32,
+) -> bool {
+    if limit == 0 {
+        return true;
+    }
+    let now = Instant::now();
+    let window = Duration::from_secs(60);
+    let mut allowed = true;
+    rate_limits
+        .entry(pub_id.to_owned())
+        .and_modify(|(count, window_start)| {
+            if now.duration_since(*window_start) >= window {
+                *count = 1;
+                *window_start = now;
+            } else if *count >= limit {
+                allowed = false;
+            } else {
+                *count += 1;
+            }
+        })
+        .or_insert((1, now));
+    allowed
 }
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
@@ -428,6 +461,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         let message_id = Uuid::new_v4().to_string();
                         // SECURITY: `from` is always relay-set from authenticated pub_id,
                         // never taken from client params.
@@ -475,6 +522,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 req.id,
                                 rpc_errors::NOT_AUTHENTICATED,
                                 "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
                             )
                             .await;
                             continue;
@@ -1278,6 +1339,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Verify caller is a member of the group.
                         match state
                             .inner
@@ -1549,6 +1624,7 @@ async fn alloc_subscription_address(
 #[cfg(test)]
 mod tests {
     use super::canonicalize_display_name;
+    use super::check_rate_limit;
 
     // Oracle for all tests: Unicode Standard 15.0, UAX #15 (NFC normalization),
     // UAX #9 (Unicode Bidirectional Algorithm), and Unicode Character Database.
@@ -1654,5 +1730,60 @@ mod tests {
         // Oracle: trimming "   " (three U+0020 SPACE characters) yields an empty
         // string, which is invalid per the spec's empty-after-trim check.
         assert!(canonicalize_display_name("   ").is_err());
+    }
+
+    #[test]
+    fn rate_limit_under_limit_passes() {
+        // Oracle: limit=3, first 3 calls all within window, all allowed
+        let map = dashmap::DashMap::new();
+        assert!(check_rate_limit(&map, "alice", 3)); // count=1
+        assert!(check_rate_limit(&map, "alice", 3)); // count=2
+        assert!(check_rate_limit(&map, "alice", 3)); // count=3: at limit, passes
+    }
+
+    #[test]
+    fn rate_limit_over_limit_rejected() {
+        // Oracle: limit=3, 4th call in same window rejected
+        let map = dashmap::DashMap::new();
+        check_rate_limit(&map, "alice", 3);
+        check_rate_limit(&map, "alice", 3);
+        check_rate_limit(&map, "alice", 3);
+        assert!(!check_rate_limit(&map, "alice", 3)); // count=4: over limit, rejected
+    }
+
+    #[test]
+    fn rate_limit_zero_is_unlimited() {
+        // Oracle: limit=0 means no limit; spec says "0 = unlimited"
+        let map = dashmap::DashMap::new();
+        for _ in 0..1000 {
+            assert!(check_rate_limit(&map, "alice", 0));
+        }
+    }
+
+    #[test]
+    fn rate_limit_different_ids_independent() {
+        // Oracle: rate limit is per pub_id; alice's count does not affect bob's
+        let map = dashmap::DashMap::new();
+        check_rate_limit(&map, "alice", 3);
+        check_rate_limit(&map, "alice", 3);
+        check_rate_limit(&map, "alice", 3);
+        check_rate_limit(&map, "alice", 3); // alice over limit
+        // bob's first call must still be allowed
+        assert!(check_rate_limit(&map, "bob", 3));
+    }
+
+    #[test]
+    fn rate_limit_window_reset_unblocks() {
+        // Oracle: counter resets when window_start is older than 60s
+        // Simulate by directly inserting an expired entry
+        let map: dashmap::DashMap<String, (u32, std::time::Instant)> = dashmap::DashMap::new();
+        // Insert an "exhausted" entry with a window_start far in the past
+        let old_start = std::time::Instant::now() - std::time::Duration::from_secs(120);
+        map.insert("alice".to_string(), (999, old_start));
+        // First call after window expiry should reset and return true
+        assert!(check_rate_limit(&map, "alice", 3));
+        // And the count should now be 1
+        let entry = map.get("alice").unwrap();
+        assert_eq!(entry.0, 1, "count must reset to 1 after window expiry");
     }
 }

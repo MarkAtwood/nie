@@ -401,12 +401,15 @@ per `pub_id` within a rolling window.
 
 Rate-limited methods: `broadcast`, `sealed_broadcast`, `group_send`.
 
-Exempt: `whisper` (addressed 1:1, natural per-hop cost), all non-send methods
-(auth, key package fetches, directory queries).
+Exempt: `whisper`, `sealed_whisper` (addressed 1:1, natural per-hop cost), all
+read and auth methods (`get_key_package`, `get_group_info`, `auth`, and similar).
 
 ### Parameters
 
 - Default: 120 messages per 60-second window (configurable via `RATE_LIMIT_MSG_PER_MIN`)
+- Keyed by `pub_id`: each authenticated identity has its own counter
+- Window: rolling 60-second window. `window_start` is recorded on the first message;
+  the counter resets when 60 seconds have elapsed since `window_start`
 - State: in-process `DashMap<pub_id, (count, window_start)>` in `AppState`
 - No persistence — counters reset on relay restart. This is intentional; persistent
   rate state would require careful migration and adds complexity for marginal gain.
@@ -415,8 +418,8 @@ Exempt: `whisper` (addressed 1:1, natural per-hop cost), all non-send methods
 
 Exceeded limit returns JSON-RPC error `{ "code": -32020, "message": "RATE_LIMITED" }`.
 
-`-32020` is the canonical error code for this condition. Do not change it —
-clients may branch on it.
+`-32020` is a stable wire contract. Do not change it — clients are expected
+to branch on this code and back off accordingly.
 
 ## Legal Transparency
 

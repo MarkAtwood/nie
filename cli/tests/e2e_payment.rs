@@ -55,7 +55,7 @@ async fn spawn_relay() -> (String, TempDir) {
         db_dir.path().join("relay.db").display()
     );
 
-    let state = AppState::new(&db_url, 60, false, 1_000_000, 30)
+    let state = AppState::new(&db_url, 60, false, 1_000_000, 30, 120)
         .await
         .expect("create AppState");
     let app = Router::new()

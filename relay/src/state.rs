@@ -1,5 +1,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 
 use dashmap::DashMap;
 use tokio::sync::mpsc;
@@ -49,6 +50,11 @@ pub struct Inner {
     /// Merchant DFVK loaded from MERCHANT_DFVK env var.  Absent when the env
     /// var is not set; relay operates without payment gating in that case.
     merchant: OnceLock<MerchantWallet>,
+    /// Per-pub_id broadcast rate limit counters: (message_count, window_start).
+    /// Key: pub_id. Value: (count in current window, when window started).
+    pub rate_limits: dashmap::DashMap<String, (u32, Instant)>,
+    /// Max broadcasts per 60-second window per pub_id. 0 = unlimited.
+    pub rate_limit_per_min: u32,
 }
 
 impl AppState {
@@ -58,6 +64,7 @@ impl AppState {
         require_subscription: bool,
         subscription_price_zatoshi: u64,
         subscription_days: u64,
+        rate_limit_per_min: u32,
     ) -> anyhow::Result<Self> {
         let store = Store::new(db_url).await?;
         Ok(Self {
@@ -70,6 +77,8 @@ impl AppState {
                 subscription_price_zatoshi,
                 subscription_days,
                 merchant: OnceLock::new(),
+                rate_limits: dashmap::DashMap::new(),
+                rate_limit_per_min,
             }),
         })
     }
@@ -99,6 +108,7 @@ impl AppState {
 
     pub fn disconnect(&self, pub_id: &PubId) {
         self.inner.clients.remove(&pub_id.0);
+        self.inner.rate_limits.remove(&pub_id.0);
     }
 
     /// Returns the session connection sequence number for `pub_id`, or `u64::MAX`

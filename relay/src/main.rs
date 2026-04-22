@@ -70,12 +70,19 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
+    let rate_limit_per_min: u32 = std::env::var("RATE_LIMIT_MSG_PER_MIN")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(120);
+    tracing::info!(rate_limit_per_min, "rate limit configured");
+
     let state = AppState::new(
         &db_url,
         keepalive_secs,
         require_subscription,
         subscription_price_zatoshi,
         subscription_days,
+        rate_limit_per_min,
     )
     .await?;
 

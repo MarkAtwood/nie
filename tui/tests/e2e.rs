@@ -32,7 +32,7 @@ async fn spawn_relay() -> String {
     let db_file = NamedTempFile::new().unwrap();
     let db_url = format!("sqlite:{}?mode=rwc", db_file.path().display());
 
-    let state = RelayAppState::new(&db_url, 60, false, 1_000_000, 30)
+    let state = RelayAppState::new(&db_url, 60, false, 1_000_000, 30, 120)
         .await
         .unwrap();
     let app = axum::Router::new()

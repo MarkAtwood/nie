@@ -72,6 +72,9 @@ pub mod rpc_errors {
     pub const SUBSCRIPTION_REQUIRED: i32 = -32010;
     pub const GROUP_NOT_FOUND: i32 = -32011;
     pub const NOT_A_MEMBER: i32 = -32012;
+    /// Rate limit exceeded: client has sent too many broadcast messages in the
+    /// current window.  Error code -32020 is a stable wire contract.
+    pub const RATE_LIMITED: i32 = -32020;
 }
 
 // ---------------------------------------------------------------------------
