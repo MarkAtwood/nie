@@ -117,6 +117,12 @@ let bytes: [u8; 32] = std::fs::read(keyfile)?
     .map_err(|_| anyhow::anyhow!("keyfile corrupt: expected 32 bytes"))?;
 ```
 
+The relay `AppState` / `Inner` / `MerchantWallet` structs intentionally do **not**
+derive `Debug`. `MerchantWallet` holds a `SaplingDiversifiableFvk` (full viewing
+key — can see all incoming transactions). Never add `#[derive(Debug)]` to these
+structs or any wrapper that transitively contains a viewing key or HPKE secret.
+A `tracing::debug!("{:?}", state)` would silently leak the DFVK to the log.
+
 ### 2. Signature verification discipline
 
 The auth challenge signs the nonce **as raw UTF-8 bytes** (`nonce.as_bytes()`).
