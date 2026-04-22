@@ -1,0 +1,27 @@
+[package]
+name = "nie-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "nie_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "nie-desktop"
+path = "src/main.rs"
+
+[dependencies]
+nie-core.workspace = true
+anyhow.workspace = true
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = ["wry"] }
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }

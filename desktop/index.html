@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nie (囁)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #1a1a1a;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    #header {
+      padding: 12px 16px;
+      background: #242424;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #header h1 { font-size: 16px; font-weight: 600; }
+    #pub-id {
+      font-size: 11px;
+      font-family: monospace;
+      color: #888;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 200px;
+    }
+    #status-badge {
+      margin-left: auto;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: #333;
+      color: #aaa;
+    }
+    #status-badge.connected { background: #1a3a1a; color: #4caf50; }
+
+    #setup {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 480px;
+      margin: auto;
+    }
+    #setup h2 { font-size: 18px; margin-bottom: 4px; }
+    #setup label { font-size: 13px; color: #aaa; margin-bottom: 2px; display: block; }
+    #setup input {
+      width: 100%;
+      padding: 8px 10px;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 6px;
+      color: #e0e0e0;
+      font-size: 14px;
+    }
+    #setup button {
+      padding: 10px;
+      background: #3a7bd5;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #setup button:hover { background: #4a8be5; }
+    #setup-error { color: #e57373; font-size: 13px; }
+
+    #chat { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .msg {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .msg .sender {
+      font-family: monospace;
+      font-size: 12px;
+      color: #7986cb;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .msg.own .sender { color: #81c784; }
+    .msg .text { font-size: 14px; word-break: break-word; }
+
+    #input-row {
+      display: flex;
+      gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid #333;
+      background: #1e1e1e;
+    }
+    #msg-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: #2a2a2a;
+      border: 1px solid #444;
+      border-radius: 20px;
+      color: #e0e0e0;
+      font-size: 14px;
+      outline: none;
+    }
+    #msg-input:focus { border-color: #3a7bd5; }
+    #send-btn {
+      padding: 8px 18px;
+      background: #3a7bd5;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #send-btn:hover { background: #4a8be5; }
+    #send-btn:disabled { background: #333; color: #666; cursor: default; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>nie 囁</h1>
+  <span id="pub-id">not connected</span>
+  <span id="status-badge">offline</span>
+</div>
+
+<!-- Setup form (shown before connection) -->
+<div id="setup">
+  <h2>Connect to relay</h2>
+  <div>
+    <label>Data directory</label>
+    <input id="data-dir" type="text" value="/tmp/nie-desktop" />
+  </div>
+  <div>
+    <label>Relay URL</label>
+    <input id="relay-url" type="text" value="wss://relay.nie.example.com/ws" />
+  </div>
+  <button id="connect-btn">Connect</button>
+  <div id="setup-error"></div>
+</div>
+
+<!-- Chat UI (shown after connection) -->
+<div id="chat">
+  <div id="messages"></div>
+  <div id="input-row">
+    <input id="msg-input" type="text" placeholder="Message…" autocomplete="off" />
+    <button id="send-btn">Send</button>
+  </div>
+</div>
+
+<script>
+  // Tauri v2 API imports.
+  const { invoke } = window.__TAURI__.core;
+  const { listen } = window.__TAURI__.event;
+
+  let ownPubId = null;
+
+  // ---- Setup ----
+
+  document.getElementById('connect-btn').addEventListener('click', async () => {
+    const dataDir = document.getElementById('data-dir').value.trim();
+    const relayUrl = document.getElementById('relay-url').value.trim();
+    const errEl = document.getElementById('setup-error');
+    errEl.textContent = '';
+
+    try {
+      ownPubId = await invoke('init_identity', { dataDir });
+      document.getElementById('pub-id').textContent = ownPubId.slice(0, 12) + '…';
+
+      await invoke('connect_relay', { relayUrl, dataDir });
+
+      document.getElementById('setup').style.display = 'none';
+      document.getElementById('chat').style.display = 'flex';
+      document.getElementById('status-badge').textContent = 'connected';
+      document.getElementById('status-badge').classList.add('connected');
+    } catch (e) {
+      errEl.textContent = String(e);
+    }
+  });
+
+  // ---- Incoming messages ----
+
+  listen('nie://message', (event) => {
+    const { from, text } = event.payload;
+    appendMessage(from, text, false);
+  });
+
+  listen('nie://status', (event) => {
+    const badge = document.getElementById('status-badge');
+    badge.textContent = event.payload;
+    badge.classList.remove('connected');
+  });
+
+  // ---- Send ----
+
+  async function sendMessage() {
+    const input = document.getElementById('msg-input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    try {
+      await invoke('send_chat', { text });
+      appendMessage(ownPubId ? ownPubId.slice(0, 8) : 'me', text, true);
+    } catch (e) {
+      appendMessage('error', String(e), false);
+    }
+  }
+
+  document.getElementById('send-btn').addEventListener('click', sendMessage);
+  document.getElementById('msg-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  // ---- DOM helpers ----
+
+  function appendMessage(sender, text, isOwn) {
+    const messages = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.className = 'msg' + (isOwn ? ' own' : '');
+    div.innerHTML =
+      `<span class="sender">${escHtml(sender)}</span>` +
+      `<span class="text">${escHtml(text)}</span>`;
+    messages.appendChild(div);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+</script>
+</body>
+</html>

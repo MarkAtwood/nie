@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix", "bridge-slack", "bridge-teams", "bridge-jmap", "nie-monero"]
+members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix", "bridge-slack", "bridge-teams", "bridge-jmap", "nie-monero", "desktop/src-tauri"]
 resolver = "2"
 
 [workspace.package]
