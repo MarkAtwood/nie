@@ -299,6 +299,25 @@ Never use the code under test as its own oracle. Acceptable oracles:
 
 Auth tests must include rejection cases.
 
+### 16. UTF-8 cursor boundary invariant
+
+`input_cursor` is a byte offset into `state.input` and must always point to a
+UTF-8 char boundary. Every operation that changes the cursor or slices the
+string must enforce this:
+
+- **Insert** (`KeyCode::Char c`): advance by `c.len_utf8()`.
+- **Delete backward** (`Backspace`): scan left with
+  `while !input.is_char_boundary(pos) { pos -= 1; }` before removing.
+- **Delete forward** (`Delete`): use `char_indices()` to find the character's
+  byte length before removing.
+- **Cursor move** (`Left`/`Right`): scan to nearest boundary with
+  `is_char_boundary()`.
+- **Truncation** (e.g. shell output): use `char_indices()` to find a safe
+  point; never slice mid-character.
+
+Violating this invariant causes a panic on multi-byte input (emoji, accented
+chars, CJK). Never use bare byte arithmetic on cursor position.
+
 ## Wallet Security
 
 ### Key separation
