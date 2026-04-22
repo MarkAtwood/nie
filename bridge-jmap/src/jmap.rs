@@ -1,0 +1,362 @@
+//! JMAP (RFC 8620 / RFC 8621) client types and HTTP implementation.
+//!
+//! Implements a minimal subset of JMAP for Mail:
+//! - `Email/query`  — list email IDs in a mailbox since a given state
+//! - `Email/get`    — fetch email headers and plain text body
+//! - `Email/set`    — create a new email in a mailbox
+
+use anyhow::{anyhow, Result};
+use serde::Deserialize;
+use serde_json::{json, Value};
+
+/// A single JMAP method call in a Request object.
+///
+/// Format: `[method_name, arguments, method_call_id]`
+type MethodCall = (String, Value, String);
+
+/// A single JMAP method response in a Response object.
+///
+/// Format: `[method_name, arguments, method_call_id]`
+type MethodResponse = (String, Value, String);
+
+/// Minimal subset of an Email object for bridging purposes.
+#[derive(Debug, Deserialize)]
+pub struct EmailObject {
+    /// JMAP email ID.
+    #[allow(dead_code)]
+    pub id: String,
+    /// From: display name (first sender).
+    pub from: Option<Vec<EmailAddress>>,
+    /// Subject line.
+    pub subject: Option<String>,
+    /// Plain text body (textBody part).
+    #[serde(rename = "bodyValues")]
+    pub body_values: Option<std::collections::HashMap<String, BodyPart>>,
+    /// Text body part reference IDs.
+    #[serde(rename = "textBody")]
+    pub text_body: Option<Vec<BodyPartRef>>,
+}
+
+/// An email address (name + email).
+#[derive(Debug, Deserialize)]
+pub struct EmailAddress {
+    pub name: Option<String>,
+    pub email: Option<String>,
+}
+
+/// A resolved body part value.
+#[derive(Debug, Deserialize)]
+pub struct BodyPart {
+    pub value: String,
+}
+
+/// A reference to a body part (used to join textBody → bodyValues).
+#[derive(Debug, Deserialize)]
+pub struct BodyPartRef {
+    #[serde(rename = "partId")]
+    pub part_id: Option<String>,
+}
+
+impl EmailObject {
+    /// Return the plain-text body, or `None` if unavailable.
+    pub fn plain_text(&self) -> Option<&str> {
+        let text_body = self.text_body.as_ref()?;
+        let part_ref = text_body.first()?;
+        let part_id = part_ref.part_id.as_deref()?;
+        let body_values = self.body_values.as_ref()?;
+        Some(body_values.get(part_id)?.value.as_str())
+    }
+
+    /// Return the display name or email address of the first sender.
+    pub fn sender_display(&self) -> Option<&str> {
+        let from = self.from.as_ref()?;
+        let addr = from.first()?;
+        addr.name.as_deref().or(addr.email.as_deref())
+    }
+}
+
+/// Minimal JMAP HTTP client.
+///
+/// Does not implement Debug to avoid accidental logging of the bearer token.
+pub struct JmapClient {
+    session_url: String,
+    bearer_token: String,
+    http: reqwest::Client,
+    /// JMAP API URL (populated after session fetch).
+    api_url: Option<String>,
+}
+
+impl JmapClient {
+    pub fn new(session_url: &str, bearer_token: &str) -> Self {
+        Self {
+            session_url: session_url.to_string(),
+            bearer_token: bearer_token.to_string(),
+            http: reqwest::Client::new(),
+            api_url: None,
+        }
+    }
+
+    /// Fetch the JMAP session and cache the API URL.
+    ///
+    /// Must be called before `email_query`, `email_get`, or `email_set`.
+    pub async fn init_session(&mut self) -> Result<()> {
+        let resp = self
+            .http
+            .get(&self.session_url)
+            .bearer_auth(&self.bearer_token)
+            .send()
+            .await
+            .map_err(|e| anyhow!("JMAP session fetch error: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!("JMAP session error {status}: {body}"));
+        }
+        let session: Value = resp
+            .json()
+            .await
+            .map_err(|e| anyhow!("JMAP session parse error: {e}"))?;
+        let api_url = session
+            .get("apiUrl")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| anyhow!("JMAP session missing apiUrl"))?;
+        self.api_url = Some(api_url.to_string());
+        Ok(())
+    }
+
+    fn api_url(&self) -> Result<&str> {
+        self.api_url
+            .as_deref()
+            .ok_or_else(|| anyhow!("JMAP session not initialized; call init_session() first"))
+    }
+
+    /// Execute a JMAP API request with the given method calls.
+    async fn request(&self, method_calls: Vec<MethodCall>) -> Result<Vec<MethodResponse>> {
+        let body = json!({
+            "using": [
+                "urn:ietf:params:jmap:core",
+                "urn:ietf:params:jmap:mail"
+            ],
+            "methodCalls": method_calls
+        });
+        let resp = self
+            .http
+            .post(self.api_url()?)
+            .bearer_auth(&self.bearer_token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| anyhow!("JMAP request error: {e}"))?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let err_body = resp.text().await.unwrap_or_default();
+            return Err(anyhow!("JMAP API error {status}: {err_body}"));
+        }
+        let response: Value = resp
+            .json()
+            .await
+            .map_err(|e| anyhow!("JMAP response parse error: {e}"))?;
+        let method_responses = response
+            .get("methodResponses")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| anyhow!("JMAP response missing methodResponses"))?
+            .iter()
+            .filter_map(|r| {
+                let arr = r.as_array()?;
+                Some((
+                    arr.first()?.as_str()?.to_string(),
+                    arr.get(1)?.clone(),
+                    arr.get(2)?.as_str().unwrap_or("").to_string(),
+                ))
+            })
+            .collect();
+        Ok(method_responses)
+    }
+
+    /// Query email IDs in a mailbox, optionally filtered since a given query state.
+    ///
+    /// Returns `(ids, new_query_state)`.
+    pub async fn email_query(
+        &self,
+        account_id: &str,
+        mailbox_id: &str,
+        since_state: Option<&str>,
+    ) -> Result<(Vec<String>, String)> {
+        let mut filter = json!({ "inMailbox": mailbox_id });
+        if let Some(s) = since_state {
+            // Use sinceQueryState to get only changes since last poll.
+            // This is the `Email/queryChanges` method; fall back to full query
+            // if the server does not support state.
+            filter["sinceQueryState"] = json!(s);
+        }
+
+        let args = json!({
+            "accountId": account_id,
+            "filter": { "inMailbox": mailbox_id },
+            "sort": [{"property": "receivedAt", "isAscending": false}],
+            "limit": 50
+        });
+        let calls = vec![("Email/query".to_string(), args, "c1".to_string())];
+        let responses = self.request(calls).await?;
+
+        let resp_args = responses
+            .into_iter()
+            .find(|(m, _, _)| m == "Email/query")
+            .map(|(_, args, _)| args)
+            .ok_or_else(|| anyhow!("Email/query response not found"))?;
+
+        let ids: Vec<String> = resp_args
+            .get("ids")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let query_state = resp_args
+            .get("queryState")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        Ok((ids, query_state))
+    }
+
+    /// Fetch full email objects for the given IDs.
+    pub async fn email_get(
+        &self,
+        account_id: &str,
+        ids: &[String],
+    ) -> Result<Vec<EmailObject>> {
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let args = json!({
+            "accountId": account_id,
+            "ids": ids,
+            "properties": ["id", "from", "subject", "textBody", "bodyValues"],
+            "fetchTextBodyValues": true,
+            "maxBodyValueBytes": 8192
+        });
+        let calls = vec![("Email/get".to_string(), args, "c1".to_string())];
+        let responses = self.request(calls).await?;
+
+        let resp_args = responses
+            .into_iter()
+            .find(|(m, _, _)| m == "Email/get")
+            .map(|(_, args, _)| args)
+            .ok_or_else(|| anyhow!("Email/get response not found"))?;
+
+        let list = resp_args
+            .get("list")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| anyhow!("Email/get response missing 'list'"))?;
+
+        let emails = list
+            .iter()
+            .filter_map(|v| serde_json::from_value::<EmailObject>(v.clone()).ok())
+            .collect();
+        Ok(emails)
+    }
+
+    /// Create a new email in the specified mailbox.
+    pub async fn email_set(
+        &self,
+        account_id: &str,
+        mailbox_id: &str,
+        subject: &str,
+        body: &str,
+    ) -> Result<()> {
+        let args = json!({
+            "accountId": account_id,
+            "create": {
+                "new1": {
+                    "mailboxIds": { mailbox_id: true },
+                    "subject": subject,
+                    "body": [
+                        {
+                            "partId": "body",
+                            "type": "text/plain"
+                        }
+                    ],
+                    "bodyValues": {
+                        "body": {
+                            "value": body,
+                            "isEncodingProblem": false,
+                            "isTruncated": false
+                        }
+                    }
+                }
+            }
+        });
+        let calls = vec![("Email/set".to_string(), args, "c1".to_string())];
+        let responses = self.request(calls).await?;
+
+        let resp_args = responses
+            .into_iter()
+            .find(|(m, _, _)| m == "Email/set")
+            .map(|(_, args, _)| args)
+            .ok_or_else(|| anyhow!("Email/set response not found"))?;
+
+        // Check for server-side errors.
+        if let Some(not_created) = resp_args.get("notCreated") {
+            if not_created.as_object().is_some_and(|m| !m.is_empty()) {
+                return Err(anyhow!("Email/set notCreated: {not_created}"));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_email(id: &str, sender: Option<&str>, subject: Option<&str>, body: Option<&str>) -> EmailObject {
+        use std::collections::HashMap;
+        EmailObject {
+            id: id.to_string(),
+            from: sender.map(|name| {
+                vec![EmailAddress {
+                    name: Some(name.to_string()),
+                    email: Some(format!("{name}@example.com")),
+                }]
+            }),
+            subject: subject.map(str::to_string),
+            body_values: body.map(|b| {
+                let mut m = HashMap::new();
+                m.insert("1".to_string(), BodyPart { value: b.to_string() });
+                m
+            }),
+            text_body: body.map(|_| {
+                vec![BodyPartRef { part_id: Some("1".to_string()) }]
+            }),
+        }
+    }
+
+    #[test]
+    fn plain_text_returns_body() {
+        let email = make_email("id1", Some("Alice"), Some("subject"), Some("hello world"));
+        assert_eq!(email.plain_text(), Some("hello world"));
+    }
+
+    #[test]
+    fn plain_text_returns_none_when_no_body() {
+        let email = make_email("id2", Some("Alice"), Some("subject"), None);
+        assert_eq!(email.plain_text(), None);
+    }
+
+    #[test]
+    fn sender_display_returns_name() {
+        let email = make_email("id3", Some("Bob"), None, None);
+        assert_eq!(email.sender_display(), Some("Bob"));
+    }
+
+    #[test]
+    fn sender_display_returns_none_when_no_from() {
+        let email = make_email("id4", None, None, None);
+        assert_eq!(email.sender_display(), None);
+    }
+}

@@ -1,0 +1,257 @@
+//! JMAP ↔ nie bridge: bidirectional message forwarding.
+//!
+//! # Architecture
+//!
+//! ```text
+//! JMAP server ─── polling loop ──► nie broadcast
+//!      ▲                                  │
+//!      │                                  ▼
+//! Email/set ◄────────────────────── nie deliver
+//! ```
+//!
+//! A background tokio task polls the JMAP mailbox every `poll_interval_secs`
+//! seconds and forwards new emails to the nie relay as Chat messages.
+//! When the nie relay delivers messages, we create a new email in the JMAP
+//! mailbox via Email/set.
+
+use anyhow::Result;
+use nie_core::messages::{pad, unpad, ClearMessage};
+use nie_core::protocol::{rpc_methods, BroadcastParams, DeliverParams, JsonRpcRequest};
+use nie_core::transport::{next_request_id, ClientEvent};
+use serde_json::Value;
+use std::collections::HashSet;
+use std::sync::{Arc, Mutex};
+use tokio::time::{interval, Duration};
+
+use crate::config::BridgeConfig;
+use crate::jmap::JmapClient;
+
+/// Format a nie message as an email subject/body for delivery to the JMAP mailbox.
+pub fn format_subject(sender_pub_id: &str, prefix: Option<&str>) -> String {
+    let short_id = &sender_pub_id[..sender_pub_id.len().min(8)];
+    match prefix {
+        Some(p) => format!("{p} nie/{short_id}"),
+        None => format!("nie/{short_id}"),
+    }
+}
+
+/// Format a JMAP email for forwarding to nie.
+pub fn format_for_nie(sender: &str, subject: Option<&str>, text: &str) -> String {
+    match subject {
+        Some(s) => format!("[JMAP/{sender} | {s}] {text}"),
+        None => format!("[JMAP/{sender}] {text}"),
+    }
+}
+
+// ---- Main bridge loop ----
+
+pub async fn run(config: &BridgeConfig) -> Result<()> {
+    let identity = nie_core::keyfile::load_identity(&config.keyfile, false)?;
+    let own_pub_id = identity.pub_id().0.clone();
+
+    // Connect to the nie relay with transparent reconnection.
+    let mut conn =
+        nie_core::transport::connect_with_retry(config.relay_url.clone(), identity, false, None);
+
+    // JMAP client.
+    let mut jmap = JmapClient::new(&config.jmap_session_url, &config.jmap_bearer_token);
+    jmap.init_session().await?;
+    let jmap = Arc::new(jmap);
+
+    let account_id = config.jmap_account_id.clone();
+    let mailbox_id = config.jmap_mailbox_id.clone();
+    let bridge_prefix = config.bridge_prefix.clone();
+    let mailbox_name = config.mailbox_name.clone();
+    let poll_interval_secs = config.poll_interval_secs;
+
+    // Track seen email IDs to avoid reprocessing on each poll.
+    let seen_ids: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+    // Track the last JMAP query state for incremental polling.
+    let query_state: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+
+    // Channel: JMAP poll → nie broadcast.
+    let (jmap_tx, mut jmap_rx) = tokio::sync::mpsc::channel::<String>(64);
+
+    // Background polling task: watches the JMAP mailbox for new emails.
+    {
+        let jmap = Arc::clone(&jmap);
+        let seen_ids = Arc::clone(&seen_ids);
+        let query_state = Arc::clone(&query_state);
+        let account_id = account_id.clone();
+        let mailbox_id = mailbox_id.clone();
+        let mailbox_name = mailbox_name.clone();
+        let tx = jmap_tx;
+        tokio::spawn(async move {
+            let mut ticker = interval(Duration::from_secs(poll_interval_secs));
+            loop {
+                ticker.tick().await;
+
+                let since = query_state.lock().unwrap().clone();
+                let (ids, new_state) = match jmap
+                    .email_query(&account_id, &mailbox_id, since.as_deref())
+                    .await
+                {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!("JMAP email_query failed: {e}");
+                        continue;
+                    }
+                };
+
+                // Filter to IDs we haven't seen yet.
+                let new_ids: Vec<String> = {
+                    let mut seen = seen_ids.lock().unwrap();
+                    ids.into_iter()
+                        .filter(|id| seen.insert(id.clone()))
+                        .collect()
+                };
+
+                if !new_ids.is_empty() {
+                    match jmap.email_get(&account_id, &new_ids).await {
+                        Ok(emails) => {
+                            for email in emails {
+                                let sender =
+                                    email.sender_display().unwrap_or("unknown").to_string();
+                                let text = match email.plain_text() {
+                                    Some(t) => t.trim().to_string(),
+                                    None => continue,
+                                };
+                                if text.is_empty() {
+                                    continue;
+                                }
+                                let display_subject = email.subject.as_deref();
+                                let mbox = mailbox_name.as_deref().unwrap_or(&sender);
+                                let nie_text = format_for_nie(mbox, display_subject, &text);
+                                if tx.try_send(nie_text).is_err() {
+                                    tracing::warn!("JMAP→nie channel full; email dropped");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!("JMAP email_get failed: {e}");
+                        }
+                    }
+                }
+
+                *query_state.lock().unwrap() = Some(new_state);
+            }
+        });
+    }
+
+    tracing::info!("bridge-jmap connected to relay as {}", &own_pub_id[..8]);
+
+    // Main event loop.
+    loop {
+        tokio::select! {
+            // JMAP email → nie broadcast.
+            maybe_text = jmap_rx.recv() => {
+                let Some(text) = maybe_text else { break };
+                let payload = serde_json::to_vec(&ClearMessage::Chat { text }).unwrap();
+                let Ok(padded) = pad(&payload) else {
+                    tracing::warn!("JMAP message too large to pad; dropped");
+                    continue;
+                };
+                let Ok(rpc) = JsonRpcRequest::new(
+                    next_request_id(),
+                    rpc_methods::BROADCAST,
+                    BroadcastParams { payload: padded },
+                ) else {
+                    continue;
+                };
+                if conn.tx.send(rpc).await.is_err() {
+                    tracing::warn!("relay disconnected while sending");
+                    break;
+                }
+            }
+            // nie relay event → JMAP email.
+            maybe_event = conn.rx.recv() => {
+                let Some(event) = maybe_event else { break };
+                match event {
+                    ClientEvent::Message(notif) => {
+                        if notif.method == rpc_methods::DELIVER {
+                            handle_nie_deliver(
+                                notif.params,
+                                &own_pub_id,
+                                &jmap,
+                                &account_id,
+                                &mailbox_id,
+                                bridge_prefix.as_deref(),
+                            )
+                            .await;
+                        }
+                    }
+                    ClientEvent::Reconnecting { delay_secs } => {
+                        tracing::info!("relay reconnecting in {delay_secs}s");
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn handle_nie_deliver(
+    params: Option<Value>,
+    own_pub_id: &str,
+    jmap: &JmapClient,
+    account_id: &str,
+    mailbox_id: &str,
+    bridge_prefix: Option<&str>,
+) {
+    let Some(params) = params else { return };
+    let Ok(deliver) = serde_json::from_value::<DeliverParams>(params) else {
+        return;
+    };
+    if deliver.from == own_pub_id {
+        return; // skip own echo
+    }
+    let Ok(msg) = unpad(&deliver.payload) else {
+        return;
+    };
+    let Ok(clear) = serde_json::from_slice::<ClearMessage>(&msg) else {
+        return;
+    };
+    let ClearMessage::Chat { text } = clear else {
+        return;
+    };
+    let subject = format_subject(&deliver.from, bridge_prefix);
+    if let Err(e) = jmap.email_set(account_id, mailbox_id, &subject, &text).await {
+        tracing::warn!("JMAP email_set failed: {e}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_subject_with_prefix() {
+        let s = format_subject("abcdef1234567890", Some("[nie]"));
+        assert_eq!(s, "[nie] nie/abcdef12");
+    }
+
+    #[test]
+    fn format_subject_without_prefix() {
+        let s = format_subject("abcdef1234567890", None);
+        assert_eq!(s, "nie/abcdef12");
+    }
+
+    #[test]
+    fn format_subject_short_id() {
+        let s = format_subject("abc", None);
+        assert_eq!(s, "nie/abc");
+    }
+
+    #[test]
+    fn format_for_nie_with_subject() {
+        let s = format_for_nie("Alice", Some("Re: hi"), "hello");
+        assert_eq!(s, "[JMAP/Alice | Re: hi] hello");
+    }
+
+    #[test]
+    fn format_for_nie_without_subject() {
+        let s = format_for_nie("Alice", None, "hello");
+        assert_eq!(s, "[JMAP/Alice] hello");
+    }
+}
