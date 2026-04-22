@@ -68,6 +68,14 @@ Server → Client: notification method: "deliver", params: { from, payload: [u8]
 The relay forwards `payload` without deserializing it. The abstraction boundary
 is `payload: Vec<u8>` — adding MLS encryption required zero relay changes.
 
+### Wire format breaking changes
+
+`PaymentAction::Request` and `PaymentAction::Sent` carried `amount: String`
+(e.g. `"0.1"`) in early builds. This field was renamed to `amount_zatoshi: u64`
+(e.g. `10000000`). Old clients that send the string form will be rejected by new
+clients (serde returns an error on missing required field `amount_zatoshi`). There
+is no negotiation or fallback — the change requires a coordinated upgrade.
+
 ### TLS
 
 TLS is terminated at a reverse proxy (Caddy or nginx). The relay binary speaks
@@ -330,3 +338,159 @@ add-member protocol.
 2. `done_barrier` — no client drains until all N have finished sending.
 
 Both are load-bearing. Do not collapse to one or replace with `sleep`.
+
+## Anti-Spam PoW Enrollment
+
+Before a new public key can authenticate for the first time, the relay requires
+a proof-of-work token. This raises the per-account compute cost without any PII
+requirement.
+
+### Token format (versioned, stable API)
+
+31 bytes, base64url-encoded:
+
+```
+ver u8 | op_type u8 | ts_floor u32 (big-endian) | diff u8 | nonce u64 (big-endian) | h16 [u8; 16]
+```
+
+- `ver`: always `0x01` for this version
+- `op_type`: `0x01` for enrollment
+- `ts_floor`: `unix_ts / 60` (minute granularity)
+- `diff`: number of required leading zero bits (minimum 20; relay rejects tokens below floor)
+- `h16`: first 16 bytes of `double_sha256(hash_context || nonce_be64)`
+
+### Hash context
+
+```
+double_sha256(ver || op_type || ts_floor_be32 || diff || hex_lower(ed25519_pub_bytes) || server_salt_bytes)
+```
+
+`server_salt` is a random 32-byte value generated at relay startup and held in
+`AppState`. It is not persisted — restart invalidates all pre-mined tokens.
+
+### Invariants
+
+- Minimum difficulty is 20 bits. Relay must reject any token claiming `diff < 20`.
+  Do not lower this floor without a security review.
+- Staleness window: `abs(now/60 - ts_floor) > 10` is stale and must be rejected.
+  A ±600-second window prevents pre-mining while tolerating clock skew.
+- Replay prevention: `h16` must be checked against an in-memory set (TTL = 600s)
+  before acceptance. Do not skip this check — without it, a valid token can be
+  replayed indefinitely within the staleness window.
+- Difficulty is stored in `AppState` and is adjustable at runtime without restart.
+  Clients must fetch the current difficulty from the challenge before mining.
+- The token format is a client-facing protocol API. Changing field widths or
+  ordering is a breaking change requiring a version bump in `ver`.
+
+### Error response
+
+Reject with `AuthFailed { reason: "pow_required" | "pow_invalid" | "pow_stale" | "pow_replayed" }`.
+
+## Rate Limiting
+
+Subscribed clients are rate-limited on outgoing broadcasts. The limit applies
+per `pub_id` within a rolling window.
+
+### Scope
+
+Rate-limited methods: `broadcast`, `sealed_broadcast`, `group_send`.
+
+Exempt: `whisper` (addressed 1:1, natural per-hop cost), all non-send methods
+(auth, key package fetches, directory queries).
+
+### Parameters
+
+- Default: 120 messages per 60-second window (configurable via `RATE_LIMIT_MSG_PER_MIN`)
+- State: in-process `DashMap<pub_id, (count, window_start)>` in `AppState`
+- No persistence — counters reset on relay restart. This is intentional; persistent
+  rate state would require careful migration and adds complexity for marginal gain.
+
+### Error code
+
+Exceeded limit returns JSON-RPC error `{ "code": -32020, "message": "RATE_LIMITED" }`.
+
+`-32020` is the canonical error code for this condition. Do not change it —
+clients may branch on it.
+
+## Legal Transparency
+
+nie's threat model anticipates legal demands. The relay holds minimal data by
+design; transparency about what was demanded and what was produced deters
+speculative requests.
+
+### What the relay can produce under compulsion
+
+Exactly this, and nothing else (see Hard Design Invariants §1–6):
+
+| Field | Source |
+|-------|--------|
+| `pub_id` | hex(SHA-256(verifying_key)) — a hash, not the key |
+| `first_seen` | timestamp of first successful authentication |
+| `subscription_expires` | subscription expiry timestamp |
+
+The relay does not store IP addresses, message content, payment addresses beyond
+merchant invoices, or any identifying information beyond the above.
+
+### Transparency log
+
+Published at `GET /transparency` as JSON and rendered HTML. Each entry records:
+sequential ID, requesting entity, demand type, date received, status, and a
+link to the redacted response. The log is append-only and operator-maintained.
+
+Every received demand must be logged regardless of outcome. Do not suppress
+entries for demands that were successfully challenged or refused.
+
+### Operator billing policy
+
+If 18 USC 2706 applies (US-based relay), bill the requesting agency the
+statutory research fee before producing any records. Document this policy in
+`LEGAL.md`.
+
+## Display Name Canonicalization
+
+Nicknames (`/iam`) and group names (`group_create`) are user-supplied strings
+visible to all connected clients in `DirectoryList` and `group_list`. Without
+normalization they are attack surfaces for:
+
+- **RTL override**: U+202E renders `groupname` as `emanpuorg`
+- **Homoglyph spoofing**: Cyrillic `е` (U+0435) is visually identical to Latin `e`
+- **Zero-width characters**: invisible bytes create two "identical" names with
+  different bytes
+
+### Required canonicalization (applied before storage and broadcast)
+
+1. NFC Unicode normalization (`unicode_normalization` crate, `.nfc().collect()`)
+2. Strip BIDI control characters: U+202A–202E, U+2066–2069, U+200E, U+200F
+3. Strip zero-width characters: U+200B, U+200C, U+2060
+4. Trim leading/trailing whitespace; collapse is not required
+5. Reject empty result; reject if `s.chars().count() > 32`
+
+### Application points
+
+- `ws.rs`: `set_nickname` handler — before storing or broadcasting the new name
+- `store.rs`: `group_create` — before inserting the group name
+- Do not apply to `payload` fields — those are opaque encrypted blobs
+
+### Why NFC and not NFKC
+
+NFKC would also normalize ligatures and compatibility characters, which may
+alter legitimate display intent. NFC is sufficient to defeat homoglyph attacks
+via canonical decomposition + recomposition while preserving intentional
+formatting.
+
+## Offline Queue TTL — Known Limitation
+
+The current purge query is:
+
+```sql
+DELETE FROM offline_messages WHERE expires_at < ?
+```
+
+This performs a full row scan and delete, which is acceptable for SQLite at
+current message volumes. At high throughput (millions of queued messages),
+partition-based TTL via `DROP TABLE offline_messages_YYYY_MM_DD` would be
+O(1) DDL instead of O(n) row scan.
+
+SQLite does not support table partitioning natively. Revisit this if/when the
+relay migrates to Postgres and message volume makes the scan measurably slow.
+Until then, do not add complexity to the purge path.

@@ -8,6 +8,7 @@ use nie_core::protocol::{
     KeyPackageReadyParams, PublishHpkeKeyParams, PublishKeyPackageParams, SealedDeliverParams,
     UserJoinedParams, UserLeftParams, UserNicknameParams, WhisperDeliverParams,
 };
+use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
 use nie_core::transport::{next_request_id, ClientEvent, RelayConnRetry};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::{io::Stdout, time::Duration};
@@ -684,16 +685,13 @@ async fn decrypt_and_display(
             use nie_core::messages::{PaymentAction, PaymentState};
             let from_name = state.display_name(from_pub_id).to_string();
             let overlay_text = match &action {
-                PaymentAction::Request { chain, amount } => {
+                PaymentAction::Request { chain, amount_zatoshi } => {
                     // Receiving a Request from a peer creates a new payee session.
-                    // Parse the amount string to zatoshi; fall back to 0 on parse failure
-                    // (overlay is still shown — session records what we received).
-                    let amount_zatoshi = parse_zec_to_zatoshi(amount).unwrap_or(0);
                     let now = chrono::Utc::now().timestamp();
                     let session = nie_core::messages::PaymentSession {
                         id: session_id,
-                        chain: chain.clone(),
-                        amount_zatoshi,
+                        chain: *chain,
+                        amount_zatoshi: *amount_zatoshi,
                         peer_pub_id: from_pub_id.to_string(),
                         role: nie_core::messages::PaymentRole::Payee,
                         state: nie_core::messages::PaymentState::Requested,
@@ -703,7 +701,10 @@ async fn decrypt_and_display(
                         address: None,
                     };
                     state.sessions.entry(session_id).or_insert_with(|| session);
-                    format!("Payment request from {from_name}: {amount} ZEC")
+                    format!(
+                        "Payment request from {from_name}: {} ZEC",
+                        zatoshi_to_zec_string(*amount_zatoshi)
+                    )
                 }
                 PaymentAction::Address { address, .. } => {
                     // Update the session with the provided address if we are the payer.
@@ -724,7 +725,9 @@ async fn decrypt_and_display(
                     format!("Payment address received from {from_name}")
                 }
                 PaymentAction::Sent {
-                    tx_hash, amount, ..
+                    tx_hash,
+                    amount_zatoshi,
+                    ..
                 } => {
                     if let Some(sess) = state.sessions.get_mut(&session_id) {
                         if !is_valid_transition(&sess.state, &action, &sess.role) {
@@ -741,7 +744,8 @@ async fn decrypt_and_display(
                     }
                     let short_hash: String = tx_hash.chars().take(16).collect();
                     format!(
-                        "Payment sent by {from_name}: {amount} ZEC (tx {})",
+                        "Payment sent by {from_name}: {} ZEC (tx {})",
+                        zatoshi_to_zec_string(*amount_zatoshi),
                         short_hash
                     )
                 }
@@ -939,37 +943,6 @@ async fn send_chat(
 // Payment amount helpers
 // ─────────────────────────────────────────────────────────────────
 
-fn parse_zec_to_zatoshi(s: &str) -> Result<u64, String> {
-    let s = s.trim();
-    let (whole, frac) = if let Some((w, f)) = s.split_once('.') {
-        (w, f)
-    } else {
-        (s, "")
-    };
-    if frac.len() > 8 {
-        return Err("too many decimal places (max 8)".to_string());
-    }
-    let whole: u64 = whole.parse().map_err(|_| "invalid amount".to_string())?;
-    let frac_padded = format!("{:0<8}", frac);
-    let frac_val: u64 = frac_padded
-        .parse()
-        .map_err(|_| "invalid decimal".to_string())?;
-    whole
-        .checked_mul(100_000_000)
-        .and_then(|w| w.checked_add(frac_val))
-        .ok_or_else(|| "amount overflow".to_string())
-}
-
-fn zatoshi_to_zec_string(zatoshi: u64) -> String {
-    let whole = zatoshi / 100_000_000;
-    let frac = zatoshi % 100_000_000;
-    if frac == 0 {
-        whole.to_string()
-    } else {
-        let s = format!("{whole}.{frac:08}");
-        s.trim_end_matches('0').to_string()
-    }
-}
 
 async fn handle_slash(
     state: &mut AppState,
@@ -1311,7 +1284,7 @@ async fn handle_slash(
             let now = chrono::Utc::now().timestamp();
             let session = nie_core::messages::PaymentSession {
                 id: uuid::Uuid::new_v4(),
-                chain: chain.clone(),
+                chain,
                 amount_zatoshi,
                 peer_pub_id: peer_pub_id.clone(),
                 role: PaymentRole::Payer,
@@ -1335,7 +1308,7 @@ async fn handle_slash(
             use nie_core::messages::{ClearMessage, PaymentAction};
             let action = PaymentAction::Request {
                 chain,
-                amount: zatoshi_to_zec_string(amount_zatoshi),
+                amount_zatoshi,
             };
             let payload = serde_json::to_vec(&ClearMessage::Payment {
                 session_id: session.id,
@@ -1393,22 +1366,6 @@ mod tests {
     use super::*;
     use crate::app::{AppState, ChatLine, OnlineUser};
     use nie_core::mls::MlsClient;
-
-    #[test]
-    fn parse_zec_to_zatoshi_cases() {
-        assert_eq!(parse_zec_to_zatoshi("1.0"), Ok(100_000_000));
-        assert_eq!(parse_zec_to_zatoshi("0.5"), Ok(50_000_000));
-        assert_eq!(parse_zec_to_zatoshi("0.00000001"), Ok(1));
-        assert!(parse_zec_to_zatoshi("abc").is_err());
-        assert!(parse_zec_to_zatoshi("1.000000001").is_err()); // too many decimals
-    }
-
-    #[test]
-    fn zatoshi_to_zec_string_cases() {
-        assert_eq!(zatoshi_to_zec_string(100_000_000), "1");
-        assert_eq!(zatoshi_to_zec_string(50_000_000), "0.5");
-        assert_eq!(zatoshi_to_zec_string(1), "0.00000001");
-    }
 
     fn make_state() -> AppState {
         let pub_id = "a".repeat(64);
@@ -1788,7 +1745,7 @@ mod tests {
         let sent_action = PaymentAction::Sent {
             chain: Chain::Zcash,
             tx_hash: "deadbeef".to_string(),
-            amount: "0.1".to_string(),
+            amount_zatoshi: 10_000_000, // 0.1 ZEC
         };
         let confirmed_action = PaymentAction::Confirmed {
             tx_hash: "deadbeef".to_string(),
@@ -2151,7 +2108,7 @@ mod tests {
             action: PaymentAction::Sent {
                 chain: Chain::Zcash,
                 tx_hash: "abc123".to_string(),
-                amount: "0.01".to_string(),
+                amount_zatoshi: 1_000_000, // 0.01 ZEC
             },
         })
         .unwrap();

@@ -44,14 +44,14 @@ pub enum ClearMessage {
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum PaymentAction {
     /// Payer tells payee: "I want to send you X on chain Y."
-    Request { chain: Chain, amount: String },
+    Request { chain: Chain, amount_zatoshi: u64 },
     /// Payee provides a fresh receive address.
     Address { chain: Chain, address: String },
     /// Payer confirms broadcast.
     Sent {
         chain: Chain,
         tx_hash: String,
-        amount: String,
+        amount_zatoshi: u64,
     },
     /// Payee confirms receipt detected on chain.
     Confirmed { tx_hash: String },
@@ -126,7 +126,7 @@ pub enum PaymentState {
     Expired,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Chain {
     Zcash,
@@ -172,7 +172,7 @@ mod tests {
             session_id,
             action: PaymentAction::Request {
                 chain: Chain::Zcash,
-                amount: "0.1".to_string(),
+                amount_zatoshi: 10_000_000, // 0.1 ZEC * 10^8
             },
         };
         let json = serde_json::to_string(&msg).unwrap();
@@ -249,6 +249,84 @@ mod tests {
         assert_eq!(decoded.amount_zatoshi, 1_000_000);
         assert_eq!(decoded.role, PaymentRole::Payer);
         assert_eq!(decoded.state, PaymentState::Requested);
+    }
+
+    #[test]
+    fn payment_action_request_wire_format_is_integer() {
+        // Oracle: serde_json serializes u64 as a JSON number (no quotes).
+        // 0.001 ZEC = 100_000 zatoshi (1 ZEC = 10^8 zatoshi, external fact).
+        let action = PaymentAction::Request {
+            chain: Chain::Zcash,
+            amount_zatoshi: 100_000,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        // Field must be a JSON integer, not a string
+        assert!(
+            json.contains("\"amount_zatoshi\":100000"),
+            "amount_zatoshi must serialize as integer, got: {json}"
+        );
+        // Must not contain the old field name
+        assert!(
+            !json.contains("\"amount\""),
+            "old 'amount' field must not be present, got: {json}"
+        );
+        // Must not be quoted (a string)
+        assert!(
+            !json.contains("\"amount_zatoshi\":\""),
+            "amount_zatoshi must not be a string, got: {json}"
+        );
+    }
+
+    #[test]
+    fn payment_action_sent_wire_format_is_integer() {
+        // Oracle: same as above. 0.1 ZEC = 10_000_000 zatoshi.
+        let action = PaymentAction::Sent {
+            chain: Chain::Zcash,
+            tx_hash: "deadbeef".to_string(),
+            amount_zatoshi: 10_000_000,
+        };
+        let json = serde_json::to_string(&action).unwrap();
+        assert!(
+            json.contains("\"amount_zatoshi\":10000000"),
+            "amount_zatoshi must serialize as integer, got: {json}"
+        );
+        assert!(
+            !json.contains("\"amount\""),
+            "old 'amount' field must not be present, got: {json}"
+        );
+    }
+
+    #[test]
+    fn payment_action_request_roundtrip_preserves_zatoshi() {
+        // Oracle: roundtrip is valid here because we are testing serde consistency
+        // (not cryptographic correctness) — the oracle is the ZEC unit definition
+        // applied at construction time.
+        // 42 ZEC = 4_200_000_000 zatoshi (42 * 10^8).
+        let original = PaymentAction::Request {
+            chain: Chain::Zcash,
+            amount_zatoshi: 4_200_000_000,
+        };
+        let json = serde_json::to_string(&original).unwrap();
+        let decoded: PaymentAction = serde_json::from_str(&json).unwrap();
+        let PaymentAction::Request { amount_zatoshi, .. } = decoded else {
+            panic!("wrong variant after roundtrip");
+        };
+        // Oracle: 42 ZEC * 10^8 = 4_200_000_000 zatoshi
+        assert_eq!(amount_zatoshi, 4_200_000_000u64);
+    }
+
+    #[test]
+    fn payment_action_request_old_string_format_is_rejected() {
+        // Wire format breaking change: the old format used amount:String.
+        // New clients must reject old-format messages (missing required field
+        // amount_zatoshi) rather than silently accepting them with amount=0.
+        // Oracle: serde requires all non-optional fields to be present.
+        let old_format = r#"{"action":"request","chain":"zcash","amount":"0.1"}"#;
+        let result: Result<PaymentAction, _> = serde_json::from_str(old_format);
+        assert!(
+            result.is_err(),
+            "old string-amount wire format must be rejected, got: {result:?}"
+        );
     }
 }
 

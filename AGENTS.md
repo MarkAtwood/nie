@@ -1,44 +1,117 @@
-# Agent Instructions
+# Agent Instructions — nie (囁)
 
-See [DESIGN.md](DESIGN.md) for hard design invariants, the defensive
-programming checklist, wallet security rules, and MLS architectural
-constraints. These are load-bearing — do not violate them.
+See [DESIGN.md](DESIGN.md) for the full defensive programming checklist, wallet
+security rules, and MLS constraints. These are load-bearing — do not violate them.
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+## Before Writing Code
 
-## Quick Reference
+1. Check `bd ready` and claim your issue before touching any file.
+2. Read `DESIGN.md` before touching relay, wallet, MLS, or auth code.
+3. State which files will change. If more than 3, get explicit approval first.
+4. Confirm `cargo build --workspace` passes before starting (baseline must compile).
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
+## Security Invariants
+
+Violating these changes the system's security properties. See DESIGN.md for
+the full rules with code examples.
+
+### 1. Relay payload is opaque — never deserialize it
+
+The relay forwards `payload: Vec<u8>` without inspecting it. The relay deliver
+path must never call `serde_json::from_slice`, `String::from_utf8`, or any
+deserialization function on `payload`. `ClearMessage` deserialization is
+client-only.
+
+### 2. Sender identity check is non-negotiable
+
+`relay/src/ws.rs` verifies `envelope.from == authenticated_pub_id` on every
+`Send`. Do not remove, weaken, or add a bypass path. This is the relay's
+only defense against identity spoofing.
+
+### 3. `verify_challenge()` is the only trusted path to a PubId
+
+Never trust a `PubId` that came directly from a wire message.
+`verify_challenge()` returning `Ok(pub_id)` is the only path that produces
+a trusted identity.
+
+### 4. Fresh subaddress per payment request
+
+`PaymentAction::Address` must generate a **new** Sapling subaddress on every
+call. Caching or reusing an address links payments and breaks shielded
+unlinkability.
+
+### 5. Identity key and wallet key are independent
+
+Ed25519 signing key (32-byte seed) and BIP-39 wallet seed (64 bytes) must
+come from independent entropy. Never derive one from the other.
+
+### 6. MLS changes stay in nie-core and client code
+
+If a planned change requires modifying `relay/src/ws.rs` for encryption
+reasons, stop — the design is wrong. The relay boundary is `payload: Vec<u8>`.
+MLS belongs in `core/src/mls.rs` and client code only.
+
+### 7. `/!` must not use `sh -c`
+
+`/!` uses `shlex::split` + `Command::new(&argv[0]).args(&argv[1..])`. Do not
+change this to `sh -c`. Shell metacharacters are passed literally by design —
+`/!` output reaches all room participants.
+
+## Crate Boundaries
+
+| Crate | What it owns | Must not import |
+|-------|-------------|-----------------|
+| `nie-relay` | WS server, SQLite, payment watcher | `nie-wallet` types, MLS types |
+| `nie-core` | Protocol, identity, auth, MLS, HPKE | platform I/O |
+| `nie-wallet` | Zcash Sapling keys, lightwalletd | relay internals |
+| `nie-cli` | CLI, contact book | relay internals |
+| `nie-daemon` | HTTP API, WS event server | relay internals |
+| `nie-wasm` | Browser client | relay internals, nie-wallet |
+
+Cross-boundary violations break the server-knows-nothing property.
+
+## Test Oracle Discipline
+
+Never use the code under test as its own oracle. See DESIGN.md §14 for the
+table of acceptable oracles. Always include rejection cases in auth tests.
+
+**Anti-patterns to avoid:**
+
+```rust
+// WRONG — encrypt+decrypt with same function proves nothing
+let ct = mls_encrypt(key, msg);
+assert_eq!(mls_decrypt(key, ct), msg);
+
+// WRONG — only tests happy path, no rejection cases
+let result = verify_challenge(&pub_id, &nonce, &sig);
+assert!(result.is_ok());
+// Must also test: wrong nonce rejected, wrong key rejected
 ```
 
 ## Non-Interactive Shell Commands
 
-**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
+`cp`, `mv`, and `rm` may be aliased to `-i` on this system. Always use force
+flags to avoid hanging on y/n prompts:
 
-Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
-
-**Use these forms instead:**
 ```bash
-# Force overwrite without prompting
-cp -f source dest           # NOT: cp source dest
-mv -f source dest           # NOT: mv source dest
-rm -f file                  # NOT: rm file
-
-# For recursive operations
-rm -rf directory            # NOT: rm -r directory
-cp -rf source dest          # NOT: cp -r source dest
+cp -f src dst           # not: cp src dst
+mv -f src dst           # not: mv src dst
+rm -f file              # not: rm file
+rm -rf dir              # not: rm -r dir
+cp -rf src dst          # not: cp -r src dst
+ssh -o BatchMode=yes    # fail instead of prompting for password
 ```
 
-**Other commands that may prompt:**
-- `scp` - use `-o BatchMode=yes` for non-interactive
-- `ssh` - use `-o BatchMode=yes` to fail instead of prompting
-- `apt-get` - use `-y` flag
-- `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
+## Session Completion
+
+```bash
+cargo fmt --all && cargo clippy --workspace -- -D warnings && cargo test --workspace
+bd close <completed-ids>
+git pull --rebase && bd dolt push
+git status
+```
+
+git commit and git push require explicit user approval — stage changes and report.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker

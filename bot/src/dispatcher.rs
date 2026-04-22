@@ -56,7 +56,7 @@ fn dispatch_payload(from: &str, payload: &[u8]) -> Option<BotEvent> {
             String::new(), // message_id not carried in DeliverParams; leave empty
         )),
         ClearMessage::Payment { session_id, action } => {
-            if let PaymentAction::Request { chain, amount } = action {
+            if let PaymentAction::Request { chain, amount_zatoshi } = action {
                 // Use canonical lowercase wire names, not Display (which gives "ZEC"/"XMR").
                 let chain_str = match chain {
                     nie_core::messages::Chain::Zcash => "zcash",
@@ -68,7 +68,7 @@ fn dispatch_payload(from: &str, payload: &[u8]) -> Option<BotEvent> {
                     session_id: session_id.to_string(),
                     from: from.to_string(),
                     chain: chain_str,
-                    amount,
+                    amount: nie_core::zatoshi_to_zec_string(amount_zatoshi),
                     ts: chrono::Utc::now().to_rfc3339(),
                 })
             } else {
@@ -153,7 +153,7 @@ mod tests {
             session_id,
             action: PaymentAction::Request {
                 chain: Chain::Zcash,
-                amount: "42".into(),
+                amount_zatoshi: 4_200_000_000, // 42 ZEC
             },
         })
         .unwrap();

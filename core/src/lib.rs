@@ -1,3 +1,4 @@
+pub mod amount;
 pub mod auth;
 pub mod hpke;
 pub mod identity;
@@ -14,5 +15,6 @@ pub mod protocol;
 pub mod transport;
 pub mod wallet;
 
+pub use amount::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
 pub use identity::{Identity, PubId};
 pub use messages::{Chain, ClearMessage, PaymentAction, PaymentRole, PaymentSession, PaymentState};

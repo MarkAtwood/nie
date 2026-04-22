@@ -14,6 +14,7 @@ use tracing::{debug, info, warn};
 
 use nie_core::hpke as nie_hpke;
 use nie_core::identity::{Identity, PubId};
+use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
 use nie_core::messages::{
     Chain, ClearMessage, PaymentAction, PaymentRole, PaymentSession, PaymentState,
 };
@@ -1887,15 +1888,15 @@ pub async fn chat(
                             );
                         }
                         Some((&found_id, found_session)) => {
-                            let chain = found_session.chain.clone();
-                            let amount = zatoshi_to_zec_string(found_session.amount_zatoshi);
+                            let chain = found_session.chain;
+                            let amount_zatoshi = found_session.amount_zatoshi;
                             let stub_hash = format!("stub-{}", Uuid::new_v4());
                             if !send_payment_message(
                                 found_id,
                                 PaymentAction::Sent {
-                                    chain: chain.clone(),
+                                    chain,
                                     tx_hash: stub_hash.clone(),
-                                    amount: amount.clone(),
+                                    amount_zatoshi,
                                 },
                                 &tx,
                                 mls_active,
@@ -2030,7 +2031,7 @@ pub async fn chat(
                     let session_id = Uuid::new_v4();
                     let payer_session = PaymentSession {
                         id: session_id,
-                        chain: chain.clone(),
+                        chain,
                         amount_zatoshi,
                         peer_pub_id: peer_pub_id.clone(),
                         role: PaymentRole::Payer,
@@ -2057,7 +2058,7 @@ pub async fn chat(
                         session_id,
                         PaymentAction::Request {
                             chain,
-                            amount: amount_str.to_string(),
+                            amount_zatoshi,
                         },
                         &tx,
                         mls_active,
@@ -2596,8 +2597,8 @@ async fn resync_sessions(
         }
         let action = match (&s.role, &s.state) {
             (PaymentRole::Payer, PaymentState::Requested) => PaymentAction::Request {
-                chain: s.chain.clone(),
-                amount: zatoshi_to_zec_string(s.amount_zatoshi),
+                chain: s.chain,
+                amount_zatoshi: s.amount_zatoshi,
             },
             (PaymentRole::Payee, PaymentState::AddressProvided) => {
                 // address is guaranteed Some for AddressProvided payee sessions.
@@ -2605,7 +2606,7 @@ async fn resync_sessions(
                     continue;
                 };
                 PaymentAction::Address {
-                    chain: s.chain.clone(),
+                    chain: s.chain,
                     address: addr,
                 }
             }
@@ -2616,9 +2617,9 @@ async fn resync_sessions(
                     continue;
                 };
                 PaymentAction::Sent {
-                    chain: s.chain.clone(),
+                    chain: s.chain,
                     tx_hash,
-                    amount: zatoshi_to_zec_string(s.amount_zatoshi),
+                    amount_zatoshi: s.amount_zatoshi,
                 }
             }
             (PaymentRole::Payee, PaymentState::Sent) => {
@@ -2804,7 +2805,7 @@ async fn dispatch_payment(
                     // Extract metadata before mutably borrowing the entry.
                     let (amount_zatoshi, chain_clone) = {
                         let s = entry.get();
-                        (s.amount_zatoshi, s.chain.clone())
+                        (s.amount_zatoshi, s.chain)
                     };
                     // Persist AddressProvided state.
                     {
@@ -2834,13 +2835,12 @@ async fn dispatch_payment(
                                         warn!("failed to persist payer Sent for {session_id}: {e}");
                                     }
                                 }
-                                let amount_str = zatoshi_to_zec_string(amount_zatoshi);
                                 if !send_payment_message(
                                     session_id,
                                     PaymentAction::Sent {
                                         chain: chain_clone,
                                         tx_hash: txid,
-                                        amount: amount_str,
+                                        amount_zatoshi,
                                     },
                                     tx,
                                     mls_active,
@@ -2994,36 +2994,9 @@ async fn dispatch_payment(
             }
         }
         std::collections::hash_map::Entry::Vacant(slot) => {
-            if let PaymentAction::Request { chain, amount } = action {
+            if let PaymentAction::Request { chain, amount_zatoshi } = action {
                 // Payee receives a new payment request.  Create a payee session and
                 // immediately respond with a fresh Sapling+Orchard subaddress.
-                // nie-dxb: reject malformed amounts rather than defaulting to 0 zatoshi.
-                // A version-mismatch payer sending a bad amount string must not create
-                // a payee session recording a silently wrong amount.
-                let amount_zatoshi = match parse_zec_to_zatoshi(&amount) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        warn!(
-                            "payee: malformed amount '{}' in request from {}: {e}",
-                            amount,
-                            &from[..from.len().min(8)]
-                        );
-                        println!(
-                            "[pay] Ignoring payment request from {}: invalid amount '{amount}'.",
-                            display_name(from, nicknames, local_names)
-                        );
-                        return send_payment_message(
-                            session_id,
-                            PaymentAction::Unknown {
-                                reason: format!("malformed amount: {e}"),
-                            },
-                            tx,
-                            mls_active,
-                            mls,
-                        )
-                        .await;
-                    }
-                };
                 // Payee dust guard: mirror the payer-side check.  A peer running an
                 // older or non-conformant client can send a Request with amount below
                 // DUST_THRESHOLD (where the fee would equal or exceed the transfer).
@@ -3082,7 +3055,7 @@ async fn dispatch_payment(
                 let now = chrono::Utc::now().timestamp();
                 let payee_session = PaymentSession {
                     id: session_id,
-                    chain: chain.clone(),
+                    chain,
                     amount_zatoshi,
                     peer_pub_id: from.to_string(),
                     role: PaymentRole::Payee,
@@ -3248,47 +3221,6 @@ fn resolve_handle(
     Err(format!("'{handle}' is not online or not recognized"))
 }
 
-/// Parse a ZEC amount string to zatoshi (1 ZEC = 10^8 zatoshi).
-///
-/// Accepts decimal strings like "0.001", "1", "1.5", "0.12345678".
-/// Rejects values with more than 8 decimal places or values that overflow u64.
-fn parse_zec_to_zatoshi(s: &str) -> Result<u64, String> {
-    let s = s.trim();
-    let (int_part, frac_part) = s.split_once('.').unwrap_or((s, ""));
-    if frac_part.len() > 8 {
-        return Err(format!("too many decimal places (max 8): {s}"));
-    }
-    let int_val: u64 = int_part
-        .parse()
-        .map_err(|_| format!("invalid amount: {s}"))?;
-    // Pad fractional part to exactly 8 digits.
-    let frac_padded = format!("{:0<8}", frac_part);
-    let frac_val: u64 = frac_padded
-        .parse()
-        .map_err(|_| format!("invalid amount: {s}"))?;
-    int_val
-        .checked_mul(100_000_000)
-        .and_then(|v| v.checked_add(frac_val))
-        .ok_or_else(|| format!("amount overflow: {s}"))
-}
-
-/// Format a zatoshi amount as a ZEC decimal string (inverse of parse_zec_to_zatoshi).
-///
-/// Trailing zeros after the decimal point are stripped so "0.10000000" → "0.1".
-/// Whole-number amounts have no decimal point: "100000000" → "1".
-fn zatoshi_to_zec_string(zatoshi: u64) -> String {
-    let whole = zatoshi / 100_000_000;
-    let frac = zatoshi % 100_000_000;
-    if frac == 0 {
-        whole.to_string()
-    } else {
-        // Format with exactly 8 fractional digits then strip trailing zeros.
-        // Trimmed &str must be converted to String because format! owns its buffer.
-        format!("{whole}.{frac:08}")
-            .trim_end_matches('0')
-            .to_string()
-    }
-}
 
 /// Returns a help string for slash commands, or None if it's not a slash command.
 fn handle_slash(line: &str) -> Option<String> {
@@ -4046,15 +3978,15 @@ mod tests {
     /// Malformed amount in a Request → Unknown reply sent, no session created. (nie-dxb)
     ///
     /// Oracle: the channel output is decoded independently via serde_json; the sessions
-    /// map is verified to remain empty confirming no session was created for the bad amount.
+    /// map is verified to remain empty confirming no session was created for a sub-dust amount.
     #[tokio::test]
-    async fn dispatch_request_malformed_amount_sends_unknown_no_session() {
+    async fn dispatch_request_sub_dust_sends_unknown_no_session() {
         let mut sessions: HashMap<Uuid, PaymentSession> = HashMap::new();
         let (tx, mut rx) = tokio::sync::mpsc::channel(4);
         let session_id = Uuid::new_v4();
         let action = nie_core::messages::PaymentAction::Request {
             chain: nie_core::messages::Chain::Zcash,
-            amount: "not-a-number".to_string(),
+            amount_zatoshi: 1_000, // below DUST_THRESHOLD (10_000)
         };
         let mut mls = nie_core::mls::MlsClient::new("test-bad-amount").unwrap();
         let tmp = tempfile::NamedTempFile::new().unwrap();
@@ -4104,8 +4036,8 @@ mod tests {
             panic!("expected Payment::Unknown, got {msg:?}");
         };
         assert!(
-            reason.contains("malformed amount"),
-            "reason must mention malformed amount, got: {reason}"
+            reason.contains("dust threshold"),
+            "reason must mention dust threshold, got: {reason}"
         );
     }
 
@@ -4191,7 +4123,7 @@ mod tests {
         let session_id = Uuid::new_v4();
         let action = nie_core::messages::PaymentAction::Request {
             chain: nie_core::messages::Chain::Zcash,
-            amount: "0.001".to_string(),
+            amount_zatoshi: 100_000, // 0.001 ZEC
         };
         let mut mls = nie_core::mls::MlsClient::new("test-dispatch-req").unwrap();
         let tmp = tempfile::NamedTempFile::new().unwrap();
@@ -4274,7 +4206,7 @@ mod tests {
         let session_id = Uuid::new_v4();
         let action = nie_core::messages::PaymentAction::Request {
             chain: nie_core::messages::Chain::Zcash,
-            amount: "0.001".to_string(),
+            amount_zatoshi: 100_000, // 0.001 ZEC
         };
         let mut mls = nie_core::mls::MlsClient::new("test-no-wallet").unwrap();
         let tmp = tempfile::NamedTempFile::new().unwrap();
@@ -4350,7 +4282,7 @@ mod tests {
             sid1,
             nie_core::messages::PaymentAction::Request {
                 chain: nie_core::messages::Chain::Zcash,
-                amount: "0.001".to_string(),
+                amount_zatoshi: 100_000, // 0.001 ZEC
             },
             "peer-a",
             &mut sessions,
@@ -4375,7 +4307,7 @@ mod tests {
             sid2,
             nie_core::messages::PaymentAction::Request {
                 chain: nie_core::messages::Chain::Zcash,
-                amount: "0.002".to_string(),
+                amount_zatoshi: 200_000, // 0.002 ZEC
             },
             "peer-b",
             &mut sessions,
@@ -4571,7 +4503,7 @@ mod tests {
             nie_core::messages::PaymentAction::Sent {
                 chain: nie_core::messages::Chain::Zcash,
                 tx_hash: "txhash-abc".to_string(),
-                amount: "0.0005".to_string(),
+                amount_zatoshi: 50_000, // 0.0005 ZEC
             },
             &payer_pub_id,
             &mut sessions,
@@ -5069,70 +5001,6 @@ mod tests {
         );
     }
 
-    // ---- zatoshi_to_zec_string tests ----
-    // Oracle: values computed by hand from the spec (1 ZEC = 100,000,000 zatoshi).
-
-    #[test]
-    fn zatoshi_to_zec_whole() {
-        assert_eq!(zatoshi_to_zec_string(100_000_000), "1");
-        assert_eq!(zatoshi_to_zec_string(0), "0");
-        assert_eq!(zatoshi_to_zec_string(1_000_000_000), "10");
-    }
-
-    #[test]
-    fn zatoshi_to_zec_fractional() {
-        assert_eq!(zatoshi_to_zec_string(100_000), "0.001");
-        assert_eq!(zatoshi_to_zec_string(1), "0.00000001");
-        assert_eq!(zatoshi_to_zec_string(150_000_000), "1.5");
-    }
-
-    #[test]
-    fn zatoshi_to_zec_roundtrip_with_parse() {
-        // Roundtrip: parse then format must recover the canonical string.
-        // Oracle: known inputs/outputs, not derived from parse_zec_to_zatoshi itself.
-        for s in &["1", "0.001", "1.5", "0.00000001", "10"] {
-            let zatoshi = parse_zec_to_zatoshi(s).unwrap();
-            assert_eq!(
-                zatoshi_to_zec_string(zatoshi),
-                *s,
-                "roundtrip failed for {s}"
-            );
-        }
-    }
-
-    // ---- parse_zec_to_zatoshi tests ----
-    // Oracle: values computed by hand from the spec (1 ZEC = 100,000,000 zatoshi).
-
-    #[test]
-    fn parse_zec_whole_number() {
-        assert_eq!(parse_zec_to_zatoshi("1").unwrap(), 100_000_000);
-        assert_eq!(parse_zec_to_zatoshi("10").unwrap(), 1_000_000_000);
-        assert_eq!(parse_zec_to_zatoshi("0").unwrap(), 0);
-    }
-
-    #[test]
-    fn parse_zec_decimal() {
-        assert_eq!(parse_zec_to_zatoshi("0.001").unwrap(), 100_000);
-        assert_eq!(parse_zec_to_zatoshi("0.1").unwrap(), 10_000_000);
-        assert_eq!(parse_zec_to_zatoshi("1.5").unwrap(), 150_000_000);
-        assert_eq!(parse_zec_to_zatoshi("0.00000001").unwrap(), 1);
-    }
-
-    #[test]
-    fn parse_zec_too_many_decimals_rejected() {
-        assert!(
-            parse_zec_to_zatoshi("0.000000001").is_err(),
-            "9 decimal places must be rejected"
-        );
-    }
-
-    #[test]
-    fn parse_zec_non_numeric_rejected() {
-        assert!(parse_zec_to_zatoshi("abc").is_err());
-        assert!(parse_zec_to_zatoshi("1.2.3").is_err());
-        assert!(parse_zec_to_zatoshi("").is_err());
-    }
-
     // ---- send_payment_message MLS-active path tests ----
 
     /// MLS-active path: payload sent to channel is MLS ciphertext that decrypts
@@ -5155,7 +5023,7 @@ mod tests {
         let session_id = Uuid::new_v4();
         let action = nie_core::messages::PaymentAction::Request {
             chain: nie_core::messages::Chain::Zcash,
-            amount: "0.001".to_string(),
+            amount_zatoshi: 100_000, // 0.001 ZEC
         };
 
         let alive = send_payment_message(session_id, action, &tx, true, &mut alice).await;
@@ -5225,7 +5093,7 @@ mod tests {
         let session_id = Uuid::new_v4();
         let action = nie_core::messages::PaymentAction::Request {
             chain: nie_core::messages::Chain::Zcash,
-            amount: "1.0".to_string(),
+            amount_zatoshi: 100_000_000, // 1.0 ZEC
         };
 
         let alive = send_payment_message(session_id, action, &tx, true, &mut mls).await;
@@ -5308,7 +5176,9 @@ mod tests {
             session_id: sid,
             action:
                 nie_core::messages::PaymentAction::Sent {
-                    tx_hash, amount, ..
+                    tx_hash,
+                    amount_zatoshi,
+                    ..
                 },
         } = msg
         else {
@@ -5317,8 +5187,8 @@ mod tests {
         assert_eq!(sid, session_id, "session_id must survive resync");
         assert_eq!(tx_hash, stored_tx_hash, "tx_hash must match stored value");
         assert_eq!(
-            amount, "0.005",
-            "amount must be zatoshi_to_zec_string(500_000)"
+            amount_zatoshi, 500_000,
+            "amount_zatoshi must match stored session value"
         );
     }
 

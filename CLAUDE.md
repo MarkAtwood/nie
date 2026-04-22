@@ -3,10 +3,12 @@
 Encrypted relay service with privacy coin payments. Users are public keys.
 Messages are opaque blobs. The server is a paid pipe.
 
-See [DESIGN.md](DESIGN.md) for hard design invariants, the defensive
-programming checklist, wallet security rules, and MLS architectural
-constraints. These are load-bearing — violations change the system's
-security properties.
+**DESIGN.md is load-bearing.** It contains hard design invariants, the defensive
+programming checklist, wallet security rules, and MLS constraints. These are
+not style preferences — violating them changes the system's security properties.
+Read DESIGN.md before touching relay, wallet, or crypto code.
+
+Agent-specific invariants, crate boundaries, and test oracle rules: see **AGENTS.md**.
 
 ## Build & Test
 
@@ -84,7 +86,7 @@ nie/
 | Payment watcher | `payment_watcher.rs` | IVK trial-decrypt, subscription activation |
 | Main | `main.rs` | axum bootstrap, env var config |
 
-### Sources of truth
+## Sources of Truth
 
 | What you need | Where to look |
 |---|---|
@@ -107,47 +109,6 @@ Phases 1–4 are complete. Current state:
 - [x] Phase 3: Subscription payments (shielded, on-chain confirmation)
 - [x] Phase 4: nie-daemon (HTTP API + WS events), nie-bot (headless scripting),
               nie-wasm (pure-browser WebAssembly client)
-
-## Agent Interaction Rules
-
-**Fail fast, report up.** If a shell command fails twice with the same error,
-stop and report the exact error to the user with context. Do not try variants.
-A repeated failure means your model of the problem is wrong.
-
-**Map once, then act.** Use `Glob`/`Grep` to find files before editing.
-Do not re-explore the same area once you have a plan.
-
-**Confirm scope for multi-file changes.** Before touching more than three files,
-state which files will change and why.
-
-**Comprehensive options when clarifying.** When asking the user to choose between
-approaches, list the realistic options explicitly. Open-ended questions waste a
-round trip and often produce a misaligned answer.
-
-## Non-Interactive Shell Commands
-
-Shell commands `cp`, `mv`, `rm` may be aliased to interactive (`-i`) on this
-system. Always use force flags to avoid hanging on y/n prompts:
-
-```bash
-cp -f src dst           # not: cp src dst
-mv -f src dst           # not: mv src dst
-rm -f file              # not: rm file
-rm -rf dir              # not: rm -r dir
-cp -rf src dst          # not: cp -r src dst
-ssh -o BatchMode=yes    # fail instead of prompting for password
-```
-
-## Task Tracking (Beads)
-
-```bash
-bd ready                  # find available work
-bd show <id>              # view issue details
-bd update <id> --claim    # claim before starting
-bd close <id>             # mark complete
-```
-
-Run `bd prime` for the full workflow reference and session-close protocol.
 
 ## Session Completion
 
