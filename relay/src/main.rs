@@ -128,6 +128,10 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/ws", get(nie_relay::ws::ws_handler))
         .route("/health", get(|| async { "ok" }))
+        .route(
+            "/transparency",
+            get(nie_relay::transparency::transparency_handler),
+        )
         .with_state(state);
 
     let addr: SocketAddr = std::env::var("LISTEN_ADDR")

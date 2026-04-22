@@ -39,12 +39,22 @@ Listens on `0.0.0.0:3210`, creates `nie-relay.db` in the current directory.
 | `LISTEN_ADDR` | `0.0.0.0:3210` | Bind address and port |
 | `KEEPALIVE_SECS` | `30` | WebSocket ping interval |
 | `REQUIRE_SUBSCRIPTION` | `false` | Gate broadcasts on active subscription |
+| `POW_DIFFICULTY` | `0` | PoW bits for new enrollments (0=off, 20=default) |
+| `TRANSPARENCY_FILE` | `transparency.json` | Path to legal transparency log JSON |
 
 ```bash
 DATABASE_URL=sqlite:/var/lib/nie/relay.db \
 LISTEN_ADDR=127.0.0.1:3210 \
 cargo run --bin nie-relay
 ```
+
+### Legal transparency log
+
+The relay serves a public transparency log at `GET /transparency`.  Edit
+`transparency.json` (or the path set in `TRANSPARENCY_FILE`) to record any
+legal demands received.  If the file does not exist, the endpoint returns an
+empty entries array.  See `LEGAL.md` for the relay's legal policy and
+[DESIGN.md §Legal Transparency](DESIGN.md) for the data retention policy.
 
 ### Production TLS
 
