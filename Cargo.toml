@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix"]
+members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix", "nie-monero"]
 resolver = "2"
 
 [workspace.package]
@@ -9,6 +9,7 @@ license = "MIT"
 
 [workspace.dependencies]
 nie-core = { path = "core" }
+nie-monero = { path = "nie-monero" }
 nie-wallet = { path = "wallet" }
 
 # Async runtime
@@ -27,6 +28,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Error handling
 anyhow = "1"
 thiserror = "2"
+
+# Monero wallet primitives (keys, addresses, subaddresses)
+monero = "0.21"
 
 # Crypto / identity
 ed25519-dalek = { version = "2", features = ["serde", "rand_core"] }

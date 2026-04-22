@@ -38,15 +38,18 @@ impl BridgeConfig {
     pub fn from_toml(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("cannot read config {}: {e}", path.display()))?;
-        let config: BridgeConfig = toml::from_str(&content)
-            .map_err(|e| anyhow::anyhow!("config parse error: {e}"))?;
+        let config: BridgeConfig =
+            toml::from_str(&content).map_err(|e| anyhow::anyhow!("config parse error: {e}"))?;
         config.validate()?;
         Ok(config)
     }
 
     fn validate(&self) -> Result<()> {
         if !self.relay_url.starts_with("ws://") && !self.relay_url.starts_with("wss://") {
-            bail!("relay_url must start with ws:// or wss://, got: {}", self.relay_url);
+            bail!(
+                "relay_url must start with ws:// or wss://, got: {}",
+                self.relay_url
+            );
         }
         if !self.matrix_homeserver.starts_with("https://") {
             bail!(
@@ -170,6 +173,10 @@ bot_localpart = "niebridge"
         );
         let result = BridgeConfig::from_toml(f.path());
         assert!(result.is_err());
-        assert!(result.err().unwrap().to_string().contains("matrix_homeserver"));
+        assert!(result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("matrix_homeserver"));
     }
 }

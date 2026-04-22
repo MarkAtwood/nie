@@ -72,7 +72,10 @@ impl MatrixClient {
             urlencoding::encode(room_id),
             txn_id,
         );
-        let body = TextMessageContent { msgtype: "m.text", body: text };
+        let body = TextMessageContent {
+            msgtype: "m.text",
+            body: text,
+        };
         let resp = self
             .http
             .put(&url)

@@ -294,7 +294,13 @@ mod tests {
     use crate::state::DaemonState;
 
     fn make_test_state() -> (DaemonState, tokio::sync::broadcast::Receiver<DaemonEvent>) {
-        let state = DaemonState::new("a".repeat(64), "test-token".to_string(), None);
+        let state = DaemonState::new(
+            "a".repeat(64),
+            "test-token".to_string(),
+            None,
+            "mainnet".to_string(),
+            None,
+        );
         let rx = state.subscribe_events();
         (state, rx)
     }

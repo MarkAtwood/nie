@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 nie-core = { workspace = true }
+nie-wallet = { path = "../wallet" }
 axum = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }

@@ -77,8 +77,27 @@ async fn main() -> Result<()> {
         "no_identity".to_string()
     };
 
+    // Zcash network selection: NETWORK env var, default "mainnet".
+    let network = std::env::var("NETWORK").unwrap_or_else(|_| "mainnet".to_string());
+
+    // Try to open wallet DB if present (wallet.db in data dir).
+    let wallet_store = {
+        let db_path = data_dir.join("wallet.db");
+        if db_path.exists() {
+            match nie_wallet::db::WalletStore::new(&db_path).await {
+                Ok(ws) => Some(ws),
+                Err(e) => {
+                    tracing::warn!("failed to open wallet.db: {e}");
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    };
+
     // Create app state
-    let daemon_state = state::DaemonState::new(my_pub_id, tok.clone(), None);
+    let daemon_state = state::DaemonState::new(my_pub_id, tok.clone(), None, network, wallet_store);
 
     // Build router.  /api/* routes require Bearer token auth; other routes do
     // not (ws/events does its own auth check inside the handler).
@@ -86,6 +105,8 @@ async fn main() -> Result<()> {
         .route("/api/whoami", get(api::handle_whoami))
         .route("/api/users", get(api::handle_users))
         .route("/api/send", post(api::handle_send))
+        .route("/api/wallet/balance", get(api::handle_wallet_balance))
+        .route("/api/wallet/pay", post(api::handle_wallet_pay))
         .route_layer(axum::middleware::from_fn_with_state(
             daemon_state.clone(),
             token::require_token,

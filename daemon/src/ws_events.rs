@@ -96,7 +96,13 @@ mod tests {
     use crate::types::DaemonEvent;
 
     fn make_state() -> DaemonState {
-        DaemonState::new("a".repeat(64), "test-token-ws".to_string(), None)
+        DaemonState::new(
+            "a".repeat(64),
+            "test-token-ws".to_string(),
+            None,
+            "mainnet".to_string(),
+            None,
+        )
     }
 
     #[test]

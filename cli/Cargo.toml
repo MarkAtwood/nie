@@ -14,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 nie-core.workspace = true
+nie-monero.workspace = true
 nie-wallet = { path = "../wallet" }
 anyhow.workspace = true
 clap = { version = "4", features = ["derive"] }

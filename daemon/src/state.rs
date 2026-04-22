@@ -3,6 +3,7 @@
 
 use crate::types::{DaemonEvent, UserInfo};
 use nie_core::protocol::JsonRpcRequest;
+use nie_wallet::db::WalletStore;
 use std::sync::Arc;
 use tokio::sync::{broadcast, Mutex};
 
@@ -18,6 +19,8 @@ struct Inner {
     my_pub_id: String,
     token: String,
     display_name: Option<String>,
+    network: String,
+    wallet_store: Option<WalletStore>,
     relay_tx: Mutex<Option<tokio::sync::mpsc::Sender<JsonRpcRequest>>>,
     directory: Mutex<DirectoryState>,
     events_tx: broadcast::Sender<DaemonEvent>,
@@ -27,12 +30,20 @@ struct Inner {
 pub struct DaemonState(Arc<Inner>);
 
 impl DaemonState {
-    pub fn new(my_pub_id: String, token: String, display_name: Option<String>) -> Self {
+    pub fn new(
+        my_pub_id: String,
+        token: String,
+        display_name: Option<String>,
+        network: String,
+        wallet_store: Option<WalletStore>,
+    ) -> Self {
         let (events_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
         DaemonState(Arc::new(Inner {
             my_pub_id,
             token,
             display_name,
+            network,
+            wallet_store,
             relay_tx: Mutex::new(None),
             directory: Mutex::new(DirectoryState::default()),
             events_tx,
@@ -49,6 +60,15 @@ impl DaemonState {
 
     pub fn display_name(&self) -> Option<&str> {
         self.0.display_name.as_deref()
+    }
+
+    pub fn network(&self) -> &str {
+        &self.0.network
+    }
+
+    /// Return the WalletStore if a wallet has been initialized.
+    pub fn wallet_store(&self) -> Option<&WalletStore> {
+        self.0.wallet_store.as_ref()
     }
 
     /// Subscribe to the broadcast channel for daemon events.

@@ -1,0 +1,16 @@
+[package]
+name = "nie-monero"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nie-core.workspace = true
+monero.workspace = true
+rand.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]

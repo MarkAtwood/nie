@@ -30,7 +30,13 @@ struct TestDaemon {
 async fn start_test_daemon() -> TestDaemon {
     let token = "test-integration-token-abc123".to_string();
     let pub_id = "a".repeat(64);
-    let state = DaemonState::new(pub_id, token.clone(), Some("TestUser".to_string()));
+    let state = DaemonState::new(
+        pub_id,
+        token.clone(),
+        Some("TestUser".to_string()),
+        "mainnet".to_string(),
+        None,
+    );
 
     let api_router = Router::new()
         .route("/api/whoami", get(api::handle_whoami))
@@ -311,7 +317,7 @@ async fn test_ws_receives_broadcast_event() {
     // Build a DaemonState we hold onto so we can broadcast.
     let token_str = "test-broadcast-event-token".to_string();
     let pub_id = "b".repeat(64);
-    let state = DaemonState::new(pub_id, token_str.clone(), None);
+    let state = DaemonState::new(pub_id, token_str.clone(), None, "mainnet".to_string(), None);
 
     let api_router = Router::new()
         .route("/api/whoami", get(api::handle_whoami))

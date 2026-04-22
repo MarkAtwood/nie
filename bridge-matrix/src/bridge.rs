@@ -116,13 +116,21 @@ async fn handle_nie_deliver(
     bridge_prefix: Option<&str>,
 ) {
     let Some(params) = params else { return };
-    let Ok(deliver) = serde_json::from_value::<DeliverParams>(params) else { return };
+    let Ok(deliver) = serde_json::from_value::<DeliverParams>(params) else {
+        return;
+    };
     if deliver.from == own_pub_id {
         return; // skip own echo
     }
-    let Ok(msg) = nie_core::messages::unpad(&deliver.payload) else { return };
-    let Ok(clear) = serde_json::from_slice::<ClearMessage>(&msg) else { return };
-    let ClearMessage::Chat { text } = clear else { return };
+    let Ok(msg) = nie_core::messages::unpad(&deliver.payload) else {
+        return;
+    };
+    let Ok(clear) = serde_json::from_slice::<ClearMessage>(&msg) else {
+        return;
+    };
+    let ClearMessage::Chat { text } = clear else {
+        return;
+    };
     let formatted = format_for_matrix(&deliver.from, &text, bridge_prefix);
     if let Err(e) = matrix.send_text(room_id, &formatted).await {
         tracing::warn!("Matrix send_text failed: {e}");
@@ -144,12 +152,8 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
     let own_pub_id = identity.pub_id().0.clone();
 
     // Connect to the nie relay with transparent reconnection.
-    let mut conn = nie_core::transport::connect_with_retry(
-        config.relay_url.clone(),
-        identity,
-        false,
-        None,
-    );
+    let mut conn =
+        nie_core::transport::connect_with_retry(config.relay_url.clone(), identity, false, None);
 
     // Matrix client for outbound sends.
     let matrix = crate::matrix::MatrixClient::new(&homeserver, &config.as_token);
@@ -162,19 +166,26 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
 
     // Start the Matrix Application Service HTTP server.
     {
-        let state = AsState { hs_token: config.hs_token.clone(), tx: matrix_tx };
+        let state = AsState {
+            hs_token: config.hs_token.clone(),
+            tx: matrix_tx,
+        };
         let app = axum::Router::new()
             .route("/transactions/{txn_id}", axum::routing::put(as_transaction))
             .with_state(state);
-        let listener =
-            tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
+        let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Matrix AS server listening on :{listen_port}");
         tokio::spawn(async move {
-            axum::serve(listener, app).await.expect("AS HTTP server terminated unexpectedly");
+            axum::serve(listener, app)
+                .await
+                .expect("AS HTTP server terminated unexpectedly");
         });
     }
 
-    tracing::info!("nie-bridge-matrix running (pub_id prefix: {})", &own_pub_id[..8]);
+    tracing::info!(
+        "nie-bridge-matrix running (pub_id prefix: {})",
+        &own_pub_id[..8]
+    );
 
     loop {
         tokio::select! {

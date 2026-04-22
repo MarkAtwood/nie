@@ -49,7 +49,7 @@ async fn spawn_relay() -> String {
 // ---------------------------------------------------------------------------
 
 async fn start_daemon(pub_id: String, tok: String) -> (SocketAddr, DaemonState) {
-    let state = DaemonState::new(pub_id, tok.clone(), None);
+    let state = DaemonState::new(pub_id, tok.clone(), None, "mainnet".to_string(), None);
 
     let api_router = Router::new()
         .route("/api/whoami", get(api::handle_whoami))

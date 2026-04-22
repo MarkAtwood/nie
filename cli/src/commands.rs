@@ -82,6 +82,7 @@ impl AddressWatchRegistry {
     }
 }
 
+use nie_monero::{MoneroKeys, MoneroNetwork};
 use nie_wallet::address::{SaplingDiversifiableFvk, SaplingExtendedSpendingKey, ZcashNetwork};
 use nie_wallet::client::{DEFAULT_MAINNET_ENDPOINTS, DEFAULT_TESTNET_ENDPOINT};
 use nie_wallet::db::WalletStore;
@@ -219,6 +220,8 @@ pub async fn chat(
             }
         },
     };
+
+    let monero_keys = try_load_monero_keys(data_dir);
 
     // Build the payment-send closure from wallet context.
     // Sapling proving parameters (~51 MB) are loaded once here and Arc-shared
@@ -1121,6 +1124,7 @@ pub async fn chat(
                                     &mut sessions,
                                     &wallet_store,
                                     wallet_fvks.as_ref(),
+                                    monero_keys.as_ref(),
                                     &nicknames,
                                     &local_names,
                                     &tx,
@@ -1337,6 +1341,7 @@ pub async fn chat(
                                     &mut sessions,
                                     &wallet_store,
                                     wallet_fvks.as_ref(),
+                                    monero_keys.as_ref(),
                                     &nicknames,
                                     &local_names,
                                     &tx,
@@ -2231,10 +2236,6 @@ pub async fn chat(
                 // Initiates a payment session: creates a payer PaymentSession and broadcasts
                 // PaymentAction::Request so the payee can respond with an address.
                 if let Some(rest) = line.strip_prefix("/pay ") {
-                    if wallet_fvks.is_none() {
-                        println!("[pay] No wallet. Run `nie wallet init` first.");
-                        continue;
-                    }
                     let parts: Vec<&str> = rest.trim().splitn(3, ' ').collect();
                     let (handle, amount_str, chain_str) = match parts.as_slice() {
                         [h, a] => (*h, *a, "zcash"),
@@ -2253,6 +2254,12 @@ pub async fn chat(
                             continue;
                         }
                     };
+                    // Zcash payments require a local wallet for auto-send.
+                    // Monero payments do not (send is always manual via external daemon).
+                    if chain == Chain::Zcash && wallet_fvks.is_none() {
+                        println!("[pay] No Zcash wallet. Run `nie wallet init` first.");
+                        continue;
+                    }
                     let peer_pub_id =
                         match resolve_handle(handle, &online, &nicknames, &local_names) {
                             Ok(id) => id,
@@ -2268,19 +2275,21 @@ pub async fn chat(
                             continue;
                         }
                     };
-                    if amount_zatoshi < DUST_THRESHOLD {
+                    if chain == Chain::Zcash {
+                        if amount_zatoshi < DUST_THRESHOLD {
+                            println!(
+                                "[pay] amount must be at least {DUST_THRESHOLD} zatoshi \
+                                 ({} ZEC)",
+                                zatoshi_to_zec_string(DUST_THRESHOLD)
+                            );
+                            continue;
+                        }
+                        let estimated_fee = zip317_fee(sapling_logical_actions(1, 2));
                         println!(
-                            "[pay] amount must be at least {DUST_THRESHOLD} zatoshi \
-                             ({} ZEC)",
-                            zatoshi_to_zec_string(DUST_THRESHOLD)
+                            "[pay] Estimated fee: {estimated_fee} zatoshi ({:.4} ZEC) — actual may vary by note count",
+                            estimated_fee as f64 / 1e8
                         );
-                        continue;
                     }
-                    let estimated_fee = zip317_fee(sapling_logical_actions(1, 2));
-                    println!(
-                        "[pay] Estimated fee: {estimated_fee} zatoshi ({:.4} ZEC) — actual may vary by note count",
-                        estimated_fee as f64 / 1e8
-                    );
                     let now = chrono::Utc::now().timestamp();
                     let session_id = Uuid::new_v4();
                     let payer_session = PaymentSession {
@@ -2357,49 +2366,71 @@ pub async fn chat(
                     continue;
                 }
 
-                // /receive — show Unified Address for receiving ZEC
-                if line == "/receive" {
-                    match &wallet_fvks {
-                        None => println!("[wallet] No wallet. Run `nie wallet init` first."),
-                        Some(fvks) => {
-                            let di = match wallet_store
-                                .get_diversifier_index(PAYMENT_ACCOUNT)
-                                .await
-                            {
-                                Ok(idx) => idx,
-                                Err(e) => {
-                                    println!("[wallet] error reading diversifier index: {e}");
-                                    continue;
-                                }
-                            };
-                            match diversified_address(
-                                &fvks.sapling,
-                                &fvks.orchard,
-                                di,
-                                fvks.network,
-                            ) {
-                                Err(e) => println!("[wallet] address generation failed: {e}"),
-                                Ok((_, addr)) => {
-                                    println!("[receive] Your Unified Address:");
-                                    println!("{addr}");
-                                    println!(
-                                        "[receive] Sharing this address links all payments \
-                                         to the same identity. For unlinkable receipts, ask \
-                                         payers to type `/pay <your-handle> <amount>` — that \
-                                         generates a fresh address per session."
-                                    );
-                                    if let Ok(scan_tip) = wallet_store.scan_tip().await {
-                                        if scan_tip == 0 {
-                                            println!(
-                                                "[receive] Wallet has not synced yet. \
-                                                 Run `nie wallet sync` before sharing this address \
-                                                 so incoming payments are visible."
-                                            );
+                // /receive [zcash|monero] — show receive address
+                if line == "/receive" || line.starts_with("/receive ") {
+                    let recv_chain = if line == "/receive" || line == "/receive zcash" {
+                        Chain::Zcash
+                    } else if line == "/receive monero" {
+                        Chain::Monero
+                    } else {
+                        println!("usage: /receive [zcash|monero]");
+                        continue;
+                    };
+                    match recv_chain {
+                        Chain::Monero => match &monero_keys {
+                            None => println!("[receive] No Monero wallet."),
+                            Some(mk) => {
+                                println!("[receive] Your Monero primary address (mainnet):");
+                                println!("{}", mk.primary_address);
+                                println!(
+                                    "[receive] For per-payment unlinkability, ask payers to use \
+                                     `/pay <your-handle> <amount> monero` — that generates a \
+                                     fresh subaddress per session."
+                                );
+                            }
+                        },
+                        _ => match &wallet_fvks {
+                            None => println!("[wallet] No wallet. Run `nie wallet init` first."),
+                            Some(fvks) => {
+                                let di = match wallet_store
+                                    .get_diversifier_index(PAYMENT_ACCOUNT)
+                                    .await
+                                {
+                                    Ok(idx) => idx,
+                                    Err(e) => {
+                                        println!("[wallet] error reading diversifier index: {e}");
+                                        continue;
+                                    }
+                                };
+                                match diversified_address(
+                                    &fvks.sapling,
+                                    &fvks.orchard,
+                                    di,
+                                    fvks.network,
+                                ) {
+                                    Err(e) => println!("[wallet] address generation failed: {e}"),
+                                    Ok((_, addr)) => {
+                                        println!("[receive] Your Unified Address:");
+                                        println!("{addr}");
+                                        println!(
+                                            "[receive] Sharing this address links all payments \
+                                             to the same identity. For unlinkable receipts, ask \
+                                             payers to type `/pay <your-handle> <amount>` — that \
+                                             generates a fresh address per session."
+                                        );
+                                        if let Ok(scan_tip) = wallet_store.scan_tip().await {
+                                            if scan_tip == 0 {
+                                                println!(
+                                                    "[receive] Wallet has not synced yet. \
+                                                     Run `nie wallet sync` before sharing this address \
+                                                     so incoming payments are visible."
+                                                );
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
+                        },
                     }
                     continue;
                 }
@@ -3025,6 +3056,7 @@ async fn dispatch_payment(
     sessions: &mut HashMap<Uuid, PaymentSession>,
     wallet_store: &WalletStore,
     wallet_fvks: Option<&WalletFvks>,
+    monero_keys: Option<&MoneroKeys>,
     nicknames: &HashMap<String, String>,
     local_names: &HashMap<String, String>,
     tx: &tokio::sync::mpsc::Sender<JsonRpcRequest>,
@@ -3068,7 +3100,14 @@ async fn dispatch_payment(
                             warn!("failed to persist payer AddressProvided for {session_id}: {e}");
                         }
                     }
-                    if let Some(sf) = send_fn {
+                    if chain_clone == Chain::Monero {
+                        // Monero sending requires a running daemon; print address for manual send.
+                        println!(
+                            "[pay] Monero address from {}: {address}",
+                            display_name(from, nicknames, local_names)
+                        );
+                        println!("[pay] Send XMR manually to the address above, then type /confirm {short_id}.");
+                    } else if let Some(sf) = send_fn {
                         println!(
                             "[pay] Received address from {}. Broadcasting {} zatoshi...",
                             display_name(from, nicknames, local_names),
@@ -3257,7 +3296,9 @@ async fn dispatch_payment(
                 // DUST_THRESHOLD (where the fee would equal or exceed the transfer).
                 // Accepting it wastes a diversifier index and enters a payment session
                 // that can never complete economically.
-                if amount_zatoshi < DUST_THRESHOLD {
+                // Dust guard applies only to Zcash (where the ZEP-317 fee can approach the amount).
+                // Monero has no equivalent protocol-enforced minimum.
+                if chain == Chain::Zcash && amount_zatoshi < DUST_THRESHOLD {
                     warn!(
                         "payee: rejecting dust request ({amount_zatoshi} zatoshi < {DUST_THRESHOLD}) from {}",
                         &from[..from.len().min(8)]
@@ -3280,31 +3321,66 @@ async fn dispatch_payment(
                     )
                     .await;
                 }
-                // Generate a fresh Sapling+Orchard subaddress via the wallet FVKs.
-                // Returns Unknown to the payer if the wallet is not available.
-                let address = match wallet_fvks {
-                    None => {
-                        println!(
-                            "[pay] Wallet not initialized — cannot generate a receive address."
-                        );
-                        println!("[pay] Run `nie wallet init` to set up a Zcash wallet.");
-                        return send_payment_message(
-                            session_id,
-                            PaymentAction::Unknown {
-                                reason: "wallet not initialized".to_string(),
-                            },
-                            tx,
-                            mls_active,
-                            mls,
-                        )
-                        .await;
-                    }
-                    Some(fvks) => match generate_fresh_address(fvks, wallet_store).await {
-                        Ok(addr) => addr,
-                        Err(unknown) => {
-                            return send_payment_message(session_id, unknown, tx, mls_active, mls)
-                                .await;
+                // Generate a per-session receive address for the requested chain.
+                let address = match chain {
+                    Chain::Monero => match monero_keys {
+                        None => {
+                            println!("[pay] Monero wallet not available — cannot generate a receive address.");
+                            return send_payment_message(
+                                session_id,
+                                PaymentAction::Unknown {
+                                    reason: "Monero wallet not initialized".to_string(),
+                                },
+                                tx,
+                                mls_active,
+                                mls,
+                            )
+                            .await;
                         }
+                        Some(mk) => match mk.address_for_session(session_id) {
+                            Ok(addr) => addr,
+                            Err(e) => {
+                                println!("[pay] Monero address generation failed: {e}");
+                                return send_payment_message(
+                                    session_id,
+                                    PaymentAction::Unknown {
+                                        reason: format!("Monero address generation failed: {e}"),
+                                    },
+                                    tx,
+                                    mls_active,
+                                    mls,
+                                )
+                                .await;
+                            }
+                        },
+                    },
+                    // Zcash (and unrecognised chains): generate a fresh Sapling+Orchard subaddress.
+                    _ => match wallet_fvks {
+                        None => {
+                            println!(
+                                "[pay] Wallet not initialized — cannot generate a receive address."
+                            );
+                            println!("[pay] Run `nie wallet init` to set up a Zcash wallet.");
+                            return send_payment_message(
+                                session_id,
+                                PaymentAction::Unknown {
+                                    reason: "wallet not initialized".to_string(),
+                                },
+                                tx,
+                                mls_active,
+                                mls,
+                            )
+                            .await;
+                        }
+                        Some(fvks) => match generate_fresh_address(fvks, wallet_store).await {
+                            Ok(addr) => addr,
+                            Err(unknown) => {
+                                return send_payment_message(
+                                    session_id, unknown, tx, mls_active, mls,
+                                )
+                                .await;
+                            }
+                        },
                     },
                 };
                 let now = chrono::Utc::now().timestamp();
@@ -3645,6 +3721,41 @@ fn try_load_wallet_fvks(
         orchard: orchard_sk.to_fvk(),
         sapling_sk: Arc::new(sapling_sk),
     })
+}
+
+/// Load or auto-generate Monero keys from `monero.key` in `data_dir`.
+///
+/// The key file is plain JSON (`MoneroKeys` serialised with serde_json).
+/// If the file is missing, a fresh mainnet wallet is generated and written.
+/// Returns `None` only if the file exists but is unreadable or corrupt.
+fn try_load_monero_keys(data_dir: &Path) -> Option<MoneroKeys> {
+    let path = data_dir.join("monero.key");
+    if path.exists() {
+        match std::fs::read(&path) {
+            Ok(bytes) => match serde_json::from_slice::<MoneroKeys>(&bytes) {
+                Ok(keys) => return Some(keys),
+                Err(e) => {
+                    warn!("monero.key is corrupt: {e}");
+                    return None;
+                }
+            },
+            Err(e) => {
+                warn!("failed to read monero.key: {e}");
+                return None;
+            }
+        }
+    }
+    // Auto-generate on first use.
+    let keys = MoneroKeys::generate(MoneroNetwork::Mainnet);
+    match serde_json::to_vec(&keys) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(&path, json) {
+                warn!("failed to persist monero.key: {e}");
+            }
+        }
+        Err(e) => warn!("failed to serialise monero.key: {e}"),
+    }
+    Some(keys)
 }
 
 // ---- Wallet metadata (network tag) ----
@@ -4189,6 +4300,7 @@ mod tests {
             &mut sessions,
             &store,
             None,
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx,
@@ -4252,6 +4364,7 @@ mod tests {
             "peer-pub-id",
             &mut sessions,
             &store,
+            None,
             None,
             &HashMap::new(),
             &HashMap::new(),
@@ -4392,6 +4505,7 @@ mod tests {
             &mut sessions,
             &store,
             Some(&fvks),
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx,
@@ -4473,6 +4587,7 @@ mod tests {
             &mut sessions,
             &store,
             None, // no wallet
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx,
@@ -4542,6 +4657,7 @@ mod tests {
             &mut sessions,
             &store,
             Some(&fvks),
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx1,
@@ -4567,6 +4683,7 @@ mod tests {
             &mut sessions,
             &store,
             Some(&fvks),
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx2,
@@ -4647,6 +4764,7 @@ mod tests {
             &mut sessions,
             &store,
             None,
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx,
@@ -4706,6 +4824,7 @@ mod tests {
             &mut sessions,
             &store,
             None,
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx,
@@ -4762,6 +4881,7 @@ mod tests {
             &payer_pub_id,
             &mut sessions,
             &store,
+            None,
             None,
             &HashMap::new(),
             &HashMap::new(),
@@ -4820,6 +4940,7 @@ mod tests {
             &mut sessions,
             &store,
             None,
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx,
@@ -4872,6 +4993,7 @@ mod tests {
             &payee_pub_id,
             &mut sessions,
             &store,
+            None,
             None,
             &HashMap::new(),
             &HashMap::new(),
@@ -4928,6 +5050,7 @@ mod tests {
             &mut sessions,
             &store,
             None,
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx,
@@ -4981,6 +5104,7 @@ mod tests {
             &peer_pub_id,
             &mut sessions,
             &store,
+            None,
             None,
             &HashMap::new(),
             &HashMap::new(),
@@ -5048,6 +5172,7 @@ mod tests {
             &peer_pub_id,
             &mut sessions,
             &store,
+            None,
             None,
             &HashMap::new(),
             &HashMap::new(),
@@ -5149,6 +5274,7 @@ mod tests {
             &mut sessions,
             &store,
             None,
+            None,
             &HashMap::new(),
             &HashMap::new(),
             &tx,
@@ -5228,6 +5354,7 @@ mod tests {
             &peer_pub_id,
             &mut sessions,
             &store,
+            None,
             None,
             &HashMap::new(),
             &HashMap::new(),
@@ -6031,6 +6158,7 @@ mod iiy_tests {
                 payee_pub_id,
                 &mut sessions,
                 &store,
+                None,
                 None,
                 &HashMap::new(),
                 &HashMap::new(),

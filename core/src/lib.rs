@@ -1,5 +1,6 @@
 pub mod amount;
 pub mod auth;
+pub mod coin;
 pub mod hpke;
 pub mod identity;
 // keyfile uses std::fs and rpassword — not available in wasm32
