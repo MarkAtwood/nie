@@ -553,6 +553,67 @@ identical).
 Applies to both `SET_NICKNAME` and `GROUP_CREATE`. Does not apply to `payload`
 fields — those are opaque encrypted blobs and must not be touched.
 
+## WebAssembly Client Invariants
+
+### 17. cfg-gate wasm32-incompatible deps
+
+`nie-core` gates `tokio`, `tungstenite`, `rpassword`, `openmls`, and the
+`transport`/`keyfile`/`mls` modules under `#[cfg(not(target_arch = "wasm32"))]`
+in both `Cargo.toml` and `lib.rs`. This lets `nie-wasm` reuse `nie-core`
+(identity, auth, messages, protocol) directly without a separate shim crate
+or feature flags. The cfg-gate approach keeps a single source of truth for all
+shared types while the wasm32 build omits `std::fs`, `tokio`, and native-TLS
+deps that cannot compile to wasm32. Do not add wasm32-incompatible deps to the
+ungated section of `nie-core`.
+
+### 18. Closure fields on struct prevent silent handler removal
+
+`WasmTransport` stores `_onopen`, `_onmessage`, `_onerror`, `_onclose` as
+named struct fields. In wasm-bindgen, a `Closure` is a Rust-owned heap
+allocation; when it is dropped, wasm-bindgen removes the underlying JS event
+handler silently — no error, the WebSocket just stops delivering events. Storing
+all four closures on the struct ties their lifetimes to the `WasmTransport`
+lifetime. Do not use `.forget()` — it leaks memory permanently. Do not use
+local variables — they drop immediately after the constructor returns.
+
+### 19. onclose drains pending map to unblock in-flight requests
+
+The `onclose` handler iterates the pending `HashMap` and sends `Err("disconnected")`
+on every waiting oneshot sender before clearing the map. Any caller awaiting
+`send_request()` receives an explicit `Err` immediately when the connection
+drops rather than hanging forever. Leaving the pending map populated on close is
+an invisible deadlock in the browser. The drain-on-close pattern converts an
+invisible hang into an explicit error the caller can surface to the user.
+
+### 20. Rc::clone out of RefCell before await
+
+In `wasm/src/api.rs`, async methods clone the `Rc<NieRelayClient>` out of the
+`RefCell<Option<Rc<...>>>` *before* entering the async block, dropping the
+borrow immediately. The WASM event loop is single-threaded but re-entrant: a JS
+callback can fire between yield points and attempt to borrow the same
+`RefCell`. If a borrow were held across an `await`, that re-entrant borrow
+would panic (`BorrowError`). Never hold a `RefCell` borrow across an `await`
+point in WASM code.
+
+### 21. pub_id local verification after authenticate
+
+After the `authenticate` response, the WASM client checks that the relay-returned
+`pub_id` matches `identity.pub_id()` computed locally. A mismatch means either
+a misconfigured relay or a compromised relay attempting to reassign the client's
+identity. Trusting the relay's returned `pub_id` would let an adversary silently
+reassign it. The local check costs one string comparison and closes the attack
+surface entirely. Do not remove it.
+
+### 22. partition_point insert for admin-election ordering
+
+`user_joined` in `wasm/src/client.rs` uses `partition_point` to insert the new
+peer at the position that keeps `online_users` sorted ascending by
+`connection_seq`. This maintains `online_users[0]` as the lowest-sequence peer
+(the MLS group admin) at all times without a separate sort pass. Appending and
+re-sorting would create an intermediate window where `online_users[0]` is
+temporarily wrong, observable by any code that reads the list between the two
+operations. Always use `partition_point` for this insertion.
+
 ## Offline Queue TTL — Known Limitation
 
 The current purge query is:
