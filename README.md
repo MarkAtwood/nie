@@ -41,6 +41,7 @@ Listens on `0.0.0.0:3210`, creates `nie-relay.db` in the current directory.
 | `REQUIRE_SUBSCRIPTION` | `false` | Gate broadcasts on active subscription |
 | `POW_DIFFICULTY` | `0` | PoW bits for new enrollments (0=off, 20=default) |
 | `TRANSPARENCY_FILE` | `transparency.json` | Path to legal transparency log JSON |
+| `DIRECTORY_EXPIRY_DAYS` | `90` | Days of inactivity before a pub_id is pruned (0 = never prune) |
 
 ```bash
 DATABASE_URL=sqlite:/var/lib/nie/relay.db \

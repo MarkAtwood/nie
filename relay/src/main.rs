@@ -104,6 +104,46 @@ async fn main() -> anyhow::Result<()> {
         "PoW enrollment gate configured"
     );
 
+    let directory_expiry_days: u64 = match std::env::var("DIRECTORY_EXPIRY_DAYS") {
+        Err(_) => 90,
+        Ok(v) if v == "0" => 0,
+        Ok(v) => match v.parse() {
+            Ok(n) => n,
+            Err(_) => {
+                tracing::warn!(
+                    "DIRECTORY_EXPIRY_DAYS={v:?} is not a valid integer; using default 90"
+                );
+                90
+            }
+        },
+    };
+    if directory_expiry_days == 0 {
+        info!("directory expiry disabled (DIRECTORY_EXPIRY_DAYS=0)");
+    } else {
+        info!(directory_expiry_days, "directory expiry configured");
+        // Run once at startup, then every 24 hours.
+        let prune_state = state.clone();
+        tokio::spawn(async move {
+            loop {
+                match prune_state
+                    .inner
+                    .store
+                    .prune_inactive_users(directory_expiry_days)
+                    .await
+                {
+                    Ok(n) if n > 0 => {
+                        info!(pruned = n, "pruned inactive directory entries");
+                    }
+                    Ok(_) => {}
+                    Err(e) => {
+                        tracing::error!("directory prune failed: {e}");
+                    }
+                }
+                tokio::time::sleep(tokio::time::Duration::from_secs(86_400)).await;
+            }
+        });
+    }
+
     if let Some(merchant) = load_merchant_wallet() {
         tracing::info!("merchant wallet loaded, network={:?}", merchant.network);
         state.set_merchant(merchant);

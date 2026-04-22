@@ -177,6 +177,24 @@ impl Store {
         Ok(())
     }
 
+    /// Delete directory entries not seen within `expiry_days`.
+    ///
+    /// Returns the number of rows deleted.  A value of 0 means all current
+    /// users are within the retention window.
+    ///
+    /// `expiry_days == 0` is a no-op — callers use 0 to disable expiry.
+    pub async fn prune_inactive_users(&self, expiry_days: u64) -> Result<u64> {
+        if expiry_days == 0 {
+            return Ok(0);
+        }
+        let result =
+            sqlx::query("DELETE FROM users WHERE last_seen < datetime('now', ? || ' days')")
+                .bind(format!("-{expiry_days}"))
+                .execute(&self.pool)
+                .await?;
+        Ok(result.rows_affected())
+    }
+
     /// All known users in order of first appearance, with their nicknames.
     pub async fn all_users(&self) -> Result<Vec<(String, Option<String>)>> {
         let rows: Vec<(String, Option<String>)> =
@@ -1289,5 +1307,56 @@ mod tests {
         let carol_groups = store.list_groups_for_user("carol").await.unwrap();
         assert_eq!(carol_groups.len(), 1);
         assert_eq!(carol_groups[0].group_id, "grp-c");
+    }
+
+    // ---- prune_inactive_users tests ----
+
+    /// Oracle: a user whose last_seen is manually set to 91 days ago is deleted;
+    /// a user seen today survives.
+    #[tokio::test]
+    async fn prune_removes_stale_user_and_keeps_recent() {
+        let (store, _f) = make_store().await;
+
+        store.register_user("active").await.unwrap();
+        store.register_user("stale").await.unwrap();
+
+        // Wind stale user's last_seen back 91 days via raw SQL.
+        sqlx::query(
+            "UPDATE users SET last_seen = datetime('now', '-91 days') WHERE pub_id = 'stale'",
+        )
+        .execute(&store.pool)
+        .await
+        .unwrap();
+
+        let pruned = store.prune_inactive_users(90).await.unwrap();
+        assert_eq!(pruned, 1, "exactly one stale user must be pruned");
+
+        let remaining = store.all_users().await.unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].0, "active");
+    }
+
+    /// Oracle: expiry_days=0 is a no-op — no rows are deleted even with stale users.
+    #[tokio::test]
+    async fn prune_with_zero_expiry_days_is_noop() {
+        let (store, _f) = make_store().await;
+
+        store.register_user("old-user").await.unwrap();
+        sqlx::query(
+            "UPDATE users SET last_seen = datetime('now', '-999 days') WHERE pub_id = 'old-user'",
+        )
+        .execute(&store.pool)
+        .await
+        .unwrap();
+
+        let pruned = store.prune_inactive_users(0).await.unwrap();
+        assert_eq!(pruned, 0, "expiry_days=0 must not delete any rows");
+
+        let remaining = store.all_users().await.unwrap();
+        assert_eq!(
+            remaining.len(),
+            1,
+            "stale user must survive when expiry is disabled"
+        );
     }
 }
