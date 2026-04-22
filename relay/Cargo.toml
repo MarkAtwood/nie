@@ -12,7 +12,11 @@ path = "src/lib.rs"
 name = "nie-relay"
 path = "src/main.rs"
 
+[features]
+redis-bus = ["dep:redis"]
+
 [dependencies]
+redis = { version = "0.24", features = ["tokio-comp", "aio"], optional = true }
 nie-core.workspace = true
 nie-wallet.workspace = true
 anyhow.workspace = true

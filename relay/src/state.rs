@@ -11,6 +11,7 @@ use tokio::sync::mpsc;
 use nie_core::identity::PubId;
 use nie_wallet::address::{SaplingDiversifiableFvk, ZcashNetwork};
 
+use crate::bus::{BusMessage, MessageBus};
 use crate::store::Store;
 
 /// Channel to push pre-serialized JSON-RPC messages into a connected client.
@@ -67,6 +68,10 @@ pub struct Inner {
     /// In-memory replay set: h16 → time-of-acceptance.
     /// Entries older than STALENESS_WINDOW_SECS (600s) are lazily evicted.
     pub pow_replay_set: dashmap::DashMap<[u8; 16], Instant>,
+    /// Cross-instance message bus for horizontal scaling.
+    /// `LocalBus` (default) is a no-op for single-process deployments.
+    /// Swap for `RedisBus` to enable multi-instance delivery.
+    pub bus: MessageBus,
 }
 
 impl AppState {
@@ -98,6 +103,7 @@ impl AppState {
                 },
                 pow_difficulty: AtomicU8::new(0),
                 pow_replay_set: dashmap::DashMap::new(),
+                bus: MessageBus::local(),
             }),
         })
     }
@@ -235,5 +241,14 @@ impl AppState {
             }
         }))
         .await;
+
+        // Publish to cross-instance bus so other relay instances can deliver locally.
+        let bus_msg = BusMessage::Broadcast {
+            exclude: exclude.map(str::to_string),
+            payload: msg,
+        };
+        if let Err(e) = self.inner.bus.publish(&bus_msg).await {
+            tracing::warn!("bus publish failed: {e}");
+        }
     }
 }
