@@ -119,7 +119,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 // ---- Slack Web API client ----
@@ -276,8 +279,7 @@ mod tests {
         let ts = future_ts.to_string();
         let body = b"test body";
         // Use an incorrect signature.
-        let result =
-            verify_slack_signature("correct_secret", &ts, body, "v0=incorrect_signature");
+        let result = verify_slack_signature("correct_secret", &ts, body, "v0=incorrect_signature");
         assert!(result.is_err());
     }
 
@@ -326,6 +328,10 @@ mod tests {
         let expected_sig = format!("v0={}", hex::encode(mac.finalize().into_bytes()));
 
         let result = verify_slack_signature(secret, &ts, body, &expected_sig);
-        assert!(result.is_ok(), "correct signature must verify: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "correct signature must verify: {:?}",
+            result
+        );
     }
 }

@@ -48,10 +48,7 @@ impl BridgeConfig {
         if self.teams_security_token.is_empty() {
             bail!("teams_security_token must not be empty");
         }
-        if !self
-            .teams_incoming_webhook_url
-            .starts_with("https://")
-        {
+        if !self.teams_incoming_webhook_url.starts_with("https://") {
             bail!("teams_incoming_webhook_url must start with https://");
         }
         Ok(())

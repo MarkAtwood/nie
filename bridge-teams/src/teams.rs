@@ -83,19 +83,14 @@ impl TeamsActivity {
 ///   header = "HMAC <base64(hmac)>"
 ///
 /// Returns `Ok(())` on success, `Err` if the signature is invalid.
-pub fn verify_teams_signature(
-    security_token: &str,
-    body: &[u8],
-    auth_header: &str,
-) -> Result<()> {
+pub fn verify_teams_signature(security_token: &str, body: &[u8], auth_header: &str) -> Result<()> {
     // Decode the security token from base64.
     let key = B64
         .decode(security_token)
         .map_err(|e| anyhow!("invalid security_token base64: {e}"))?;
 
     // Compute HMAC-SHA256 of the body.
-    let mut mac = HmacSha256::new_from_slice(&key)
-        .map_err(|e| anyhow!("HMAC key error: {e}"))?;
+    let mut mac = HmacSha256::new_from_slice(&key).map_err(|e| anyhow!("HMAC key error: {e}"))?;
     mac.update(body);
     let computed = format!("HMAC {}", B64.encode(mac.finalize().into_bytes()));
 
@@ -111,7 +106,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 // ---- Teams incoming webhook client ----
@@ -231,6 +229,10 @@ mod tests {
         let expected = format!("HMAC {}", B64.encode(mac.finalize().into_bytes()));
 
         let result = verify_teams_signature(&token, body, &expected);
-        assert!(result.is_ok(), "correct signature must verify: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "correct signature must verify: {:?}",
+            result
+        );
     }
 }

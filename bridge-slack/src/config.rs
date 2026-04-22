@@ -116,7 +116,9 @@ slack_signing_secret = "secret"
 slack_channel_id = "C123"
 "#,
         );
-        let Err(e) = BridgeConfig::from_toml(f.path()) else { panic!("expected error") };
+        let Err(e) = BridgeConfig::from_toml(f.path()) else {
+            panic!("expected error")
+        };
         assert!(e.to_string().contains("relay_url"));
     }
 
@@ -131,7 +133,9 @@ slack_signing_secret = "secret"
 slack_channel_id = "C123"
 "#,
         );
-        let Err(e) = BridgeConfig::from_toml(f.path()) else { panic!("expected error") };
+        let Err(e) = BridgeConfig::from_toml(f.path()) else {
+            panic!("expected error")
+        };
         assert!(e.to_string().contains("slack_bot_token"));
     }
 
@@ -146,7 +150,9 @@ slack_signing_secret = ""
 slack_channel_id = "C123"
 "#,
         );
-        let Err(e) = BridgeConfig::from_toml(f.path()) else { panic!("expected error") };
+        let Err(e) = BridgeConfig::from_toml(f.path()) else {
+            panic!("expected error")
+        };
         assert!(e.to_string().contains("slack_signing_secret"));
     }
 }

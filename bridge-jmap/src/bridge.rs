@@ -216,7 +216,10 @@ async fn handle_nie_deliver(
         return;
     };
     let subject = format_subject(&deliver.from, bridge_prefix);
-    if let Err(e) = jmap.email_set(account_id, mailbox_id, &subject, &text).await {
+    if let Err(e) = jmap
+        .email_set(account_id, mailbox_id, &subject, &text)
+        .await
+    {
         tracing::warn!("JMAP email_set failed: {e}");
     }
 }

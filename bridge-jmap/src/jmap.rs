@@ -225,11 +225,7 @@ impl JmapClient {
     }
 
     /// Fetch full email objects for the given IDs.
-    pub async fn email_get(
-        &self,
-        account_id: &str,
-        ids: &[String],
-    ) -> Result<Vec<EmailObject>> {
+    pub async fn email_get(&self, account_id: &str, ids: &[String]) -> Result<Vec<EmailObject>> {
         if ids.is_empty() {
             return Ok(vec![]);
         }
@@ -314,7 +310,12 @@ impl JmapClient {
 mod tests {
     use super::*;
 
-    fn make_email(id: &str, sender: Option<&str>, subject: Option<&str>, body: Option<&str>) -> EmailObject {
+    fn make_email(
+        id: &str,
+        sender: Option<&str>,
+        subject: Option<&str>,
+        body: Option<&str>,
+    ) -> EmailObject {
         use std::collections::HashMap;
         EmailObject {
             id: id.to_string(),
@@ -327,11 +328,18 @@ mod tests {
             subject: subject.map(str::to_string),
             body_values: body.map(|b| {
                 let mut m = HashMap::new();
-                m.insert("1".to_string(), BodyPart { value: b.to_string() });
+                m.insert(
+                    "1".to_string(),
+                    BodyPart {
+                        value: b.to_string(),
+                    },
+                );
                 m
             }),
             text_body: body.map(|_| {
-                vec![BodyPartRef { part_id: Some("1".to_string()) }]
+                vec![BodyPartRef {
+                    part_id: Some("1".to_string()),
+                }]
             }),
         }
     }
