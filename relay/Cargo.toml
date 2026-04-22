@@ -30,6 +30,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
 rand.workspace = true
+unicode-normalization = "0.1"
 zcash_address.workspace = true
 zcash_protocol.workspace = true
 

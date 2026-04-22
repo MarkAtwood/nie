@@ -17,8 +17,8 @@ use nie_core::{
     protocol::{
         rpc_errors, rpc_methods, BroadcastParams, DeliverParams, GroupAddParams, GroupCreateParams,
         GroupCreateResult, GroupDeliverParams, GroupSendParams, GroupSendResult,
-        JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, SubscribeInvoiceResult,
-        SubscribeRequestParams,
+        JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, SetNicknameParams,
+        SubscribeInvoiceResult, SubscribeRequestParams,
     },
     transport::{self, next_request_id, ClientEvent},
 };
@@ -786,5 +786,128 @@ async fn padded_broadcast_roundtrip() {
     assert_eq!(
         recovered, fake_ciphertext,
         "unpad(relay_forwarded(pad(x))) must equal x"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 8: display_name_canonicalization
+// ---------------------------------------------------------------------------
+
+/// Verifies display-name canonicalization at the wire level:
+///
+/// 1. SET_NICKNAME with a Right-to-Left Override (U+202E) is rejected with an
+///    INVALID_REQUEST error whose message contains "bidirectional".
+/// 2. GROUP_CREATE with a Zero Width Space (U+200B) succeeds; the relay strips
+///    the ZWS and the GroupCreateResult.name equals the stripped string.
+///
+/// Oracle:
+/// - Unicode UAX #9: U+202E (RIGHT-TO-LEFT OVERRIDE) is a bidirectional
+///   formatting control character; the relay rejects all bidi controls.
+/// - Unicode UCD: U+200B (ZERO WIDTH SPACE) is a format character (Cf) with
+///   no visual width; the relay strips it silently.
+/// - rpc_errors::INVALID_REQUEST == -32600 (JSON-RPC 2.0 spec §5).
+#[tokio::test]
+async fn display_name_canonicalization() {
+    let relay_url = spawn_relay().await;
+
+    let alice = Identity::generate();
+    let mut alice_conn = transport::connect(&relay_url, &alice, false, None)
+        .await
+        .expect("alice connect");
+
+    wait_for_directory_list(&mut alice_conn.rx).await;
+
+    // --- Part 1: RTL override in SET_NICKNAME must be rejected ---
+
+    let rtl_req = JsonRpcRequest::new(
+        next_request_id(),
+        rpc_methods::SET_NICKNAME,
+        SetNicknameParams {
+            nickname: "group\u{202E}x".to_string(),
+        },
+    )
+    .expect("SetNicknameParams must serialize");
+    let rtl_req_id = rtl_req.id;
+
+    alice_conn
+        .tx
+        .send(rtl_req)
+        .await
+        .expect("alice send SET_NICKNAME with RTL override");
+
+    let rtl_resp = wait_for_response(&mut alice_conn.rx).await;
+
+    assert_eq!(
+        rtl_resp.id, rtl_req_id,
+        "response id must match SET_NICKNAME request id"
+    );
+    assert!(
+        !rtl_resp.is_success(),
+        "SET_NICKNAME with RTL override must not succeed"
+    );
+
+    let rtl_err = rtl_resp
+        .error
+        .expect("SET_NICKNAME with RTL override must return an error");
+
+    assert_eq!(
+        rtl_err.code,
+        rpc_errors::INVALID_REQUEST,
+        "RTL override in SET_NICKNAME must yield INVALID_REQUEST (-32600), got: {}",
+        rtl_err.code
+    );
+
+    assert!(
+        rtl_err.message.contains("bidirectional"),
+        "error message must contain \"bidirectional\", got: \"{}\"",
+        rtl_err.message
+    );
+
+    // --- Part 2: ZWS in GROUP_CREATE must be stripped silently ---
+
+    let zws_req = JsonRpcRequest::new(
+        next_request_id(),
+        rpc_methods::GROUP_CREATE,
+        GroupCreateParams {
+            name: "test\u{200B}room".to_string(),
+        },
+    )
+    .expect("GroupCreateParams must serialize");
+    let zws_req_id = zws_req.id;
+
+    alice_conn
+        .tx
+        .send(zws_req)
+        .await
+        .expect("alice send GROUP_CREATE with ZWS");
+
+    let zws_resp = wait_for_response(&mut alice_conn.rx).await;
+
+    assert_eq!(
+        zws_resp.id, zws_req_id,
+        "response id must match GROUP_CREATE request id"
+    );
+    assert!(
+        zws_resp.is_success(),
+        "GROUP_CREATE with ZWS must succeed (ZWS should be stripped), got error: {:?}",
+        zws_resp.error
+    );
+
+    let result: GroupCreateResult = serde_json::from_value(
+        zws_resp
+            .result
+            .expect("GROUP_CREATE must return a result"),
+    )
+    .expect("GroupCreateResult must deserialize");
+
+    assert_eq!(
+        result.name, "testroom",
+        "relay must strip ZWS from group name: expected \"testroom\", got \"{}\"",
+        result.name
+    );
+
+    assert!(
+        !result.group_id.is_empty(),
+        "group_id must be non-empty after ZWS-stripped GROUP_CREATE"
     );
 }

@@ -49,35 +49,10 @@ nie passes nickname and group name strings through without normalization. These 
 - Homoglyph spoofing: `niе` using Cyrillic е (U+0435) indistinguishable from Latin e
 - Zero-width characters: invisible characters inserted to create two "identical" nicknames with different bytes
 
-**Design (Rust):**
-```rust
-use unicode_normalization::UnicodeNormalization;
-
-fn canonicalize_display_name(s: &str) -> Result<String, &'static str> {
-    // NFC normalization (composed form, prevents homoglyph bypass)
-    let s: String = s.nfc().collect();
-    // Strip BIDI override characters
-    let bidi_controls: &[char] = &[
-        '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}',
-        '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}',
-        '\u{200E}', '\u{200F}',
-    ];
-    // Strip zero-width characters
-    let zero_width: &[char] = &['\u{200B}', '\u{200C}', '\u{2060}'];
-    let s: String = s.chars()
-        .filter(|c| !bidi_controls.contains(c) && !zero_width.contains(c))
-        .collect();
-    // Trim and collapse internal whitespace
-    let s = s.trim().to_string();
-    if s.is_empty() { return Err("empty after canonicalization"); }
-    if s.chars().count() > 32 { return Err("too long"); }
-    Ok(s)
-}
-```
-
-Apply to: `set_nickname` handler in `ws.rs`, `group_create` name field in `store.rs`.
-
-The `unicode-normalization` crate is already a transitive dependency in the Rust ecosystem and likely already present.
+**Status: Implemented.** See `canonicalize_display_name` in `relay/src/ws.rs` and
+`§Display Name Canonicalization` in `DESIGN.md`. Applied to `SET_NICKNAME` and
+`GROUP_CREATE` handlers. Bidi controls are rejected (not stripped); ZWS chars are
+stripped silently.
 
 ## 5. Partition-based TTL for offline message queue
 

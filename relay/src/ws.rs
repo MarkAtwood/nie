@@ -14,6 +14,8 @@ use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
+use unicode_normalization::UnicodeNormalization;
+
 use crate::state::AppState;
 use crate::store::InvoiceRow;
 use nie_core::auth::{new_challenge, verify_challenge};
@@ -33,6 +35,42 @@ use nie_core::protocol::{
 /// room for MLS overhead while preventing broadcast amplification DoS where
 /// one sender forces O(N × payload) allocation across all connected clients.
 const MAX_WS_MESSAGE_BYTES: usize = 1024 * 1024; // 1 MiB
+
+const BIDI_CONTROLS: &[char] = &[
+    '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}',
+    '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}',
+    '\u{200E}', '\u{200F}',
+];
+// U+FEFF (ZERO WIDTH NO-BREAK SPACE / BOM) included: it is invisible and can
+// appear in copy-pasted text, creating two names that look identical but differ.
+const ZWS_CHARS: &[char] = &['\u{200B}', '\u{200C}', '\u{2060}', '\u{FEFF}'];
+
+/// Canonicalize a user-supplied display name (nickname or group name).
+///
+/// 1. NFC-normalize (canonical composition).
+/// 2. Reject if any bidirectional control character is present.
+/// 3. Strip zero-width characters silently.
+/// 4. Trim leading/trailing whitespace.
+/// 5. Reject if empty or longer than 32 Unicode scalar values.
+pub(crate) fn canonicalize_display_name(s: &str) -> Result<String, &'static str> {
+    let s: String = s.nfc().collect();
+    // SECURITY: bidi controls are REJECTED (not stripped) because they enable
+    // visual reordering attacks (e.g. U+202E renders "admin" as "nimda").
+    // ZWS chars are stripped silently — they are invisible formatting hints
+    // with no semantic content, so stripping cannot change meaning.
+    if s.chars().any(|c| BIDI_CONTROLS.contains(&c)) {
+        return Err("contains bidirectional control characters");
+    }
+    let s: String = s.chars().filter(|c| !ZWS_CHARS.contains(c)).collect();
+    let s = s.trim().to_string();
+    if s.is_empty() {
+        return Err("empty after canonicalization");
+    }
+    if s.chars().count() > 32 {
+        return Err("display name too long");
+    }
+    Ok(s)
+}
 
 pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     ws.max_message_size(MAX_WS_MESSAGE_BYTES)
@@ -480,17 +518,19 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
-                        let nickname = params.nickname.trim().to_string();
-                        if nickname.is_empty() || nickname.chars().count() > 32 {
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INVALID_REQUEST,
-                                "nickname must be 1–32 characters",
-                            )
-                            .await;
-                            continue;
-                        }
+                        let nickname = match canonicalize_display_name(&params.nickname) {
+                            Ok(n) => n,
+                            Err(e) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_REQUEST,
+                                    e,
+                                )
+                                .await;
+                                continue;
+                            }
+                        };
                         match state
                             .inner
                             .store
@@ -859,11 +899,24 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        let name = match canonicalize_display_name(&params.name) {
+                            Ok(n) => n,
+                            Err(e) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_REQUEST,
+                                    e,
+                                )
+                                .await;
+                                continue;
+                            }
+                        };
                         let group_id = Uuid::new_v4().to_string();
                         if let Err(e) = state
                             .inner
                             .store
-                            .create_group(&group_id, &pub_id.0, &params.name)
+                            .create_group(&group_id, &pub_id.0, &name)
                             .await
                         {
                             error!("create_group for {pub_id}: {e}");
@@ -892,7 +945,6 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
-                        let name = params.name;
                         // serde_json::to_string on a derived Serialize cannot fail
                         let resp = serde_json::to_string(
                             &JsonRpcResponse::success(req.id, GroupCreateResult { group_id, name })
@@ -1492,4 +1544,115 @@ async fn alloc_subscription_address(
     let sapling_bytes = addr.to_bytes();
     let bech32 = ZcashAddress::from_sapling(network_type, sapling_bytes).encode();
     Ok(bech32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::canonicalize_display_name;
+
+    // Oracle for all tests: Unicode Standard 15.0, UAX #15 (NFC normalization),
+    // UAX #9 (Unicode Bidirectional Algorithm), and Unicode Character Database.
+
+    #[test]
+    fn clean_name_passes() {
+        // Oracle: "Alice" contains only ASCII letters; NFC is idempotent on ASCII
+        // (Unicode UAX #15 D115: a string already in NFC form is unchanged).
+        assert_eq!(canonicalize_display_name("Alice"), Ok("Alice".to_string()));
+    }
+
+    #[test]
+    fn nfc_normalizes_decomposed_form() {
+        // Oracle: Unicode NFC rule (UAX #15 D115): NFD sequence U+0065 (LATIN SMALL
+        // LETTER E) + U+0301 (COMBINING ACUTE ACCENT) composes to U+00E9 (LATIN SMALL
+        // LETTER E WITH ACUTE), which is the NFC canonical form.
+        assert_eq!(
+            canonicalize_display_name("e\u{0301}"),
+            Ok("\u{00E9}".to_string())
+        );
+    }
+
+    #[test]
+    fn rtl_override_rejected() {
+        // Oracle: U+202E is RIGHT-TO-LEFT OVERRIDE (RLO), defined in Unicode
+        // Bidirectional Algorithm (UAX #9) as a bidi formatting control character.
+        // The spec rejects all bidi controls to prevent homoglyph/spoofing attacks.
+        assert!(canonicalize_display_name("group\u{202E}x").is_err());
+    }
+
+    #[test]
+    fn rle_rejected() {
+        // Oracle: U+202B is RIGHT-TO-LEFT EMBEDDING (RLE), defined in Unicode
+        // Bidirectional Algorithm (UAX #9) as a bidi formatting control character.
+        assert!(canonicalize_display_name("abc\u{202B}def").is_err());
+    }
+
+    #[test]
+    fn zws_stripped_silently() {
+        // Oracle: U+200B is ZERO WIDTH SPACE (ZWS), Unicode General Category Cf
+        // (format character) with no visual width.  Stripped per spec.
+        assert_eq!(
+            canonicalize_display_name("alice\u{200B}bob"),
+            Ok("alicebob".to_string())
+        );
+    }
+
+    #[test]
+    fn zwj_stripped_silently() {
+        // Oracle: U+200C is ZERO WIDTH NON-JOINER (ZWNJ), Unicode General Category Cf,
+        // used to prevent ligature formation.  Stripped per spec.
+        assert_eq!(
+            canonicalize_display_name("x\u{200C}y"),
+            Ok("xy".to_string())
+        );
+    }
+
+    #[test]
+    fn word_joiner_stripped() {
+        // Oracle: U+2060 is WORD JOINER, Unicode General Category Cf, equivalent to
+        // U+FEFF (BOM) without its byte-order semantics.  Stripped per spec.
+        assert_eq!(
+            canonicalize_display_name("a\u{2060}b"),
+            Ok("ab".to_string())
+        );
+    }
+
+    #[test]
+    fn bom_stripped_silently() {
+        // Oracle: U+FEFF is ZERO WIDTH NO-BREAK SPACE / BOM, Unicode General Category Cf.
+        // Appears in copy-pasted text from applications that emit a BOM.  Stripped per spec.
+        assert_eq!(
+            canonicalize_display_name("alice\u{FEFF}bob"),
+            Ok("alicebob".to_string())
+        );
+    }
+
+    #[test]
+    fn name_32_chars_passes() {
+        // Oracle: spec allows up to 32 Unicode scalar values (post-strip).
+        // 32 <= 32, within the limit.
+        let name = "a".repeat(32);
+        assert!(canonicalize_display_name(&name).is_ok());
+    }
+
+    #[test]
+    fn name_33_chars_rejected() {
+        // Oracle: spec allows at most 32 Unicode scalar values (post-strip).
+        // 33 > 32, exceeds the limit.
+        let name = "a".repeat(33);
+        assert!(canonicalize_display_name(&name).is_err());
+    }
+
+    #[test]
+    fn empty_rejected() {
+        // Oracle: an empty string has no displayable identity; spec requires at
+        // least one character after trim and strip.
+        assert!(canonicalize_display_name("").is_err());
+    }
+
+    #[test]
+    fn whitespace_only_rejected() {
+        // Oracle: trimming "   " (three U+0020 SPACE characters) yields an empty
+        // string, which is invalid per the spec's empty-after-trim check.
+        assert!(canonicalize_display_name("   ").is_err());
+    }
 }

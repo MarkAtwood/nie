@@ -448,35 +448,33 @@ statutory research fee before producing any records. Document this policy in
 
 ## Display Name Canonicalization
 
-Nicknames (`/iam`) and group names (`group_create`) are user-supplied strings
-visible to all connected clients in `DirectoryList` and `group_list`. Without
-normalization they are attack surfaces for:
+This is a security invariant, not optional. User-supplied display names are
+visible to all connected clients in `DirectoryList` and group listings. Without
+enforcement they are attack surfaces for bidi spoofing (U+202E renders
+`groupname` as `emanpuorg`), homoglyph attacks (Cyrillic `е` vs Latin `e`),
+and zero-width confusion (invisible bytes make two byte-distinct names appear
+identical).
 
-- **RTL override**: U+202E renders `groupname` as `emanpuorg`
-- **Homoglyph spoofing**: Cyrillic `е` (U+0435) is visually identical to Latin `e`
-- **Zero-width characters**: invisible bytes create two "identical" names with
-  different bytes
+### Enforcement
 
-### Required canonicalization (applied before storage and broadcast)
+`canonicalize_display_name` in `relay/src/ws.rs` applies the following steps
+**before storage and before broadcast**, in order:
 
-1. NFC Unicode normalization (`unicode_normalization` crate, `.nfc().collect()`)
-2. Strip BIDI control characters: U+202A–202E, U+2066–2069, U+200E, U+200F
-3. Strip zero-width characters: U+200B, U+200C, U+2060
-4. Trim leading/trailing whitespace; collapse is not required
-5. Reject empty result; reject if `s.chars().count() > 32`
+1. **NFC Unicode normalization** — defeats canonical homoglyph variants.
+2. **Reject bidirectional control characters with an error** — any of
+   U+202A, U+202B, U+202C, U+202D, U+202E, U+2066, U+2067, U+2068, U+2069,
+   U+200E, U+200F causes the request to be rejected.
+3. **Strip zero-width characters silently** — U+200B, U+200C, U+2060, U+FEFF are
+   removed without error. (U+FEFF is the BOM / zero-width no-break space; it can
+   appear in copy-pasted text from BOM-emitting applications.)
+4. **Trim** leading and trailing whitespace.
+5. **Length check** — post-strip length must be 1–32 characters (by Unicode
+   scalar count). Empty or over-length results are rejected with an error.
 
-### Application points
+### Scope
 
-- `ws.rs`: `set_nickname` handler — before storing or broadcasting the new name
-- `store.rs`: `group_create` — before inserting the group name
-- Do not apply to `payload` fields — those are opaque encrypted blobs
-
-### Why NFC and not NFKC
-
-NFKC would also normalize ligatures and compatibility characters, which may
-alter legitimate display intent. NFC is sufficient to defeat homoglyph attacks
-via canonical decomposition + recomposition while preserving intentional
-formatting.
+Applies to both `SET_NICKNAME` and `GROUP_CREATE`. Does not apply to `payload`
+fields — those are opaque encrypted blobs and must not be touched.
 
 ## Offline Queue TTL — Known Limitation
 

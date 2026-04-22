@@ -3223,6 +3223,7 @@ dependencies = [
  "tokio-tungstenite 0.26.2",
  "tracing",
  "tracing-subscriber",
+ "unicode-normalization",
  "uuid",
  "zcash_address",
  "zcash_protocol",
