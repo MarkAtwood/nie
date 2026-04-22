@@ -11,10 +11,28 @@ use wasm_bindgen::prelude::*;
 
 pub struct NieRelayClient {
     identity: Identity,
-    transport: crate::transport::WasmTransport,
+    /// Shared handle to the WebSocket transport.
+    ///
+    /// Stored as `Rc<WasmTransport>` so async callers can clone a cheap pointer
+    /// out of the outer `RefCell` before awaiting, rather than holding the borrow
+    /// across a yield point.
+    transport: Rc<crate::transport::WasmTransport>,
     /// Online user list, sorted ascending by `sequence` (lowest = earliest connected).
     /// Shared with the persistent notify callback so it can be kept up to date.
     online_users: Rc<RefCell<Vec<UserInfo>>>,
+}
+
+impl Clone for NieRelayClient {
+    /// Clone produces a second handle to the same underlying connection:
+    /// all Rc fields share the same allocations.  Identity is value-copied
+    /// (it is a small keypair).
+    fn clone(&self) -> Self {
+        Self {
+            identity: self.identity.clone(),
+            transport: Rc::clone(&self.transport),
+            online_users: Rc::clone(&self.online_users),
+        }
+    }
 }
 
 impl NieRelayClient {
@@ -89,7 +107,7 @@ impl NieRelayClient {
 
         Ok(NieRelayClient {
             identity,
-            transport,
+            transport: Rc::new(transport),
             online_users: Rc::new(RefCell::new(Vec::new())),
         })
     }

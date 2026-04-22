@@ -92,12 +92,15 @@ pub fn load_identity() -> js_sys::Promise {
 /// client.disconnect();
 /// ```
 ///
-/// The inner `NieRelayClient` is stored behind `Rc` so it can be cloned out of
-/// the `RefCell` before an `await`, preventing the borrow from spanning the
-/// yield point (which would violate the `await_holding_refcell_ref` rule).
+/// The inner `NieRelayClient` is stored behind `Rc<RefCell<Option<_>>>` so
+/// `&self` methods can observe and mutate the connection state without needing
+/// `&mut self`.  Async methods clone the client (cheap Rc clones on all its
+/// fields) out of the `RefCell` before awaiting, preventing the borrow from
+/// spanning the yield point (which would violate the `await_holding_refcell_ref`
+/// rule).
 #[wasm_bindgen]
 pub struct NieClient {
-    inner: Rc<RefCell<Option<Rc<crate::client::NieRelayClient>>>>,
+    inner: Rc<RefCell<Option<crate::client::NieRelayClient>>>,
 }
 
 impl Default for NieClient {
@@ -107,17 +110,18 @@ impl Default for NieClient {
 }
 
 impl NieClient {
-    /// Clone the inner `Rc<NieRelayClient>` out of the `RefCell`.
+    /// Clone the `NieRelayClient` out of the `RefCell`.
     ///
     /// Returns `Err("not connected")` if `connect` has not been called yet.
+    /// Cloning is cheap: all `NieRelayClient` fields are behind `Rc`.
     /// The `RefCell` borrow is dropped immediately — callers can safely pass
-    /// the returned `Rc` into an `async` block without holding the borrow
+    /// the returned value into an `async` block without holding the borrow
     /// across a yield point.
-    fn get_client(&self) -> Result<Rc<crate::client::NieRelayClient>, JsValue> {
+    fn get_client(&self) -> Result<crate::client::NieRelayClient, JsValue> {
         self.inner
             .borrow()
             .as_ref()
-            .map(Rc::clone)
+            .cloned()
             .ok_or_else(|| JsValue::from_str("not connected"))
     }
 }
@@ -125,8 +129,8 @@ impl NieClient {
 #[wasm_bindgen]
 impl NieClient {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> NieClient {
-        NieClient {
+    pub fn new() -> Self {
+        Self {
             inner: Rc::new(RefCell::new(None)),
         }
     }
@@ -154,7 +158,7 @@ impl NieClient {
                 .map_err(|e| JsValue::from_str(&e))?;
 
             let pub_id = client.pub_id();
-            *inner.borrow_mut() = Some(Rc::new(client));
+            *inner.borrow_mut() = Some(client);
             Ok(JsValue::from_str(&pub_id))
         })
     }
@@ -171,14 +175,7 @@ impl NieClient {
         let client = borrow
             .as_mut()
             .ok_or_else(|| JsValue::from_str("not connected"))?;
-        // Rc::get_mut succeeds only when no other strong Rc reference exists.
-        // An in-flight send_message/send_whisper task holds an Rc clone, so
-        // get_mut fails while a request is in flight — which matches the error below.
-        Rc::get_mut(client)
-            .ok_or_else(|| {
-                JsValue::from_str("cannot register callback while a request is in flight")
-            })?
-            .set_event_callback(callback);
+        client.set_event_callback(callback);
         Ok(())
     }
 
@@ -187,12 +184,12 @@ impl NieClient {
     /// Returns a `Promise<string>` resolving to the relay-assigned message_id UUID.
     /// Rejects with an error string if not connected or on send failure.
     pub fn send_message(&self, text: String) -> js_sys::Promise {
-        let client_rc = match self.get_client() {
-            Ok(rc) => rc,
+        let client = match self.get_client() {
+            Ok(c) => c,
             Err(e) => return future_to_promise(async move { Err(e) }),
         };
         future_to_promise(async move {
-            client_rc
+            client
                 .send_message(&text)
                 .await
                 .map(|id| JsValue::from_str(&id))
@@ -204,12 +201,12 @@ impl NieClient {
     ///
     /// Returns a `Promise<undefined>`. Rejects if not connected or on failure.
     pub fn set_nickname(&self, nick: String) -> js_sys::Promise {
-        let client_rc = match self.get_client() {
-            Ok(rc) => rc,
+        let client = match self.get_client() {
+            Ok(c) => c,
             Err(e) => return future_to_promise(async move { Err(e) }),
         };
         future_to_promise(async move {
-            client_rc
+            client
                 .set_nickname(&nick)
                 .await
                 .map(|_| JsValue::UNDEFINED)
@@ -223,12 +220,12 @@ impl NieClient {
     /// Returns a `Promise<string>` resolving to the relay-assigned message_id UUID.
     /// Rejects with an error string if not connected or on send failure.
     pub fn send_whisper(&self, to: String, text: String) -> js_sys::Promise {
-        let client_rc = match self.get_client() {
-            Ok(rc) => rc,
+        let client = match self.get_client() {
+            Ok(c) => c,
             Err(e) => return future_to_promise(async move { Err(e) }),
         };
         future_to_promise(async move {
-            client_rc
+            client
                 .send_whisper(&to, &text)
                 .await
                 .map(|id| JsValue::from_str(&id))
