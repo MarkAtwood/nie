@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm"]
+members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix"]
 resolver = "2"
 
 [workspace.package]
@@ -69,6 +69,7 @@ incrementalmerkletree = { version = "0.8", features = ["legacy-api"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "chrono", "uuid", "macros"] }
 
 # Networking
+reqwest = { version = "0.12", features = ["json"] }
 axum = { version = "0.8", features = ["ws"] }
 tower-http = { version = "0.6", features = [] }
 tokio-socks = "0.5"
