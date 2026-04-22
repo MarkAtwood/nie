@@ -173,7 +173,7 @@ pub async fn chat(
     insecure: bool,
     no_passphrase: bool,
     network: &str,
-    lightwalletd: Option<String>,
+    lightwalletd_url: Option<String>,
     proxy: Option<String>,
 ) -> Result<()> {
     let id = load_identity(keyfile, no_passphrase)?;
@@ -215,7 +215,7 @@ pub async fn chat(
         // Use the full endpoint slice so connect_with_failover can try alternatives
         // if the first endpoint is unreachable.  The user-supplied override (if any)
         // is used exclusively; otherwise the network defaults are used.
-        let lwd_endpoints = resolve_lwd_endpoints(lightwalletd.as_deref(), network);
+        let lwd_endpoints = resolve_lwd_endpoints(lightwalletd_url.as_deref(), network);
         let params_dir = std::env::var("ZCASH_PARAMS")
             .ok()
             .map(std::path::PathBuf::from)
@@ -248,8 +248,7 @@ pub async fn chat(
                     let params = Arc::clone(&params_arc);
                     let endpoints = lwd_endpoints.clone();
                     Box::pin(async move {
-                        let lwd_refs: Vec<&str> =
-                            endpoints.iter().map(String::as_str).collect();
+                        let lwd_refs: Vec<&str> = endpoints.iter().map(String::as_str).collect();
                         let mut client = nie_wallet::client::connect_with_failover(&lwd_refs)
                             .await
                             .map_err(SendPaymentError::Connect)?;
@@ -408,7 +407,10 @@ pub async fn chat(
     // Spawn the background block watcher (nie-ghf) if the wallet is initialized.
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
     let _watcher_handle = if let Some(ref fvks) = wallet_fvks {
-        let lwd_endpoints = resolve_lwd_endpoints(lightwalletd.as_deref(), fvks.network);
+        // Use the full endpoint slice so connect_with_failover can try alternatives
+        // if the first endpoint is unreachable.  The user-supplied override (if any)
+        // is used exclusively; otherwise the network defaults are used.
+        let lwd_endpoints = resolve_lwd_endpoints(lightwalletd_url.as_deref(), fvks.network);
         Some(spawn_block_watcher(
             fvks.sapling.ivk_bytes(),
             watch_registry.clone(),

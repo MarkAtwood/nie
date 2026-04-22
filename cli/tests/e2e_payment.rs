@@ -8,7 +8,7 @@
 //!
 //! ```text
 //! TESTNET_ENABLED=1     — opt-in guard; test is skipped if absent
-//! ALICE_MNEMONIC="..."  — 24-word BIP-39 mnemonic for Alice's funded wallet
+//! ALICE_MNEMONIC="..."  — 24-word BIP-39 mnemonic matching the wallet in ALICE_PRELOADED_DB
 //! ALICE_PRELOADED_DB=/path — SQLite wallet.db with scanned notes and witnesses
 //! ```
 //!
@@ -18,6 +18,26 @@
 //! TESTNET_ENDPOINT=https://... — override default lightwalletd URL
 //! ZCASH_PARAMS=/path           — Sapling params dir (default: ~/.zcash-params)
 //! ```
+//!
+//! # Preparation
+//!
+//! `ALICE_PRELOADED_DB` must be a Sapling wallet database that has been scanned
+//! against the Zcash testnet chain and contains at least one spendable note worth
+//! ≥ 0.001 TAZ, with Merkle witnesses up to the current chain tip.
+//!
+//! To produce it:
+//! 1. Run `nie --data-dir /tmp/alice init` and `nie --data-dir /tmp/alice wallet init`.
+//! 2. Get a testnet address: `nie --data-dir /tmp/alice chat` then `/receive`.
+//! 3. Fund from the faucet at <https://faucet.zecpages.com>.
+//! 4. Wait for the block to confirm (1–2 minutes).
+//! 5. Copy the resulting wallet DB:
+//!    ```sh
+//!    cp /tmp/alice/wallet.db /path/to/alice-funded.db
+//!    ```
+//! 6. Record the 24-word mnemonic from `nie --data-dir /tmp/alice wallet show-mnemonic`.
+//!
+//! The mnemonic and DB must be from the same derivation path — using a different
+//! mnemonic with the DB will cause spending-key mismatch errors at test time.
 //!
 //! # Running
 //!
@@ -42,7 +62,10 @@ fn testnet_enabled() -> bool {
     std::env::var("TESTNET_ENABLED").as_deref() == Ok("1")
 }
 
-/// Start an in-process relay on a random OS-assigned port. Returns the WebSocket URL.
+/// Start an in-process relay on a random OS-assigned port.
+///
+/// Returns `(ws_url, db_dir)`. The caller **must** keep `db_dir` alive for the
+/// duration of the test — dropping it deletes the relay's SQLite database.
 async fn spawn_relay() -> (String, TempDir) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -106,8 +129,9 @@ async fn cli_testnet_payment_end_to_end() {
     let alice_db_path = std::env::var("ALICE_PRELOADED_DB").expect(
         "ALICE_PRELOADED_DB must be set (path to a wallet.db with scanned notes and witnesses)",
     );
-    let alice_mnemonic = std::env::var("ALICE_MNEMONIC")
-        .expect("ALICE_MNEMONIC must be set when ALICE_PRELOADED_DB is set");
+    let alice_mnemonic = std::env::var("ALICE_MNEMONIC").expect(
+        "ALICE_MNEMONIC must be set to the 24-word BIP-39 mnemonic matching the wallet in ALICE_PRELOADED_DB",
+    );
 
     let testnet_endpoint =
         std::env::var("TESTNET_ENDPOINT").unwrap_or_else(|_| DEFAULT_TESTNET_ENDPOINT.to_string());
