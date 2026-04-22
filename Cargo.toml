@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix", "nie-monero"]
+members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix", "bridge-slack", "nie-monero"]
 resolver = "2"
 
 [workspace.package]
@@ -31,6 +31,10 @@ thiserror = "2"
 
 # Monero wallet primitives (keys, addresses, subaddresses)
 monero = "0.21"
+
+# HMAC (Slack/Teams webhook signature verification)
+hmac = "0.12"
+hex = "0.4"
 
 # Crypto / identity
 ed25519-dalek = { version = "2", features = ["serde", "rand_core"] }
