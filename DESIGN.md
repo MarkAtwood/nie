@@ -259,7 +259,34 @@ reasons, stop — the design is wrong.
 MLS key packages are unauthenticated lookup data; any user may fetch them
 without auth.
 
-### 14. Test oracle discipline
+### 14. TUI terminal safety invariants
+
+**Logging on stderr, not stdout.** The tracing subscriber is configured with
+`.with_writer(io::stderr)`. All log output goes to stderr while the TUI uses
+stdout via `Terminal<CrosstermBackend<Stdout>>`. Never change this to stdout —
+log lines would corrupt ratatui rendering.
+
+**Terminal restoration on all exit paths.** `disable_raw_mode()` and
+`execute!(LeaveAlternateScreen)` run unconditionally after the event loop,
+regardless of success or error. A panic hook is also installed before terminal
+initialization to restore the terminal synchronously on panic. Never move
+restoration inside a success-only path.
+
+**Relay channel closure is a soft disconnect, not a fatal error.** When the
+relay event channel returns `None`, the TUI sets `connection =
+ConnectionState::Offline` and displays a system message. It does not break the
+loop or propagate the closure as an error. This allows the event loop to
+continue running for graceful UI shutdown and reconnection.
+
+**Strip untrusted text before display.** All text received from the relay must
+pass through `strip_unsafe()` before rendering. This removes ANSI escape
+sequences (detected by `\x1b`, consumed until an ASCII letter, capped at 64
+body chars to prevent content-swallowing) and strips control characters except
+`\n` and `\t`. A compromised relay could otherwise inject cursor-movement or
+clear-screen sequences. Never skip `strip_unsafe()` for "trusted" relay sources
+— the relay is not trusted at the display layer.
+
+### 15. Test oracle discipline
 
 Never use the code under test as its own oracle. Acceptable oracles:
 
