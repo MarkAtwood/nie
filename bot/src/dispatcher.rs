@@ -56,7 +56,11 @@ fn dispatch_payload(from: &str, payload: &[u8]) -> Option<BotEvent> {
             String::new(), // message_id not carried in DeliverParams; leave empty
         )),
         ClearMessage::Payment { session_id, action } => {
-            if let PaymentAction::Request { chain, amount_zatoshi } = action {
+            if let PaymentAction::Request {
+                chain,
+                amount_zatoshi,
+            } = action
+            {
                 // Use canonical lowercase wire names, not Display (which gives "ZEC"/"XMR").
                 let chain_str = match chain {
                     nie_core::messages::Chain::Zcash => "zcash",

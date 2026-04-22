@@ -8,8 +8,8 @@ use nie_core::protocol::{
     KeyPackageReadyParams, PublishHpkeKeyParams, PublishKeyPackageParams, SealedDeliverParams,
     UserJoinedParams, UserLeftParams, UserNicknameParams, WhisperDeliverParams,
 };
-use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
 use nie_core::transport::{next_request_id, ClientEvent, RelayConnRetry};
+use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::{io::Stdout, time::Duration};
 use tokio::time;
@@ -664,16 +664,17 @@ async fn decrypt_and_display(
         }
         Ok(ClearMessage::Profile { fields }) => {
             if let Some(name) = fields.get("name") {
-                state
-                    .nicknames
-                    .insert(effective_from.clone(), name.clone());
+                state.nicknames.insert(effective_from.clone(), name.clone());
             }
         }
         Ok(ClearMessage::Payment { session_id, action }) => {
             use nie_core::messages::{PaymentAction, PaymentState};
             let from_name = state.display_name(&effective_from).to_string();
             let overlay_text = match &action {
-                PaymentAction::Request { chain, amount_zatoshi } => {
+                PaymentAction::Request {
+                    chain,
+                    amount_zatoshi,
+                } => {
                     // Receiving a Request from a peer creates a new payee session.
                     let now = chrono::Utc::now().timestamp();
                     let session = nie_core::messages::PaymentSession {
@@ -930,7 +931,6 @@ async fn send_chat(
 // ─────────────────────────────────────────────────────────────────
 // Payment amount helpers
 // ─────────────────────────────────────────────────────────────────
-
 
 async fn handle_slash(
     state: &mut AppState,

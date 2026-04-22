@@ -277,8 +277,7 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
 
     // Sealed plaintext is just the MLS ciphertext — no self-asserted sender prefix.
     // Sender identity is authenticated by MLS when the receiver calls process_incoming.
-    let sealed =
-        nie_core::hpke::seal_message(&alice_room_pk, &mls_ct).expect("seal_message");
+    let sealed = nie_core::hpke::seal_message(&alice_room_pk, &mls_ct).expect("seal_message");
 
     let sealed_broadcast_req = JsonRpcRequest::new(
         next_request_id(),

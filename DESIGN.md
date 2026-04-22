@@ -393,50 +393,72 @@ Both are load-bearing. Do not collapse to one or replace with `sleep`.
 
 ## Anti-Spam PoW Enrollment
 
-Before a new public key can authenticate for the first time, the relay requires
-a proof-of-work token. This raises the per-account compute cost without any PII
-requirement.
+Before a new public key can authenticate, the relay requires a proof-of-work
+token when `POW_DIFFICULTY` > 0. This raises the per-account compute cost
+without any PII requirement.
 
-### Token format (versioned, stable API)
+### Wire protocol
 
-31 bytes, base64url-encoded:
+`ChallengeParams` carries two new fields (zero-value = PoW disabled):
+- `server_salt: String` — base64-encoded 32-byte relay salt
+- `difficulty: u8` — required leading zero bits (0 = disabled; default 20)
+
+`AuthenticateParams` carries one new field:
+- `pow_token: Option<String>` — base64url-encoded 31-byte token; required when `difficulty > 0`
+
+### Token format (versioned, stable wire API)
+
+31 bytes, base64url-encoded (no padding):
+
+| Offset | Field    | Type    | Encoding                             |
+|--------|----------|---------|--------------------------------------|
+| 0      | ver      | u8      | `0x01`                               |
+| 1      | op_type  | u8      | `0x01` (enrollment)                  |
+| 2–5    | ts_floor | u32 BE  | `unix_timestamp / 60`                |
+| 6      | diff     | u8      | leading zero bits required           |
+| 7–14   | nonce    | u64 BE  | mined value                          |
+| 15–30  | h16      | [u8;16] | first 16 bytes of double-SHA256 hash |
+
+### Hash input (111 bytes)
 
 ```
-ver u8 | op_type u8 | ts_floor u32 (big-endian) | diff u8 | nonce u64 (big-endian) | h16 [u8; 16]
+ver(1) || op_type(1) || ts_floor_be32(4) || diff(1)
+  || hex_lower(ed25519_pub_bytes)(64) || server_salt_bytes(32) || nonce_be64(8)
 ```
 
-- `ver`: always `0x01` for this version
-- `op_type`: `0x01` for enrollment
-- `ts_floor`: `unix_ts / 60` (minute granularity)
-- `diff`: number of required leading zero bits (minimum 20; relay rejects tokens below floor)
-- `h16`: first 16 bytes of `double_sha256(hash_context || nonce_be64)`
-
-### Hash context
-
-```
-double_sha256(ver || op_type || ts_floor_be32 || diff || hex_lower(ed25519_pub_bytes) || server_salt_bytes)
-```
-
-`server_salt` is a random 32-byte value generated at relay startup and held in
-`AppState`. It is not persisted — restart invalidates all pre-mined tokens.
+`server_salt` is a random 32-byte value generated at relay startup (`OsRng`),
+held in `AppState::Inner::pow_server_salt`. It is never persisted and never
+logged — relay restart invalidates all pre-mined tokens by design.
 
 ### Invariants
 
-- Minimum difficulty is 20 bits. Relay must reject any token claiming `diff < 20`.
+- **Min difficulty 20 bits.** Relay rejects any token with `diff < 20`.
   Do not lower this floor without a security review.
-- Staleness window: `abs(now/60 - ts_floor) > 10` is stale and must be rejected.
-  A ±600-second window prevents pre-mining while tolerating clock skew.
-- Replay prevention: `h16` must be checked against an in-memory set (TTL = 600s)
-  before acceptance. Do not skip this check — without it, a valid token can be
-  replayed indefinitely within the staleness window.
-- Difficulty is stored in `AppState` and is adjustable at runtime without restart.
-  Clients must fetch the current difficulty from the challenge before mining.
-- The token format is a client-facing protocol API. Changing field widths or
-  ordering is a breaking change requiring a version bump in `ver`.
+- **Max difficulty 30 bits.** Relay rejects any token with `diff > 30`
+  (impossibly high challenges are a misconfiguration or DoS vector).
+- **Staleness window ±600s.** `abs(now/60 − ts_floor) > 10` → rejected.
+  Prevents pre-mining; tolerates clock skew.
+- **Replay TTL 600s.** `h16` is stored in `AppState::Inner::pow_replay_set`
+  (DashMap<[u8;16], Instant>) with 600s TTL. A valid token can only be used once.
+  Do not skip this check — without it a token is replayable indefinitely.
+- **PoW precedes signature check.** The relay verifies the token before calling
+  `verify_challenge`. Fail fast on bad token format.
+- **Key binding.** The client's Ed25519 verifying key bytes are embedded in the
+  hash input as `hex_lower(pub_key_bytes)`. A token mined for key A cannot be
+  used to authenticate key B.
+- **server_salt never logged.** Any log statement that includes `server_salt` or
+  raw `pub_key_bytes` is a security defect.
+- **Difficulty is runtime-configurable.** Stored as `AtomicU8` in `AppState`;
+  readable/settable without restart via `pow_difficulty()` / `set_pow_difficulty()`.
 
-### Error response
+### Error codes (stable wire contract — values must never change)
 
-Reject with `AuthFailed { reason: "pow_required" | "pow_invalid" | "pow_stale" | "pow_replayed" }`.
+| Code    | Constant       | Meaning                                    |
+|---------|----------------|--------------------------------------------|
+| -32030  | `POW_REQUIRED` | Token absent but required                  |
+| -32031  | `POW_INVALID`  | Format error, hash mismatch, wrong diff    |
+| -32032  | `POW_STALE`    | `ts_floor` outside ±600s window            |
+| -32033  | `POW_REPLAYED` | `h16` already seen in replay set           |
 
 ## Rate Limiting
 

@@ -86,6 +86,24 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
+    let pow_difficulty: u8 = std::env::var("POW_DIFFICULTY")
+        .ok()
+        .and_then(|v| v.parse::<u8>().ok())
+        .unwrap_or(0); // 0 = disabled; safe default
+    if pow_difficulty > 0 && pow_difficulty < 20 {
+        tracing::warn!(
+            pow_difficulty,
+            "POW_DIFFICULTY below minimum 20; clamping to 20"
+        );
+        state.set_pow_difficulty(20);
+    } else {
+        state.set_pow_difficulty(pow_difficulty);
+    }
+    tracing::info!(
+        pow_difficulty = state.pow_difficulty(),
+        "PoW enrollment gate configured"
+    );
+
     if let Some(merchant) = load_merchant_wallet() {
         tracing::info!("merchant wallet loaded, network={:?}", merchant.network);
         state.set_merchant(merchant);

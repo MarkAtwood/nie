@@ -1,6 +1,9 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
+
+use rand::rngs::OsRng;
+use rand::RngCore;
 
 use dashmap::DashMap;
 use tokio::sync::mpsc;
@@ -55,6 +58,15 @@ pub struct Inner {
     pub rate_limits: dashmap::DashMap<String, (u32, Instant)>,
     /// Max broadcasts per 60-second window per pub_id. 0 = unlimited.
     pub rate_limit_per_min: u32,
+    /// Random 32-byte salt generated at startup.  Never persisted, never logged.
+    /// Invalidated on restart (stale tokens become unreplayable because salt changes).
+    pub pow_server_salt: [u8; 32],
+    /// Required leading zero bits for PoW enrollment.  0 = disabled.
+    /// Atomically readable; updated at startup and (optionally) at runtime.
+    pub pow_difficulty: AtomicU8,
+    /// In-memory replay set: h16 → time-of-acceptance.
+    /// Entries older than STALENESS_WINDOW_SECS (600s) are lazily evicted.
+    pub pow_replay_set: dashmap::DashMap<[u8; 16], Instant>,
 }
 
 impl AppState {
@@ -79,6 +91,13 @@ impl AppState {
                 merchant: OnceLock::new(),
                 rate_limits: dashmap::DashMap::new(),
                 rate_limit_per_min,
+                pow_server_salt: {
+                    let mut salt = [0u8; 32];
+                    OsRng.fill_bytes(&mut salt);
+                    salt
+                },
+                pow_difficulty: AtomicU8::new(0),
+                pow_replay_set: dashmap::DashMap::new(),
             }),
         })
     }
@@ -169,6 +188,25 @@ impl AppState {
                 }
             }
         }
+    }
+
+    /// Returns the current PoW difficulty (0 = disabled).
+    pub fn pow_difficulty(&self) -> u8 {
+        self.inner.pow_difficulty.load(Ordering::Relaxed)
+    }
+
+    /// Set the PoW difficulty.  0 = disabled; 20 = default.
+    /// Capped at 30 to prevent impossible challenges.
+    pub fn set_pow_difficulty(&self, d: u8) {
+        self.inner
+            .pow_difficulty
+            .store(d.min(30), Ordering::Relaxed);
+    }
+
+    /// Return a reference to the server PoW salt.
+    /// SECURITY: Never log this value.
+    pub fn pow_server_salt(&self) -> &[u8; 32] {
+        &self.inner.pow_server_salt
     }
 
     /// Fan `msg` out to every connected client.

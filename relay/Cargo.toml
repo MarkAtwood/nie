@@ -17,6 +17,7 @@ nie-core.workspace = true
 nie-wallet.workspace = true
 anyhow.workspace = true
 axum.workspace = true
+base64.workspace = true
 chrono.workspace = true
 dashmap = "6"
 futures.workspace = true

@@ -75,6 +75,14 @@ pub mod rpc_errors {
     /// Rate limit exceeded: client has sent too many broadcast messages in the
     /// current window.  Error code -32020 is a stable wire contract.
     pub const RATE_LIMITED: i32 = -32020;
+    /// PoW token required but not present.  Stable wire contract; value must never change.
+    pub const POW_REQUIRED: i32 = -32030;
+    /// PoW token failed format check, hash mismatch, or wrong difficulty.  Stable wire contract.
+    pub const POW_INVALID: i32 = -32031;
+    /// PoW token ts_floor is outside ±600s staleness window.  Stable wire contract.
+    pub const POW_STALE: i32 = -32032;
+    /// PoW token h16 has already been seen (replay attempt).  Stable wire contract.
+    pub const POW_REPLAYED: i32 = -32033;
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +190,12 @@ impl JsonRpcResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChallengeParams {
     pub nonce: String,
+    /// Relay-generated random 32-byte salt, base64-encoded.
+    /// Client includes this in the PoW hash input.
+    /// Empty string when PoW is disabled (difficulty == 0).
+    pub server_salt: String,
+    /// Required leading zero bits for PoW.  0 = PoW disabled; default 20.
+    pub difficulty: u8,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,6 +203,10 @@ pub struct AuthenticateParams {
     pub pub_key: String,
     pub nonce: String,
     pub signature: String,
+    /// PoW token (base64url-encoded 31-byte token).
+    /// Required when relay sends difficulty > 0 in ChallengeParams.
+    #[serde(default)]
+    pub pow_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

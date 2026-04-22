@@ -367,6 +367,35 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
     let sig_bytes = identity.sign(params.nonce.as_bytes()).to_bytes();
     let signature_b64 = B64.encode(sig_bytes);
 
+    // Mine PoW token if the relay requires it (difficulty > 0).
+    let pow_token: Option<String> = if params.difficulty == 0 {
+        None
+    } else {
+        let salt_bytes = B64
+            .decode(&params.server_salt)
+            .map_err(|_| anyhow::anyhow!("invalid server_salt base64"))?;
+        if salt_bytes.len() != 32 {
+            anyhow::bail!("server_salt must be 32 bytes, got {}", salt_bytes.len());
+        }
+        let mut server_salt = [0u8; 32];
+        server_salt.copy_from_slice(&salt_bytes);
+
+        let pub_key_bytes: [u8; 32] = identity.verifying_key().to_bytes();
+        let diff = params.difficulty;
+        let ts_floor = (std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            / 60) as u32;
+
+        let token = tokio::task::spawn_blocking(move || {
+            crate::pow::mine_token(&pub_key_bytes, &server_salt, diff, ts_floor)
+        })
+        .await
+        .context("PoW mining task panicked")?;
+        Some(token)
+    };
+
     let auth_id = next_request_id();
     let auth_req = JsonRpcRequest::new(
         auth_id,
@@ -375,6 +404,7 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
             pub_key: pub_key_b64,
             nonce: params.nonce,
             signature: signature_b64,
+            pow_token,
         },
     )
     .context("building authenticate request")?;

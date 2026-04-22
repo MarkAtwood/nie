@@ -9,6 +9,7 @@ pub mod messages;
 // mls uses openmls/openmls_rust_crypto — not available in wasm32
 #[cfg(not(target_arch = "wasm32"))]
 pub mod mls;
+pub mod pow;
 pub mod protocol;
 // transport uses tokio-tungstenite and tokio runtime — not available in wasm32
 #[cfg(not(target_arch = "wasm32"))]

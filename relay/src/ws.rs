@@ -37,13 +37,12 @@ use nie_core::protocol::{
 const MAX_WS_MESSAGE_BYTES: usize = 1024 * 1024; // 1 MiB
 
 const BIDI_CONTROLS: &[char] = &[
-    '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}',
-    '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}',
-    '\u{200E}', '\u{200F}',
+    '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}', '\u{2066}', '\u{2067}', '\u{2068}',
+    '\u{2069}', '\u{200E}', '\u{200F}',
 ];
 // U+FEFF (ZERO WIDTH NO-BREAK SPACE / BOM) included: it is invisible and can
 // appear in copy-pasted text, creating two names that look identical but differ.
-const ZWS_CHARS: &[char] = &['\u{200B}', '\u{200C}', '\u{2060}', '\u{FEFF}'];
+const ZERO_WIDTH_CHARS: &[char] = &['\u{200B}', '\u{200C}', '\u{2060}', '\u{FEFF}'];
 
 /// Canonicalize a user-supplied display name (nickname or group name).
 ///
@@ -61,7 +60,10 @@ pub(crate) fn canonicalize_display_name(s: &str) -> Result<String, &'static str>
     if s.chars().any(|c| BIDI_CONTROLS.contains(&c)) {
         return Err("contains bidirectional control characters");
     }
-    let s: String = s.chars().filter(|c| !ZWS_CHARS.contains(c)).collect();
+    let s: String = s
+        .chars()
+        .filter(|c| !ZERO_WIDTH_CHARS.contains(c))
+        .collect();
     let s = s.trim().to_string();
     if s.is_empty() {
         return Err("empty after canonicalization");
@@ -118,12 +120,21 @@ async fn handle(socket: WebSocket, state: AppState) {
 
     // serde_json::to_string on a derived Serialize cannot fail
     let challenge_json = serde_json::to_string(
-        &JsonRpcNotification::new(
-            rpc_methods::CHALLENGE,
+        &JsonRpcNotification::new(rpc_methods::CHALLENGE, {
+            let pow_diff = state.pow_difficulty();
+            let salt_b64 = if pow_diff > 0 {
+                use base64::engine::general_purpose::STANDARD as B64;
+                use base64::Engine;
+                B64.encode(state.pow_server_salt())
+            } else {
+                String::new()
+            };
             ChallengeParams {
                 nonce: nonce.clone(),
-            },
-        )
+                server_salt: salt_b64,
+                difficulty: pow_diff,
+            }
+        })
         .unwrap(),
     )
     .unwrap();
@@ -188,6 +199,109 @@ async fn handle(socket: WebSocket, state: AppState) {
         }
     };
 
+    // PoW verification (if enabled)
+    if state.pow_difficulty() > 0 {
+        // 1. Get the pow_token from params
+        let token_str = match &params.pow_token {
+            Some(t) => t.clone(),
+            None => {
+                send_error_response(
+                    &mut sink,
+                    req.id,
+                    rpc_errors::POW_REQUIRED,
+                    "PoW token required",
+                )
+                .await;
+                return;
+            }
+        };
+
+        // 2. Decode pub_key_bytes from params.pub_key (needed for verify_token)
+        use base64::engine::general_purpose::STANDARD as B64;
+        use base64::Engine;
+        let pub_key_bytes_vec = match B64.decode(&params.pub_key) {
+            Ok(b) => b,
+            Err(_) => {
+                send_error_response(
+                    &mut sink,
+                    req.id,
+                    rpc_errors::AUTH_FAILED,
+                    "invalid pub_key",
+                )
+                .await;
+                return;
+            }
+        };
+        if pub_key_bytes_vec.len() != 32 {
+            send_error_response(
+                &mut sink,
+                req.id,
+                rpc_errors::AUTH_FAILED,
+                "pub_key must be 32 bytes",
+            )
+            .await;
+            return;
+        }
+        let mut pub_key_bytes = [0u8; 32];
+        pub_key_bytes.copy_from_slice(&pub_key_bytes_vec);
+
+        // 3. Get current time
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // 4. Verify the token
+        let h16 = match nie_core::pow::verify_token(
+            &token_str,
+            &pub_key_bytes,
+            state.pow_server_salt(),
+            now_secs,
+            state.pow_difficulty(),
+        ) {
+            Ok(h16) => h16,
+            Err(nie_core::pow::PowError::Stale) => {
+                send_error_response(&mut sink, req.id, rpc_errors::POW_STALE, "PoW token stale")
+                    .await;
+                return;
+            }
+            Err(_) => {
+                send_error_response(
+                    &mut sink,
+                    req.id,
+                    rpc_errors::POW_INVALID,
+                    "PoW token invalid",
+                )
+                .await;
+                return;
+            }
+        };
+
+        // 5. Replay check + lazy eviction
+        {
+            let now_instant = std::time::Instant::now();
+            let ttl = std::time::Duration::from_secs(600);
+            // Evict expired entries
+            state
+                .inner
+                .pow_replay_set
+                .retain(|_, accepted_at| now_instant.duration_since(*accepted_at) < ttl);
+            // Check if h16 is already in the set
+            if state.inner.pow_replay_set.contains_key(&h16) {
+                send_error_response(
+                    &mut sink,
+                    req.id,
+                    rpc_errors::POW_REPLAYED,
+                    "PoW token replayed",
+                )
+                .await;
+                return;
+            }
+            // Mark as seen
+            state.inner.pow_replay_set.insert(h16, now_instant);
+        }
+    }
+    // SECURITY: PoW check precedes signature check
     let pub_id = match verify_challenge(&params.pub_key, &nonce, &params.signature) {
         Ok(id) => id,
         Err(e) => {
@@ -1768,7 +1882,7 @@ mod tests {
         check_rate_limit(&map, "alice", 3);
         check_rate_limit(&map, "alice", 3);
         check_rate_limit(&map, "alice", 3); // alice over limit
-        // bob's first call must still be allowed
+                                            // bob's first call must still be allowed
         assert!(check_rate_limit(&map, "bob", 3));
     }
 

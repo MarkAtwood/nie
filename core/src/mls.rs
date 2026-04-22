@@ -240,10 +240,8 @@ impl MlsClient {
         // Extract the MLS-authenticated sender identity before consuming the message.
         // processed.credential() returns the sender's BasicCredential, whose
         // serialized_content() bytes are the hex pub_id string set at MlsClient::new.
-        let sender_pub_id = String::from_utf8(
-            processed.credential().serialized_content().to_vec(),
-        )
-        .map_err(|_| anyhow::anyhow!("MLS sender credential is not valid UTF-8"))?;
+        let sender_pub_id = String::from_utf8(processed.credential().serialized_content().to_vec())
+            .map_err(|_| anyhow::anyhow!("MLS sender credential is not valid UTF-8"))?;
 
         match processed.into_content() {
             ProcessedMessageContent::ApplicationMessage(app_msg) => {
@@ -430,7 +428,10 @@ mod tests {
             .expect("alice process")
             .expect("app msg");
         assert_eq!(plain, plaintext);
-        assert_eq!(sender, "bob", "MLS-authenticated sender must match bob's pub_id");
+        assert_eq!(
+            sender, "bob",
+            "MLS-authenticated sender must match bob's pub_id"
+        );
     }
 
     /// Three-party: Alice creates, adds Bob, then adds Carol.

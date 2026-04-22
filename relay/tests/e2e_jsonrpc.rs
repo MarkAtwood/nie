@@ -893,12 +893,9 @@ async fn display_name_canonicalization() {
         zws_resp.error
     );
 
-    let result: GroupCreateResult = serde_json::from_value(
-        zws_resp
-            .result
-            .expect("GROUP_CREATE must return a result"),
-    )
-    .expect("GroupCreateResult must deserialize");
+    let result: GroupCreateResult =
+        serde_json::from_value(zws_resp.result.expect("GROUP_CREATE must return a result"))
+            .expect("GroupCreateResult must deserialize");
 
     assert_eq!(
         result.name, "testroom",

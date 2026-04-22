@@ -14,7 +14,6 @@ use tracing::{debug, info, warn};
 
 use nie_core::hpke as nie_hpke;
 use nie_core::identity::{Identity, PubId};
-use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
 use nie_core::messages::{
     Chain, ClearMessage, PaymentAction, PaymentRole, PaymentSession, PaymentState,
 };
@@ -27,6 +26,7 @@ use nie_core::protocol::{
     SubscriptionActiveParams, WhisperParams,
 };
 use nie_core::transport::{self, next_request_id, ClientEvent};
+use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
 use uuid::Uuid;
 
 use crate::config::Contacts;
@@ -2965,7 +2965,11 @@ async fn dispatch_payment(
             }
         }
         std::collections::hash_map::Entry::Vacant(slot) => {
-            if let PaymentAction::Request { chain, amount_zatoshi } = action {
+            if let PaymentAction::Request {
+                chain,
+                amount_zatoshi,
+            } = action
+            {
                 // Payee receives a new payment request.  Create a payee session and
                 // immediately respond with a fresh Sapling+Orchard subaddress.
                 // Payee dust guard: mirror the payer-side check.  A peer running an
@@ -3191,7 +3195,6 @@ fn resolve_handle(
     }
     Err(format!("'{handle}' is not online or not recognized"))
 }
-
 
 /// Returns a help string for slash commands, or None if it's not a slash command.
 fn handle_slash(line: &str) -> Option<String> {
