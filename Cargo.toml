@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix", "bridge-slack", "nie-monero"]
+members = ["core", "relay", "cli", "wallet", "daemon", "bot", "tui", "wasm", "bridge-matrix", "bridge-slack", "bridge-teams", "nie-monero"]
 resolver = "2"
 
 [workspace.package]

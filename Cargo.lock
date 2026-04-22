@@ -599,6 +599,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "bridge-teams"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum 0.8.9",
+ "base64 0.22.1",
+ "clap",
+ "hex",
+ "hmac 0.12.1",
+ "nie-core",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "tokio",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "bs58"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
