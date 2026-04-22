@@ -9,6 +9,7 @@ use age::{Decryptor, Encryptor};
 use anyhow::{bail, Result};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
@@ -160,6 +161,23 @@ struct GroupClientState {
 /// Join the multiuser chat room, with automatic reconnection on disconnect.
 ///
 /// MLS integration: on connect we publish a key package.  The admin (first in
+/// In-memory state for a file transfer being received.
+struct FileReceiveState {
+    name: String,
+    sha256_hex: String,
+    total_chunks: u32,
+    chunks: Vec<Option<Vec<u8>>>,
+}
+
+/// Extract the basename from a user-supplied file name, guarding against path traversal.
+/// Input "../etc/passwd" returns "passwd". Input "file.txt" returns "file.txt".
+fn safe_name(raw: &str) -> String {
+    std::path::Path::new(raw)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "received_file".to_string())
+}
+
 /// the online list) creates the group and adds every new joiner.  Non-admins
 /// join via a Welcome whisper.  All chat messages are MLS-encrypted; received
 /// payloads are decrypted before display.  MLS Commits (adds/removes) update
@@ -320,6 +338,9 @@ pub async fn chat(
     }
     let mut sessions: HashMap<Uuid, PaymentSession> =
         stored_sessions.into_iter().map(|s| (s.id, s)).collect();
+
+    // In-flight file transfers being received: transfer_id → assembly state.
+    let mut file_transfers: HashMap<Uuid, FileReceiveState> = HashMap::new();
 
     // Expire sessions that have not advanced within 24 hours (nie-0bj).
     // Terminal sessions (Confirmed/Failed/Expired) are unchanged.
@@ -1114,6 +1135,72 @@ pub async fn chat(
                                     break;
                                 }
                             }
+                            Ok(ClearMessage::FileHeader {
+                                transfer_id,
+                                name,
+                                size_bytes,
+                                sha256_hex,
+                                total_chunks,
+                                ..
+                            }) => {
+                                // Reject path traversal: use only the basename.
+                                let safe = safe_name(&name);
+                                // Max chunks = ceil(10 MB / 45 KB) + 1 = 229; guards vec! allocation.
+                                const FILE_MAX_CHUNKS: u32 = 230;
+                                if size_bytes > 10 * 1024 * 1024 {
+                                    warn!("ignoring file transfer {transfer_id}: size {size_bytes} exceeds 10 MB");
+                                } else if total_chunks == 0 || total_chunks > FILE_MAX_CHUNKS {
+                                    warn!("ignoring file transfer {transfer_id}: total_chunks={total_chunks} out of range");
+                                } else {
+                                    match file_transfers.entry(transfer_id) {
+                                        std::collections::hash_map::Entry::Occupied(_) => {
+                                            warn!("ignoring duplicate FileHeader for transfer {transfer_id}");
+                                        }
+                                        std::collections::hash_map::Entry::Vacant(slot) => {
+                                            let short = &from[..8.min(from.len())];
+                                            println!("\r[recv] incoming: {} ({size_bytes} bytes, {total_chunks} chunks) from {short}", safe);
+                                            slot.insert(FileReceiveState {
+                                                name: safe,
+                                                sha256_hex,
+                                                total_chunks,
+                                                chunks: vec![None; total_chunks as usize],
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                            Ok(ClearMessage::FileChunk { transfer_id, seq, data }) => {
+                                if let Some(state) = file_transfers.get_mut(&transfer_id) {
+                                    let total = state.total_chunks as usize;
+                                    if seq as usize >= total {
+                                        warn!("file chunk seq {seq} out of range for transfer {transfer_id}");
+                                    } else {
+                                        state.chunks[seq as usize] = Some(data);
+                                        let received = state.chunks.iter().filter(|c| c.is_some()).count();
+                                        if received == total {
+                                            // All chunks received — assemble and verify.
+                                            let assembled: Vec<u8> = state.chunks.iter()
+                                                .flat_map(|c| c.as_ref().unwrap().iter().copied())
+                                                .collect();
+                                            let computed_hex: String = {
+                                                let mut h = Sha256::new();
+                                                h.update(&assembled);
+                                                h.finalize().iter().map(|b| format!("{b:02x}")).collect()
+                                            };
+                                            let state = file_transfers.remove(&transfer_id).unwrap();
+                                            if computed_hex != state.sha256_hex {
+                                                println!("\r[recv] ERROR: hash mismatch for {} — discarding", state.name);
+                                            } else {
+                                                let safe = safe_name(&state.name);
+                                                match tokio::fs::write(&safe, &assembled).await {
+                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", safe, assembled.len()),
+                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", safe),
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             Err(_) => {
                                 // Legacy raw UTF-8 from pre-ClearMessage clients.
                                 let text = String::from_utf8_lossy(&plaintext_bytes);
@@ -1262,6 +1349,72 @@ pub async fn chat(
                                 {
                                     eprintln!("connection lost.");
                                     break;
+                                }
+                            }
+                            Ok(ClearMessage::FileHeader {
+                                transfer_id,
+                                name,
+                                size_bytes,
+                                sha256_hex,
+                                total_chunks,
+                                ..
+                            }) => {
+                                // Reject path traversal: use only the basename.
+                                let safe = safe_name(&name);
+                                // Max chunks = ceil(10 MB / 45 KB) + 1 = 229; guards vec! allocation.
+                                const FILE_MAX_CHUNKS: u32 = 230;
+                                if size_bytes > 10 * 1024 * 1024 {
+                                    warn!("ignoring file transfer {transfer_id}: size {size_bytes} exceeds 10 MB");
+                                } else if total_chunks == 0 || total_chunks > FILE_MAX_CHUNKS {
+                                    warn!("ignoring file transfer {transfer_id}: total_chunks={total_chunks} out of range");
+                                } else {
+                                    match file_transfers.entry(transfer_id) {
+                                        std::collections::hash_map::Entry::Occupied(_) => {
+                                            warn!("ignoring duplicate FileHeader for transfer {transfer_id}");
+                                        }
+                                        std::collections::hash_map::Entry::Vacant(slot) => {
+                                            let short = &from[..8.min(from.len())];
+                                            println!("\r[recv] incoming: {} ({size_bytes} bytes, {total_chunks} chunks) from {short}", safe);
+                                            slot.insert(FileReceiveState {
+                                                name: safe,
+                                                sha256_hex,
+                                                total_chunks,
+                                                chunks: vec![None; total_chunks as usize],
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                            Ok(ClearMessage::FileChunk { transfer_id, seq, data }) => {
+                                if let Some(state) = file_transfers.get_mut(&transfer_id) {
+                                    let total = state.total_chunks as usize;
+                                    if seq as usize >= total {
+                                        warn!("file chunk seq {seq} out of range for transfer {transfer_id}");
+                                    } else {
+                                        state.chunks[seq as usize] = Some(data);
+                                        let received = state.chunks.iter().filter(|c| c.is_some()).count();
+                                        if received == total {
+                                            // All chunks received — assemble and verify.
+                                            let assembled: Vec<u8> = state.chunks.iter()
+                                                .flat_map(|c| c.as_ref().unwrap().iter().copied())
+                                                .collect();
+                                            let computed_hex: String = {
+                                                let mut h = Sha256::new();
+                                                h.update(&assembled);
+                                                h.finalize().iter().map(|b| format!("{b:02x}")).collect()
+                                            };
+                                            let state = file_transfers.remove(&transfer_id).unwrap();
+                                            if computed_hex != state.sha256_hex {
+                                                println!("\r[recv] ERROR: hash mismatch for {} — discarding", state.name);
+                                            } else {
+                                                let safe = safe_name(&state.name);
+                                                match tokio::fs::write(&safe, &assembled).await {
+                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", safe, assembled.len()),
+                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", safe),
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             Err(_) => {
@@ -1712,6 +1865,131 @@ pub async fn chat(
                             }
                         }
                     }
+                    continue;
+                }
+
+                // /send <path> — read binary file, chunk, and broadcast as FileHeader + FileChunk messages.
+                // Maximum file size: 10 MB. Chunks are 45 KB each.
+                if let Some(path_str) = line.strip_prefix("/send ") {
+                    let path_str = path_str.trim();
+                    let path = std::path::Path::new(path_str);
+                    if !path.is_file() {
+                        println!("[send] not a file: {path_str}");
+                        continue;
+                    }
+                    const FILE_MAX_BYTES: usize = 10 * 1024 * 1024;
+                    const CHUNK_SIZE: usize = 45 * 1024;
+                    let bytes = match tokio::fs::read(path).await {
+                        Ok(b) => b,
+                        Err(e) => { println!("[send] cannot read {path_str}: {e}"); continue; }
+                    };
+                    if bytes.len() > FILE_MAX_BYTES {
+                        println!("[send] file too large ({} bytes > 10 MB limit)", bytes.len());
+                        continue;
+                    }
+                    // Compute SHA-256.
+                    let sha256_hex: String = {
+                        let mut h = Sha256::new();
+                        h.update(&bytes);
+                        h.finalize().iter().map(|b| format!("{b:02x}")).collect()
+                    };
+                    // MIME type from extension.
+                    let mime_type = match path.extension().and_then(|e| e.to_str()) {
+                        Some("jpg" | "jpeg") => "image/jpeg",
+                        Some("png") => "image/png",
+                        Some("gif") => "image/gif",
+                        Some("pdf") => "application/pdf",
+                        Some("txt") => "text/plain",
+                        Some("zip" | "gz" | "tar" | "bz2") => "application/octet-stream",
+                        _ => "application/octet-stream",
+                    };
+                    let file_name = path
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "file".to_string());
+                    let transfer_id = Uuid::new_v4();
+                    let chunks: Vec<&[u8]> = bytes.chunks(CHUNK_SIZE).collect();
+                    let total_chunks = chunks.len() as u32;
+                    // Send FileHeader.
+                    let header_bytes = serde_json::to_vec(&ClearMessage::FileHeader {
+                        transfer_id,
+                        name: file_name.clone(),
+                        size_bytes: bytes.len() as u64,
+                        sha256_hex: sha256_hex.clone(),
+                        total_chunks,
+                        mime_type: mime_type.to_string(),
+                    })
+                    // serde_json on a struct with only String/u64/u32/Uuid fields cannot fail
+                    .unwrap();
+                    let header_payload: Vec<u8> = if mls_active {
+                        match mls.encrypt(&header_bytes) {
+                            Ok(ct) => match nie_core::messages::pad(&ct) {
+                                Ok(p) => p,
+                                Err(e) => {
+                                    eprintln!("\r[send] pad failed for header: {e}");
+                                    continue;
+                                }
+                            },
+                            Err(e) => {
+                                eprintln!("\r[send] MLS encrypt failed for header: {e}");
+                                continue;
+                            }
+                        }
+                    } else {
+                        header_bytes
+                    };
+                    let header_req = JsonRpcRequest::new(
+                        next_request_id(),
+                        rpc_methods::BROADCAST,
+                        BroadcastParams { payload: header_payload },
+                    )
+                    .unwrap();
+                    if tx.send(header_req).await.is_err() {
+                        eprintln!("connection lost.");
+                        break;
+                    }
+                    // Send chunks.
+                    println!("[send] sending {} ({} bytes, {} chunks)", file_name, bytes.len(), total_chunks);
+                    for (seq, chunk) in chunks.iter().enumerate() {
+                        let chunk_bytes = serde_json::to_vec(&ClearMessage::FileChunk {
+                            transfer_id,
+                            seq: seq as u32,
+                            data: chunk.to_vec(),
+                        })
+                        // serde_json on struct with Vec<u8> (base64 in JSON) cannot fail
+                        .unwrap();
+                        let chunk_payload: Vec<u8> = if mls_active {
+                            match mls.encrypt(&chunk_bytes) {
+                                Ok(ct) => match nie_core::messages::pad(&ct) {
+                                    Ok(p) => p,
+                                    Err(e) => {
+                                        eprintln!("\r[send] pad failed for chunk {seq}: {e}");
+                                        continue;
+                                    }
+                                },
+                                Err(e) => {
+                                    eprintln!("\r[send] MLS encrypt failed for chunk {seq}: {e}");
+                                    continue;
+                                }
+                            }
+                        } else {
+                            chunk_bytes
+                        };
+                        let chunk_req = JsonRpcRequest::new(
+                            next_request_id(),
+                            rpc_methods::BROADCAST,
+                            BroadcastParams { payload: chunk_payload },
+                        )
+                        .unwrap();
+                        if tx.send(chunk_req).await.is_err() {
+                            eprintln!("connection lost.");
+                            break;
+                        }
+                        if (seq + 1) % 10 == 0 || seq + 1 == total_chunks as usize {
+                            println!("\r[send] {}/{} chunks", seq + 1, total_chunks);
+                        }
+                    }
+                    println!("[send] done: {file_name}");
                     continue;
                 }
 
@@ -5838,6 +6116,42 @@ mod dm_tests {
         assert!(
             serde_json::from_slice::<ClearMessage>(&binary_payload).is_err(),
             "binary payload must not parse as ClearMessage"
+        );
+    }
+}
+
+#[cfg(test)]
+mod file_transfer_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+
+    #[test]
+    fn safe_name_strips_dotdot() {
+        assert_eq!(safe_name("../etc/passwd"), "passwd");
+    }
+
+    #[test]
+    fn safe_name_strips_root() {
+        assert_eq!(safe_name("/etc/shadow"), "shadow");
+    }
+
+    #[test]
+    fn safe_name_plain() {
+        assert_eq!(safe_name("photo.jpg"), "photo.jpg");
+    }
+
+    #[test]
+    fn sha256_hex_of_known_input() {
+        // Oracle: NIST FIPS 180-4 example: SHA-256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        // (32 bytes = 64 hex chars; the standard is unambiguous)
+        let data = b"";
+        let mut h = Sha256::new();
+        h.update(data);
+        let hex: String = h.finalize().iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(hex.len(), 64, "SHA-256 must be 64 hex chars");
+        assert_eq!(
+            hex,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
     }
 }

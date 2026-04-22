@@ -780,6 +780,10 @@ async fn decrypt_and_display(
         Ok(ClearMessage::Ack { .. }) => {
             // Acks are informational only; no display needed.
         }
+        Ok(ClearMessage::FileHeader { .. }) | Ok(ClearMessage::FileChunk { .. }) => {
+            // File transfer not yet supported in TUI.
+            tracing::warn!("received file transfer message — not yet supported in TUI, ignoring");
+        }
         Err(_) => {
             state.push_message(ChatLine::System("[!] unreadable message".to_string()));
         }

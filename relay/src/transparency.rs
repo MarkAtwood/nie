@@ -94,8 +94,8 @@ fn html_escape(s: &str) -> String {
 }
 
 pub async fn transparency_handler(headers: HeaderMap) -> impl IntoResponse {
-    let file_path = std::env::var("TRANSPARENCY_FILE")
-        .unwrap_or_else(|_| "transparency.json".to_string());
+    let file_path =
+        std::env::var("TRANSPARENCY_FILE").unwrap_or_else(|_| "transparency.json".to_string());
 
     let log: TransparencyLog = match std::fs::read_to_string(&file_path) {
         Ok(content) => {
@@ -113,14 +113,8 @@ pub async fn transparency_handler(headers: HeaderMap) -> impl IntoResponse {
         let html = render_html(&log);
         (
             [
-                (
-                    axum::http::header::CACHE_CONTROL,
-                    "no-store",
-                ),
-                (
-                    axum::http::header::CONTENT_TYPE,
-                    "text/html; charset=utf-8",
-                ),
+                (axum::http::header::CACHE_CONTROL, "no-store"),
+                (axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8"),
             ],
             html,
         )

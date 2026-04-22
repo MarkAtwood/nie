@@ -80,6 +80,10 @@ fn dispatch_payload(from: &str, payload: &[u8]) -> Option<BotEvent> {
             }
         }
         ClearMessage::Ack { .. } | ClearMessage::Profile { .. } => None,
+        ClearMessage::FileHeader { .. } | ClearMessage::FileChunk { .. } => {
+            tracing::debug!("received file transfer message — not surfaced as bot event");
+            None
+        }
     }
 }
 

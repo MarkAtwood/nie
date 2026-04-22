@@ -10,6 +10,7 @@ use uuid::Uuid;
 /// Decrypted message content. Visible to sender and recipients only.
 /// Serialized to bytes, then (eventually) MLS-encrypted into the opaque
 /// payload field of relay messages.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClearMessage {
@@ -34,6 +35,30 @@ pub enum ClearMessage {
     /// only constraint is size (enforced client-side before sending).
     Profile {
         fields: HashMap<String, String>,
+    },
+    /// Initiates a chunked file transfer. Sent before the first FileChunk.
+    /// Receiver uses transfer_id to correlate subsequent FileChunk messages.
+    FileHeader {
+        transfer_id: Uuid,
+        /// Original filename (basename only — no path components).
+        name: String,
+        /// Total file size in bytes.
+        size_bytes: u64,
+        /// Lowercase hex-encoded SHA-256 of the complete file bytes.
+        sha256_hex: String,
+        /// Number of FileChunk messages that follow (0-indexed seq 0..total_chunks).
+        total_chunks: u32,
+        /// MIME type string (e.g. "image/jpeg", "application/octet-stream").
+        mime_type: String,
+    },
+    /// One chunk of a chunked file transfer.
+    /// data is the raw binary slice; serializes as base64 in JSON.
+    FileChunk {
+        transfer_id: Uuid,
+        /// 0-based chunk sequence number.
+        seq: u32,
+        #[serde_as(as = "serde_with::base64::Base64")]
+        data: Vec<u8>,
     },
 }
 
@@ -328,6 +353,82 @@ mod tests {
             "old string-amount wire format must be rejected, got: {result:?}"
         );
     }
+
+    #[test]
+    fn file_header_roundtrips() {
+        use uuid::Uuid;
+        let transfer_id = Uuid::new_v4();
+        let msg = ClearMessage::FileHeader {
+            transfer_id,
+            name: "photo.jpg".to_string(),
+            size_bytes: 123456,
+            sha256_hex: "a".repeat(64),
+            total_chunks: 3,
+            mime_type: "image/jpeg".to_string(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"file_header\""), "got: {json}");
+        assert!(json.contains("\"name\":\"photo.jpg\""), "got: {json}");
+        let decoded: ClearMessage = serde_json::from_str(&json).unwrap();
+        let ClearMessage::FileHeader {
+            name,
+            size_bytes,
+            total_chunks,
+            ..
+        } = decoded
+        else {
+            panic!("wrong variant after roundtrip");
+        };
+        assert_eq!(name, "photo.jpg");
+        assert_eq!(size_bytes, 123456);
+        assert_eq!(total_chunks, 3);
+    }
+
+    #[test]
+    fn file_chunk_data_is_base64_in_json() {
+        // Oracle: base64 of [0xFF; 3] is "/////w==" is wrong, let's use [0xDE, 0xAD, 0xBE] → "3q2+"
+        // Actually oracle: base64(0xFF, 0xFF, 0xFF) = "////" per RFC 4648 Table 1
+        // Use known value: [0x00, 0x00, 0x00] → "AAAA"
+        use uuid::Uuid;
+        let transfer_id = Uuid::new_v4();
+        let data = vec![0x00u8, 0x00, 0x00];
+        let msg = ClearMessage::FileChunk {
+            transfer_id,
+            seq: 0,
+            data: data.clone(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        // data field must be a base64 string, not a JSON array
+        let v: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let data_field = v["data"]
+            .as_str()
+            .expect("data must be a string (base64), not array");
+        // Oracle: base64([0x00, 0x00, 0x00]) = "AAAA" per RFC 4648
+        assert_eq!(data_field, "AAAA", "base64 of [0,0,0] must be 'AAAA'");
+    }
+
+    #[test]
+    fn file_chunk_roundtrips_binary_data() {
+        use uuid::Uuid;
+        let transfer_id = Uuid::new_v4();
+        // 48KB of cycling byte values 0..=255
+        let data: Vec<u8> = (0u8..=255).cycle().take(48 * 1024).collect();
+        let msg = ClearMessage::FileChunk {
+            transfer_id,
+            seq: 7,
+            data: data.clone(),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        let decoded: ClearMessage = serde_json::from_str(&json).unwrap();
+        let ClearMessage::FileChunk { seq, data: got, .. } = decoded else {
+            panic!("wrong variant");
+        };
+        assert_eq!(seq, 7);
+        assert_eq!(
+            got, data,
+            "48KB binary data must survive JSON roundtrip via base64"
+        );
+    }
 }
 
 impl std::fmt::Display for Chain {
@@ -342,11 +443,11 @@ impl std::fmt::Display for Chain {
 
 /// Pad `plaintext` into a fixed-size bucket to hide payload length.
 ///
-/// Buckets: 256, 512, 1024, 4096 bytes.
+/// Buckets: 256, 512, 1024, 4096, 65536 bytes.
 /// Layout: `u32le(len) || plaintext || zero-padding`.
-/// Maximum plaintext is 4092 bytes (4096 − 4-byte length prefix).
+/// Maximum plaintext is 65532 bytes (65536 − 4-byte length prefix).
 pub fn pad(plaintext: &[u8]) -> Result<Vec<u8>> {
-    const BUCKETS: [usize; 4] = [256, 512, 1024, 4096];
+    const BUCKETS: [usize; 5] = [256, 512, 1024, 4096, 65536];
     let total_needed = 4 + plaintext.len();
     let bucket = BUCKETS
         .iter()
@@ -354,7 +455,7 @@ pub fn pad(plaintext: &[u8]) -> Result<Vec<u8>> {
         .find(|&b| b >= total_needed)
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "payload too large: {} bytes exceeds 4092-byte maximum",
+                "payload too large: {} bytes exceeds 65532-byte maximum",
                 plaintext.len()
             )
         })?;
@@ -433,8 +534,17 @@ mod pad_tests {
 
     #[test]
     fn pad_too_large_returns_err() {
-        let data = vec![0u8; 4093];
+        let data = vec![0u8; 65533];
         assert!(pad(&data).is_err());
+    }
+
+    #[test]
+    fn pad_accepts_65532_bytes() {
+        let data = vec![0xabu8; 65532];
+        let out = pad(&data).unwrap();
+        assert_eq!(out.len(), 65536);
+        let back = unpad(&out).unwrap();
+        assert_eq!(back, data);
     }
 
     #[test]
