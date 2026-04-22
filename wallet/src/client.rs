@@ -33,6 +33,8 @@ use anyhow::{Context, Result};
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 use tracing::warn;
 
+// Round-robin counter: distribute connections across multiple endpoints.
+// Used by connect_with_failover() to load-balance across DEFAULT_MAINNET_ENDPOINTS.
 static ENDPOINT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 // Proto-generated types.  The package name `cash.z.wallet.sdk.rpc` becomes the
@@ -334,8 +336,7 @@ mod tests {
         // Two distinct unreachable addresses ensure the failover loop iterates
         // more than once (start index varies with the global counter, but both
         // addresses are equally unreachable, so the outcome is always an error).
-        let result =
-            connect_with_failover(&["https://127.0.0.1:1", "https://127.0.0.2:1"]).await;
+        let result = connect_with_failover(&["https://127.0.0.1:1", "https://127.0.0.2:1"]).await;
         match result {
             Ok(_) => panic!("all unreachable endpoints must yield an error"),
             Err(e) => assert!(

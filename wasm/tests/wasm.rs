@@ -58,7 +58,7 @@ fn test_parse_auth_success_response() {
     let pub_id = v["result"]["pub_id"].as_str().unwrap();
     assert_eq!(pub_id.len(), 64, "pub_id must be 64 hex chars");
     assert!(
-        pub_id.chars().all(|c| c.is_ascii_hexdigit()),
+        pub_id.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')),
         "pub_id must be lowercase hex"
     );
     assert!(

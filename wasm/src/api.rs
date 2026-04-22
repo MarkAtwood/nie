@@ -171,9 +171,9 @@ impl NieClient {
         let client = borrow
             .as_mut()
             .ok_or_else(|| JsValue::from_str("not connected"))?;
-        // set_event_callback takes &mut self on NieRelayClient; Rc::get_mut succeeds
-        // because this is the only strong reference to the inner client at this point
-        // (no async task is currently holding a clone of the Rc).
+        // Rc::get_mut succeeds only when no other strong Rc reference exists.
+        // An in-flight send_message/send_whisper task holds an Rc clone, so
+        // get_mut fails while a request is in flight — which matches the error below.
         Rc::get_mut(client)
             .ok_or_else(|| {
                 JsValue::from_str("cannot register callback while a request is in flight")
