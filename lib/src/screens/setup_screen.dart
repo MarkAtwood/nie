@@ -28,15 +28,10 @@ class _SetupScreenState extends State<SetupScreen> {
   Future<void> _loadPrefs() async {
     final ids = context.read<IdentityService>();
     final url = await ids.getRelayUrl();
-    final hasIdentity = await ids.hasIdentity();
-    setState(() {
-      _relayController.text = url;
-    });
-    if (hasIdentity) {
-      await ids.load();
-      setState(() {
-        _pubId = ids.pubId;
-      });
+    setState(() => _relayController.text = url);
+    final loaded = await ids.load();
+    if (loaded) {
+      setState(() => _pubId = ids.pubId);
     }
   }
 
@@ -47,10 +42,8 @@ class _SetupScreenState extends State<SetupScreen> {
     });
     try {
       final ids = context.read<IdentityService>();
-      await ids.generateAndSave();
-      setState(() {
-        _pubId = ids.pubId;
-      });
+      await ids.generate();
+      setState(() => _pubId = ids.pubId);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -62,7 +55,7 @@ class _SetupScreenState extends State<SetupScreen> {
     final ids = context.read<IdentityService>();
     final relay = context.read<RelayService>();
 
-    if (ids.secretB64 == null) {
+    if (ids.keyPair == null) {
       setState(() => _error = 'Generate an identity first.');
       return;
     }
@@ -73,7 +66,7 @@ class _SetupScreenState extends State<SetupScreen> {
 
     final relayUrl = _relayController.text.trim();
     await ids.setRelayUrl(relayUrl);
-    await relay.connect(secretB64: ids.secretB64!, relayUrl: relayUrl);
+    await relay.connect(keyPair: ids.keyPair!, relayUrl: relayUrl);
 
     if (!mounted) return;
     if (relay.error != null) {

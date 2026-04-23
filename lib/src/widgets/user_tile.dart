@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../rust/api/client.dart' as ffi;
+import '../services/relay_service.dart';
 
 /// A single row in the online users list.
 class UserTile extends StatelessWidget {
-  final ffi.NieUserEntry user;
+  final UserEntry user;
   final String myPubId;
 
   const UserTile({super.key, required this.user, required this.myPubId});

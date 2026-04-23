@@ -1,57 +1,51 @@
-import 'dart:io';
-import 'package:flutter/services.dart' show PathProviderException;
-import 'package:path_provider/path_provider.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart' as crypto;
+import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../rust/api/identity.dart' as ffi;
 
-/// Manages the local identity secret.
+/// Manages the local Ed25519 identity.
 ///
-/// The raw 64-byte secret is stored in the app's private files directory
-/// (Android: `context.filesDir`), protected by the OS sandbox.  The secret
-/// is never written to SharedPreferences or any cloud-synced store.
-class IdentityService {
-  static const _relayUrlKey = 'relay_url';
-  static const _nicknameKey = 'nickname';
+/// Identity = Ed25519 seed (32 bytes), stored as base64 in SharedPreferences.
+/// pub_id   = hex(SHA-256(ed25519_verifying_key_bytes))  — matches the relay.
+class IdentityService extends ChangeNotifier {
+  static const _seedKey = 'nie_identity_seed';
+  static const _relayUrlKey = 'nie_relay_url';
+  static const _nicknameKey = 'nie_nickname';
   static const _defaultRelayUrl = 'wss://relay.example.com/ws';
 
+  SimpleKeyPair? _keyPair;
   String? _pubId;
-  String? _secretB64;
 
-  String get pubId => _pubId ?? '(not connected)';
+  bool get hasIdentity => _keyPair != null;
+  String? get pubId => _pubId;
+  SimpleKeyPair? get keyPair => _keyPair;
 
-  /// Returns true if an identity exists on disk.
-  Future<bool> hasIdentity() async {
-    final path = await _identityPath();
-    return File(path).existsSync();
-  }
-
-  /// Generate a new identity and save it to disk.
-  ///
-  /// Throws if the file cannot be written.
-  Future<void> generateAndSave() async {
-    final secret = ffi.generateIdentity();
-    final path = await _identityPath();
-    await ffi.saveIdentityToFile(path: path, secretB64: secret);
-    _secretB64 = secret;
-    _pubId = ffi.pubIdFromSecret(secretB64: secret);
-  }
-
-  /// Load the stored identity from disk.  Returns false if no identity exists.
+  /// Load a previously stored identity. Returns false on first run.
   Future<bool> load() async {
-    final path = await _identityPath();
-    final secret = await ffi.loadIdentityFromFile(path: path);
-    if (secret == null) return false;
-    _secretB64 = secret;
-    _pubId = ffi.pubIdFromSecret(secretB64: secret);
+    final prefs = await SharedPreferences.getInstance();
+    final seedB64 = prefs.getString(_seedKey);
+    if (seedB64 == null) return false;
+    await _initFromSeed(base64.decode(seedB64));
     return true;
   }
 
-  /// The base64-encoded 64-byte secret.  Null before `load()` or `generateAndSave()`.
-  String? get secretB64 => _secretB64;
+  /// Generate a fresh identity and persist it.
+  Future<void> generate() async {
+    final kp = await Ed25519().newKeyPair();
+    final seed = await kp.extractPrivateKeyBytes();
+    await _initFromSeed(seed);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_seedKey, base64.encode(seed));
+    notifyListeners();
+  }
 
-  // ---------------------------------------------------------------------------
-  // Preferences (relay URL, nickname)
-  // ---------------------------------------------------------------------------
+  Future<void> _initFromSeed(List<int> seed) async {
+    _keyPair = await Ed25519().newKeyPairFromSeed(seed);
+    final pub = await _keyPair!.extractPublicKey();
+    final hash = crypto.sha256.convert(pub.bytes);
+    _pubId = hash.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  }
 
   Future<String> getRelayUrl() async {
     final prefs = await SharedPreferences.getInstance();
@@ -71,14 +65,5 @@ class IdentityService {
   Future<void> setNickname(String nick) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_nicknameKey, nick);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Internal
-  // ---------------------------------------------------------------------------
-
-  Future<String> _identityPath() async {
-    final dir = await getApplicationSupportDirectory();
-    return '${dir.path}/nie_identity.bin';
   }
 }
