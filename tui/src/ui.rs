@@ -167,7 +167,23 @@ fn strip_unsafe_chars(s: &str) -> String {
                 continue;
             }
         }
-        // Allow printable chars, spaces, and newlines; strip other control chars
+        // Strip Unicode bidi controls and zero-width chars (Unicode category Cf).
+        // is_control() returns false for these — they must be checked explicitly.
+        // A malicious peer can use these to reverse or reorder rendered text.
+        let is_bidi_or_zw = matches!(
+            ch,
+            '\u{200B}'..='\u{200D}' // zero-width space / non-joiner / joiner
+                | '\u{200E}'        // left-to-right mark
+                | '\u{200F}'        // right-to-left mark
+                | '\u{202A}'..='\u{202E}' // LRE, RLE, PDF, LRO, RLO
+                | '\u{2060}'        // word joiner
+                | '\u{2066}'..='\u{2069}' // LRI, RLI, FSI, PDI
+                | '\u{FEFF}'        // BOM / zero-width no-break space
+        );
+        if is_bidi_or_zw {
+            continue;
+        }
+        // Allow printable chars and newlines; strip other control chars.
         if !ch.is_control() || ch == '\n' || ch == '\t' {
             out.push(ch);
         }
@@ -291,5 +307,66 @@ mod tests {
         assert!(seq.len() < 66, "test escape must be under 64 body chars");
         let result = strip_unsafe_chars(&format!("{seq}hello"));
         assert_eq!(result, "hello");
+    }
+
+    #[test]
+    fn strip_unsafe_chars_strips_rlo() {
+        // U+202E RIGHT-TO-LEFT OVERRIDE reverses text rendering — must be stripped.
+        let input = "hello\u{202E}world";
+        assert_eq!(strip_unsafe_chars(input), "helloworld");
+    }
+
+    #[test]
+    fn strip_unsafe_chars_strips_bidi_controls() {
+        // All bidi embedding/override controls must be stripped.
+        for ch in [
+            '\u{202A}', // LRE
+            '\u{202B}', // RLE
+            '\u{202C}', // PDF
+            '\u{202D}', // LRO
+            '\u{202E}', // RLO
+            '\u{2066}', // LRI
+            '\u{2067}', // RLI
+            '\u{2068}', // FSI
+            '\u{2069}', // PDI
+            '\u{200E}', // LRM
+            '\u{200F}', // RLM
+        ] {
+            let input = format!("a{ch}b");
+            assert_eq!(
+                strip_unsafe_chars(&input),
+                "ab",
+                "bidi char U+{:04X} must be stripped",
+                ch as u32
+            );
+        }
+    }
+
+    #[test]
+    fn strip_unsafe_chars_strips_zero_width() {
+        for ch in [
+            '\u{200B}', // zero-width space
+            '\u{200C}', // zero-width non-joiner
+            '\u{200D}', // zero-width joiner
+            '\u{2060}', // word joiner
+            '\u{FEFF}', // BOM
+        ] {
+            let input = format!("a{ch}b");
+            assert_eq!(
+                strip_unsafe_chars(&input),
+                "ab",
+                "zero-width char U+{:04X} must be stripped",
+                ch as u32
+            );
+        }
+    }
+
+    #[test]
+    fn strip_unsafe_chars_preserves_normal_unicode() {
+        // Ensure the bidi filter does not accidentally strip legitimate chars.
+        assert_eq!(
+            strip_unsafe_chars("héllo\u{2019}s café 日本語"),
+            "héllo\u{2019}s café 日本語"
+        );
     }
 }
