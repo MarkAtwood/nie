@@ -1,6 +1,7 @@
 pub mod api;
 pub mod relay;
 pub mod state;
+pub mod store;
 pub mod token;
 pub mod types;
 pub mod web;

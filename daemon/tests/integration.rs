@@ -36,6 +36,7 @@ async fn start_test_daemon() -> TestDaemon {
         Some("TestUser".to_string()),
         "mainnet".to_string(),
         None,
+        None,
     );
 
     let api_router = Router::new()
@@ -317,7 +318,14 @@ async fn test_ws_receives_broadcast_event() {
     // Build a DaemonState we hold onto so we can broadcast.
     let token_str = "test-broadcast-event-token".to_string();
     let pub_id = "b".repeat(64);
-    let state = DaemonState::new(pub_id, token_str.clone(), None, "mainnet".to_string(), None);
+    let state = DaemonState::new(
+        pub_id,
+        token_str.clone(),
+        None,
+        "mainnet".to_string(),
+        None,
+        None,
+    );
 
     let api_router = Router::new()
         .route("/api/whoami", get(api::handle_whoami))

@@ -1,6 +1,7 @@
 // Methods and fields are used by later beads (relay connector, HTTP handlers).
 #![allow(dead_code)]
 
+use crate::store::Store;
 use crate::types::{DaemonEvent, UserInfo};
 use nie_core::protocol::JsonRpcRequest;
 use nie_wallet::db::WalletStore;
@@ -21,9 +22,12 @@ struct Inner {
     display_name: Option<String>,
     network: String,
     wallet_store: Option<WalletStore>,
+    store: Option<Store>,
     relay_tx: Mutex<Option<tokio::sync::mpsc::Sender<JsonRpcRequest>>>,
     directory: Mutex<DirectoryState>,
     events_tx: broadcast::Sender<DaemonEvent>,
+    default_space_id: tokio::sync::OnceCell<String>,
+    default_channel_id: tokio::sync::OnceCell<String>,
 }
 
 #[derive(Clone)]
@@ -36,6 +40,7 @@ impl DaemonState {
         display_name: Option<String>,
         network: String,
         wallet_store: Option<WalletStore>,
+        store: Option<Store>,
     ) -> Self {
         let (events_tx, _) = broadcast::channel(BROADCAST_CAPACITY);
         DaemonState(Arc::new(Inner {
@@ -44,9 +49,12 @@ impl DaemonState {
             display_name,
             network,
             wallet_store,
+            store,
             relay_tx: Mutex::new(None),
             directory: Mutex::new(DirectoryState::default()),
             events_tx,
+            default_space_id: tokio::sync::OnceCell::new(),
+            default_channel_id: tokio::sync::OnceCell::new(),
         }))
     }
 
@@ -69,6 +77,11 @@ impl DaemonState {
     /// Return the WalletStore if a wallet has been initialized.
     pub fn wallet_store(&self) -> Option<&WalletStore> {
         self.0.wallet_store.as_ref()
+    }
+
+    /// Return the JMAP Chat store if initialized.
+    pub fn store(&self) -> Option<&Store> {
+        self.0.store.as_ref()
     }
 
     /// Subscribe to the broadcast channel for daemon events.
@@ -107,5 +120,25 @@ impl DaemonState {
             online: dir.online.clone(),
             offline: dir.offline.clone(),
         }
+    }
+
+    /// Record the bootstrapped default Space ID. No-op if already set.
+    pub fn set_default_space_id(&self, id: String) {
+        let _ = self.0.default_space_id.set(id);
+    }
+
+    /// Return the default Space ID, or None if bootstrap has not yet run.
+    pub fn default_space_id(&self) -> Option<&str> {
+        self.0.default_space_id.get().map(|s| s.as_str())
+    }
+
+    /// Record the bootstrapped default channel ID. No-op if already set.
+    pub fn set_default_channel_id(&self, id: String) {
+        let _ = self.0.default_channel_id.set(id);
+    }
+
+    /// Return the default channel ID, or None if bootstrap has not yet run.
+    pub fn default_channel_id(&self) -> Option<&str> {
+        self.0.default_channel_id.get().map(|s| s.as_str())
     }
 }

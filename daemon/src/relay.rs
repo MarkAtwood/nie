@@ -1,13 +1,16 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use nie_core::{
     identity::Identity,
     messages::ClearMessage,
+    mls::MlsClient,
     protocol::{
         rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcNotification,
         UserJoinedParams, UserLeftParams,
     },
     transport::{self, ClientEvent},
 };
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::state::DaemonState;
 use crate::types::{DaemonEvent, UserInfo};
@@ -31,11 +34,19 @@ pub async fn start_relay_connector(
     // Log only the public side — never log secret bytes.
     tracing::info!("loaded identity: {}", identity.pub_id());
 
+    let mls_client = MlsClient::new(&identity.pub_id().0).context("create MLS client")?;
+    let mls_client = Arc::new(Mutex::new(mls_client));
+
     let conn = transport::connect_with_retry(relay_url.to_string(), identity, insecure, proxy);
 
     state.set_relay_tx(conn.tx).await;
 
-    tokio::spawn(relay_event_loop(conn.rx, state, relay_url.to_string()));
+    tokio::spawn(relay_event_loop(
+        conn.rx,
+        state,
+        relay_url.to_string(),
+        mls_client,
+    ));
 
     Ok(())
 }
@@ -45,6 +56,7 @@ async fn relay_event_loop(
     mut rx: tokio::sync::mpsc::Receiver<ClientEvent>,
     state: DaemonState,
     relay_url: String,
+    mls: Arc<Mutex<MlsClient>>,
 ) {
     loop {
         let Some(event) = rx.recv().await else {
@@ -75,7 +87,7 @@ async fn relay_event_loop(
                 });
             }
             ClientEvent::Message(notif) => {
-                dispatch_notification(notif, &state).await;
+                dispatch_notification(notif, &state, &mls).await;
             }
             ClientEvent::Response(_) => {
                 // Responses to our requests — not used in daemon v0.
@@ -86,7 +98,11 @@ async fn relay_event_loop(
 }
 
 /// Dispatch a JSON-RPC notification from the relay to daemon state and events.
-async fn dispatch_notification(notif: JsonRpcNotification, state: &DaemonState) {
+async fn dispatch_notification(
+    notif: JsonRpcNotification,
+    state: &DaemonState,
+    mls: &Arc<Mutex<MlsClient>>,
+) {
     match notif.method.as_str() {
         rpc_methods::DELIVER => {
             let Some(params_val) = notif.params else {
@@ -136,12 +152,61 @@ async fn dispatch_notification(notif: JsonRpcNotification, state: &DaemonState) 
                     return;
                 }
             };
-            // BROADCAST has no from field — it is a room-wide fanout.
-            // In daemon v0, room messages are MLS-encrypted; we cannot decrypt them.
-            tracing::debug!(
-                "broadcast received ({} bytes), MLS decrypt not supported in daemon v0",
-                p.payload.len()
-            );
+
+            // Attempt MLS decryption. The sender identity is MLS-authenticated —
+            // it cannot be forged by the relay or by other group members.
+            let decrypt_result = mls.lock().await.process_incoming(&p.payload);
+            let (plaintext, sender_pub_id) = match decrypt_result {
+                Err(e) => {
+                    tracing::warn!("broadcast: MLS process_incoming failed: {e}");
+                    return;
+                }
+                Ok(None) => {
+                    // Commit or proposal — group state updated internally, no message.
+                    return;
+                }
+                Ok(Some(pair)) => pair,
+            };
+
+            let text = match serde_json::from_slice::<ClearMessage>(&plaintext) {
+                Ok(ClearMessage::Chat { text }) => text,
+                Ok(_) => {
+                    tracing::debug!("broadcast: ignoring non-chat ClearMessage type");
+                    return;
+                }
+                Err(e) => {
+                    tracing::warn!("broadcast: failed to deserialize ClearMessage: {e}");
+                    return;
+                }
+            };
+
+            let message_id = uuid::Uuid::new_v4().to_string();
+            let now = utc_now();
+
+            // Persist to the JMAP store if bootstrap has completed.
+            let Some(store) = state.store() else {
+                tracing::warn!("broadcast: store not initialized, dropping message");
+                return;
+            };
+            let Some(channel_id) = state.default_channel_id() else {
+                tracing::warn!("broadcast: default channel not initialized, dropping message");
+                return;
+            };
+            if let Err(e) = store
+                .insert_message(channel_id, &sender_pub_id, &text, &now)
+                .await
+            {
+                tracing::warn!("broadcast: failed to insert message into store: {e}");
+                return;
+            }
+
+            state.broadcast_event(DaemonEvent::MessageReceived {
+                from_display_name: display_name_for(&sender_pub_id),
+                from: sender_pub_id,
+                text,
+                timestamp: now,
+                message_id,
+            });
         }
 
         rpc_methods::DIRECTORY_LIST => {
@@ -222,6 +287,22 @@ async fn dispatch_notification(notif: JsonRpcNotification, state: &DaemonState) 
             );
             state.update_directory(dir.online, dir.offline).await;
 
+            // Auto-add to JMAP contact list and default Space membership.
+            // Idempotent — safe to call on every join.
+            if let Some(store) = state.store() {
+                if let Err(e) = store.upsert_chat_contact(&pub_id).await {
+                    tracing::warn!("user_joined: upsert_chat_contact failed: {e}");
+                }
+                if let Err(e) = store.set_contact_presence(&pub_id, "online").await {
+                    tracing::warn!("user_joined: set_contact_presence failed: {e}");
+                }
+                if let Some(space_id) = state.default_space_id() {
+                    if let Err(e) = store.upsert_space_member(space_id, &pub_id).await {
+                        tracing::warn!("user_joined: upsert_space_member failed: {e}");
+                    }
+                }
+            }
+
             state.broadcast_event(DaemonEvent::UserJoined {
                 pub_id,
                 display_name,
@@ -252,6 +333,14 @@ async fn dispatch_notification(notif: JsonRpcNotification, state: &DaemonState) 
                 .unwrap_or_else(|| display_name_for(&pub_id));
             dir.online.retain(|u| u.pub_id != pub_id);
             state.update_directory(dir.online, dir.offline).await;
+
+            // Update presence to offline. Do NOT remove from contact list or space
+            // membership — directory is persistent (design invariant).
+            if let Some(store) = state.store() {
+                if let Err(e) = store.set_contact_presence(&pub_id, "offline").await {
+                    tracing::warn!("user_left: set_contact_presence failed: {e}");
+                }
+            }
 
             state.broadcast_event(DaemonEvent::UserLeft {
                 pub_id,
@@ -300,20 +389,28 @@ mod tests {
             None,
             "mainnet".to_string(),
             None,
+            None,
         );
         let rx = state.subscribe_events();
         (state, rx)
     }
 
+    fn make_test_mls() -> Arc<Mutex<MlsClient>> {
+        Arc::new(Mutex::new(
+            MlsClient::new("test-pub-id").expect("MlsClient::new"),
+        ))
+    }
+
     #[tokio::test]
     async fn test_dispatch_unknown_method() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
         let notif = JsonRpcNotification {
             version: "2.0".to_string(),
             method: "unknown_method".to_string(),
             params: None,
         };
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
         // No events should be broadcast for unknown methods.
         assert!(rx.try_recv().is_err());
     }
@@ -321,6 +418,7 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_deliver_chat() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
 
         // Build a real ClearMessage::Chat serialized as JSON → that's the payload bytes.
         let clear = ClearMessage::Chat {
@@ -341,7 +439,7 @@ mod tests {
             params: Some(params_val),
         };
 
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
 
         let event = rx.try_recv().expect("expected a MessageReceived event");
         match event {
@@ -358,6 +456,7 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_deliver_chat_hardcoded_payload() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
 
         // Hardcoded JSON matching ClearMessage tag convention from CLAUDE.md:
         //   {"type":"chat","text":"..."}
@@ -375,7 +474,7 @@ mod tests {
             params: Some(params_val),
         };
 
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
 
         let event = rx.try_recv().expect("expected a MessageReceived event");
         match event {
@@ -390,12 +489,14 @@ mod tests {
     #[tokio::test]
     async fn test_relay_event_loop_reconnected() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
         let (tx, rx_events) = tokio::sync::mpsc::channel::<ClientEvent>(8);
 
         tokio::spawn(relay_event_loop(
             rx_events,
             state,
             "ws://test-relay".to_string(),
+            mls,
         ));
 
         tx.send(ClientEvent::Reconnected).await.unwrap();
@@ -421,12 +522,14 @@ mod tests {
     #[tokio::test]
     async fn test_relay_event_loop_reconnecting() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
         let (tx, rx_events) = tokio::sync::mpsc::channel::<ClientEvent>(8);
 
         tokio::spawn(relay_event_loop(
             rx_events,
             state,
             "ws://test-relay".to_string(),
+            mls,
         ));
 
         tx.send(ClientEvent::Reconnecting { delay_secs: 5 })
@@ -450,12 +553,14 @@ mod tests {
     #[tokio::test]
     async fn test_relay_event_loop_channel_closed_broadcasts_disconnected() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
         let (tx, rx_events) = tokio::sync::mpsc::channel::<ClientEvent>(8);
 
         let handle = tokio::spawn(relay_event_loop(
             rx_events,
             state,
             "ws://test-relay".to_string(),
+            mls,
         ));
 
         // Dropping the sender causes rx.recv() to return None → loop exits.
@@ -476,12 +581,13 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_deliver_missing_params() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
         let notif = JsonRpcNotification {
             version: "2.0".to_string(),
             method: rpc_methods::DELIVER.to_string(),
             params: None,
         };
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
         // Missing params → warn + no event.
         assert!(rx.try_recv().is_err());
     }
@@ -489,6 +595,7 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_directory_list() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
 
         let params = nie_core::protocol::DirectoryListParams {
             online: vec![nie_core::protocol::UserInfo {
@@ -506,7 +613,7 @@ mod tests {
             params: Some(params_val),
         };
 
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
 
         let event = rx.try_recv().expect("expected a DirectoryUpdated event");
         match event {
@@ -530,6 +637,7 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_user_joined_sequence_order() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
 
         // Seed directory with two users at sequences 1 and 3.
         state
@@ -567,7 +675,7 @@ mod tests {
             params: Some(params_val),
         };
 
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
 
         let event = rx.try_recv().expect("expected a UserJoined event");
         match event {
@@ -591,6 +699,7 @@ mod tests {
     #[tokio::test]
     async fn test_dispatch_user_left() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
 
         state
             .update_directory(
@@ -621,7 +730,7 @@ mod tests {
             params: Some(params_val),
         };
 
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
 
         let event = rx.try_recv().expect("expected a UserLeft event");
         match event {
@@ -636,16 +745,18 @@ mod tests {
         assert_eq!(dir.online[0].pub_id, "b".repeat(64));
     }
 
-    /// BROADCAST path is a no-op in daemon v0 (MLS-encrypted, cannot decrypt).
-    /// Regression guard: verify no DaemonEvent is broadcast for this method.
+    /// BROADCAST with an invalid MLS payload emits no DaemonEvent.
+    /// When MLS has no active group, process_incoming returns Err → skip silently.
+    /// Regression guard: verify no DaemonEvent is emitted for undecryptable payloads.
     #[tokio::test]
-    async fn test_dispatch_broadcast_no_event() {
+    async fn test_dispatch_broadcast_invalid_mls_no_event() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
 
-        let deliver = nie_core::protocol::BroadcastParams {
+        let broadcast = nie_core::protocol::BroadcastParams {
             payload: b"some opaque bytes".to_vec(),
         };
-        let params_val = serde_json::to_value(&deliver).unwrap();
+        let params_val = serde_json::to_value(&broadcast).unwrap();
 
         let notif = JsonRpcNotification {
             version: "2.0".to_string(),
@@ -653,17 +764,18 @@ mod tests {
             params: Some(params_val),
         };
 
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
         assert!(
             rx.try_recv().is_err(),
-            "BROADCAST must not emit DaemonEvent in daemon v0"
+            "BROADCAST with invalid MLS payload must not emit DaemonEvent"
         );
     }
 
-    /// SEALED_DELIVER path is a no-op in daemon v0 (requires HPKE decrypt).
+    /// SEALED_DELIVER path is a no-op (requires HPKE decrypt, not implemented).
     #[tokio::test]
     async fn test_dispatch_sealed_deliver_no_event() {
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
 
         let notif = JsonRpcNotification {
             version: "2.0".to_string(),
@@ -671,19 +783,20 @@ mod tests {
             params: None,
         };
 
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
         assert!(
             rx.try_recv().is_err(),
-            "SEALED_DELIVER must not emit DaemonEvent in daemon v0"
+            "SEALED_DELIVER must not emit DaemonEvent (HPKE decrypt not implemented)"
         );
     }
 
-    /// Non-chat ClearMessage (e.g. Profile, Payment) is silently ignored in daemon v0.
+    /// Non-chat ClearMessage (e.g. Profile, Payment) is silently ignored.
     #[tokio::test]
     async fn test_dispatch_deliver_non_chat_no_event() {
         use nie_core::messages::ClearMessage;
 
         let (state, mut rx) = make_test_state();
+        let mls = make_test_mls();
 
         // Hardcoded JSON for a non-chat variant (Profile type).
         let payload_json = br#"{"type":"profile","name":"alice"}"#;
@@ -700,13 +813,13 @@ mod tests {
             params: Some(params_val),
         };
 
-        dispatch_notification(notif, &state).await;
+        dispatch_notification(notif, &state, &mls).await;
 
         // Profile is not a ClearMessage variant — deserializes as Err → no event.
         // Even if it were a known variant, non-chat variants are silently ignored.
         assert!(
             rx.try_recv().is_err(),
-            "non-chat ClearMessage must not emit DaemonEvent in daemon v0"
+            "non-chat ClearMessage must not emit DaemonEvent"
         );
 
         // Verify the test file compiles with the ClearMessage import (used only as
@@ -727,5 +840,133 @@ mod tests {
     fn test_display_name_for_short_pub_id() {
         let name = display_name_for("abc");
         assert_eq!(name, "abc");
+    }
+
+    // ── nie-ybf3: store integration tests ────────────────────────────────
+
+    async fn make_memory_store() -> crate::store::Store {
+        crate::store::Store::new("sqlite::memory:")
+            .await
+            .expect("in-memory store")
+    }
+
+    fn make_state_with_store(
+        store: crate::store::Store,
+    ) -> (DaemonState, tokio::sync::broadcast::Receiver<DaemonEvent>) {
+        let state = DaemonState::new(
+            "a".repeat(64),
+            "test-token".to_string(),
+            None,
+            "mainnet".to_string(),
+            None,
+            Some(store),
+        );
+        let rx = state.subscribe_events();
+        (state, rx)
+    }
+
+    /// USER_JOINED upserts contact, sets presence online, and adds space member.
+    #[tokio::test]
+    async fn test_user_joined_writes_contact_and_member() {
+        let store = make_memory_store().await;
+        let space_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        store.create_space(space_id, "nie").await.unwrap();
+
+        let (state, mut rx) = make_state_with_store(store);
+        state.set_default_space_id(space_id.to_string());
+        let mls = make_test_mls();
+
+        let pub_id = "b".repeat(64);
+        let params = UserJoinedParams {
+            pub_id: pub_id.clone(),
+            nickname: Some("Bob".to_string()),
+            sequence: 1,
+        };
+        let notif = JsonRpcNotification {
+            version: "2.0".to_string(),
+            method: rpc_methods::USER_JOINED.to_string(),
+            params: Some(serde_json::to_value(&params).unwrap()),
+        };
+
+        dispatch_notification(notif, &state, &mls).await;
+
+        assert!(rx.try_recv().is_ok(), "expected UserJoined event");
+
+        let store = state.store().unwrap();
+        assert_eq!(store.contact_count().await.unwrap(), 1, "contact upserted");
+        assert_eq!(
+            store.space_member_count(space_id).await.unwrap(),
+            1,
+            "space member upserted"
+        );
+        assert_eq!(
+            store.contact_presence(&pub_id).await.unwrap().as_deref(),
+            Some("online"),
+            "presence set to online"
+        );
+    }
+
+    /// USER_LEFT sets presence to offline without removing the contact row.
+    #[tokio::test]
+    async fn test_user_left_sets_offline_keeps_contact() {
+        let store = make_memory_store().await;
+        let space_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        store.create_space(space_id, "nie").await.unwrap();
+
+        let (state, mut rx) = make_state_with_store(store);
+        state.set_default_space_id(space_id.to_string());
+        let mls = make_test_mls();
+
+        let pub_id = "b".repeat(64);
+
+        // First join.
+        let join_params = UserJoinedParams {
+            pub_id: pub_id.clone(),
+            nickname: None,
+            sequence: 1,
+        };
+        dispatch_notification(
+            JsonRpcNotification {
+                version: "2.0".to_string(),
+                method: rpc_methods::USER_JOINED.to_string(),
+                params: Some(serde_json::to_value(&join_params).unwrap()),
+            },
+            &state,
+            &mls,
+        )
+        .await;
+        let _ = rx.try_recv();
+
+        // Then leave.
+        let leave_params = UserLeftParams {
+            pub_id: pub_id.clone(),
+        };
+        dispatch_notification(
+            JsonRpcNotification {
+                version: "2.0".to_string(),
+                method: rpc_methods::USER_LEFT.to_string(),
+                params: Some(serde_json::to_value(&leave_params).unwrap()),
+            },
+            &state,
+            &mls,
+        )
+        .await;
+        let _ = rx.try_recv();
+
+        let store = state.store().unwrap();
+        // Contact row still present — directory is persistent.
+        assert_eq!(store.contact_count().await.unwrap(), 1, "contact kept");
+        // Space membership also kept.
+        assert_eq!(
+            store.space_member_count(space_id).await.unwrap(),
+            1,
+            "space member kept"
+        );
+        // Presence updated to offline.
+        assert_eq!(
+            store.contact_presence(&pub_id).await.unwrap().as_deref(),
+            Some("offline"),
+            "presence updated to offline"
+        );
     }
 }

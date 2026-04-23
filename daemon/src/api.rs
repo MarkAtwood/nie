@@ -310,6 +310,7 @@ mod tests {
             display_name.map(|s| s.to_string()),
             "mainnet".to_string(),
             None,
+            None,
         )
     }
 
@@ -508,6 +509,7 @@ mod tests {
             None,
             "testnet".to_string(),
             Some(ws),
+            None,
         );
         let result = handle_wallet_balance(State(state)).await;
         assert!(result.is_ok(), "empty wallet balance must succeed");
@@ -528,6 +530,7 @@ mod tests {
             None,
             "mainnet".to_string(),
             Some(ws),
+            None,
         );
         let result = handle_wallet_pay(
             State(state),

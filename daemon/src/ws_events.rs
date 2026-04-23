@@ -102,6 +102,7 @@ mod tests {
             None,
             "mainnet".to_string(),
             None,
+            None,
         )
     }
 

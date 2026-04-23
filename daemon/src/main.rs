@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use axum::{
     http::{HeaderValue, Method},
     routing::{get, post},
@@ -12,6 +12,7 @@ mod api;
 mod pid;
 mod relay;
 mod state;
+mod store;
 mod token;
 mod types;
 mod web;
@@ -96,8 +97,65 @@ async fn main() -> Result<()> {
         }
     };
 
+    // Open JMAP Chat store (creates jmap.db in data dir if not present)
+    let db_url = std::env::var("JMAP_DATABASE_URL")
+        .unwrap_or_else(|_| format!("sqlite:{}?mode=rwc", data_dir.join("jmap.db").display()));
+    let jmap_store = store::Store::new(&db_url)
+        .await
+        .context("open JMAP store")?;
+
     // Create app state
-    let daemon_state = state::DaemonState::new(my_pub_id, tok.clone(), None, network, wallet_store);
+    let daemon_state = state::DaemonState::new(
+        my_pub_id,
+        tok.clone(),
+        None,
+        network,
+        wallet_store,
+        Some(jmap_store),
+    );
+
+    // Bootstrap default Space and channel in the JMAP store.
+    // daemon_state.store() is Some because we always pass Some(jmap_store) above.
+    let bootstrap_store = daemon_state.store().expect("jmap store must be present");
+    let space_name = std::env::var("NIE_SPACE_NAME").unwrap_or_else(|_| "nie".to_string());
+    let channel_name = std::env::var("NIE_CHANNEL_NAME").unwrap_or_else(|_| "general".to_string());
+
+    let space_id = match bootstrap_store
+        .find_space_by_name(&space_name)
+        .await
+        .context("find default space")?
+    {
+        Some(id) => id,
+        None => {
+            let id = store::Store::new_id();
+            bootstrap_store
+                .create_space(&id, &space_name)
+                .await
+                .context("create default space")?;
+            tracing::info!(space_id = %id, name = %space_name, "bootstrapped default space");
+            id
+        }
+    };
+
+    let channel_id = match bootstrap_store
+        .find_channel_in_space(&space_id)
+        .await
+        .context("find default channel")?
+    {
+        Some(id) => id,
+        None => {
+            let id = store::Store::new_id();
+            bootstrap_store
+                .create_channel(&id, &channel_name, &space_id)
+                .await
+                .context("create default channel")?;
+            tracing::info!(channel_id = %id, name = %channel_name, "bootstrapped default channel");
+            id
+        }
+    };
+
+    daemon_state.set_default_space_id(space_id);
+    daemon_state.set_default_channel_id(channel_id);
 
     // Build router.  /api/* routes require Bearer token auth; other routes do
     // not (ws/events does its own auth check inside the handler).
