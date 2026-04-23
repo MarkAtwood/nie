@@ -334,7 +334,7 @@ Point your Teams outgoing webhook at `http://yourhost:9002/teams/webhook`.
 
 ### JMAP bridge
 
-Polls a JMAP mailbox and posts new messages into the nie room; relays nie messages back as new emails.
+Polls a JMAP mailbox and posts new messages into the nie room; relays nie messages back as new emails. The JMAP Chat capability spec used by this bridge is published as an IETF Internet-Draft: https://raw.githubusercontent.com/MarkAtwood/ideas/refs/heads/main/draft-atwood-jmap-chat-00.md
 
 ```toml
 # bridge.toml
