@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart' as crypto;
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'background_service.dart';
 
 // ---- Data classes -------------------------------------------------------
 
@@ -142,6 +143,7 @@ class RelayService extends ChangeNotifier {
     _channel = null;
     _connected = false;
     _reconnecting = false;
+    BackgroundService.stop();
     notifyListeners();
   }
 
@@ -191,6 +193,7 @@ class RelayService extends ChangeNotifier {
         _reconnecting = false;
         _reconnectDelaySecs = 2;
         notifyListeners();
+        BackgroundService.start();
       }
     } else if (msg.containsKey('error')) {
       final errMap = msg['error'];
