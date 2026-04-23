@@ -36,6 +36,57 @@ impl Store {
             .connect(db_url)
             .await?;
 
+        // Schema migration runner using PRAGMA user_version.
+        // user_version 0 means no schema exists yet (or pre-migration baseline).
+        // Each migration block checks version < N, applies, then sets version = N.
+        // Never modify a migration once shipped — add a new one after it.
+        let schema_version: i64 = sqlx::query_scalar("PRAGMA user_version")
+            .fetch_one(&pool)
+            .await?;
+
+        // Migration v0 → v1: key_packages gains device_id column + composite PK.
+        // If the old single-column-PK table exists, migrate data with device_id='legacy'.
+        // Runs inside a transaction so a crash mid-migration leaves the DB untouched.
+        if schema_version < 1 {
+            let mut tx = pool.begin().await?;
+            let kp_exists: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='key_packages'",
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            if kp_exists > 0 {
+                sqlx::query(
+                    "CREATE TABLE key_packages_v1 (
+                        pub_id      TEXT NOT NULL,
+                        device_id   TEXT NOT NULL,
+                        data        BLOB NOT NULL,
+                        updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                        PRIMARY KEY (pub_id, device_id)
+                    )",
+                )
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "INSERT INTO key_packages_v1 (pub_id, device_id, data, updated_at) \
+                     SELECT pub_id, 'legacy', data, updated_at FROM key_packages",
+                )
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query("DROP TABLE key_packages")
+                    .execute(&mut *tx)
+                    .await?;
+                sqlx::query("ALTER TABLE key_packages_v1 RENAME TO key_packages")
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            // PRAGMA user_version does not accept parameterized binding — the
+            // integer literal must be inlined.  This is safe: it is a constant.
+            sqlx::query("PRAGMA user_version = 1")
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+        }
+
         // Persistent user directory: every pub_id that has ever authenticated.
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS users (
@@ -59,14 +110,17 @@ impl Store {
         .execute(&pool)
         .await?;
 
-        // MLS key packages: one per pub_id, replaced on each session connect.
+        // MLS key packages: one row per (pub_id, device_id) pair.
+        // device_id is a 64-char lowercase hex string (SHA-256 of KeyPackage bytes).
         // Data is opaque bytes (TLS-serialized MlsMessageOut / serde_json-encoded KeyPackage).
         // The relay never inspects the bytes.
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS key_packages (
-                pub_id      TEXT PRIMARY KEY,
+                pub_id      TEXT NOT NULL,
+                device_id   TEXT NOT NULL,
                 data        BLOB NOT NULL,
-                updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+                updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (pub_id, device_id)
             )",
         )
         .execute(&pool)
@@ -219,28 +273,53 @@ impl Store {
 
     // ---- MLS key packages ----
 
-    /// Store (or replace) the MLS key package for `pub_id`. Opaque bytes.
-    pub async fn save_key_package(&self, pub_id: &str, data: &[u8]) -> Result<()> {
+    /// Store (or replace) the MLS key package for `(pub_id, device_id)`. Opaque bytes.
+    pub async fn save_key_package(&self, pub_id: &str, device_id: &str, data: &[u8]) -> Result<()> {
         sqlx::query(
-            "INSERT INTO key_packages (pub_id, data) VALUES (?, ?)
-             ON CONFLICT(pub_id) DO UPDATE SET data = excluded.data,
-                                               updated_at = datetime('now')",
+            "INSERT INTO key_packages (pub_id, device_id, data) VALUES (?1, ?2, ?3)
+             ON CONFLICT(pub_id, device_id) DO UPDATE SET data = excluded.data,
+                                                          updated_at = datetime('now')",
         )
         .bind(pub_id)
+        .bind(device_id)
         .bind(data)
         .execute(&self.pool)
         .await?;
         Ok(())
     }
 
-    /// Fetch the stored MLS key package for `pub_id`, or None if not found.
-    pub async fn get_key_package(&self, pub_id: &str) -> Result<Option<Vec<u8>>> {
+    /// Fetch the stored MLS key package for `(pub_id, device_id)`, or None if not found.
+    pub async fn get_key_package(&self, pub_id: &str, device_id: &str) -> Result<Option<Vec<u8>>> {
         let row: Option<(Vec<u8>,)> =
-            sqlx::query_as("SELECT data FROM key_packages WHERE pub_id = ?")
+            sqlx::query_as("SELECT data FROM key_packages WHERE pub_id = ?1 AND device_id = ?2")
                 .bind(pub_id)
+                .bind(device_id)
                 .fetch_optional(&self.pool)
                 .await?;
         Ok(row.map(|r| r.0))
+    }
+
+    /// Fetch all stored MLS key packages for `pub_id`, ordered most-recent first.
+    /// Returns one entry per device that has published a key package.
+    pub async fn get_all_key_packages(&self, pub_id: &str) -> Result<Vec<Vec<u8>>> {
+        let rows: Vec<(Vec<u8>,)> = sqlx::query_as(
+            "SELECT data FROM key_packages WHERE pub_id = ?1 ORDER BY updated_at DESC",
+        )
+        .bind(pub_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|r| r.0).collect())
+    }
+
+    /// Delete the key package for a specific `(pub_id, device_id)` pair.
+    /// No-op if the row does not exist.
+    pub async fn delete_device_key_package(&self, pub_id: &str, device_id: &str) -> Result<()> {
+        sqlx::query("DELETE FROM key_packages WHERE pub_id = ?1 AND device_id = ?2")
+            .bind(pub_id)
+            .bind(device_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     // ---- HPKE public keys (sealed sender) ----
@@ -1357,6 +1436,183 @@ mod tests {
             remaining.len(),
             1,
             "stale user must survive when expiry is disabled"
+        );
+    }
+
+    // ---- key_packages per-device tests ----
+
+    /// save + get roundtrip for a specific device.
+    ///
+    /// Oracle: the expected bytes are the literals passed in, not produced by any
+    /// function under test.
+    #[tokio::test]
+    async fn key_package_save_and_get() {
+        let (store, _f) = make_store().await;
+        store
+            .save_key_package("alice", "device_aaa", b"kp-data-aaa")
+            .await
+            .unwrap();
+
+        let got = store.get_key_package("alice", "device_aaa").await.unwrap();
+        assert_eq!(
+            got.as_deref(),
+            Some(b"kp-data-aaa" as &[u8]),
+            "get_key_package must return the bytes that were saved"
+        );
+    }
+
+    /// Different devices for the same pub_id are stored independently.
+    ///
+    /// Oracle: each returned payload matches the literal written for that device.
+    #[tokio::test]
+    async fn key_package_multiple_devices_independent() {
+        let (store, _f) = make_store().await;
+        store
+            .save_key_package("bob", "dev1", b"kp-bob-dev1")
+            .await
+            .unwrap();
+        store
+            .save_key_package("bob", "dev2", b"kp-bob-dev2")
+            .await
+            .unwrap();
+
+        let dev1 = store.get_key_package("bob", "dev1").await.unwrap();
+        let dev2 = store.get_key_package("bob", "dev2").await.unwrap();
+        assert_eq!(
+            dev1.as_deref(),
+            Some(b"kp-bob-dev1" as &[u8]),
+            "dev1 must return its own bytes"
+        );
+        assert_eq!(
+            dev2.as_deref(),
+            Some(b"kp-bob-dev2" as &[u8]),
+            "dev2 must return its own bytes"
+        );
+    }
+
+    /// get_all_key_packages returns all devices; unknown pub_id returns empty vec.
+    ///
+    /// Oracle: the expected count and bytes are the literals inserted.
+    #[tokio::test]
+    async fn key_package_get_all() {
+        let (store, _f) = make_store().await;
+        store
+            .save_key_package("carol", "d1", b"c-d1")
+            .await
+            .unwrap();
+        store
+            .save_key_package("carol", "d2", b"c-d2")
+            .await
+            .unwrap();
+
+        let all = store.get_all_key_packages("carol").await.unwrap();
+        assert_eq!(all.len(), 2, "get_all must return both devices");
+
+        let empty = store.get_all_key_packages("nobody").await.unwrap();
+        assert!(empty.is_empty(), "unknown pub_id must return empty vec");
+    }
+
+    /// delete_device_key_package removes only the named device; sibling survives.
+    ///
+    /// Oracle: after delete, get_key_package returns None for the deleted device
+    /// and Some for the sibling — verified against inserted literals.
+    #[tokio::test]
+    async fn key_package_delete_device_leaves_sibling() {
+        let (store, _f) = make_store().await;
+        store
+            .save_key_package("dave", "phone", b"kp-phone")
+            .await
+            .unwrap();
+        store
+            .save_key_package("dave", "laptop", b"kp-laptop")
+            .await
+            .unwrap();
+
+        store
+            .delete_device_key_package("dave", "phone")
+            .await
+            .unwrap();
+
+        let phone = store.get_key_package("dave", "phone").await.unwrap();
+        assert!(phone.is_none(), "deleted device must not be found");
+
+        let laptop = store.get_key_package("dave", "laptop").await.unwrap();
+        assert_eq!(
+            laptop.as_deref(),
+            Some(b"kp-laptop" as &[u8]),
+            "sibling device must survive deletion"
+        );
+    }
+
+    /// save_key_package is idempotent: second save with same device_id replaces data.
+    ///
+    /// Oracle: the final returned bytes must match the second literal, not the first.
+    #[tokio::test]
+    async fn key_package_save_replaces_same_device() {
+        let (store, _f) = make_store().await;
+        store
+            .save_key_package("eve", "devX", b"old-kp")
+            .await
+            .unwrap();
+        store
+            .save_key_package("eve", "devX", b"new-kp")
+            .await
+            .unwrap();
+
+        let got = store.get_key_package("eve", "devX").await.unwrap();
+        assert_eq!(
+            got.as_deref(),
+            Some(b"new-kp" as &[u8]),
+            "second save must replace the first"
+        );
+
+        let all = store.get_all_key_packages("eve").await.unwrap();
+        assert_eq!(all.len(), 1, "upsert must not create a second row");
+    }
+
+    /// Migration v0→v1: data written under the old single-column schema survives.
+    ///
+    /// Simulates the old schema by inserting directly into the table via raw SQL
+    /// with the old structure, then opening a fresh Store on the same file to
+    /// trigger the migration.  Verifies the migrated row is reachable with
+    /// device_id='legacy'.
+    ///
+    /// Oracle: the raw bytes are the literal written before migration.
+    #[tokio::test]
+    async fn key_package_v0_to_v1_migration_preserves_data() {
+        let f = tempfile::NamedTempFile::new().unwrap();
+        let url = format!("sqlite:{}?mode=rwc", f.path().display());
+
+        // Bootstrap a pool directly to build the old schema (no PRAGMA user_version).
+        {
+            let pool = sqlx::sqlite::SqlitePool::connect(&url).await.unwrap();
+            sqlx::query(
+                "CREATE TABLE key_packages (
+                    pub_id      TEXT PRIMARY KEY,
+                    data        BLOB NOT NULL,
+                    updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+                )",
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+            sqlx::query("INSERT INTO key_packages (pub_id, data) VALUES ('frank', ?)")
+                .bind(b"frank-kp" as &[u8])
+                .execute(&pool)
+                .await
+                .unwrap();
+            pool.close().await;
+        }
+
+        // Open via Store::new — this triggers the v0→v1 migration.
+        let store = Store::new(&url).await.unwrap();
+
+        // The migrated row must be accessible with device_id='legacy'.
+        let got = store.get_key_package("frank", "legacy").await.unwrap();
+        assert_eq!(
+            got.as_deref(),
+            Some(b"frank-kp" as &[u8]),
+            "v0 data must survive migration with device_id='legacy'"
         );
     }
 }

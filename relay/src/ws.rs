@@ -361,7 +361,7 @@ async fn handle(socket: WebSocket, state: AppState) {
     // Set up per-client channel before building the directory so the new
     // client appears as online in the list we send them.
     let (client_tx, mut client_rx) = mpsc::channel::<String>(64);
-    let conn_seq = state.connect(&pub_id, client_tx.clone());
+    let (conn_seq, is_first_connection) = state.connect(&pub_id, client_tx.clone());
 
     // Send AuthOk response (reply to the authenticate request)
     // serde_json::to_string on a derived Serialize cannot fail
@@ -435,23 +435,27 @@ async fn handle(socket: WebSocket, state: AppState) {
         return;
     }
 
-    // Tell everyone else this user has arrived (include nickname if already set).
+    // Tell everyone else this user has arrived — only on the first device connection
+    // (0 → 1 transition).  Subsequent devices of the same pub_id are invisible at
+    // the user level: peers already know the user is online.
     // Broadcast includes this client's connection_seq so peers can maintain their
     // online list in sorted order regardless of UserJoined event arrival order.
-    // serde_json::to_string on a derived Serialize cannot fail
-    let joined_json = serde_json::to_string(
-        &JsonRpcNotification::new(
-            rpc_methods::USER_JOINED,
-            UserJoinedParams {
-                pub_id: pub_id.0.clone(),
-                nickname: my_nickname,
-                sequence: state.connection_seq(&pub_id.0),
-            },
+    if is_first_connection {
+        // serde_json::to_string on a derived Serialize cannot fail
+        let joined_json = serde_json::to_string(
+            &JsonRpcNotification::new(
+                rpc_methods::USER_JOINED,
+                UserJoinedParams {
+                    pub_id: pub_id.0.clone(),
+                    nickname: my_nickname,
+                    sequence: state.connection_seq(&pub_id.0),
+                },
+            )
+            .unwrap(),
         )
-        .unwrap(),
-    )
-    .unwrap();
-    state.broadcast(Some(&pub_id.0), joined_json).await;
+        .unwrap();
+        state.broadcast(Some(&pub_id.0), joined_json).await;
+    }
 
     // Shared flag: set to true each time a Pong arrives from the client.
     // Starts true so the first ping interval does not disconnect immediately.
@@ -528,6 +532,11 @@ async fn handle(socket: WebSocket, state: AppState) {
     for msg in queued {
         client_tx.send(msg).await.ok();
     }
+
+    // The device_id this connection published via PUBLISH_KEY_PACKAGE, if any.
+    // Set on successful publish; used at disconnect to remove the stale package
+    // so other devices' packages are unaffected.
+    let mut connection_device_id: Option<String> = None;
 
     // Main read loop
     while let Some(frame) = stream.next().await {
@@ -779,7 +788,10 @@ async fn handle(socket: WebSocket, state: AppState) {
                             };
                         // Validate device_id: must be exactly 64 lowercase hex characters
                         if params.device_id.len() != 64
-                            || !params.device_id.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                            || !params
+                                .device_id
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
                         {
                             send_client_error(
                                 &client_tx,
@@ -793,10 +805,12 @@ async fn handle(socket: WebSocket, state: AppState) {
                         match state
                             .inner
                             .store
-                            .save_key_package(&pub_id.0, &params.data)
+                            .save_key_package(&pub_id.0, &params.device_id, &params.data)
                             .await
                         {
                             Ok(()) => {
+                                // Record device_id so we can delete the package on disconnect.
+                                connection_device_id = Some(params.device_id.clone());
                                 // Broadcast KeyPackageReady AFTER the write succeeds.
                                 // This creates a happens-before edge: any GetKeyPackage sent
                                 // in response to this notification is guaranteed to find the
@@ -808,6 +822,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                                         rpc_methods::KEY_PACKAGE_READY,
                                         KeyPackageReadyParams {
                                             pub_id: pub_id.0.clone(),
+                                            device_id: params.device_id.clone(),
                                         },
                                     )
                                     .unwrap(),
@@ -849,18 +864,45 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
-                        let data = match state.inner.store.get_key_package(&params.pub_id).await {
-                            Ok(v) => v,
-                            Err(e) => {
-                                error!("get_key_package DB error for {}: {e}", params.pub_id);
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INTERNAL_ERROR,
-                                    "internal error",
-                                )
-                                .await;
-                                continue;
+                        let data = if let Some(did) = params.device_id {
+                            // Targeted request: return only this device's package.
+                            match state
+                                .inner
+                                .store
+                                .get_key_package(&params.pub_id, &did)
+                                .await
+                            {
+                                Ok(opt) => opt.into_iter().collect::<Vec<_>>(),
+                                Err(e) => {
+                                    error!(
+                                        "get_key_package DB error for {}/{did}: {e}",
+                                        params.pub_id
+                                    );
+                                    send_client_error(
+                                        &client_tx,
+                                        req.id,
+                                        rpc_errors::INTERNAL_ERROR,
+                                        "internal error",
+                                    )
+                                    .await;
+                                    continue;
+                                }
+                            }
+                        } else {
+                            // Untargeted: return all packages for this pub_id.
+                            match state.inner.store.get_all_key_packages(&params.pub_id).await {
+                                Ok(v) => v,
+                                Err(e) => {
+                                    error!("get_key_package DB error for {}: {e}", params.pub_id);
+                                    send_client_error(
+                                        &client_tx,
+                                        req.id,
+                                        rpc_errors::INTERNAL_ERROR,
+                                        "internal error",
+                                    )
+                                    .await;
+                                    continue;
+                                }
                             }
                         };
                         // serde_json::to_string on a derived Serialize cannot fail
@@ -1679,19 +1721,37 @@ async fn handle(socket: WebSocket, state: AppState) {
     info!("disconnected: {pub_id}");
     state.disconnect(&pub_id, conn_seq);
 
-    // Tell everyone else this user has left.
-    // serde_json::to_string on a derived Serialize cannot fail
-    let left_json = serde_json::to_string(
-        &JsonRpcNotification::new(
-            rpc_methods::USER_LEFT,
-            UserLeftParams {
-                pub_id: pub_id.0.clone(),
-            },
+    // Remove stale key package for this device so the store stays current.
+    // Only this device's package is removed; other devices' packages are unaffected.
+    if let Some(did) = connection_device_id {
+        if let Err(e) = state
+            .inner
+            .store
+            .delete_device_key_package(&pub_id.0, &did)
+            .await
+        {
+            tracing::warn!("delete_device_key_package for {pub_id}/{did}: {e}");
+        }
+    }
+
+    // Tell everyone else this user has left — only when the last device disconnects
+    // (1 → 0 transition).  If other devices remain, the user is still online from
+    // peers' perspective; suppress the UserLeft notification.
+    let is_last_connection = !state.inner.clients.contains_key(&pub_id.0);
+    if is_last_connection {
+        // serde_json::to_string on a derived Serialize cannot fail
+        let left_json = serde_json::to_string(
+            &JsonRpcNotification::new(
+                rpc_methods::USER_LEFT,
+                UserLeftParams {
+                    pub_id: pub_id.0.clone(),
+                },
+            )
+            .unwrap(),
         )
-        .unwrap(),
-    )
-    .unwrap();
-    state.broadcast(Some(&pub_id.0), left_json).await;
+        .unwrap();
+        state.broadcast(Some(&pub_id.0), left_json).await;
+    }
 
     write_task.abort();
 }

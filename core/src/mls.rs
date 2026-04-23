@@ -24,6 +24,7 @@ use anyhow::Result;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
+use sha2::{Digest, Sha256};
 use tls_codec::{DeserializeBytes, Serialize as TlsSerialize};
 use x25519_dalek;
 
@@ -82,15 +83,28 @@ impl MlsClient {
     /// Generate a fresh KeyPackage and return it as TLS-serialized bytes.
     /// Call on every connect; MLS key packages are single-use.
     pub fn key_package_bytes(&self) -> Result<Vec<u8>> {
+        let (bytes, _) = self.key_package_and_device_id()?;
+        Ok(bytes)
+    }
+
+    /// Generate a fresh KeyPackage and return `(kp_bytes, device_id)`.
+    ///
+    /// `kp_bytes` — TLS-serialized KeyPackage ready for `PublishKeyPackageParams.data`.
+    /// `device_id` — lowercase hex SHA-256 of the KeyPackage HPKE init key bytes.
+    ///               Stable for the lifetime of this KeyPackage; unique per device.
+    pub fn key_package_and_device_id(&self) -> Result<(Vec<u8>, String)> {
         let kpb = KeyPackage::builder().build(
             CIPHERSUITE,
             &self.provider,
             &self.signer,
             self.credential_with_key.clone(),
         )?;
-        kpb.key_package()
+        let kp = kpb.key_package();
+        let bytes = kp
             .tls_serialize_detached()
-            .map_err(|e| anyhow::anyhow!("serialize key package: {e}"))
+            .map_err(|e| anyhow::anyhow!("serialize key package: {e}"))?;
+        let device_id = format!("{:x}", Sha256::digest(kp.hpke_init_key().as_slice()));
+        Ok((bytes, device_id))
     }
 
     // ── Parameterized methods ────────────────────────────────────────────────

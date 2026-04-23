@@ -32,7 +32,6 @@ dirs.workspace = true
 age.workspace = true
 rpassword.workspace = true
 shlex.workspace = true
-sha2.workspace = true
 unicode-width = "0.2"
 
 [dev-dependencies]

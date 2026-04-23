@@ -151,7 +151,10 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
     let pub_kp_req = JsonRpcRequest::new(
         next_request_id(),
         rpc_methods::PUBLISH_KEY_PACKAGE,
-        PublishKeyPackageParams { device_id, data: bob_kp_bytes },
+        PublishKeyPackageParams {
+            device_id,
+            data: bob_kp_bytes,
+        },
     )
     .expect("PublishKeyPackageParams must serialize");
     bob_conn.tx.send(pub_kp_req).await.expect("bob publish kp");
@@ -165,6 +168,7 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
         rpc_methods::GET_KEY_PACKAGE,
         GetKeyPackageParams {
             pub_id: bob_pub_id.0.clone(),
+            device_id: None,
         },
     )
     .expect("GetKeyPackageParams must serialize");
@@ -179,7 +183,11 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
     let kp_result: GetKeyPackageResult =
         serde_json::from_value(get_kp_resp.result.expect("result must be present"))
             .expect("GetKeyPackageResult must deserialize");
-    let bob_kp = kp_result.data.expect("bob's key package must be present");
+    let bob_kp = kp_result
+        .data
+        .into_iter()
+        .next()
+        .expect("bob's key package must be present");
 
     // Step 4e: Alice creates the group and adds Bob.
     alice_mls.create_group().expect("alice create_group");

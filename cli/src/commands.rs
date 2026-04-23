@@ -559,9 +559,8 @@ pub async fn chat(
                         println!("--- {} online, {} known ---\n", ol.len(), ol.len() + offline.len());
 
                         // Publish key package so admin can add us.
-                        match mls.key_package_bytes() {
-                            Ok(kp) => {
-                                let device_id = format!("{:x}", Sha256::digest(&kp));
+                        match mls.key_package_and_device_id() {
+                            Ok((kp, device_id)) => {
                                 let req = JsonRpcRequest::new(
                                     next_request_id(),
                                     rpc_methods::PUBLISH_KEY_PACKAGE,
@@ -695,9 +694,8 @@ pub async fn chat(
                         // sequence number than us, so they can never become the admin
                         // for an already-established group.
                         if !mls_active {
-                            match mls.key_package_bytes() {
-                                Ok(kp) => {
-                                    let device_id = format!("{:x}", Sha256::digest(&kp));
+                            match mls.key_package_and_device_id() {
+                                Ok((kp, device_id)) => {
                                     let req = JsonRpcRequest::new(
                                         next_request_id(),
                                         rpc_methods::PUBLISH_KEY_PACKAGE,
@@ -792,17 +790,37 @@ pub async fn chat(
                                 }
                             };
                         let ready_id = p.pub_id;
+                        let ready_device_id = p.device_id;
                         let i_am_admin = is_admin(&online, &my_pub_id);
-                        if i_am_admin && mls_active && ready_id != my_pub_id && !mls.group_contains(&ready_id) {
-                            let req = JsonRpcRequest::new(
-                                next_request_id(),
-                                rpc_methods::GET_KEY_PACKAGE,
-                                GetKeyPackageParams { pub_id: ready_id },
-                            )
-                            .unwrap();
-                            if tx.send(req).await.is_err() {
-                                eprintln!("connection lost.");
-                                break;
+                        if i_am_admin && mls_active && ready_id != my_pub_id {
+                            if !mls.group_contains(&ready_id) {
+                                // New user: fetch all devices and add each.
+                                let req = JsonRpcRequest::new(
+                                    next_request_id(),
+                                    rpc_methods::GET_KEY_PACKAGE,
+                                    GetKeyPackageParams { pub_id: ready_id, device_id: None },
+                                )
+                                .unwrap();
+                                if tx.send(req).await.is_err() {
+                                    eprintln!("connection lost.");
+                                    break;
+                                }
+                            } else {
+                                // Existing group member published a new device.
+                                // Fetch only this device's package and add it.
+                                let req = JsonRpcRequest::new(
+                                    next_request_id(),
+                                    rpc_methods::GET_KEY_PACKAGE,
+                                    GetKeyPackageParams {
+                                        pub_id: ready_id,
+                                        device_id: Some(ready_device_id),
+                                    },
+                                )
+                                .unwrap();
+                                if tx.send(req).await.is_err() {
+                                    eprintln!("connection lost.");
+                                    break;
+                                }
                             }
                         }
                     }
@@ -876,13 +894,31 @@ pub async fn chat(
                                 None => continue,
                             };
                         let target_id = kp_result.pub_id;
-                        match kp_result.data {
-                            Some(kp_data) => {
-                                let i_am_admin = is_admin(&online, &my_pub_id);
-                                // group_contains is a belt-and-suspenders check: KeyPackageReady
-                                // already filters out existing members, but republication on
-                                // UserJoined could theoretically race a concurrent add.
-                                if i_am_admin && mls_active && !mls.group_contains(&target_id) {
+                        if kp_result.data.is_empty() {
+                            // The peer hasn't published a key package yet, or packages were
+                            // deleted/expired.  Surface this so the user knows why the peer
+                            // wasn't added.  The peer will republish on UserJoined, triggering
+                            // a fresh GetKeyPackage → response cycle.
+                            warn!("key package for {target_id} not available; member will not be added");
+                            eprintln!(
+                                "\r[MLS] key package for {} not available — \
+                                 ask them to reconnect to retry.",
+                                colored_name(&target_id, &nicknames, &local_names)
+                            );
+                        } else {
+                            let i_am_admin = is_admin(&online, &my_pub_id);
+                            // group_contains is a belt-and-suspenders check: KeyPackageReady
+                            // already filters out existing members, but republication on
+                            // UserJoined could theoretically race a concurrent add.
+                            if i_am_admin && mls_active && !mls.group_contains(&target_id) {
+                                // Add each device as a separate MLS leaf.  Each add advances the
+                                // epoch by one; the commit is broadcast so existing members stay
+                                // in sync.  Invalid packages are skipped with a warning.
+                                for kp_data in kp_result.data {
+                                    if mls.group_contains(&target_id) {
+                                        // Already added (by a previous device's commit) — stop.
+                                        break;
+                                    }
                                     match mls.add_member(&kp_data) {
                                         Ok((commit_bytes, welcome_bytes)) => {
                                             // Broadcast Commit so all existing members advance epoch.
@@ -890,7 +926,7 @@ pub async fn chat(
                                                 Ok(p) => p,
                                                 Err(e) => {
                                                     warn!("add_member commit pad failed: {e}");
-                                                    continue;
+                                                    break;
                                                 }
                                             };
                                             // If this send fails, nothing has been delivered — safe to break.
@@ -939,21 +975,9 @@ pub async fn chat(
                                                 );
                                             }
                                         }
-                                        Err(e) => warn!("add_member {target_id}: {e}"),
+                                        Err(e) => warn!("add_member device for {target_id}: {e}"),
                                     }
                                 }
-                            }
-                            None => {
-                                // The relay returned None: the peer hasn't published a key package
-                                // yet, or it was deleted/expired.  Surface this so the user knows
-                                // why the peer wasn't added.  The peer will republish on UserJoined,
-                                // triggering a fresh GetKeyPackage → response cycle.
-                                warn!("key package for {target_id} not available; member will not be added");
-                                eprintln!(
-                                    "\r[MLS] key package for {} not available — \
-                                     ask them to reconnect to retry.",
-                                    colored_name(&target_id, &nicknames, &local_names)
-                                );
                             }
                         }
                     }

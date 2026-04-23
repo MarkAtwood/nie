@@ -248,14 +248,20 @@ pub struct OkResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetKeyPackageParams {
     pub pub_id: String,
+    /// If present, return only the package for this device_id.
+    /// If absent, return all packages for `pub_id`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device_id: Option<String>,
 }
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GetKeyPackageResult {
     pub pub_id: String,
-    #[serde_as(as = "Option<Base64>")]
-    pub data: Option<Vec<u8>>,
+    /// One entry per device that has published a KeyPackage.
+    /// Empty if no KeyPackages are stored for this pub_id.
+    #[serde_as(as = "Vec<Base64>")]
+    pub data: Vec<Vec<u8>>,
 }
 
 #[serde_as]
@@ -269,6 +275,9 @@ pub struct PublishKeyPackageParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyPackageReadyParams {
     pub pub_id: String,
+    /// The device_id that just published.  Included so admins can issue
+    /// a targeted GetKeyPackage for existing group members' new devices.
+    pub device_id: String,
 }
 
 #[serde_as]

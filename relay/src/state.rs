@@ -124,18 +124,19 @@ impl AppState {
 
     /// Register a new connection. Assigns a monotonically increasing sequence
     /// number so the DirectoryList can be ordered by session connection order.
-    /// Returns the sequence number assigned to this connection.
-    pub fn connect(&self, pub_id: &PubId, tx: ClientTx) -> u64 {
+    /// Returns `(seq, is_first)`:
+    /// - `seq`: the sequence number assigned to this connection.
+    /// - `is_first`: true if this is the first active connection for `pub_id`
+    ///   (i.e., the pub_id transitioned from 0 to 1 connected devices).
+    pub fn connect(&self, pub_id: &PubId, tx: ClientTx) -> (u64, bool) {
         let seq = self
             .inner
             .connection_counter
             .fetch_add(1, Ordering::Relaxed);
-        self.inner
-            .clients
-            .entry(pub_id.0.clone())
-            .or_default()
-            .push((tx, seq));
-        seq
+        let mut entry = self.inner.clients.entry(pub_id.0.clone()).or_default();
+        entry.push((tx, seq));
+        let is_first = entry.len() == 1;
+        (seq, is_first)
     }
 
     /// Remove the specific connection identified by `seq` for `pub_id`.
@@ -314,8 +315,10 @@ mod tests {
         let (tx1, mut rx1) = mpsc::channel::<String>(8);
         let (tx2, mut rx2) = mpsc::channel::<String>(8);
 
-        state.connect(&pub_id, tx1);
-        state.connect(&pub_id, tx2);
+        let (_, is_first1) = state.connect(&pub_id, tx1);
+        let (_, is_first2) = state.connect(&pub_id, tx2);
+        assert!(is_first1, "first connect must be flagged is_first");
+        assert!(!is_first2, "second connect must not be flagged is_first");
 
         let delivered = state.deliver_live("aaaa", "hello".to_string()).await;
         assert!(delivered);
@@ -334,8 +337,8 @@ mod tests {
         let (tx1, rx1) = mpsc::channel::<String>(8);
         let (tx2, mut rx2) = mpsc::channel::<String>(8);
 
-        let seq1 = state.connect(&pub_id, tx1);
-        let _seq2 = state.connect(&pub_id, tx2);
+        let (seq1, _) = state.connect(&pub_id, tx1);
+        let (_, _) = state.connect(&pub_id, tx2);
 
         // Disconnect the first connection by its seq.
         state.disconnect(&pub_id, seq1);
@@ -359,8 +362,8 @@ mod tests {
         let (tx1, _rx1) = mpsc::channel::<String>(8);
         let (tx2, _rx2) = mpsc::channel::<String>(8);
 
-        let seq1 = state.connect(&pub_id, tx1);
-        let seq2 = state.connect(&pub_id, tx2);
+        let (seq1, _) = state.connect(&pub_id, tx1);
+        let (seq2, _) = state.connect(&pub_id, tx2);
 
         let reported = state.connection_seq("cccc");
         assert_eq!(reported, seq1.min(seq2));
@@ -375,13 +378,65 @@ mod tests {
         let (tx1, _rx1) = mpsc::channel::<String>(8);
         let (tx2, _rx2) = mpsc::channel::<String>(8);
 
-        let seq1 = state.connect(&pub_id, tx1);
-        let seq2 = state.connect(&pub_id, tx2);
+        let (seq1, _) = state.connect(&pub_id, tx1);
+        let (seq2, _) = state.connect(&pub_id, tx2);
 
         state.disconnect(&pub_id, seq1);
-        assert!(state.inner.clients.contains_key("dddd"), "key still present after first disconnect");
+        assert!(
+            state.inner.clients.contains_key("dddd"),
+            "key still present after first disconnect"
+        );
 
         state.disconnect(&pub_id, seq2);
-        assert!(!state.inner.clients.contains_key("dddd"), "key removed after last disconnect");
+        assert!(
+            !state.inner.clients.contains_key("dddd"),
+            "key removed after last disconnect"
+        );
+    }
+
+    /// Admin election is per-user (pub_id), not per-device-connection.
+    ///
+    /// Scenario:
+    ///   - Alice device 1 connects → seq 0 (admin)
+    ///   - Bob connects          → seq 1
+    ///   - Alice device 2 connects → seq 2
+    ///   → Alice's connection_seq = min(0,2) = 0; she is still admin.
+    ///
+    ///   Then Alice device 1 disconnects:
+    ///   → Alice's connection_seq = 2 (only device 2 remains)
+    ///   → Bob's seq = 1 < Alice's seq = 2 → Bob becomes admin.
+    ///
+    /// Oracle: expected seq values are derived from insertion order, not from
+    /// any function under test.  Admin election is min(connection_seq) across users.
+    #[tokio::test]
+    async fn admin_election_uses_per_user_min_seq() {
+        let state = make_state().await;
+        let alice = make_pub_id("alice");
+        let bob = make_pub_id("bob");
+
+        let (tx_a1, _rx_a1) = mpsc::channel::<String>(8);
+        let (tx_bob, _rx_bob) = mpsc::channel::<String>(8);
+        let (tx_a2, _rx_a2) = mpsc::channel::<String>(8);
+
+        let (seq_a1, _) = state.connect(&alice, tx_a1);
+        let (seq_bob, _) = state.connect(&bob, tx_bob);
+        let (seq_a2, _) = state.connect(&alice, tx_a2);
+
+        // Ordering must be monotonically increasing.
+        assert!(seq_a1 < seq_bob);
+        assert!(seq_bob < seq_a2);
+
+        // Alice's per-user seq = min of both her devices = seq_a1.
+        assert_eq!(state.connection_seq("alice"), seq_a1);
+        // Alice's seq (seq_a1) < Bob's seq (seq_bob) → Alice is admin.
+        assert!(state.connection_seq("alice") < state.connection_seq("bob"));
+
+        // Alice's device 1 disconnects.
+        state.disconnect(&alice, seq_a1);
+
+        // Alice's per-user seq is now seq_a2 (only device 2 remains).
+        assert_eq!(state.connection_seq("alice"), seq_a2);
+        // Bob's seq (seq_bob) < Alice's remaining seq (seq_a2) → Bob is now admin.
+        assert!(state.connection_seq("bob") < state.connection_seq("alice"));
     }
 }

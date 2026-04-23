@@ -1,5 +1,4 @@
 use anyhow::Result;
-use sha2::{Digest, Sha256};
 use chrono::Utc;
 use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use futures::StreamExt;
@@ -483,22 +482,30 @@ pub async fn handle_relay_event(
                     };
 
                     let ready_id = p.pub_id;
+                    let ready_device_id = p.device_id;
                     let i_am_admin = state
                         .online
                         .first()
                         .is_some_and(|u| u.pub_id == state.my_pub_id);
 
-                    if i_am_admin
-                        && state.mls_active
-                        && ready_id != state.my_pub_id
-                        && !state.mls_client.group_contains(&ready_id)
-                    {
+                    if i_am_admin && state.mls_active && ready_id != state.my_pub_id {
+                        let kp_params = if !state.mls_client.group_contains(&ready_id) {
+                            // New user: fetch all devices.
+                            nie_core::protocol::GetKeyPackageParams {
+                                pub_id: ready_id.clone(),
+                                device_id: None,
+                            }
+                        } else {
+                            // Existing group member: fetch only this new device.
+                            nie_core::protocol::GetKeyPackageParams {
+                                pub_id: ready_id.clone(),
+                                device_id: Some(ready_device_id),
+                            }
+                        };
                         let req = JsonRpcRequest::new(
                             next_request_id(),
                             rpc_methods::GET_KEY_PACKAGE,
-                            nie_core::protocol::GetKeyPackageParams {
-                                pub_id: ready_id.clone(),
-                            },
+                            kp_params,
                         )
                         .map_err(anyhow::Error::from)?;
                         if tx.send(req).await.is_err() {
@@ -530,13 +537,15 @@ async fn publish_key_package(
     state: &mut AppState,
     tx: &tokio::sync::mpsc::Sender<JsonRpcRequest>,
 ) -> Result<()> {
-    let kp = state.mls_client.key_package_bytes()?;
+    let (kp, device_id) = state.mls_client.key_package_and_device_id()?;
     tracing::debug!("publishing key package ({} bytes)", kp.len());
-    let device_id = format!("{:x}", Sha256::digest(&kp));
     let req = JsonRpcRequest::new(
         next_request_id(),
         rpc_methods::PUBLISH_KEY_PACKAGE,
-        PublishKeyPackageParams { device_id, data: kp },
+        PublishKeyPackageParams {
+            device_id,
+            data: kp,
+        },
     )
     .map_err(anyhow::Error::from)?;
     if tx.send(req).await.is_err() {
