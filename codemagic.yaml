@@ -2,7 +2,6 @@ workflows:
   android-debug:
     name: Android Debug APK
     max_build_duration: 30
-    instance_type: linux_x2
 
     environment:
       flutter: stable
@@ -25,7 +24,6 @@ workflows:
   android-release:
     name: Android Release APK (unsigned)
     max_build_duration: 30
-    instance_type: linux_x2
 
     environment:
       flutter: stable
