@@ -3,7 +3,6 @@ workflows:
     name: Android Debug APK
     max_build_duration: 90
     instance_type: linux_x2
-    working_directory: flutter
 
     environment:
       flutter: stable
@@ -11,7 +10,6 @@ workflows:
         RUST_VERSION: "1.82.0"
         CARGO_NDK_VERSION: "3.5.4"
         FRB_VERSION: "2.7.0"
-        # Codemagic provides ANDROID_SDK_ROOT and NDK automatically.
 
     scripts:
       - name: Install Rust toolchain
@@ -33,21 +31,19 @@ workflows:
       - name: Cross-compile nie-ffi for Android
         script: |
           source "$HOME/.cargo/env"
-          cd "$CM_BUILD_DIR"
           cargo ndk \
             --target aarch64-linux-android \
             --target armv7-linux-androideabi \
             --target x86_64-linux-android \
-            --output-dir flutter/android/app/src/main/jniLibs \
+            --output-dir android/app/src/main/jniLibs \
             build --release -p nie-ffi
 
       - name: Generate Dart FFI bindings
         script: |
           source "$HOME/.cargo/env"
-          cd "$CM_BUILD_DIR"
           flutter_rust_bridge_codegen generate \
             --rust-input ffi/src/api \
-            --dart-output flutter/lib/src/rust
+            --dart-output lib/src/rust
 
       - name: Flutter pub get
         script: flutter pub get
@@ -70,7 +66,6 @@ workflows:
     name: Android Release APK (unsigned)
     max_build_duration: 90
     instance_type: linux_x2
-    working_directory: flutter
 
     environment:
       flutter: stable
@@ -99,21 +94,19 @@ workflows:
       - name: Cross-compile nie-ffi for Android
         script: |
           source "$HOME/.cargo/env"
-          cd "$CM_BUILD_DIR"
           cargo ndk \
             --target aarch64-linux-android \
             --target armv7-linux-androideabi \
             --target x86_64-linux-android \
-            --output-dir flutter/android/app/src/main/jniLibs \
+            --output-dir android/app/src/main/jniLibs \
             build --release -p nie-ffi
 
       - name: Generate Dart FFI bindings
         script: |
           source "$HOME/.cargo/env"
-          cd "$CM_BUILD_DIR"
           flutter_rust_bridge_codegen generate \
             --rust-input ffi/src/api \
-            --dart-output flutter/lib/src/rust
+            --dart-output lib/src/rust
 
       - name: Flutter pub get
         script: flutter pub get
