@@ -1,0 +1,32 @@
+[package]
+name = "nie-ffi"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+# cdylib for Android .so; staticlib for iOS .a
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+nie-core = { path = "../core" }
+# Pin to exact version — flutter_rust_bridge generates glue code that must
+# match the runtime exactly.  Bump both together when upgrading.
+flutter_rust_bridge = "=2.7.0"
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+base64.workspace = true
+log = "0.4"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Route Rust log output to Android logcat.
+android_logger = "0.14"
+
+[dev-dependencies]
+tempfile = "3"
+
+# frb_expand is a cfg condition set by the FRB macro framework during codegen.
+# Suppress the "unexpected cfg" warning that appears when codegen hasn't run yet.
+[lints.rust]
+unexpected_cfgs = { level = "allow", check-cfg = ['cfg(frb_expand)'] }

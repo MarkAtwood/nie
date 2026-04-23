@@ -1,0 +1,31 @@
+name: nie
+description: Encrypted relay chat with privacy coin payments.
+version: 1.0.0+1
+publish_to: "none"
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # FRB runtime — must match the version pinned in ffi/Cargo.toml.
+  flutter_rust_bridge: "=2.7.0"
+  # Persistent key-value storage (relay URL preference, nickname).
+  shared_preferences: ^2.2.3
+  # State management.
+  provider: ^6.1.2
+  # Background foreground service to keep WS alive when app is backgrounded.
+  flutter_foreground_task: ^8.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # Generates Dart bindings from ffi/src/api/*.rs.
+  # Run: flutter_rust_bridge_codegen generate --rust-input ../ffi/src/api --dart-output lib/src/rust
+  flutter_rust_bridge_codegen: "=2.7.0"
+  flutter_lints: ^3.0.1
+
+flutter:
+  uses-material-design: true

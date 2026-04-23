@@ -1,0 +1,176 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/identity_service.dart';
+import '../services/relay_service.dart';
+import 'chat_screen.dart';
+
+/// First-run screen: generate identity, configure relay URL, connect.
+class SetupScreen extends StatefulWidget {
+  const SetupScreen({super.key});
+
+  @override
+  State<SetupScreen> createState() => _SetupScreenState();
+}
+
+class _SetupScreenState extends State<SetupScreen> {
+  final _relayController = TextEditingController();
+  String? _pubId;
+  bool _generating = false;
+  bool _connecting = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final ids = context.read<IdentityService>();
+    final url = await ids.getRelayUrl();
+    final hasIdentity = await ids.hasIdentity();
+    setState(() {
+      _relayController.text = url;
+    });
+    if (hasIdentity) {
+      await ids.load();
+      setState(() {
+        _pubId = ids.pubId;
+      });
+    }
+  }
+
+  Future<void> _generate() async {
+    setState(() {
+      _generating = true;
+      _error = null;
+    });
+    try {
+      final ids = context.read<IdentityService>();
+      await ids.generateAndSave();
+      setState(() {
+        _pubId = ids.pubId;
+      });
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      setState(() => _generating = false);
+    }
+  }
+
+  Future<void> _connect() async {
+    final ids = context.read<IdentityService>();
+    final relay = context.read<RelayService>();
+
+    if (ids.secretB64 == null) {
+      setState(() => _error = 'Generate an identity first.');
+      return;
+    }
+    setState(() {
+      _connecting = true;
+      _error = null;
+    });
+
+    final relayUrl = _relayController.text.trim();
+    await ids.setRelayUrl(relayUrl);
+    await relay.connect(secretB64: ids.secretB64!, relayUrl: relayUrl);
+
+    if (!mounted) return;
+    if (relay.error != null) {
+      setState(() {
+        _error = relay.error;
+        _connecting = false;
+      });
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const ChatScreen()),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('nie — Setup')),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'nie (囁)',
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Encrypted relay chat. No accounts. No tracking.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            if (_pubId != null) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceVariant,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Your identity', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text(
+                      _pubId!,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            OutlinedButton(
+              onPressed: _generating ? null : _generate,
+              child: _generating
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(_pubId != null ? 'Regenerate Identity' : 'Generate Identity'),
+            ),
+            const SizedBox(height: 24),
+            TextField(
+              controller: _relayController,
+              decoration: const InputDecoration(
+                labelText: 'Relay URL',
+                hintText: 'wss://relay.example.com/ws',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.url,
+            ),
+            const SizedBox(height: 16),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            FilledButton(
+              onPressed: (_connecting || _pubId == null) ? null : _connect,
+              child: _connecting
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Connect'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
