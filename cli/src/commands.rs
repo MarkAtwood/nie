@@ -561,10 +561,11 @@ pub async fn chat(
                         // Publish key package so admin can add us.
                         match mls.key_package_bytes() {
                             Ok(kp) => {
+                                let device_id = format!("{:x}", Sha256::digest(&kp));
                                 let req = JsonRpcRequest::new(
                                     next_request_id(),
                                     rpc_methods::PUBLISH_KEY_PACKAGE,
-                                    PublishKeyPackageParams { data: kp },
+                                    PublishKeyPackageParams { device_id, data: kp },
                                 )
                                 .unwrap();
                                 if tx.send(req).await.is_err() {
@@ -696,10 +697,11 @@ pub async fn chat(
                         if !mls_active {
                             match mls.key_package_bytes() {
                                 Ok(kp) => {
+                                    let device_id = format!("{:x}", Sha256::digest(&kp));
                                     let req = JsonRpcRequest::new(
                                         next_request_id(),
                                         rpc_methods::PUBLISH_KEY_PACKAGE,
-                                        PublishKeyPackageParams { data: kp },
+                                        PublishKeyPackageParams { device_id, data: kp },
                                     )
                                     .unwrap();
                                     if tx.send(req).await.is_err() {

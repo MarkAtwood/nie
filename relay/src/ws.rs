@@ -777,6 +777,19 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        // Validate device_id: must be exactly 64 lowercase hex characters
+                        if params.device_id.len() != 64
+                            || !params.device_id.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "invalid device_id",
+                            )
+                            .await;
+                            continue;
+                        }
                         match state
                             .inner
                             .store

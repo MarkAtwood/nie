@@ -1,4 +1,5 @@
 use anyhow::Result;
+use sha2::{Digest, Sha256};
 use chrono::Utc;
 use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use futures::StreamExt;
@@ -531,10 +532,11 @@ async fn publish_key_package(
 ) -> Result<()> {
     let kp = state.mls_client.key_package_bytes()?;
     tracing::debug!("publishing key package ({} bytes)", kp.len());
+    let device_id = format!("{:x}", Sha256::digest(&kp));
     let req = JsonRpcRequest::new(
         next_request_id(),
         rpc_methods::PUBLISH_KEY_PACKAGE,
-        PublishKeyPackageParams { data: kp },
+        PublishKeyPackageParams { device_id, data: kp },
     )
     .map_err(anyhow::Error::from)?;
     if tx.send(req).await.is_err() {

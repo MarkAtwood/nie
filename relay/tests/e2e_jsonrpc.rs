@@ -17,8 +17,8 @@ use nie_core::{
     protocol::{
         rpc_errors, rpc_methods, BroadcastParams, DeliverParams, GroupAddParams, GroupCreateParams,
         GroupCreateResult, GroupDeliverParams, GroupSendParams, GroupSendResult,
-        JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, SetNicknameParams,
-        SubscribeInvoiceResult, SubscribeRequestParams,
+        JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, PublishKeyPackageParams,
+        SetNicknameParams, SubscribeInvoiceResult, SubscribeRequestParams,
     },
     transport::{self, next_request_id, ClientEvent},
 };
@@ -906,5 +906,67 @@ async fn display_name_canonicalization() {
     assert!(
         !result.group_id.is_empty(),
         "group_id must be non-empty after ZWS-stripped GROUP_CREATE"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Test 9: publish_key_package_rejects_malformed_device_id
+// ---------------------------------------------------------------------------
+
+/// PUBLISH_KEY_PACKAGE with a malformed device_id must receive an
+/// INVALID_REQUEST error, not a success response.
+///
+/// Oracle:
+/// - rpc_errors::INVALID_REQUEST == -32600 (JSON-RPC 2.0 spec §5)
+/// - A valid device_id is exactly 64 lowercase hex characters; "notvalidhex"
+///   fails both length and character constraints.
+/// - The relay must return an error response (resp.error.is_some()) rather
+///   than ok: true.
+#[tokio::test]
+async fn publish_key_package_rejects_malformed_device_id() {
+    let relay_url = spawn_relay().await;
+
+    let alice = Identity::generate();
+    let mut alice_conn = transport::connect(&relay_url, &alice, false, None)
+        .await
+        .expect("alice connect");
+
+    wait_for_directory_list(&mut alice_conn.rx).await;
+
+    let req = JsonRpcRequest::new(
+        next_request_id(),
+        rpc_methods::PUBLISH_KEY_PACKAGE,
+        PublishKeyPackageParams {
+            device_id: "notvalidhex".to_string(),
+            data: vec![1, 2, 3],
+        },
+    )
+    .expect("PublishKeyPackageParams must serialize");
+    let req_id = req.id;
+
+    alice_conn
+        .tx
+        .send(req)
+        .await
+        .expect("alice send PUBLISH_KEY_PACKAGE with malformed device_id");
+
+    let resp = wait_for_response(&mut alice_conn.rx).await;
+
+    assert_eq!(resp.id, req_id, "response id must match request id");
+    assert!(
+        resp.result.is_none(),
+        "error response must not have a result field, got: {:?}",
+        resp.result
+    );
+
+    let error = resp
+        .error
+        .expect("PUBLISH_KEY_PACKAGE with malformed device_id must return an error");
+
+    assert_eq!(
+        error.code,
+        rpc_errors::INVALID_REQUEST,
+        "malformed device_id must yield INVALID_REQUEST (-32600), got: {}",
+        error.code
     );
 }

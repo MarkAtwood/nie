@@ -261,6 +261,7 @@ pub struct GetKeyPackageResult {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublishKeyPackageParams {
+    pub device_id: String,
     #[serde_as(as = "Base64")]
     pub data: Vec<u8>,
 }
@@ -723,5 +724,36 @@ mod tests {
                 "method must use underscore not hyphen: {method}"
             );
         }
+    }
+
+    #[test]
+    fn publish_key_package_params_device_id_roundtrip() {
+        // Verify device_id serializes as a JSON string key and survives a roundtrip.
+        // Oracle: serde_json produces {"device_id":"aaa...","data":"AQID"} —
+        // the key name and string type are serde_json invariants, not derived
+        // from the code under test. base64([1,2,3]) = "AQID" per RFC 4648
+        // (verified with: python3 -c "import base64; print(base64.b64encode(bytes([1,2,3])).decode())")
+        let device_id = "a".repeat(64);
+        let params = PublishKeyPackageParams {
+            device_id: device_id.clone(),
+            data: vec![1, 2, 3],
+        };
+        let json = serde_json::to_string(&params).unwrap();
+        assert!(
+            json.contains("\"device_id\""),
+            "expected device_id key in JSON, got: {json}"
+        );
+        assert!(
+            json.contains(&format!("\"{}\"", "a".repeat(64))),
+            "expected device_id value in JSON, got: {json}"
+        );
+        // data: [1,2,3] → base64 = "AQID" (RFC 4648 external fact)
+        assert!(
+            json.contains("\"AQID\""),
+            "expected base64 data \"AQID\" in JSON, got: {json}"
+        );
+        let decoded: PublishKeyPackageParams = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.device_id, device_id);
+        assert_eq!(decoded.data, vec![1, 2, 3]);
     }
 }

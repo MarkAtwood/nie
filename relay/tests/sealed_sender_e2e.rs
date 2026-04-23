@@ -14,6 +14,7 @@
 //! and plaintext are external constants supplied by the test; they are not
 //! derived from any code path under test.
 
+use sha2::{Digest, Sha256};
 use std::time::Duration;
 
 use axum::{routing::get, Router};
@@ -146,10 +147,11 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
 
     // Step 4a: Bob publishes his key package.
     let bob_kp_bytes = bob_mls.key_package_bytes().expect("bob key_package_bytes");
+    let device_id = format!("{:x}", Sha256::digest(&bob_kp_bytes));
     let pub_kp_req = JsonRpcRequest::new(
         next_request_id(),
         rpc_methods::PUBLISH_KEY_PACKAGE,
-        PublishKeyPackageParams { data: bob_kp_bytes },
+        PublishKeyPackageParams { device_id, data: bob_kp_bytes },
     )
     .expect("PublishKeyPackageParams must serialize");
     bob_conn.tx.send(pub_kp_req).await.expect("bob publish kp");
