@@ -18,8 +18,6 @@ dependencies:
   shared_preferences: ^2.2.3
   # State management.
   provider: ^6.1.2
-  # Background foreground service to keep WS alive when app is backgrounded.
-  flutter_foreground_task: ^8.9.0
 
 dev_dependencies:
   flutter_test:

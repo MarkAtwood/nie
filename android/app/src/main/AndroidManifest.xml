@@ -32,12 +32,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Foreground service: keeps the relay WebSocket alive when backgrounded -->
-        <service
-            android:name="com.praveen.flutter_foreground_task.FlutterForegroundTaskService"
-            android:foregroundServiceType="dataSync"
-            android:exported="false" />
-
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
