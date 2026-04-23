@@ -11,7 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   # FRB runtime — must match the version pinned in ffi/Cargo.toml.
-  flutter_rust_bridge: "=2.7.0"
+  flutter_rust_bridge: "2.7.0"
   # App directory paths (filesDir on Android for identity storage).
   path_provider: ^2.1.3
   # Persistent key-value storage (relay URL preference, nickname).
@@ -26,7 +26,7 @@ dev_dependencies:
     sdk: flutter
   # Generates Dart bindings from ffi/src/api/*.rs.
   # Run: flutter_rust_bridge_codegen generate --rust-input ../ffi/src/api --dart-output lib/src/rust
-  flutter_rust_bridge_codegen: "=2.7.0"
+  flutter_rust_bridge_codegen: "2.7.0"
   flutter_lints: ^3.0.1
 
 flutter:
