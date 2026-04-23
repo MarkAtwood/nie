@@ -1231,6 +1231,15 @@ pub async fn chat(
                                     }
                                 }
                             }
+                            Ok(
+                                ClearMessage::PeerDeliver { .. }
+                                | ClearMessage::PeerReceipt { .. }
+                                | ClearMessage::PeerTyping { .. }
+                                | ClearMessage::PeerRetract { .. }
+                                | ClearMessage::PeerGroupUpdate { .. },
+                            ) => {
+                                // Federation variants handled by nie-daemon, not the CLI.
+                            }
                             Err(_) => {
                                 // Legacy raw UTF-8 from pre-ClearMessage clients.
                                 let text = String::from_utf8_lossy(&plaintext_bytes);
@@ -1447,6 +1456,15 @@ pub async fn chat(
                                         }
                                     }
                                 }
+                            }
+                            Ok(
+                                ClearMessage::PeerDeliver { .. }
+                                | ClearMessage::PeerReceipt { .. }
+                                | ClearMessage::PeerTyping { .. }
+                                | ClearMessage::PeerRetract { .. }
+                                | ClearMessage::PeerGroupUpdate { .. },
+                            ) => {
+                                // Federation variants handled by nie-daemon, not the CLI.
                             }
                             Err(_) => {
                                 // Legacy raw UTF-8 from pre-ClearMessage clients.

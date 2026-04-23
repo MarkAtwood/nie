@@ -45,6 +45,42 @@ pub struct ChatRow {
     pub muted: bool,
 }
 
+#[derive(Debug)]
+pub struct SpaceRow {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug)]
+pub struct SpaceMemberRow {
+    pub space_id: String,
+    pub contact_id: String,
+    pub nick: Option<String>,
+    pub role: String,
+    pub joined_at: String,
+}
+
+#[derive(Debug)]
+pub struct SpaceInviteRow {
+    pub id: String,
+    /// User-shareable, server-assigned invite code (distinct from `id`).
+    pub code: String,
+    pub space_id: String,
+    pub created_by: String,
+    pub created_at: String,
+    pub expires_at: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct CategoryRow {
+    pub id: String,
+    pub space_id: String,
+    pub name: String,
+    pub sort_order: i64,
+}
+
 #[derive(Debug, sqlx::FromRow)]
 pub struct MessageRow {
     pub id: String,
@@ -232,6 +268,54 @@ impl Store {
                 .await?;
             tx.commit().await?;
         }
+
+        if version < 4 {
+            let mut tx = self.pool.begin().await?;
+            // space model: roles, invites, categories (nie-7ew5)
+            for stmt in &[
+                // role on space_member: admin | moderator | member
+                "ALTER TABLE space_member ADD COLUMN role TEXT NOT NULL DEFAULT 'member'",
+                // category_id on chat: optional grouping within a space
+                "ALTER TABLE chat ADD COLUMN category_id TEXT",
+            ] {
+                sqlx::query(stmt).execute(&mut *tx).await?;
+            }
+            sqlx::query(
+                "CREATE TABLE IF NOT EXISTS space_invite (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    code TEXT NOT NULL UNIQUE,
+                    space_id TEXT NOT NULL,
+                    created_by TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    expires_at TEXT
+                )",
+            )
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query(
+                "CREATE TABLE IF NOT EXISTS category (
+                    id TEXT NOT NULL PRIMARY KEY,
+                    space_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )",
+            )
+            .execute(&mut *tx)
+            .await?;
+            // Register new state token types (idempotent INSERT OR IGNORE)
+            for type_name in &["SpaceMember", "Category"] {
+                sqlx::query("INSERT OR IGNORE INTO state_version (type_name, seq) VALUES (?, 1)")
+                    .bind(type_name)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            sqlx::query("PRAGMA user_version = 4")
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+        }
+
         Ok(())
     }
 
@@ -276,12 +360,11 @@ impl Store {
 
     /// Clear displayName (set to NULL).  Returns Ok(true) if found, Ok(false) if not found.
     pub async fn clear_contact_display_name(&self, pub_id: &str) -> Result<bool> {
-        let rows =
-            sqlx::query("UPDATE chat_contact SET display_name = NULL WHERE id = ?")
-                .bind(pub_id)
-                .execute(&self.pool)
-                .await?
-                .rows_affected();
+        let rows = sqlx::query("UPDATE chat_contact SET display_name = NULL WHERE id = ?")
+            .bind(pub_id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
         if rows > 0 {
             self.bump_state_seq("ChatContact").await?;
         }
@@ -305,6 +388,382 @@ impl Store {
             .execute(&self.pool)
             .await?;
         self.bump_state_seq("Space").await?;
+        Ok(())
+    }
+
+    /// Create a space and add `creator_pub_id` as its first admin member.
+    pub async fn create_space_full(
+        &self,
+        id: &str,
+        name: &str,
+        description: Option<&str>,
+        creator_pub_id: &str,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("INSERT OR IGNORE INTO space (id, name, description) VALUES (?, ?, ?)")
+            .bind(id)
+            .bind(name)
+            .bind(description)
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO space_member (space_id, contact_id, role) VALUES (?, ?, 'admin')",
+        )
+        .bind(id)
+        .bind(creator_pub_id)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        self.bump_state_seq("Space").await?;
+        self.bump_state_seq("SpaceMember").await?;
+        Ok(())
+    }
+
+    /// Fetch spaces by IDs.  Pass `None` to return all spaces.
+    /// Returns `(found_rows, not_found_ids)`.
+    pub async fn get_spaces(&self, ids: Option<&[&str]>) -> Result<(Vec<SpaceRow>, Vec<String>)> {
+        match ids {
+            None => {
+                let rows = sqlx::query_as::<_, (String, String, Option<String>, String)>(
+                    "SELECT id, name, description, created_at FROM space ORDER BY created_at ASC",
+                )
+                .fetch_all(&self.pool)
+                .await?;
+                let spaces = rows
+                    .into_iter()
+                    .map(|(id, name, description, created_at)| SpaceRow {
+                        id,
+                        name,
+                        description,
+                        created_at,
+                    })
+                    .collect();
+                Ok((spaces, vec![]))
+            }
+            Some(ids) => {
+                let mut found = Vec::new();
+                let mut not_found = Vec::new();
+                for &id in ids {
+                    let row = sqlx::query_as::<_, (String, String, Option<String>, String)>(
+                        "SELECT id, name, description, created_at FROM space WHERE id = ?",
+                    )
+                    .bind(id)
+                    .fetch_optional(&self.pool)
+                    .await?;
+                    match row {
+                        Some((id, name, description, created_at)) => found.push(SpaceRow {
+                            id,
+                            name,
+                            description,
+                            created_at,
+                        }),
+                        None => not_found.push(id.to_string()),
+                    }
+                }
+                Ok((found, not_found))
+            }
+        }
+    }
+
+    /// Return all space IDs ordered by creation time.
+    pub async fn query_spaces(&self) -> Result<Vec<String>> {
+        Ok(
+            sqlx::query_scalar::<_, String>("SELECT id FROM space ORDER BY created_at ASC")
+                .fetch_all(&self.pool)
+                .await?,
+        )
+    }
+
+    /// Update space name and/or description.  Returns `true` if found.
+    pub async fn update_space_props(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        description: Option<&str>,
+    ) -> Result<bool> {
+        if name.is_none() && description.is_none() {
+            // Nothing to update; check existence.
+            let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM space WHERE id = ?")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
+            return Ok(exists.is_some());
+        }
+        let rows = if let Some(n) = name {
+            if let Some(d) = description {
+                sqlx::query("UPDATE space SET name = ?, description = ? WHERE id = ?")
+                    .bind(n)
+                    .bind(d)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await?
+                    .rows_affected()
+            } else {
+                sqlx::query("UPDATE space SET name = ? WHERE id = ?")
+                    .bind(n)
+                    .bind(id)
+                    .execute(&self.pool)
+                    .await?
+                    .rows_affected()
+            }
+        } else if let Some(d) = description {
+            sqlx::query("UPDATE space SET description = ? WHERE id = ?")
+                .bind(d)
+                .bind(id)
+                .execute(&self.pool)
+                .await?
+                .rows_affected()
+        } else {
+            0
+        };
+        if rows > 0 {
+            self.bump_state_seq("Space").await?;
+        }
+        Ok(rows > 0)
+    }
+
+    /// Permanently delete a space row.  Returns `true` if a row was deleted.
+    pub async fn delete_space(&self, id: &str) -> Result<bool> {
+        let rows = sqlx::query("DELETE FROM space WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("Space").await?;
+        }
+        Ok(rows > 0)
+    }
+
+    // ── SpaceMember ──────────────────────────────────────────────────────────
+
+    /// Return all members of a space.
+    pub async fn get_space_members(&self, space_id: &str) -> Result<Vec<SpaceMemberRow>> {
+        let rows = sqlx::query_as::<_, (String, String, Option<String>, String, String)>(
+            "SELECT space_id, contact_id, nick, role, joined_at
+             FROM space_member WHERE space_id = ? ORDER BY joined_at ASC",
+        )
+        .bind(space_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(
+                |(space_id, contact_id, nick, role, joined_at)| SpaceMemberRow {
+                    space_id,
+                    contact_id,
+                    nick,
+                    role,
+                    joined_at,
+                },
+            )
+            .collect())
+    }
+
+    /// Add or re-add a member with a specific role.
+    /// If already a member, updates the role.
+    pub async fn upsert_space_member_with_role(
+        &self,
+        space_id: &str,
+        contact_id: &str,
+        role: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO space_member (space_id, contact_id, role)
+             VALUES (?, ?, ?)
+             ON CONFLICT(space_id, contact_id) DO UPDATE SET role = excluded.role",
+        )
+        .bind(space_id)
+        .bind(contact_id)
+        .bind(role)
+        .execute(&self.pool)
+        .await?;
+        self.bump_state_seq("SpaceMember").await?;
+        Ok(())
+    }
+
+    /// Update a member's role.  Returns `true` if the member was found.
+    pub async fn set_member_role(
+        &self,
+        space_id: &str,
+        contact_id: &str,
+        role: &str,
+    ) -> Result<bool> {
+        let rows =
+            sqlx::query("UPDATE space_member SET role = ? WHERE space_id = ? AND contact_id = ?")
+                .bind(role)
+                .bind(space_id)
+                .bind(contact_id)
+                .execute(&self.pool)
+                .await?
+                .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("SpaceMember").await?;
+        }
+        Ok(rows > 0)
+    }
+
+    /// Remove a member from a space.  Returns `true` if a row was deleted.
+    pub async fn remove_space_member(&self, space_id: &str, contact_id: &str) -> Result<bool> {
+        let rows = sqlx::query("DELETE FROM space_member WHERE space_id = ? AND contact_id = ?")
+            .bind(space_id)
+            .bind(contact_id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("SpaceMember").await?;
+        }
+        Ok(rows > 0)
+    }
+
+    // ── SpaceInvite ───────────────────────────────────────────────────────────
+
+    /// Create a new invite with a server-assigned id and code.
+    /// `id` and `code` are generated by the caller (both must be unique).
+    pub async fn create_space_invite(
+        &self,
+        id: &str,
+        code: &str,
+        space_id: &str,
+        created_by: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO space_invite (id, code, space_id, created_by) VALUES (?, ?, ?, ?)",
+        )
+        .bind(id)
+        .bind(code)
+        .bind(space_id)
+        .bind(created_by)
+        .execute(&self.pool)
+        .await?;
+        self.bump_state_seq("SpaceInvite").await?;
+        Ok(())
+    }
+
+    /// Fetch invites by IDs.  Pass `None` to return all invites.
+    pub async fn get_space_invites(
+        &self,
+        ids: Option<&[&str]>,
+    ) -> Result<(Vec<SpaceInviteRow>, Vec<String>)> {
+        match ids {
+            None => {
+                let rows =
+                    sqlx::query_as::<_, (String, String, String, String, String, Option<String>)>(
+                        "SELECT id, code, space_id, created_by, created_at, expires_at
+                     FROM space_invite ORDER BY created_at ASC",
+                    )
+                    .fetch_all(&self.pool)
+                    .await?;
+                Ok((
+                    rows.into_iter().map(Self::tuple_to_invite).collect(),
+                    vec![],
+                ))
+            }
+            Some(ids) => {
+                let mut found = Vec::new();
+                let mut not_found = Vec::new();
+                for &id in ids {
+                    let row = sqlx::query_as::<
+                        _,
+                        (String, String, String, String, String, Option<String>),
+                    >(
+                        "SELECT id, code, space_id, created_by, created_at, expires_at
+                         FROM space_invite WHERE id = ?",
+                    )
+                    .bind(id)
+                    .fetch_optional(&self.pool)
+                    .await?;
+                    match row {
+                        Some(r) => found.push(Self::tuple_to_invite(r)),
+                        None => not_found.push(id.to_string()),
+                    }
+                }
+                Ok((found, not_found))
+            }
+        }
+    }
+
+    fn tuple_to_invite(
+        (id, code, space_id, created_by, created_at, expires_at): (
+            String,
+            String,
+            String,
+            String,
+            String,
+            Option<String>,
+        ),
+    ) -> SpaceInviteRow {
+        SpaceInviteRow {
+            id,
+            code,
+            space_id,
+            created_by,
+            created_at,
+            expires_at,
+        }
+    }
+
+    /// Accept an invite by its user-shareable code.
+    /// Looks up the invite, adds `user_pub_id` as a member of the space, and
+    /// returns the `space_id` on success, or `None` if the code is invalid /
+    /// expired.
+    pub async fn use_space_invite_code(
+        &self,
+        code: &str,
+        user_pub_id: &str,
+    ) -> Result<Option<String>> {
+        let row: Option<(String, Option<String>)> =
+            sqlx::query_as("SELECT space_id, expires_at FROM space_invite WHERE code = ?")
+                .bind(code)
+                .fetch_optional(&self.pool)
+                .await?;
+        let Some((space_id, expires_at)) = row else {
+            return Ok(None);
+        };
+        // Reject expired invites.
+        if let Some(exp) = &expires_at {
+            let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+            if exp.as_str() < now.as_str() {
+                return Ok(None);
+            }
+        }
+        self.upsert_space_member_with_role(&space_id, user_pub_id, "member")
+            .await?;
+        Ok(Some(space_id))
+    }
+
+    // ── Category ──────────────────────────────────────────────────────────────
+
+    /// Return all categories for a space, ordered by sort_order.
+    pub async fn get_categories(&self, space_id: &str) -> Result<Vec<CategoryRow>> {
+        let rows = sqlx::query_as::<_, (String, String, String, i64)>(
+            "SELECT id, space_id, name, sort_order FROM category WHERE space_id = ?
+             ORDER BY sort_order ASC",
+        )
+        .bind(space_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, space_id, name, sort_order)| CategoryRow {
+                id,
+                space_id,
+                name,
+                sort_order,
+            })
+            .collect())
+    }
+
+    /// Create a category in a space.
+    pub async fn create_category(&self, id: &str, space_id: &str, name: &str) -> Result<()> {
+        sqlx::query("INSERT OR IGNORE INTO category (id, space_id, name) VALUES (?, ?, ?)")
+            .bind(id)
+            .bind(space_id)
+            .bind(name)
+            .execute(&self.pool)
+            .await?;
+        self.bump_state_seq("Category").await?;
         Ok(())
     }
 
@@ -436,7 +895,10 @@ impl Store {
     ) -> Result<(Vec<ChatContactRow>, Vec<String>)> {
         match ids {
             None => {
-                let rows = sqlx::query_as::<_, (String, String, Option<String>, String, String, String, i64)>(
+                let rows = sqlx::query_as::<
+                    _,
+                    (String, String, Option<String>, String, String, String, i64),
+                >(
                     "SELECT id, login, display_name, first_seen_at, last_seen_at, presence, blocked
                      FROM chat_contact
                      ORDER BY first_seen_at ASC",
@@ -509,16 +971,15 @@ impl Store {
         } else {
             format!("WHERE {}", conditions.join(" AND "))
         };
-        let sql = format!(
-            "SELECT id FROM chat_contact {where_clause} ORDER BY first_seen_at ASC"
-        );
+        let sql = format!("SELECT id FROM chat_contact {where_clause} ORDER BY first_seen_at ASC");
         // sqlx doesn't support fully dynamic binding; use raw query with explicit branches.
         let ids: Vec<String> = match (presence, blocked) {
-            (None, None) => {
-                sqlx::query_scalar(&sql).fetch_all(&self.pool).await?
-            }
+            (None, None) => sqlx::query_scalar(&sql).fetch_all(&self.pool).await?,
             (Some(p), None) => {
-                sqlx::query_scalar(&sql).bind(p).fetch_all(&self.pool).await?
+                sqlx::query_scalar(&sql)
+                    .bind(p)
+                    .fetch_all(&self.pool)
+                    .await?
             }
             (None, Some(b)) => {
                 sqlx::query_scalar(&sql)
@@ -557,10 +1018,7 @@ impl Store {
 
     /// Fetch chats by IDs.  Pass `None` to return all chats.
     /// Returns `(found_rows, not_found_ids)`.
-    pub async fn get_chats(
-        &self,
-        ids: Option<&[&str]>,
-    ) -> Result<(Vec<ChatRow>, Vec<String>)> {
+    pub async fn get_chats(&self, ids: Option<&[&str]>) -> Result<(Vec<ChatRow>, Vec<String>)> {
         match ids {
             None => {
                 let rows = sqlx::query_as::<_, ChatTuple>(
@@ -612,10 +1070,7 @@ impl Store {
     // ── Message read/query ────────────────────────────────────────────────────
 
     /// Fetch messages by IDs.  Returns `(found_rows, not_found_ids)`.
-    pub async fn get_messages(
-        &self,
-        ids: &[&str],
-    ) -> Result<(Vec<MessageRow>, Vec<String>)> {
+    pub async fn get_messages(&self, ids: &[&str]) -> Result<(Vec<MessageRow>, Vec<String>)> {
         let mut found = Vec::new();
         let mut not_found = Vec::new();
         for &id in ids {
@@ -659,14 +1114,12 @@ impl Store {
 
     /// Count messages in a chat (for `total` in query responses).
     pub async fn count_messages_in_chat(&self, chat_id: &str) -> Result<i64> {
-        Ok(
-            sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM message WHERE chat_id = ? AND deleted_at IS NULL",
-            )
-            .bind(chat_id)
-            .fetch_one(&self.pool)
-            .await?,
+        Ok(sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM message WHERE chat_id = ? AND deleted_at IS NULL",
         )
+        .bind(chat_id)
+        .fetch_one(&self.pool)
+        .await?)
     }
 
     /// Reset unread count for a chat to zero.
@@ -696,6 +1149,25 @@ impl Store {
             self.bump_state_seq("Message").await?;
         }
         Ok(affected > 0)
+    }
+
+    /// Update the `delivery_state` column of a message by its JMAP id.
+    /// Returns `true` if the row was found.
+    pub async fn update_message_delivery_state(
+        &self,
+        msg_id: &str,
+        delivery_state: &str,
+    ) -> Result<bool> {
+        let rows = sqlx::query("UPDATE message SET delivery_state = ? WHERE id = ?")
+            .bind(delivery_state)
+            .bind(msg_id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("Message").await?;
+        }
+        Ok(rows > 0)
     }
 
     /// Hard-delete a message row entirely (no tombstone).
@@ -748,11 +1220,7 @@ impl Store {
 
     /// Remove a reaction from a message.
     /// Returns `true` if the message was found (even if the reaction_id wasn't present).
-    pub async fn remove_message_reaction(
-        &self,
-        msg_id: &str,
-        reaction_id: &str,
-    ) -> Result<bool> {
+    pub async fn remove_message_reaction(&self, msg_id: &str, reaction_id: &str) -> Result<bool> {
         let existing: Option<String> =
             sqlx::query_scalar("SELECT reactions FROM message WHERE id = ?")
                 .bind(msg_id)
@@ -779,12 +1247,11 @@ impl Store {
     /// Edit a message body.  Saves the previous body to `edit_history`.
     /// Returns `true` if the message was found.
     pub async fn edit_message_body(&self, msg_id: &str, new_body: &str) -> Result<bool> {
-        let row: Option<(String, String, String)> = sqlx::query_as(
-            "SELECT body, sent_at, edit_history FROM message WHERE id = ?",
-        )
-        .bind(msg_id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row: Option<(String, String, String)> =
+            sqlx::query_as("SELECT body, sent_at, edit_history FROM message WHERE id = ?")
+                .bind(msg_id)
+                .fetch_optional(&self.pool)
+                .await?;
         let Some((old_body, sent_at, history_json)) = row else {
             return Ok(false);
         };
@@ -810,11 +1277,10 @@ impl Store {
     /// and returns `true`.  Otherwise sets a `read_at` marker and returns `false`.
     /// Returns `Err` if the message is not found.
     pub async fn read_message(&self, msg_id: &str, read_at: &str) -> Result<bool> {
-        let row: Option<(i64,)> =
-            sqlx::query_as("SELECT burn_on_read FROM message WHERE id = ?")
-                .bind(msg_id)
-                .fetch_optional(&self.pool)
-                .await?;
+        let row: Option<(i64,)> = sqlx::query_as("SELECT burn_on_read FROM message WHERE id = ?")
+            .bind(msg_id)
+            .fetch_optional(&self.pool)
+            .await?;
         let Some((burn,)) = row else {
             anyhow::bail!("message not found: {msg_id}");
         };
@@ -851,12 +1317,7 @@ impl Store {
 
     /// Store a blob.  The blob ID is the hex-encoded SHA-256 of the content.
     /// Idempotent: if the same ID already exists, returns the existing ID without error.
-    pub async fn upsert_blob(
-        &self,
-        blob_id: &str,
-        content_type: &str,
-        data: &[u8],
-    ) -> Result<()> {
+    pub async fn upsert_blob(&self, blob_id: &str, content_type: &str, data: &[u8]) -> Result<()> {
         sqlx::query(
             "INSERT OR IGNORE INTO blob (id, content_type, size, data) VALUES (?, ?, ?, ?)",
         )

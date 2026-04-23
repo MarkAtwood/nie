@@ -53,6 +53,12 @@ pub mod rpc_methods {
     pub const GROUP_LEAVE: &str = "group_leave";
     pub const GROUP_LIST: &str = "group_list";
     pub const GROUP_DELIVER: &str = "group_deliver";
+    /// Client→Relay: sender is typing (or stopped typing) in the chat room.
+    /// Relay fans out a `typing_notify` to all other connected clients (ephemeral,
+    /// never stored).
+    pub const TYPING: &str = "typing";
+    /// Relay→Client notification: another user started or stopped typing.
+    pub const TYPING_NOTIFY: &str = "typing_notify";
 }
 
 // ---------------------------------------------------------------------------
@@ -453,6 +459,22 @@ pub struct GroupDeliverParams {
     pub group_id: String,
     #[serde_as(as = "Base64")]
     pub payload: Vec<u8>,
+}
+
+/// Sent by a client to the relay to broadcast a typing-indicator change.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypingParams {
+    /// `true` = user started typing; `false` = user stopped typing.
+    pub typing: bool,
+}
+
+/// Relay-to-client notification: another peer's typing state changed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypingNotifyParams {
+    /// The pub_id of the user whose typing state changed.
+    pub from: String,
+    /// `true` = started typing; `false` = stopped typing.
+    pub typing: bool,
 }
 
 #[cfg(test)]

@@ -5,7 +5,7 @@ use nie_core::{
     mls::MlsClient,
     protocol::{
         rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcNotification,
-        UserJoinedParams, UserLeftParams,
+        TypingNotifyParams, UserJoinedParams, UserLeftParams,
     },
     transport::{self, ClientEvent},
 };
@@ -171,45 +171,62 @@ async fn dispatch_notification(
                 Ok(Some(pair)) => pair,
             };
 
-            let text = match serde_json::from_slice::<ClearMessage>(&plaintext) {
-                Ok(ClearMessage::Chat { text }) => text,
+            match serde_json::from_slice::<ClearMessage>(&plaintext) {
+                Ok(ClearMessage::Chat { text }) => {
+                    dispatch_broadcast_chat(state, sender_pub_id, text).await;
+                }
+                Ok(ClearMessage::PeerDeliver {
+                    message_id,
+                    chat_id,
+                    body,
+                    body_type: _,
+                    sent_at,
+                    reply_to,
+                    thread_root_id,
+                }) => {
+                    dispatch_peer_deliver(
+                        state,
+                        sender_pub_id,
+                        message_id,
+                        chat_id,
+                        body,
+                        sent_at,
+                        reply_to,
+                        thread_root_id,
+                    )
+                    .await;
+                }
+                Ok(ClearMessage::PeerReceipt {
+                    message_id,
+                    receipt_type,
+                    at,
+                }) => {
+                    dispatch_peer_receipt(state, sender_pub_id, message_id, receipt_type, at).await;
+                }
+                Ok(ClearMessage::PeerTyping { chat_id, typing }) => {
+                    dispatch_peer_typing(state, sender_pub_id, chat_id, typing);
+                }
+                Ok(ClearMessage::PeerRetract {
+                    message_id,
+                    for_all,
+                }) => {
+                    dispatch_peer_retract(state, message_id, for_all).await;
+                }
+                Ok(ClearMessage::PeerGroupUpdate {
+                    space_id,
+                    action,
+                    contact_id,
+                    role,
+                }) => {
+                    dispatch_peer_group_update(state, space_id, action, contact_id, role).await;
+                }
                 Ok(_) => {
-                    tracing::debug!("broadcast: ignoring non-chat ClearMessage type");
-                    return;
+                    tracing::debug!("broadcast: ignoring non-federated ClearMessage type");
                 }
                 Err(e) => {
                     tracing::warn!("broadcast: failed to deserialize ClearMessage: {e}");
-                    return;
                 }
             };
-
-            let message_id = uuid::Uuid::new_v4().to_string();
-            let now = utc_now();
-
-            // Persist to the JMAP store if bootstrap has completed.
-            let Some(store) = state.store() else {
-                tracing::warn!("broadcast: store not initialized, dropping message");
-                return;
-            };
-            let Some(channel_id) = state.default_channel_id() else {
-                tracing::warn!("broadcast: default channel not initialized, dropping message");
-                return;
-            };
-            if let Err(e) = store
-                .insert_message(channel_id, &sender_pub_id, &text, &now)
-                .await
-            {
-                tracing::warn!("broadcast: failed to insert message into store: {e}");
-                return;
-            }
-
-            state.broadcast_event(DaemonEvent::MessageReceived {
-                from_display_name: display_name_for(&sender_pub_id),
-                from: sender_pub_id,
-                text,
-                timestamp: now,
-                message_id,
-            });
         }
 
         rpc_methods::DIRECTORY_LIST => {
@@ -352,6 +369,24 @@ async fn dispatch_notification(
             });
         }
 
+        rpc_methods::TYPING_NOTIFY => {
+            let p: TypingNotifyParams =
+                match serde_json::from_value(notif.params.unwrap_or(serde_json::Value::Null)) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!("failed to parse typing_notify params: {e}");
+                        return;
+                    }
+                };
+            let chat_id = state.default_channel_id().unwrap_or("default").to_string();
+            state.broadcast_event(DaemonEvent::Typing {
+                from: p.from,
+                chat_id,
+                typing: p.typing,
+                timestamp: utc_now(),
+            });
+        }
+
         rpc_methods::SEALED_DELIVER | rpc_methods::SEALED_BROADCAST => {
             // Sealed messages require HPKE decrypt, not implemented in daemon v0.
             tracing::debug!("received sealed message (not decrypted in daemon v0)");
@@ -363,6 +398,122 @@ async fn dispatch_notification(
 
         other => {
             tracing::debug!("unhandled relay method: {}", other);
+        }
+    }
+}
+
+async fn dispatch_broadcast_chat(state: &DaemonState, from: String, text: String) {
+    state.broadcast_event(DaemonEvent::MessageReceived {
+        from_display_name: display_name_for(&from),
+        from,
+        text,
+        timestamp: utc_now(),
+        message_id: uuid::Uuid::new_v4().to_string(),
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn dispatch_peer_deliver(
+    state: &DaemonState,
+    from: String,
+    message_id: String,
+    chat_id: String,
+    body: String,
+    sent_at: String,
+    reply_to: Option<String>,
+    thread_root_id: Option<String>,
+) {
+    let stored_id = if let Some(store) = state.store() {
+        match store
+            .insert_message_ext(
+                &chat_id,
+                &from,
+                &body,
+                &sent_at,
+                reply_to.as_deref(),
+                thread_root_id.as_deref(),
+                None,
+                false,
+            )
+            .await
+        {
+            Ok(id) => id,
+            Err(e) => {
+                tracing::warn!("peer_deliver: insert_message_ext failed: {e}");
+                message_id
+            }
+        }
+    } else {
+        message_id
+    };
+    state.broadcast_event(DaemonEvent::MessageReceived {
+        from_display_name: display_name_for(&from),
+        from,
+        text: body,
+        timestamp: utc_now(),
+        message_id: stored_id,
+    });
+}
+
+async fn dispatch_peer_receipt(
+    state: &DaemonState,
+    _from: String,
+    message_id: String,
+    receipt_type: String,
+    _at: String,
+) {
+    if let Some(store) = state.store() {
+        if let Err(e) = store
+            .update_message_delivery_state(&message_id, &receipt_type)
+            .await
+        {
+            tracing::warn!("peer_receipt: update_message_delivery_state failed: {e}");
+        }
+    }
+}
+
+fn dispatch_peer_typing(state: &DaemonState, from: String, chat_id: String, typing: bool) {
+    state.broadcast_event(DaemonEvent::Typing {
+        from,
+        chat_id,
+        typing,
+        timestamp: utc_now(),
+    });
+}
+
+async fn dispatch_peer_retract(state: &DaemonState, message_id: String, for_all: bool) {
+    if let Some(store) = state.store() {
+        if let Err(e) = store.soft_delete_message(&message_id, for_all).await {
+            tracing::warn!("peer_retract: soft_delete_message failed: {e}");
+        }
+    }
+}
+
+async fn dispatch_peer_group_update(
+    state: &DaemonState,
+    space_id: String,
+    action: String,
+    contact_id: String,
+    role: Option<String>,
+) {
+    let Some(store) = state.store() else { return };
+    match action.as_str() {
+        "add" | "update" => {
+            let role = role.as_deref().unwrap_or("member");
+            if let Err(e) = store
+                .upsert_space_member_with_role(&space_id, &contact_id, role)
+                .await
+            {
+                tracing::warn!("peer_group_update: upsert_space_member_with_role failed: {e}");
+            }
+        }
+        "remove" => {
+            if let Err(e) = store.remove_space_member(&space_id, &contact_id).await {
+                tracing::warn!("peer_group_update: remove_space_member failed: {e}");
+            }
+        }
+        other => {
+            tracing::warn!("peer_group_update: unknown action '{other}'");
         }
     }
 }
@@ -832,6 +983,43 @@ mod tests {
         };
     }
 
+    /// TYPING_NOTIFY dispatch broadcasts a DaemonEvent::Typing with the
+    /// relay-provided `from` pub_id and the daemon's default channel_id.
+    #[tokio::test]
+    async fn test_dispatch_typing_notify() {
+        let (state, mut rx) = make_test_state();
+        // Seed a channel id so the dispatch can read it.
+        state.set_default_channel_id("chan-01".to_string());
+        let mls = make_test_mls();
+
+        let params = nie_core::protocol::TypingNotifyParams {
+            from: "d".repeat(64),
+            typing: true,
+        };
+        let notif = JsonRpcNotification {
+            version: "2.0".to_string(),
+            method: rpc_methods::TYPING_NOTIFY.to_string(),
+            params: Some(serde_json::to_value(&params).unwrap()),
+        };
+
+        dispatch_notification(notif, &state, &mls).await;
+
+        let event = rx.try_recv().expect("expected a Typing event");
+        match event {
+            DaemonEvent::Typing {
+                from,
+                chat_id,
+                typing,
+                ..
+            } => {
+                assert_eq!(from, "d".repeat(64));
+                assert_eq!(chat_id, "chan-01");
+                assert!(typing);
+            }
+            other => panic!("expected Typing, got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_display_name_for_long_pub_id() {
         let pub_id = "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890";
@@ -906,6 +1094,199 @@ mod tests {
             store.contact_presence(&pub_id).await.unwrap().as_deref(),
             Some("online"),
             "presence set to online"
+        );
+    }
+
+    // ── Peer/* dispatch function tests ───────────────────────────────────────
+
+    /// dispatch_broadcast_chat emits MessageReceived with the sender's pub_id.
+    #[tokio::test]
+    async fn test_dispatch_broadcast_chat_emits_event() {
+        let (state, mut rx) = make_test_state();
+        dispatch_broadcast_chat(&state, "a".repeat(64), "hello from broadcast".to_string()).await;
+        let event = rx.try_recv().expect("expected MessageReceived event");
+        match event {
+            DaemonEvent::MessageReceived { from, text, .. } => {
+                assert_eq!(from, "a".repeat(64));
+                assert_eq!(text, "hello from broadcast");
+            }
+            other => panic!("expected MessageReceived, got {other:?}"),
+        }
+    }
+
+    /// dispatch_peer_deliver stores the message and emits MessageReceived.
+    #[tokio::test]
+    async fn test_dispatch_peer_deliver_stores_and_emits() {
+        let store = make_memory_store().await;
+        let chat_id = "01JK0000000000000000000000";
+        store
+            .create_channel(chat_id, "general", "space-01")
+            .await
+            .unwrap();
+        let (state, mut rx) = make_state_with_store(store);
+
+        dispatch_peer_deliver(
+            &state,
+            "b".repeat(64),
+            "peer-msg-id-01".to_string(),
+            chat_id.to_string(),
+            "peer message body".to_string(),
+            "2026-04-23T10:00:00Z".to_string(),
+            None,
+            None,
+        )
+        .await;
+
+        let event = rx.try_recv().expect("expected MessageReceived event");
+        match event {
+            DaemonEvent::MessageReceived { from, text, .. } => {
+                assert_eq!(from, "b".repeat(64));
+                assert_eq!(text, "peer message body");
+            }
+            other => panic!("expected MessageReceived, got {other:?}"),
+        }
+
+        let store = state.store().unwrap();
+        assert_eq!(
+            store.count_messages_in_chat(chat_id).await.unwrap(),
+            1,
+            "message inserted into store"
+        );
+    }
+
+    /// dispatch_peer_receipt updates the delivery_state column.
+    #[tokio::test]
+    async fn test_dispatch_peer_receipt_updates_delivery_state() {
+        let store = make_memory_store().await;
+        let chat_id = "01JK0000000000000000000001";
+        store
+            .create_channel(chat_id, "general", "space-01")
+            .await
+            .unwrap();
+        let msg_id = store
+            .insert_message(chat_id, &"c".repeat(64), "body", "2026-04-23T10:00:00Z")
+            .await
+            .unwrap();
+        let (state, _rx) = make_state_with_store(store);
+
+        dispatch_peer_receipt(
+            &state,
+            "d".repeat(64),
+            msg_id.clone(),
+            "read".to_string(),
+            "2026-04-23T10:01:00Z".to_string(),
+        )
+        .await;
+
+        let store = state.store().unwrap();
+        let (rows, _) = store.get_messages(&[msg_id.as_str()]).await.unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].delivery_state, "read");
+    }
+
+    /// dispatch_peer_typing emits a Typing event with the sender's pub_id and chat_id.
+    #[tokio::test]
+    async fn test_dispatch_peer_typing_emits_event() {
+        let (state, mut rx) = make_test_state();
+        dispatch_peer_typing(&state, "e".repeat(64), "chan-peer".to_string(), true);
+        let event = rx.try_recv().expect("expected Typing event");
+        match event {
+            DaemonEvent::Typing {
+                from,
+                chat_id,
+                typing,
+                ..
+            } => {
+                assert_eq!(from, "e".repeat(64));
+                assert_eq!(chat_id, "chan-peer");
+                assert!(typing);
+            }
+            other => panic!("expected Typing, got {other:?}"),
+        }
+    }
+
+    /// dispatch_peer_retract soft-deletes the message (excluded from count).
+    #[tokio::test]
+    async fn test_dispatch_peer_retract_soft_deletes() {
+        let store = make_memory_store().await;
+        let chat_id = "01JK0000000000000000000002";
+        store
+            .create_channel(chat_id, "general", "space-01")
+            .await
+            .unwrap();
+        let msg_id = store
+            .insert_message(
+                chat_id,
+                &"f".repeat(64),
+                "retract me",
+                "2026-04-23T10:00:00Z",
+            )
+            .await
+            .unwrap();
+        let (state, _rx) = make_state_with_store(store);
+
+        dispatch_peer_retract(&state, msg_id, true).await;
+
+        let store = state.store().unwrap();
+        assert_eq!(
+            store.count_messages_in_chat(chat_id).await.unwrap(),
+            0,
+            "soft-deleted message excluded from count"
+        );
+    }
+
+    /// dispatch_peer_group_update add action inserts space member.
+    #[tokio::test]
+    async fn test_dispatch_peer_group_update_add() {
+        let store = make_memory_store().await;
+        let space_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        store.create_space(space_id, "test").await.unwrap();
+        let (state, _rx) = make_state_with_store(store);
+
+        dispatch_peer_group_update(
+            &state,
+            space_id.to_string(),
+            "add".to_string(),
+            "g".repeat(64),
+            Some("admin".to_string()),
+        )
+        .await;
+
+        let store = state.store().unwrap();
+        assert_eq!(
+            store.space_member_count(space_id).await.unwrap(),
+            1,
+            "member added"
+        );
+    }
+
+    /// dispatch_peer_group_update remove action deletes space member.
+    #[tokio::test]
+    async fn test_dispatch_peer_group_update_remove() {
+        let store = make_memory_store().await;
+        let space_id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let contact_id = "h".repeat(64);
+        store.create_space(space_id, "test").await.unwrap();
+        store
+            .upsert_space_member(space_id, &contact_id)
+            .await
+            .unwrap();
+        let (state, _rx) = make_state_with_store(store);
+
+        dispatch_peer_group_update(
+            &state,
+            space_id.to_string(),
+            "remove".to_string(),
+            contact_id,
+            None,
+        )
+        .await;
+
+        let store = state.store().unwrap();
+        assert_eq!(
+            store.space_member_count(space_id).await.unwrap(),
+            0,
+            "member removed"
         );
     }
 

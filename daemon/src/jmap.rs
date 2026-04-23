@@ -15,15 +15,17 @@ use axum::{
     response::{sse, IntoResponse},
     Json,
 };
-use sha2::{Digest, Sha256};
 use nie_core::messages::ClearMessage;
-use nie_core::protocol::{rpc_methods, BroadcastParams, JsonRpcRequest};
+use nie_core::protocol::{rpc_methods, BroadcastParams, JsonRpcRequest, TypingParams};
 use nie_core::transport::next_request_id;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use subtle::ConstantTimeEq;
 use unicode_normalization::UnicodeNormalization;
+
+use ulid::Ulid;
 
 use crate::state::DaemonState;
 use crate::store::{ChatContactRow, ChatRow, MessageRow};
@@ -219,6 +221,15 @@ pub(crate) async fn dispatch_method(
         "Chat/get" => chat_get(args, state).await,
         "Chat/changes" => chat_changes(args, state).await,
         "Chat/query" => chat_query(args, state).await,
+        "Chat/typing" => chat_typing(args, state).await,
+        "Space/get" => space_get(args, state).await,
+        "Space/changes" => space_changes(args, state).await,
+        "Space/set" => space_set(args, state).await,
+        "Space/query" => space_query(args, state).await,
+        "Space/queryChanges" => space_query_changes(args, state).await,
+        "Space/join" => space_join(args, state).await,
+        "SpaceInvite/get" => space_invite_get(args, state).await,
+        "SpaceInvite/set" => space_invite_set(args, state).await,
         "Message/get" => message_get(args, state).await,
         "Message/changes" => message_changes(args, state).await,
         "Message/set" => message_set(args, state).await,
@@ -300,7 +311,8 @@ fn chat_to_json(c: &ChatRow) -> Value {
 }
 
 fn message_to_json(m: &MessageRow) -> Value {
-    let reactions: Value = serde_json::from_str(&m.reactions).unwrap_or(Value::Object(Default::default()));
+    let reactions: Value =
+        serde_json::from_str(&m.reactions).unwrap_or(Value::Object(Default::default()));
     let edit_history: Value = serde_json::from_str(&m.edit_history).unwrap_or(Value::Array(vec![]));
     serde_json::json!({
         "id": m.id,
@@ -327,16 +339,18 @@ fn message_to_json(m: &MessageRow) -> Value {
 /// 4. Trim whitespace.  5. Reject if empty or longer than 32 Unicode scalars.
 fn canonicalize_display_name(s: &str) -> Result<String, &'static str> {
     const BIDI_CONTROLS: &[char] = &[
-        '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}',
-        '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}',
-        '\u{200E}', '\u{200F}',
+        '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}', '\u{2066}', '\u{2067}',
+        '\u{2068}', '\u{2069}', '\u{200E}', '\u{200F}',
     ];
     const ZERO_WIDTH: &[char] = &['\u{200B}', '\u{200C}', '\u{2060}', '\u{FEFF}'];
     let normalized: String = s.nfc().collect();
     if normalized.chars().any(|c| BIDI_CONTROLS.contains(&c)) {
         return Err("contains bidirectional control characters");
     }
-    let stripped: String = normalized.chars().filter(|c| !ZERO_WIDTH.contains(c)).collect();
+    let stripped: String = normalized
+        .chars()
+        .filter(|c| !ZERO_WIDTH.contains(c))
+        .collect();
     let trimmed = stripped.trim().to_string();
     if trimmed.is_empty() {
         return Err("empty after canonicalization");
@@ -368,7 +382,9 @@ async fn contact_get(args: Value, state: &DaemonState) -> (String, Value) {
         ),
         _ => return method_error("invalidArguments"),
     };
-    let id_strs: Option<Vec<&str>> = ids_opt.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
+    let id_strs: Option<Vec<&str>> = ids_opt
+        .as_ref()
+        .map(|v| v.iter().map(|s| s.as_str()).collect());
 
     let state_tok = match store.state_token("ChatContact").await {
         Ok(t) => t,
@@ -458,10 +474,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                             any_update = true;
                         }
                         Ok(false) => {
-                            not_updated.insert(
-                                id.clone(),
-                                serde_json::json!({"type":"notFound"}),
-                            );
+                            not_updated.insert(id.clone(), serde_json::json!({"type":"notFound"}));
                             continue;
                         }
                         Err(e) => return server_fail(&e.to_string()),
@@ -563,8 +576,12 @@ async fn contact_query(args: Value, state: &DaemonState) -> (String, Value) {
     };
 
     let filter = args.get("filter");
-    let presence = filter.and_then(|f| f.get("presence")).and_then(|v| v.as_str());
-    let blocked = filter.and_then(|f| f.get("blocked")).and_then(|v| v.as_bool());
+    let presence = filter
+        .and_then(|f| f.get("presence"))
+        .and_then(|v| v.as_str());
+    let blocked = filter
+        .and_then(|f| f.get("blocked"))
+        .and_then(|v| v.as_bool());
 
     let query_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
@@ -603,14 +620,21 @@ async fn contact_query_changes(args: Value, state: &DaemonState) -> (String, Val
     let Some(store) = state.store() else {
         return server_fail("store not initialized");
     };
-    let since = args.get("sinceQueryState").and_then(|v| v.as_str()).unwrap_or("0");
+    let since = args
+        .get("sinceQueryState")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
     let new_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
         Err(e) => return server_fail(&e.to_string()),
     };
     let filter = args.get("filter");
-    let presence = filter.and_then(|f| f.get("presence")).and_then(|v| v.as_str());
-    let blocked = filter.and_then(|f| f.get("blocked")).and_then(|v| v.as_bool());
+    let presence = filter
+        .and_then(|f| f.get("presence"))
+        .and_then(|v| v.as_str());
+    let blocked = filter
+        .and_then(|f| f.get("blocked"))
+        .and_then(|v| v.as_bool());
     let ids = match store.query_contacts(presence, blocked).await {
         Ok(v) => v,
         Err(e) => return server_fail(&e.to_string()),
@@ -657,7 +681,9 @@ async fn chat_get(args: Value, state: &DaemonState) -> (String, Value) {
         ),
         _ => return method_error("invalidArguments"),
     };
-    let id_strs: Option<Vec<&str>> = ids_opt.as_ref().map(|v| v.iter().map(|s| s.as_str()).collect());
+    let id_strs: Option<Vec<&str>> = ids_opt
+        .as_ref()
+        .map(|v| v.iter().map(|s| s.as_str()).collect());
     let state_tok = match store.state_token("Chat").await {
         Ok(t) => t,
         Err(e) => return server_fail(&e.to_string()),
@@ -684,7 +710,10 @@ async fn chat_changes(args: Value, state: &DaemonState) -> (String, Value) {
     let Some(store) = state.store() else {
         return server_fail("store not initialized");
     };
-    let since_state = args.get("sinceState").and_then(|v| v.as_str()).unwrap_or("0");
+    let since_state = args
+        .get("sinceState")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
     let new_state = match store.state_token("Chat").await {
         Ok(t) => t,
         Err(e) => return server_fail(&e.to_string()),
@@ -729,7 +758,10 @@ async fn chat_query(args: Value, state: &DaemonState) -> (String, Value) {
         Err(e) => return server_fail(&e.to_string()),
     };
     // Optional kind filter
-    let kind_filter = args.get("filter").and_then(|f| f.get("kind")).and_then(|v| v.as_str());
+    let kind_filter = args
+        .get("filter")
+        .and_then(|f| f.get("kind"))
+        .and_then(|v| v.as_str());
     let ids: Vec<String> = all_chats
         .iter()
         .filter(|c| kind_filter.is_none_or(|k| c.kind == k))
@@ -749,6 +781,571 @@ async fn chat_query(args: Value, state: &DaemonState) -> (String, Value) {
     )
 }
 
+// ── Chat/typing handler ────────────────────────────────────────────────────────
+
+/// Chat/typing — send a typing indicator to the relay.
+///
+/// Arguments: `{ "accountId": "...", "chatId": "...", "typing": true|false }`.
+/// Forwards a `typing` JSON-RPC request to the relay (fire-and-forget); returns
+/// `["Chat/typing/reply", {}, callId]` to the caller.
+async fn chat_typing(args: Value, state: &DaemonState) -> (String, Value) {
+    if let Err(e) = validate_account_id(&args, state) {
+        return e;
+    }
+    let typing = args
+        .get("typing")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if let Some(tx) = state.relay_tx().await {
+        match JsonRpcRequest::new(
+            nie_core::transport::next_request_id(),
+            rpc_methods::TYPING,
+            TypingParams { typing },
+        ) {
+            Ok(req) => {
+                let _ = tx.send(req).await;
+            }
+            Err(e) => {
+                tracing::warn!("Chat/typing: failed to build request: {e}");
+            }
+        }
+    }
+
+    method_ok("Chat/typing", serde_json::json!({}))
+}
+
+// ── Space/* handlers (nie-7ew5) ───────────────────────────────────────────────
+
+fn space_to_json(s: &crate::store::SpaceRow, members: &[crate::store::SpaceMemberRow]) -> Value {
+    let member_list: Vec<Value> = members
+        .iter()
+        .map(|m| {
+            serde_json::json!({
+                "contactId": m.contact_id,
+                "role": m.role,
+                "nick": m.nick,
+                "joinedAt": m.joined_at,
+            })
+        })
+        .collect();
+    serde_json::json!({
+        "id": s.id,
+        "name": s.name,
+        "description": s.description,
+        "createdAt": s.created_at,
+        "memberList": member_list,
+    })
+}
+
+async fn space_get(args: Value, state: &DaemonState) -> (String, Value) {
+    let account_id = match validate_account_id(&args, state) {
+        Ok(id) => id,
+        Err(e) => return e,
+    };
+    let Some(store) = state.store() else {
+        return server_fail("store not initialized");
+    };
+    let ids_opt: Option<Vec<String>> = match args.get("ids") {
+        None | Some(Value::Null) => None,
+        Some(Value::Array(arr)) => Some(
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect(),
+        ),
+        _ => return method_error("invalidArguments"),
+    };
+    let id_strs: Option<Vec<&str>> = ids_opt
+        .as_ref()
+        .map(|v| v.iter().map(|s| s.as_str()).collect());
+    let state_tok = match store.state_token("Space").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    let (spaces, not_found) = match store.get_spaces(id_strs.as_deref()).await {
+        Ok(v) => v,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    let mut list = Vec::new();
+    for s in &spaces {
+        let members = match store.get_space_members(&s.id).await {
+            Ok(m) => m,
+            Err(e) => return server_fail(&e.to_string()),
+        };
+        list.push(space_to_json(s, &members));
+    }
+    method_ok(
+        "Space/get",
+        serde_json::json!({
+            "accountId": account_id,
+            "state": state_tok,
+            "list": list,
+            "notFound": not_found,
+        }),
+    )
+}
+
+async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
+    let account_id = match validate_account_id(&args, state) {
+        Ok(id) => id,
+        Err(e) => return e,
+    };
+    let Some(store) = state.store() else {
+        return server_fail("store not initialized");
+    };
+    let since = args
+        .get("sinceState")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
+    let new_state = match store.state_token("Space").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    let (created, updated): (Vec<String>, Vec<String>) = if since == new_state {
+        (vec![], vec![])
+    } else {
+        let ids = match store.query_spaces().await {
+            Ok(v) => v,
+            Err(e) => return server_fail(&e.to_string()),
+        };
+        (ids, vec![])
+    };
+    method_ok(
+        "Space/changes",
+        serde_json::json!({
+            "accountId": account_id,
+            "oldState": since,
+            "newState": new_state,
+            "hasMoreChanges": false,
+            "created": created,
+            "updated": updated,
+            "destroyed": [],
+        }),
+    )
+}
+
+async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
+    let account_id = match validate_account_id(&args, state) {
+        Ok(id) => id,
+        Err(e) => return e,
+    };
+    let Some(store) = state.store() else {
+        return server_fail("store not initialized");
+    };
+    let old_state = match store.state_token("Space").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+
+    let mut created = serde_json::Map::new();
+    let mut not_created = serde_json::Map::new();
+    let mut updated = serde_json::Map::new();
+    let mut not_updated = serde_json::Map::new();
+    let mut destroyed: Vec<Value> = Vec::new();
+    let mut not_destroyed = serde_json::Map::new();
+
+    // ── create ────────────────────────────────────────────────────────────
+    if let Some(Value::Object(creates)) = args.get("create") {
+        for (client_id, props) in creates {
+            let name = match props.get("name").and_then(|v| v.as_str()) {
+                Some(n) => n.to_string(),
+                None => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({"type":"invalidProperties","properties":["name"]}),
+                    );
+                    continue;
+                }
+            };
+            let description = props
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            let id = crate::store::Store::new_id();
+            match store
+                .create_space_full(&id, &name, description.as_deref(), &account_id)
+                .await
+            {
+                Ok(()) => {
+                    created.insert(client_id.clone(), serde_json::json!({ "id": id }));
+                }
+                Err(e) => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                    );
+                }
+            }
+        }
+    }
+
+    // ── update (patch) ────────────────────────────────────────────────────
+    if let Some(Value::Object(updates)) = args.get("update") {
+        for (space_id, patch) in updates {
+            if let Some(Value::Object(patch_map)) = Some(patch) {
+                let mut update_err: Option<Value> = None;
+                // Gather simple property updates
+                let new_name = patch_map.get("name").and_then(|v| v.as_str());
+                let new_desc = patch_map
+                    .get("description")
+                    .map(|v| if v.is_null() { None } else { v.as_str() })
+                    .unwrap_or(None);
+                if new_name.is_some() || new_desc.is_some() {
+                    match store.update_space_props(space_id, new_name, new_desc).await {
+                        Ok(false) => {
+                            update_err = Some(serde_json::json!({"type":"notFound"}));
+                        }
+                        Err(e) => {
+                            update_err = Some(
+                                serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                            );
+                        }
+                        Ok(true) => {}
+                    }
+                }
+                // Member patch paths: "members/<contact_id>"
+                if update_err.is_none() {
+                    for (path, value) in patch_map {
+                        if let Some(contact_id) = path.strip_prefix("members/") {
+                            if value.is_null() {
+                                // Remove member
+                                if let Err(e) =
+                                    store.remove_space_member(space_id, contact_id).await
+                                {
+                                    update_err = Some(
+                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                    );
+                                    break;
+                                }
+                            } else {
+                                // Add/update member with optional role
+                                let role = value
+                                    .get("role")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("member");
+                                if let Err(e) = store
+                                    .upsert_space_member_with_role(space_id, contact_id, role)
+                                    .await
+                                {
+                                    update_err = Some(
+                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                    );
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(err) = update_err {
+                    not_updated.insert(space_id.clone(), err);
+                } else {
+                    updated.insert(space_id.clone(), Value::Null);
+                }
+            }
+        }
+    }
+
+    // ── destroy ───────────────────────────────────────────────────────────
+    if let Some(Value::Array(ids)) = args.get("destroy") {
+        for id_val in ids {
+            if let Some(id) = id_val.as_str() {
+                match store.delete_space(id).await {
+                    Ok(true) => destroyed.push(Value::String(id.to_string())),
+                    Ok(false) => {
+                        not_destroyed
+                            .insert(id.to_string(), serde_json::json!({"type":"notFound"}));
+                    }
+                    Err(e) => {
+                        not_destroyed.insert(
+                            id.to_string(),
+                            serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    let new_state = match store.state_token("Space").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    method_ok(
+        "Space/set",
+        serde_json::json!({
+            "accountId": account_id,
+            "oldState": old_state,
+            "newState": new_state,
+            "created": created,
+            "notCreated": not_created,
+            "updated": updated,
+            "notUpdated": not_updated,
+            "destroyed": destroyed,
+            "notDestroyed": not_destroyed,
+        }),
+    )
+}
+
+async fn space_query(args: Value, state: &DaemonState) -> (String, Value) {
+    let account_id = match validate_account_id(&args, state) {
+        Ok(id) => id,
+        Err(e) => return e,
+    };
+    let Some(store) = state.store() else {
+        return server_fail("store not initialized");
+    };
+    let query_state = match store.state_token("Space").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    let ids = match store.query_spaces().await {
+        Ok(v) => v,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    let total = ids.len() as i64;
+    method_ok(
+        "Space/query",
+        serde_json::json!({
+            "accountId": account_id,
+            "queryState": query_state,
+            "canCalculateChanges": false,
+            "position": 0,
+            "ids": ids,
+            "total": total,
+        }),
+    )
+}
+
+async fn space_query_changes(args: Value, state: &DaemonState) -> (String, Value) {
+    let account_id = match validate_account_id(&args, state) {
+        Ok(id) => id,
+        Err(e) => return e,
+    };
+    let Some(store) = state.store() else {
+        return server_fail("store not initialized");
+    };
+    let since = args
+        .get("sinceQueryState")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
+    let new_state = match store.state_token("Space").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    let ids = match store.query_spaces().await {
+        Ok(v) => v,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    let total = ids.len() as i64;
+    let added: Vec<Value> = if since == new_state {
+        vec![]
+    } else {
+        ids.into_iter()
+            .enumerate()
+            .map(|(i, id)| serde_json::json!({ "index": i as i64, "id": id }))
+            .collect()
+    };
+    method_ok(
+        "Space/queryChanges",
+        serde_json::json!({
+            "accountId": account_id,
+            "oldQueryState": since,
+            "newQueryState": new_state,
+            "removed": [],
+            "added": added,
+            "total": total,
+        }),
+    )
+}
+
+/// Space/join — accept a space invite by its user-shareable code.
+///
+/// Arguments: `{ "accountId": "...", "code": "<invite-code>" }`.
+/// Adds the caller as a member of the space and returns the space ID.
+async fn space_join(args: Value, state: &DaemonState) -> (String, Value) {
+    let account_id = match validate_account_id(&args, state) {
+        Ok(id) => id,
+        Err(e) => return e,
+    };
+    let Some(store) = state.store() else {
+        return server_fail("store not initialized");
+    };
+    let code = match args.get("code").and_then(|v| v.as_str()) {
+        Some(c) => c.to_string(),
+        None => return method_error("invalidArguments"),
+    };
+    match store.use_space_invite_code(&code, &account_id).await {
+        Ok(Some(space_id)) => method_ok("Space/join", serde_json::json!({ "spaceId": space_id })),
+        Ok(None) => method_ok(
+            "error",
+            serde_json::json!({
+                "type": "invalidArguments",
+                "description": "invite code not found or expired"
+            }),
+        ),
+        Err(e) => server_fail(&e.to_string()),
+    }
+}
+
+// ── SpaceInvite/* handlers (nie-7ew5) ─────────────────────────────────────────
+
+fn space_invite_to_json(inv: &crate::store::SpaceInviteRow) -> Value {
+    serde_json::json!({
+        "id": inv.id,
+        "code": inv.code,
+        "spaceId": inv.space_id,
+        "createdBy": inv.created_by,
+        "createdAt": inv.created_at,
+        "expiresAt": inv.expires_at,
+    })
+}
+
+async fn space_invite_get(args: Value, state: &DaemonState) -> (String, Value) {
+    let account_id = match validate_account_id(&args, state) {
+        Ok(id) => id,
+        Err(e) => return e,
+    };
+    let Some(store) = state.store() else {
+        return server_fail("store not initialized");
+    };
+    let ids_opt: Option<Vec<String>> = match args.get("ids") {
+        None | Some(Value::Null) => None,
+        Some(Value::Array(arr)) => Some(
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect(),
+        ),
+        _ => return method_error("invalidArguments"),
+    };
+    let id_strs: Option<Vec<&str>> = ids_opt
+        .as_ref()
+        .map(|v| v.iter().map(|s| s.as_str()).collect());
+    let state_tok = match store.state_token("SpaceInvite").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    match store.get_space_invites(id_strs.as_deref()).await {
+        Ok((invites, not_found)) => method_ok(
+            "SpaceInvite/get",
+            serde_json::json!({
+                "accountId": account_id,
+                "state": state_tok,
+                "list": invites.iter().map(space_invite_to_json).collect::<Vec<_>>(),
+                "notFound": not_found,
+            }),
+        ),
+        Err(e) => server_fail(&e.to_string()),
+    }
+}
+
+/// SpaceInvite/set — create new invites only.
+///
+/// Server assigns both `id` and `code`; clients MUST NOT supply either.
+/// `update` always returns `forbidden` SetError per spec.
+async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
+    let account_id = match validate_account_id(&args, state) {
+        Ok(id) => id,
+        Err(e) => return e,
+    };
+    let Some(store) = state.store() else {
+        return server_fail("store not initialized");
+    };
+    let old_state = match store.state_token("SpaceInvite").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+
+    let mut created = serde_json::Map::new();
+    let mut not_created = serde_json::Map::new();
+    let mut not_updated = serde_json::Map::new();
+    let mut not_destroyed = serde_json::Map::new();
+
+    // ── create ────────────────────────────────────────────────────────────
+    if let Some(Value::Object(creates)) = args.get("create") {
+        for (client_id, props) in creates {
+            // Reject client-supplied id or code fields
+            if props.get("id").is_some() || props.get("code").is_some() {
+                not_created.insert(
+                    client_id.clone(),
+                    serde_json::json!({"type":"invalidProperties","properties":["id","code"],"description":"server assigns id and code"}),
+                );
+                continue;
+            }
+            let space_id = match props.get("spaceId").and_then(|v| v.as_str()) {
+                Some(s) => s.to_string(),
+                None => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({"type":"invalidProperties","properties":["spaceId"]}),
+                    );
+                    continue;
+                }
+            };
+            let id = crate::store::Store::new_id();
+            // Generate a short random invite code (8 chars of ULID entropy)
+            let code = Ulid::new().to_string()[..8].to_uppercase();
+            match store
+                .create_space_invite(&id, &code, &space_id, &account_id)
+                .await
+            {
+                Ok(()) => {
+                    created.insert(
+                        client_id.clone(),
+                        serde_json::json!({ "id": id, "code": code }),
+                    );
+                }
+                Err(e) => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                    );
+                }
+            }
+        }
+    }
+
+    // ── update: always forbidden ──────────────────────────────────────────
+    if let Some(Value::Object(updates)) = args.get("update") {
+        for (id, _) in updates {
+            not_updated.insert(
+                id.clone(),
+                serde_json::json!({"type":"forbidden","description":"SpaceInvite objects are immutable"}),
+            );
+        }
+    }
+
+    // ── destroy: not supported ────────────────────────────────────────────
+    if let Some(Value::Array(ids)) = args.get("destroy") {
+        for id_val in ids {
+            if let Some(id) = id_val.as_str() {
+                not_destroyed.insert(
+                    id.to_string(),
+                    serde_json::json!({"type":"forbidden","description":"SpaceInvite objects cannot be destroyed"}),
+                );
+            }
+        }
+    }
+
+    let new_state = match store.state_token("SpaceInvite").await {
+        Ok(t) => t,
+        Err(e) => return server_fail(&e.to_string()),
+    };
+    method_ok(
+        "SpaceInvite/set",
+        serde_json::json!({
+            "accountId": account_id,
+            "oldState": old_state,
+            "newState": new_state,
+            "created": created,
+            "notCreated": not_created,
+            "updated": {},
+            "notUpdated": not_updated,
+            "destroyed": [],
+            "notDestroyed": not_destroyed,
+        }),
+    )
+}
+
 // ── Message/* handlers (nie-ib2s) ─────────────────────────────────────────────
 
 async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
@@ -760,7 +1357,10 @@ async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
         return server_fail("store not initialized");
     };
     let ids: Vec<String> = match args.get("ids") {
-        Some(Value::Array(arr)) => arr.iter().filter_map(|v| v.as_str().map(String::from)).collect(),
+        Some(Value::Array(arr)) => arr
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect(),
         _ => return method_error("invalidArguments"),
     };
     let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
@@ -790,7 +1390,10 @@ async fn message_changes(args: Value, state: &DaemonState) -> (String, Value) {
     let Some(store) = state.store() else {
         return server_fail("store not initialized");
     };
-    let since_state = args.get("sinceState").and_then(|v| v.as_str()).unwrap_or("0");
+    let since_state = args
+        .get("sinceState")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
     let new_state = match store.state_token("Message").await {
         Ok(t) => t,
         Err(e) => return server_fail(&e.to_string()),
@@ -867,7 +1470,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
             };
 
             // Optional fields
-            let reply_to = props.get("replyTo").and_then(|v| v.as_str()).map(String::from);
+            let reply_to = props
+                .get("replyTo")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             let thread_root_id = props
                 .get("threadRootId")
                 .and_then(|v| v.as_str())
@@ -938,10 +1544,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                         let res = if value.is_null() {
                             store.remove_message_reaction(msg_id, reaction_id).await
                         } else {
-                            let emoji = value
-                                .get("emoji")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("?");
+                            let emoji = value.get("emoji").and_then(|v| v.as_str()).unwrap_or("?");
                             let sent_at = value
                                 .get("sentAt")
                                 .and_then(|v| v.as_str())
@@ -956,7 +1559,9 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                 break;
                             }
                             Err(e) => {
-                                update_err = Some(serde_json::json!({"type":"serverFail","description":e.to_string()}));
+                                update_err = Some(
+                                    serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                );
                                 break;
                             }
                             Ok(true) => {}
@@ -969,7 +1574,9 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                     break;
                                 }
                                 Err(e) => {
-                                    update_err = Some(serde_json::json!({"type":"serverFail","description":e.to_string()}));
+                                    update_err = Some(
+                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                    );
                                     break;
                                 }
                                 Ok(true) => {}
@@ -983,7 +1590,9 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                     break;
                                 }
                                 Err(e) => {
-                                    update_err = Some(serde_json::json!({"type":"serverFail","description":e.to_string()}));
+                                    update_err = Some(
+                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                    );
                                     break;
                                 }
                                 Ok(true) => {}
@@ -992,7 +1601,9 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                     } else if path == "readAt" {
                         if let Some(ts) = value.as_str() {
                             if let Err(e) = store.read_message(msg_id, ts).await {
-                                update_err = Some(serde_json::json!({"type":"serverFail","description":e.to_string()}));
+                                update_err = Some(
+                                    serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                );
                                 break;
                             }
                         }
@@ -1015,10 +1626,8 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 match store.hard_delete_message(id).await {
                     Ok(true) => destroyed.push(Value::String(id.to_string())),
                     Ok(false) => {
-                        not_destroyed.insert(
-                            id.to_string(),
-                            serde_json::json!({"type":"notFound"}),
-                        );
+                        not_destroyed
+                            .insert(id.to_string(), serde_json::json!({"type":"notFound"}));
                     }
                     Err(e) => {
                         not_destroyed.insert(
@@ -1062,7 +1671,11 @@ async fn message_query(args: Value, state: &DaemonState) -> (String, Value) {
     };
 
     // chatId filter is REQUIRED — return unsupportedFilter if absent.
-    let chat_id = match args.get("filter").and_then(|f| f.get("chatId")).and_then(|v| v.as_str()) {
+    let chat_id = match args
+        .get("filter")
+        .and_then(|f| f.get("chatId"))
+        .and_then(|v| v.as_str())
+    {
         Some(id) => id.to_string(),
         None => {
             return method_ok(
@@ -1113,7 +1726,11 @@ async fn message_query_changes(args: Value, state: &DaemonState) -> (String, Val
         return server_fail("store not initialized");
     };
     // chatId filter is REQUIRED
-    let chat_id = match args.get("filter").and_then(|f| f.get("chatId")).and_then(|v| v.as_str()) {
+    let chat_id = match args
+        .get("filter")
+        .and_then(|f| f.get("chatId"))
+        .and_then(|v| v.as_str())
+    {
         Some(id) => id.to_string(),
         None => {
             return method_ok(
@@ -1122,7 +1739,10 @@ async fn message_query_changes(args: Value, state: &DaemonState) -> (String, Val
             )
         }
     };
-    let since = args.get("sinceQueryState").and_then(|v| v.as_str()).unwrap_or("0");
+    let since = args
+        .get("sinceQueryState")
+        .and_then(|v| v.as_str())
+        .unwrap_or("0");
     let new_state = match store.state_token("Message").await {
         Ok(t) => t,
         Err(e) => return server_fail(&e.to_string()),
@@ -1215,11 +1835,9 @@ pub async fn handle_jmap_download(
         return StatusCode::SERVICE_UNAVAILABLE.into_response();
     };
     match store.get_blob(&blob_id).await {
-        Ok(Some((content_type, data))) => (
-            [(header::CONTENT_TYPE, content_type)],
-            data,
-        )
-            .into_response(),
+        Ok(Some((content_type, data))) => {
+            ([(header::CONTENT_TYPE, content_type)], data).into_response()
+        }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => {
             tracing::warn!("blob download: {e}");
@@ -1250,14 +1868,39 @@ struct SseState {
     done: bool,
 }
 
-/// Map a `DaemonEvent` to an SSE `state` event per RFC 8620 §7.3.
+/// Map a `DaemonEvent` to an SSE event per RFC 8620 §7.3.
 ///
+/// Most events produce a `state` event with updated state tokens.
+/// `DaemonEvent::Typing` produces an ephemeral `typing` event instead.
 /// Returns `None` if the event is not relevant or filtered out.
 async fn daemon_event_to_jmap_event(
     event: &DaemonEvent,
     daemon_state: &DaemonState,
     types_filter: &Option<Vec<String>>,
 ) -> Option<sse::Event> {
+    // Typing indicators are ephemeral: emit a custom `typing` event rather
+    // than a `state` token update.
+    if let DaemonEvent::Typing {
+        from,
+        chat_id,
+        typing,
+        ..
+    } = event
+    {
+        if let Some(filter) = types_filter {
+            if !filter.iter().any(|f| f == "Chat" || f == "*") {
+                return None;
+            }
+        }
+        let data = serde_json::json!({
+            "senderId": from,
+            "chatId": chat_id,
+            "typing": typing,
+        })
+        .to_string();
+        return Some(sse::Event::default().event("typing").data(data));
+    }
+
     let changed_type: &str = match event {
         DaemonEvent::MessageReceived { .. } => "Message",
         DaemonEvent::UserJoined { .. }
@@ -1354,10 +1997,7 @@ pub async fn handle_jmap_eventsource(
     let sse_response = sse::Sse::new(stream);
     if ping_secs > 0 {
         sse_response
-            .keep_alive(
-                sse::KeepAlive::new()
-                    .interval(std::time::Duration::from_secs(ping_secs)),
-            )
+            .keep_alive(sse::KeepAlive::new().interval(std::time::Duration::from_secs(ping_secs)))
             .into_response()
     } else {
         sse_response.into_response()
@@ -1558,6 +2198,262 @@ mod tests {
         assert_eq!(json["@type"], "Session");
     }
 
+    // ── daemon_event_to_jmap_event: Typing ────────────────────────────────
+
+    /// Typing events produce an SSE event (not None).
+    /// The Typing branch in daemon_event_to_jmap_event must return Some.
+    #[tokio::test]
+    async fn test_typing_event_produces_sse_event() {
+        let state = make_state();
+        let event = DaemonEvent::Typing {
+            from: "d".repeat(64),
+            chat_id: "chan-01".to_string(),
+            typing: true,
+            timestamp: "2026-04-23T10:00:00Z".to_string(),
+        };
+        let sse = daemon_event_to_jmap_event(&event, &state, &None).await;
+        assert!(sse.is_some(), "Typing event must produce an SSE event");
+    }
+
+    /// Typing events are filtered out when the types filter doesn't include Chat.
+    #[tokio::test]
+    async fn test_typing_event_filtered_by_types() {
+        let state = make_state();
+        let event = DaemonEvent::Typing {
+            from: "d".repeat(64),
+            chat_id: "chan-01".to_string(),
+            typing: false,
+            timestamp: "2026-04-23T10:00:00Z".to_string(),
+        };
+        let filter = Some(vec!["Message".to_string()]);
+        let sse = daemon_event_to_jmap_event(&event, &state, &filter).await;
+        assert!(sse.is_none(), "Typing must be filtered when types=Message");
+    }
+
+    // ── Space model tests (nie-7ew5) ──────────────────────────────────────
+
+    /// Space/set create + Space/get roundtrip.
+    #[tokio::test]
+    async fn test_space_set_create_and_get() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+
+        // Create a space
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "create": {
+                        "s1": { "name": "Test Space", "description": "A test space" }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "Space/set");
+        let space_id = result["created"]["s1"]["id"]
+            .as_str()
+            .expect("created space must have id")
+            .to_string();
+
+        // Fetch it back via Space/get
+        let req2 = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/get".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "ids": [space_id.clone()]
+                }),
+                "c2".to_string(),
+            )],
+        };
+        let Json(resp2) = handle_jmap_request(State(state.clone()), Json(req2))
+            .await
+            .unwrap();
+        let MethodResponse(method2, result2, _) = &resp2.method_responses[0];
+        assert_eq!(method2, "Space/get");
+        let list = result2["list"].as_array().expect("list must be array");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0]["id"], space_id.as_str());
+        assert_eq!(list[0]["name"], "Test Space");
+        // Creator must be in memberList with role=admin
+        let members = list[0]["memberList"].as_array().unwrap();
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0]["contactId"], pub_id.as_str());
+        assert_eq!(members[0]["role"], "admin");
+    }
+
+    /// Space/set create: missing name returns notCreated.
+    #[tokio::test]
+    async fn test_space_set_create_missing_name() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "create": { "s1": {} }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notCreated"]["s1"]["type"].as_str() == Some("invalidProperties"),
+            "missing name must return invalidProperties: {result}"
+        );
+    }
+
+    /// SpaceInvite/set create + Space/join roundtrip.
+    #[tokio::test]
+    async fn test_space_invite_create_and_join() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+
+        // Create a space first
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "create": { "s1": { "name": "Invite Space" } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let space_id = resp.method_responses[0].1["created"]["s1"]["id"]
+            .as_str()
+            .unwrap()
+            .to_string();
+
+        // Create an invite
+        let req2 = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "SpaceInvite/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "create": { "i1": { "spaceId": space_id } }
+                }),
+                "c2".to_string(),
+            )],
+        };
+        let Json(resp2) = handle_jmap_request(State(state.clone()), Json(req2))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp2.method_responses[0];
+        assert_eq!(method, "SpaceInvite/set");
+        let code = result["created"]["i1"]["code"]
+            .as_str()
+            .expect("invite must have code")
+            .to_string();
+        let invite_id = result["created"]["i1"]["id"]
+            .as_str()
+            .expect("invite must have id")
+            .to_string();
+
+        // Verify code != id (distinct fields per spec)
+        assert_ne!(code, invite_id, "code and id must be distinct");
+
+        // Use the invite via Space/join
+        let joiner = "b".repeat(64);
+        let state2 = DaemonState::new(
+            joiner.clone(),
+            "token2".to_string(),
+            None,
+            "mainnet".to_string(),
+            None,
+            state.store().map(|s| s.clone()),
+        );
+        let req3 = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/join".to_string(),
+                serde_json::json!({ "accountId": joiner, "code": code }),
+                "c3".to_string(),
+            )],
+        };
+        let Json(resp3) = handle_jmap_request(State(state2), Json(req3))
+            .await
+            .unwrap();
+        let MethodResponse(method3, result3, _) = &resp3.method_responses[0];
+        assert_eq!(method3, "Space/join", "join must succeed: {result3}");
+        assert_eq!(result3["spaceId"], space_id.as_str());
+    }
+
+    /// SpaceInvite/set update must return forbidden.
+    #[tokio::test]
+    async fn test_space_invite_update_is_forbidden() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "SpaceInvite/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { "fake-id": { "expiresAt": "2099-01-01T00:00:00Z" } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert_eq!(
+            result["notUpdated"]["fake-id"]["type"], "forbidden",
+            "update must be forbidden: {result}"
+        );
+    }
+
+    /// Space/query returns space IDs.
+    #[tokio::test]
+    async fn test_space_query() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+
+        // The bootstrapped space from make_store_state
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/query".to_string(),
+                serde_json::json!({ "accountId": pub_id }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "Space/query");
+        assert!(
+            result["ids"].as_array().is_some(),
+            "ids must be array: {result}"
+        );
+        // At least the bootstrapped space is present.
+        assert!(
+            result["total"].as_i64().unwrap_or(0) >= 1,
+            "total must be >= 1"
+        );
+    }
+
     // ── message_set tests (require in-memory store) ────────────────────────
 
     async fn make_store_state() -> DaemonState {
@@ -1674,7 +2570,10 @@ mod tests {
             .unwrap();
         let MethodResponse(method, result, _) = &resp.method_responses[0];
         assert_eq!(method, "Message/set");
-        assert!(result["updated"][&msg_id].is_null(), "updated entry must be null on success");
+        assert!(
+            result["updated"][&msg_id].is_null(),
+            "updated entry must be null on success"
+        );
 
         // Verify reaction stored
         let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
@@ -1714,7 +2613,10 @@ mod tests {
 
         // Verify deleted_at is set
         let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
-        assert!(msgs[0].deleted_at.is_some(), "deleted_at must be set after soft delete");
+        assert!(
+            msgs[0].deleted_at.is_some(),
+            "deleted_at must be set after soft delete"
+        );
     }
 
     #[tokio::test]
@@ -1756,6 +2658,9 @@ mod tests {
         let deleted = store.hard_delete_expired_messages().await.unwrap();
         assert_eq!(deleted, 1);
         let (found, _) = store.get_messages(&[&msg_id]).await.unwrap();
-        assert!(found.is_empty(), "expired message must be hard-deleted by reaper");
+        assert!(
+            found.is_empty(),
+            "expired message must be hard-deleted by reaper"
+        );
     }
 }

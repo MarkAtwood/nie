@@ -84,6 +84,14 @@ fn dispatch_payload(from: &str, payload: &[u8]) -> Option<BotEvent> {
             tracing::debug!("received file transfer message — not surfaced as bot event");
             None
         }
+        ClearMessage::PeerDeliver { .. }
+        | ClearMessage::PeerReceipt { .. }
+        | ClearMessage::PeerTyping { .. }
+        | ClearMessage::PeerRetract { .. }
+        | ClearMessage::PeerGroupUpdate { .. } => {
+            // Federation variants handled by nie-daemon, not the bot.
+            None
+        }
     }
 }
 

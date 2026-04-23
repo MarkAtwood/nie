@@ -795,6 +795,15 @@ async fn decrypt_and_display(
             // File transfer not yet supported in TUI.
             tracing::warn!("received file transfer message — not yet supported in TUI, ignoring");
         }
+        Ok(
+            ClearMessage::PeerDeliver { .. }
+            | ClearMessage::PeerReceipt { .. }
+            | ClearMessage::PeerTyping { .. }
+            | ClearMessage::PeerRetract { .. }
+            | ClearMessage::PeerGroupUpdate { .. },
+        ) => {
+            // Federation variants handled by nie-daemon, not the TUI.
+        }
         Err(_) => {
             state.push_message(ChatLine::System("[!] unreadable message".to_string()));
         }

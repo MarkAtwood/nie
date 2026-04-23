@@ -185,10 +185,7 @@ async fn main() -> Result<()> {
         .route("/health", get(|| async { "ok" }))
         .route("/ws/events", get(ws_events::handle_ws_events))
         // EventSource: auth done inline (browser EventSource can't set headers)
-        .route(
-            "/jmap/eventsource/",
-            get(jmap::handle_jmap_eventsource),
-        )
+        .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
         .merge(api_router)
         .layer(cors)
         .with_state(daemon_state.clone());

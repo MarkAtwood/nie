@@ -27,8 +27,9 @@ use nie_core::protocol::{
     GroupSendParams, GroupSendResult, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse,
     KeyPackageReadyParams, OkResult, PublishHpkeKeyParams, PublishKeyPackageParams,
     SealedBroadcastParams, SealedDeliverParams, SealedWhisperDeliverParams, SealedWhisperParams,
-    SetNicknameParams, SubscribeInvoiceResult, SubscribeRequestParams, UserInfo, UserJoinedParams,
-    UserLeftParams, UserNicknameParams, WhisperDeliverParams, WhisperParams,
+    SetNicknameParams, SubscribeInvoiceResult, SubscribeRequestParams, TypingNotifyParams,
+    TypingParams, UserInfo, UserJoinedParams, UserLeftParams, UserNicknameParams,
+    WhisperDeliverParams, WhisperParams,
 };
 
 /// Maximum WebSocket message size.  Chat payloads are small; 1 MiB leaves
@@ -1690,6 +1691,55 @@ async fn handle(socket: WebSocket, state: AppState) {
                         )
                         .unwrap();
                         client_tx.send(resp).await.ok();
+                    }
+
+                    rpc_methods::TYPING => {
+                        let params: TypingParams = match deserialize_params(req.params.as_ref()) {
+                            Ok(p) => p,
+                            Err(_) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_REQUEST,
+                                    "invalid params",
+                                )
+                                .await;
+                                continue;
+                            }
+                        };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // SECURITY: `from` is relay-set from authenticated pub_id.
+                        // serde_json::to_string on a derived Serialize cannot fail
+                        let notif = serde_json::to_string(
+                            &JsonRpcNotification::new(
+                                rpc_methods::TYPING_NOTIFY,
+                                TypingNotifyParams {
+                                    from: pub_id.0.clone(),
+                                    typing: params.typing,
+                                },
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
+                        state.broadcast(Some(&pub_id.0), notif).await;
+                        let ok = serde_json::to_string(
+                            &JsonRpcResponse::success(req.id, OkResult { ok: true }).unwrap(),
+                        )
+                        .unwrap();
+                        client_tx.send(ok).await.ok();
                     }
 
                     other => {

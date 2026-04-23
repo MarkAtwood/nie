@@ -60,6 +60,61 @@ pub enum ClearMessage {
         #[serde_as(as = "serde_with::base64::Base64")]
         data: Vec<u8>,
     },
+
+    // ---- Peer/* federation variants (nie-5sey / JMAP-CHAT-FED) ----
+    // These travel inside MLS-encrypted relay broadcasts.
+    // The relay cannot read them.  Receiving daemons unpack and apply them.
+    /// Peer/deliver — push a message from one daemon to another.
+    /// The `chat_id` is the channel ID in the **receiving** daemon's store.
+    PeerDeliver {
+        /// Server-assigned message ID (ULID).  Globally unique.
+        message_id: String,
+        /// Target chat (channel/DM) in the receiving daemon.
+        chat_id: String,
+        body: String,
+        body_type: String,
+        sent_at: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reply_to: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        thread_root_id: Option<String>,
+    },
+
+    /// Peer/receipt — delivery or read receipt for a previous `PeerDeliver`.
+    PeerReceipt {
+        /// The `message_id` from the original `PeerDeliver`.
+        message_id: String,
+        /// "delivered" | "read"
+        receipt_type: String,
+        at: String,
+    },
+
+    /// Peer/typing — ephemeral typing indicator.
+    PeerTyping {
+        /// Chat ID in the **receiving** daemon's store.
+        chat_id: String,
+        /// `true` = started typing; `false` = stopped typing.
+        typing: bool,
+    },
+
+    /// Peer/retract — delete a previously delivered message everywhere.
+    PeerRetract {
+        /// The `message_id` from the original `PeerDeliver`.
+        message_id: String,
+        /// If `true`, retract for all participants; if `false`, sender only.
+        for_all: bool,
+    },
+
+    /// Peer/groupUpdate — space membership change notification.
+    PeerGroupUpdate {
+        space_id: String,
+        /// "join" | "leave" | "role_change"
+        action: String,
+        contact_id: String,
+        /// New role (only set for "role_change").
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        role: Option<String>,
+    },
 }
 
 /// The four steps of P2P payment negotiation, plus an error response.

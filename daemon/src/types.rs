@@ -56,6 +56,15 @@ pub enum DaemonEvent {
         amount_zatoshi: u64,
         timestamp: String,
     },
+    Typing {
+        /// pub_id of the user who started/stopped typing.
+        from: String,
+        /// JMAP chat ID (channel) where the typing occurred.
+        chat_id: String,
+        /// `true` = started typing; `false` = stopped typing.
+        typing: bool,
+        timestamp: String,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -102,6 +111,23 @@ mod tests {
         };
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"user_joined\""), "json={json}");
+    }
+
+    #[test]
+    fn test_typing_type_tag_and_fields() {
+        // Oracle: serde tag = "typing" (snake_case of variant name), fields are stable
+        // wire contract consumed by the JMAP SSE client.
+        let event = DaemonEvent::Typing {
+            from: "a".repeat(64),
+            chat_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_string(),
+            typing: true,
+            timestamp: "2026-04-23T10:00:00Z".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"typing\""), "json={json}");
+        assert!(json.contains("\"typing\":true"), "json={json}");
+        assert!(json.contains("\"chat_id\""), "json={json}");
+        assert!(json.contains("\"from\""), "json={json}");
     }
 
     #[test]

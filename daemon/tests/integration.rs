@@ -46,10 +46,7 @@ async fn start_test_daemon() -> TestDaemon {
         .route("/api/send", post(api::handle_send))
         .route("/.well-known/jmap", get(jmap::handle_jmap_session))
         .route("/jmap", post(jmap::handle_jmap_request))
-        .route(
-            "/jmap/upload/{account_id}",
-            post(jmap::handle_jmap_upload),
-        )
+        .route("/jmap/upload/{account_id}", post(jmap::handle_jmap_upload))
         .route(
             "/jmap/download/{account_id}/{blob_id}/{name}",
             get(jmap::handle_jmap_download),
@@ -74,7 +71,11 @@ async fn start_test_daemon() -> TestDaemon {
         axum::serve(listener, app).await.unwrap();
     });
 
-    TestDaemon { addr, token, pub_id }
+    TestDaemon {
+        addr,
+        token,
+        pub_id,
+    }
 }
 
 async fn start_test_daemon_with_store() -> TestDaemon {
@@ -96,10 +97,7 @@ async fn start_test_daemon_with_store() -> TestDaemon {
         .route("/api/whoami", get(api::handle_whoami))
         .route("/.well-known/jmap", get(jmap::handle_jmap_session))
         .route("/jmap", post(jmap::handle_jmap_request))
-        .route(
-            "/jmap/upload/{account_id}",
-            post(jmap::handle_jmap_upload),
-        )
+        .route("/jmap/upload/{account_id}", post(jmap::handle_jmap_upload))
         .route(
             "/jmap/download/{account_id}/{blob_id}/{name}",
             get(jmap::handle_jmap_download),
@@ -109,9 +107,7 @@ async fn start_test_daemon_with_store() -> TestDaemon {
             token::require_token,
         ));
 
-    let app = Router::new()
-        .merge(api_router)
-        .with_state(state);
+    let app = Router::new().merge(api_router).with_state(state);
 
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -120,7 +116,11 @@ async fn start_test_daemon_with_store() -> TestDaemon {
         axum::serve(listener, app).await.unwrap();
     });
 
-    TestDaemon { addr, token, pub_id }
+    TestDaemon {
+        addr,
+        token,
+        pub_id,
+    }
 }
 
 fn http_client() -> reqwest::Client {
@@ -634,7 +634,10 @@ async fn test_blob_upload_and_download_roundtrip() {
         .unwrap();
     assert_eq!(res.status(), 201, "upload must return 201 Created");
     let body: serde_json::Value = res.json().await.unwrap();
-    let blob_id = body["blobId"].as_str().expect("blobId in response").to_string();
+    let blob_id = body["blobId"]
+        .as_str()
+        .expect("blobId in response")
+        .to_string();
     assert_eq!(body["type"].as_str().unwrap(), content_type);
     assert_eq!(body["size"].as_u64().unwrap(), content.len() as u64);
 
@@ -655,7 +658,10 @@ async fn test_blob_upload_and_download_roundtrip() {
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    assert!(ct.starts_with(content_type), "content-type must match: {ct}");
+    assert!(
+        ct.starts_with(content_type),
+        "content-type must match: {ct}"
+    );
     let bytes = res.bytes().await.unwrap();
     assert_eq!(bytes.as_ref(), content);
 }
