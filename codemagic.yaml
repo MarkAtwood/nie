@@ -7,18 +7,12 @@ workflows:
       flutter: stable
 
     scripts:
-      - name: Generate Gradle wrapper
-        script: |
-          cd android
-          gradle wrapper --gradle-version 8.7 --distribution-type bin
-          cd ..
       - name: Build Android debug APK
         script: |
-          flutter build apk --debug 2>&1 || {
-            echo "--- APK search ---"
-            find build -name "*.apk" 2>/dev/null || true
-            exit 1
-          }
+          flutter build apk --debug 2>&1; BUILD_RC=$?
+          echo "=== APK search ==="
+          find . -name "*.apk" 2>/dev/null || true
+          exit $BUILD_RC
 
     artifacts:
       - build/app/outputs/flutter-apk/app-debug.apk
