@@ -76,4 +76,23 @@ class IdentityService extends ChangeNotifier {
     final bytes = base64.decode(seedB64);
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
+
+  /// Restore identity from a 64-character lowercase hex seed string.
+  /// Throws [ArgumentError] if the hex is invalid or the wrong length.
+  Future<void> importFromSeedHex(String hex) async {
+    final cleaned = hex.trim().toLowerCase();
+    if (cleaned.length != 64) {
+      throw ArgumentError('Seed must be 64 hex characters (32 bytes); got ${cleaned.length}');
+    }
+    final bytes = List<int>.generate(32, (i) {
+      final chunk = cleaned.substring(i * 2, i * 2 + 2);
+      final value = int.tryParse(chunk, radix: 16);
+      if (value == null) throw ArgumentError('Invalid hex character at position ${i * 2}');
+      return value;
+    });
+    await _initFromSeed(bytes);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_seedKey, base64.encode(bytes));
+    notifyListeners();
+  }
 }

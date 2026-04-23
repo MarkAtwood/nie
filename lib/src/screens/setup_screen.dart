@@ -14,6 +14,7 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   final _relayController = TextEditingController();
+  final _seedHexController = TextEditingController();
   String? _pubId;
   bool _generating = false;
   bool _connecting = false;
@@ -74,6 +75,57 @@ class _SetupScreenState extends State<SetupScreen> {
     } finally {
       setState(() => _generating = false);
     }
+  }
+
+  Future<void> _restore() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Restore from seed'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Paste your 64-character hex seed:'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _seedHexController,
+              decoration: const InputDecoration(
+                hintText: 'e.g. a1b2c3d4…',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              try {
+                final ids = context.read<IdentityService>();
+                await ids.importFromSeedHex(_seedHexController.text);
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (!mounted) return;
+                setState(() {
+                  _pubId = ids.pubId;
+                  _error = null;
+                });
+              } catch (e) {
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (!mounted) return;
+                setState(() => _error = e.toString());
+              }
+            },
+            child: const Text('Restore'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _connect() async {
@@ -156,6 +208,12 @@ class _SetupScreenState extends State<SetupScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(_pubId != null ? 'Regenerate Identity' : 'Generate Identity'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _restore,
+              icon: const Icon(Icons.restore, size: 18),
+              label: const Text('Restore from seed'),
             ),
             const SizedBox(height: 24),
             TextField(
