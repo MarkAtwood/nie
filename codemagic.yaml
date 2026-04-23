@@ -9,13 +9,18 @@ workflows:
     scripts:
       - name: Build Android debug APK
         script: |
-          flutter build apk --debug 2>&1; BUILD_RC=$?
-          echo "=== APK search ==="
-          find . -name "*.apk" 2>/dev/null || true
-          exit $BUILD_RC
+          flutter build apk --debug 2>&1 || true
+          APK="android/app/build/outputs/flutter-apk/app-debug.apk"
+          if [ -f "$APK" ]; then
+            echo "APK ready: $APK"
+          else
+            echo "ERROR: APK not found at $APK"
+            find . -name "*.apk" 2>/dev/null || true
+            exit 1
+          fi
 
     artifacts:
-      - build/app/outputs/flutter-apk/app-debug.apk
+      - android/app/build/outputs/flutter-apk/app-debug.apk
 
     publishing:
       email:
@@ -34,10 +39,19 @@ workflows:
 
     scripts:
       - name: Build Android release APK
-        script: flutter build apk --release
+        script: |
+          flutter build apk --release 2>&1 || true
+          APK="android/app/build/outputs/flutter-apk/app-release.apk"
+          if [ -f "$APK" ]; then
+            echo "APK ready: $APK"
+          else
+            echo "ERROR: APK not found at $APK"
+            find . -name "*.apk" 2>/dev/null || true
+            exit 1
+          fi
 
     artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+      - android/app/build/outputs/flutter-apk/app-release.apk
 
     publishing:
       email:
