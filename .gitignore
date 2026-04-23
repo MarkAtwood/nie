@@ -23,3 +23,4 @@ AGENTS.md
 # Coordinator audit logs and agent worktrees
 audit/
 .claude/worktrees/
+.codemagic.env

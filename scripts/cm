@@ -1,0 +1,201 @@
+#!/usr/bin/env bash
+# cm — Codemagic build trigger and status poller
+#
+# Usage:
+#   cm [workflow]          trigger a build, poll until done (default: android-debug)
+#   cm status <build-id>   check status of an existing build
+#   cm cancel <build-id>   cancel a running build
+#   cm list                list recent builds
+#
+# Config (any of these):
+#   export CODEMAGIC_TOKEN=<token>
+#   export CODEMAGIC_APP_ID=<app-id>
+#
+#   Or create .codemagic.env in the repo root (gitignored):
+#     CODEMAGIC_TOKEN=...
+#     CODEMAGIC_APP_ID=...
+#
+# API token: Codemagic → account → Integrations → Codemagic API
+# App ID: visible in the URL when viewing your app in Codemagic
+
+set -euo pipefail
+
+API="https://api.codemagic.io"
+REPO_ROOT="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
+ENV_FILE="$REPO_ROOT/.codemagic.env"
+
+# Load config file if present
+if [[ -f "$ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+fi
+
+TOKEN="${CODEMAGIC_TOKEN:-}"
+APP_ID="${CODEMAGIC_APP_ID:-}"
+
+if [[ -z "$TOKEN" ]]; then
+  echo "error: CODEMAGIC_TOKEN not set" >&2
+  echo "  Set it in the environment or in $ENV_FILE" >&2
+  exit 1
+fi
+if [[ -z "$APP_ID" ]]; then
+  echo "error: CODEMAGIC_APP_ID not set" >&2
+  echo "  Set it in the environment or in $ENV_FILE" >&2
+  exit 1
+fi
+
+cmd="${1:-build}"
+shift || true
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+api_get() {
+  curl -sf -H "x-auth-token: $TOKEN" "$API/$1"
+}
+
+api_post() {
+  local path="$1"; shift
+  curl -sf -X POST -H "x-auth-token: $TOKEN" -H "Content-Type: application/json" \
+    -d "$1" "$API/$path"
+}
+
+api_delete() {
+  curl -sf -X DELETE -H "x-auth-token: $TOKEN" "$API/$1"
+}
+
+build_status_line() {
+  local build_id="$1"
+  local resp
+  resp="$(api_get "builds/$build_id")"
+  local status duration
+  status="$(echo "$resp" | python3 -c "import sys,json; b=json.load(sys.stdin)['build']; print(b['status'])")"
+  duration="$(echo "$resp" | python3 -c "import sys,json; b=json.load(sys.stdin)['build']; print(b.get('duration','?'))")"
+  echo "$status ($duration s)"
+}
+
+# ---------------------------------------------------------------------------
+# Commands
+# ---------------------------------------------------------------------------
+
+do_build() {
+  local workflow="${1:-android-debug}"
+  local branch
+  branch="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)"
+
+  echo "Triggering build: workflow=$workflow branch=$branch"
+
+  local resp
+  resp="$(api_post "builds" "{\"appId\":\"$APP_ID\",\"workflowId\":\"$workflow\",\"branch\":\"$branch\"}")"
+
+  local build_id
+  build_id="$(echo "$resp" | python3 -c "import sys,json; print(json.load(sys.stdin)['buildId'])")"
+  echo "Build ID: $build_id"
+  echo "Dashboard: https://codemagic.io/app/$APP_ID/build/$build_id"
+  echo ""
+
+  local last_status=""
+  while true; do
+    local raw
+    raw="$(api_get "builds/$build_id")"
+    local status
+    status="$(echo "$raw" | python3 -c "import sys,json; print(json.load(sys.stdin)['build']['status'])")"
+
+    if [[ "$status" != "$last_status" ]]; then
+      echo "  $(date '+%H:%M:%S')  $status"
+      last_status="$status"
+    fi
+
+    case "$status" in
+      finished)
+        echo ""
+        echo "Build finished successfully."
+        # Print artifact download URLs
+        echo "$raw" | python3 -c "
+import sys, json
+build = json.load(sys.stdin)['build']
+artifacts = build.get('artefacts', [])
+if artifacts:
+    print('Artifacts:')
+    for a in artifacts:
+        print(f\"  {a['name']}: {a['url']}\")
+else:
+    print('No artifacts found.')
+"
+        exit 0
+        ;;
+      failed|error|canceled)
+        echo ""
+        echo "Build $status."
+        echo "Logs: https://codemagic.io/app/$APP_ID/build/$build_id"
+        exit 1
+        ;;
+    esac
+
+    sleep 15
+  done
+}
+
+do_status() {
+  local build_id="${1:-}"
+  if [[ -z "$build_id" ]]; then
+    echo "usage: cm status <build-id>" >&2; exit 1
+  fi
+  local raw
+  raw="$(api_get "builds/$build_id")"
+  echo "$raw" | python3 -c "
+import sys, json
+build = json.load(sys.stdin)['build']
+print(f\"Status:    {build['status']}\")
+print(f\"Workflow:  {build.get('workflowId','?')}\")
+print(f\"Branch:    {build.get('branch','?')}\")
+print(f\"Duration:  {build.get('duration','?')}s\")
+artifacts = build.get('artefacts', [])
+if artifacts:
+    print('Artifacts:')
+    for a in artifacts:
+        print(f\"  {a['name']}: {a['url']}\")
+"
+}
+
+do_cancel() {
+  local build_id="${1:-}"
+  if [[ -z "$build_id" ]]; then
+    echo "usage: cm cancel <build-id>" >&2; exit 1
+  fi
+  api_delete "builds/$build_id" > /dev/null
+  echo "Cancelled $build_id"
+}
+
+do_list() {
+  api_get "builds?appId=$APP_ID&limit=10" | python3 -c "
+import sys, json
+builds = json.load(sys.stdin)['builds']
+for b in builds:
+    print(f\"{b['_id']}  {b['status']:<12}  {b.get('workflowId','?'):<20}  {b.get('branch','?')}\")
+"
+}
+
+# ---------------------------------------------------------------------------
+# Dispatch
+# ---------------------------------------------------------------------------
+
+case "$cmd" in
+  build|android-debug|android-release)
+    do_build "$cmd"
+    ;;
+  status)
+    do_status "${1:-}"
+    ;;
+  cancel)
+    do_cancel "${1:-}"
+    ;;
+  list)
+    do_list
+    ;;
+  *)
+    echo "usage: cm [android-debug|android-release|status <id>|cancel <id>|list]" >&2
+    exit 1
+    ;;
+esac
