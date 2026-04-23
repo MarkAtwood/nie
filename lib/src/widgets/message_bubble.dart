@@ -64,9 +64,23 @@ class MessageBubble extends StatelessWidget {
                 style: TextStyle(fontSize: 10, color: fgColor.withOpacity(0.6)),
               ),
             Text(message.text, style: TextStyle(color: fgColor)),
+            const SizedBox(height: 2),
+            Text(
+              _formatTime(message.timestamp),
+              style: TextStyle(
+                fontSize: 10,
+                color: fgColor.withValues(alpha: 0.55),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+String _formatTime(DateTime dt) {
+  final h = dt.hour.toString().padLeft(2, '0');
+  final m = dt.minute.toString().padLeft(2, '0');
+  return '$h:$m';
 }

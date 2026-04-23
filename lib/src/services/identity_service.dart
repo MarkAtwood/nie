@@ -12,7 +12,7 @@ class IdentityService extends ChangeNotifier {
   static const _seedKey = 'nie_identity_seed';
   static const _relayUrlKey = 'nie_relay_url';
   static const _nicknameKey = 'nie_nickname';
-  static const _defaultRelayUrl = 'wss://relay.example.com/ws';
+  static const _defaultRelayUrl = '';
 
   SimpleKeyPair? _keyPair;
   String? _pubId;
@@ -65,5 +65,15 @@ class IdentityService extends ChangeNotifier {
   Future<void> setNickname(String nick) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_nicknameKey, nick);
+  }
+
+  /// Returns the raw seed as a lowercase hex string for backup purposes.
+  /// Returns null if no identity is loaded.
+  Future<String?> getSeedHex() async {
+    final prefs = await SharedPreferences.getInstance();
+    final seedB64 = prefs.getString(_seedKey);
+    if (seedB64 == null) return null;
+    final bytes = base64.decode(seedB64);
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 }

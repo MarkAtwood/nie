@@ -36,6 +36,31 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Future<void> _generate() async {
+    // Warn if overwriting an existing identity.
+    if (_pubId != null) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Replace identity?'),
+          content: const Text(
+            'Generating a new identity will permanently replace the existing one. '
+            'Make sure you have a backup of your current seed before proceeding.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Replace'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+    }
+
     setState(() {
       _generating = true;
       _error = null;

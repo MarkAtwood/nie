@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../services/identity_service.dart';
 import '../services/relay_service.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/user_tile.dart';
@@ -15,6 +17,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
+  final _relayUrlController = TextEditingController();
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -34,6 +37,84 @@ class _ChatScreenState extends State<ChatScreen> {
     _inputController.clear();
     await context.read<RelayService>().sendMessage(text);
     _scrollToBottom();
+  }
+
+  Future<void> _showRelaySettings() async {
+    final identity = context.read<IdentityService>();
+    _relayUrlController.text = await identity.getRelayUrl();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Relay URL'),
+        content: TextField(
+          controller: _relayUrlController,
+          decoration: const InputDecoration(hintText: 'wss://relay.example.com/ws'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final url = _relayUrlController.text.trim();
+              await identity.setRelayUrl(url);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (!mounted) return;
+              final relay = context.read<RelayService>();
+              relay.disconnect();
+              final kp = identity.keyPair;
+              if (kp != null && url.isNotEmpty) {
+                await relay.connect(keyPair: kp, relayUrl: url);
+              }
+            },
+            child: const Text('Save & reconnect'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showSeedBackup() async {
+    final identity = context.read<IdentityService>();
+    final seedHex = await identity.getSeedHex();
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Identity backup'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Store this seed somewhere safe. Anyone with it can impersonate you.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            SelectableText(
+              seedHex ?? '(no identity)',
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: seedHex ?? ''));
+              Navigator.pop(ctx);
+            },
+            child: const Text('Copy & close'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -57,6 +138,11 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Relay settings',
+            onPressed: _showRelaySettings,
+          ),
           Builder(
             builder: (ctx) => IconButton(
               icon: const Icon(Icons.people_outline),
@@ -88,6 +174,15 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.key_outlined),
+                title: const Text('Backup identity'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showSeedBackup();
+                },
+              ),
             ],
           ),
         ),
@@ -108,12 +203,33 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
+          if (relay.typingUsers.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 16, bottom: 4),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '${_typingLabel(relay.typingUsers)} typing…',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontStyle: FontStyle.italic,
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                ),
+              ),
+            ),
           const Divider(height: 1),
           _InputBar(controller: _inputController, onSend: _send),
         ],
       ),
     );
   }
+}
+
+String _typingLabel(Set<String> users) {
+  final names = users.map((id) => id.length >= 8 ? id.substring(0, 8) : id).toList();
+  if (names.length == 1) return names[0];
+  if (names.length == 2) return '${names[0]} and ${names[1]}';
+  return '${names[0]} and ${names.length - 1} others';
 }
 
 class _ConnectionIndicator extends StatelessWidget {

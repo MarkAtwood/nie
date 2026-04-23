@@ -71,6 +71,7 @@ class RelayService extends ChangeNotifier {
   String? _pubId;
   bool _connected = false;
   bool _reconnecting = false;
+  bool _authFailed = false;
   String? _error;
   int _rpcId = 0;
 
@@ -81,6 +82,8 @@ class RelayService extends ChangeNotifier {
 
   final List<ChatMessage> _messages = [];
   final List<UserEntry> _onlineUsers = [];
+  final Set<String> _typingUsers = {};
+  final Map<String, Timer> _typingTimers = {};
 
   bool get connected => _connected;
   bool get reconnecting => _reconnecting;
@@ -89,6 +92,7 @@ class RelayService extends ChangeNotifier {
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   List<UserEntry> get onlineUsers => List.unmodifiable(_onlineUsers);
+  Set<String> get typingUsers => Set.unmodifiable(_typingUsers);
 
   // ---- Connect / disconnect ----------------------------------------------
 
@@ -99,6 +103,7 @@ class RelayService extends ChangeNotifier {
     _keyPair = keyPair;
     _relayUrl = relayUrl;
     _error = null;
+    _authFailed = false;
 
     final pub = await keyPair.extractPublicKey();
     final hash = crypto.sha256.convert(pub.bytes);
@@ -189,8 +194,17 @@ class RelayService extends ChangeNotifier {
       }
     } else if (msg.containsKey('error')) {
       final errMap = msg['error'];
+      // JSON-RPC error code -32001 = UNAUTHORIZED (auth rejected by relay).
+      // Treat this as permanent — close the socket without scheduling reconnect.
+      final errCode = errMap is Map ? (errMap['code'] as num?)?.toInt() : null;
       _error = errMap is Map ? errMap['message']?.toString() : errMap.toString();
       _connected = false;
+      if (errCode == -32001) {
+        _authFailed = true;
+        _reconnecting = false;
+        _sub?.cancel();
+        _channel?.sink.close();
+      }
       notifyListeners();
     }
   }
@@ -274,7 +288,29 @@ class RelayService extends ChangeNotifier {
           }
         }
         notifyListeners();
+
+      case 'typing_notify':
+        final from = params['from'] as String? ?? '';
+        final typing = params['typing'] as bool? ?? false;
+        _setTyping(from, typing);
     }
+  }
+
+  void _setTyping(String pubId, bool typing) {
+    _typingTimers[pubId]?.cancel();
+    if (typing) {
+      _typingUsers.add(pubId);
+      // Auto-dismiss after 4 s in case the peer's "stop typing" is lost.
+      _typingTimers[pubId] = Timer(const Duration(seconds: 4), () {
+        _typingUsers.remove(pubId);
+        _typingTimers.remove(pubId);
+        notifyListeners();
+      });
+    } else {
+      _typingUsers.remove(pubId);
+      _typingTimers.remove(pubId);
+    }
+    notifyListeners();
   }
 
   void _dispatchPayload({
@@ -317,6 +353,7 @@ class RelayService extends ChangeNotifier {
 
   void _scheduleReconnect() {
     if (_keyPair == null || _relayUrl == null) return;
+    if (_authFailed) return;
     _reconnecting = true;
     _messages.add(ChatMessage(
       from: 'system',
