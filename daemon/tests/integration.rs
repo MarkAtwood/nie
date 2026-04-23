@@ -16,7 +16,7 @@ use axum::{
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
-use nie_daemon::{api, state::DaemonState, token, web, ws_events};
+use nie_daemon::{api, jmap, state::DaemonState, token, web, ws_events};
 
 // ---------------------------------------------------------------------------
 // Test server helper
@@ -25,13 +25,14 @@ use nie_daemon::{api, state::DaemonState, token, web, ws_events};
 struct TestDaemon {
     addr: SocketAddr,
     token: String,
+    pub_id: String,
 }
 
 async fn start_test_daemon() -> TestDaemon {
     let token = "test-integration-token-abc123".to_string();
     let pub_id = "a".repeat(64);
     let state = DaemonState::new(
-        pub_id,
+        pub_id.clone(),
         token.clone(),
         Some("TestUser".to_string()),
         "mainnet".to_string(),
@@ -43,6 +44,16 @@ async fn start_test_daemon() -> TestDaemon {
         .route("/api/whoami", get(api::handle_whoami))
         .route("/api/users", get(api::handle_users))
         .route("/api/send", post(api::handle_send))
+        .route("/.well-known/jmap", get(jmap::handle_jmap_session))
+        .route("/jmap", post(jmap::handle_jmap_request))
+        .route(
+            "/jmap/upload/{account_id}",
+            post(jmap::handle_jmap_upload),
+        )
+        .route(
+            "/jmap/download/{account_id}/{blob_id}/{name}",
+            get(jmap::handle_jmap_download),
+        )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             token::require_token,
@@ -51,6 +62,7 @@ async fn start_test_daemon() -> TestDaemon {
     let app = Router::new()
         .route("/health", get(|| async { "ok" }))
         .route("/ws/events", get(ws_events::handle_ws_events))
+        .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
         .route("/", get(web::handle_index))
         .merge(api_router)
         .with_state(state);
@@ -62,7 +74,53 @@ async fn start_test_daemon() -> TestDaemon {
         axum::serve(listener, app).await.unwrap();
     });
 
-    TestDaemon { addr, token }
+    TestDaemon { addr, token, pub_id }
+}
+
+async fn start_test_daemon_with_store() -> TestDaemon {
+    let token = "test-store-token-xyz".to_string();
+    let pub_id = "c".repeat(64);
+    let store = nie_daemon::store::Store::new("sqlite::memory:")
+        .await
+        .expect("in-memory store");
+    let state = DaemonState::new(
+        pub_id.clone(),
+        token.clone(),
+        Some("StoreUser".to_string()),
+        "mainnet".to_string(),
+        None,
+        Some(store),
+    );
+
+    let api_router = Router::new()
+        .route("/api/whoami", get(api::handle_whoami))
+        .route("/.well-known/jmap", get(jmap::handle_jmap_session))
+        .route("/jmap", post(jmap::handle_jmap_request))
+        .route(
+            "/jmap/upload/{account_id}",
+            post(jmap::handle_jmap_upload),
+        )
+        .route(
+            "/jmap/download/{account_id}/{blob_id}/{name}",
+            get(jmap::handle_jmap_download),
+        )
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            token::require_token,
+        ));
+
+    let app = Router::new()
+        .merge(api_router)
+        .with_state(state);
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    TestDaemon { addr, token, pub_id }
 }
 
 fn http_client() -> reqwest::Client {
@@ -331,6 +389,8 @@ async fn test_ws_receives_broadcast_event() {
         .route("/api/whoami", get(api::handle_whoami))
         .route("/api/users", get(api::handle_users))
         .route("/api/send", post(api::handle_send))
+        .route("/.well-known/jmap", get(jmap::handle_jmap_session))
+        .route("/jmap", post(jmap::handle_jmap_request))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             token::require_token,
@@ -392,4 +452,277 @@ async fn test_ws_receives_broadcast_event() {
     );
 
     let _ = ws.close(None).await;
+}
+
+// ---------------------------------------------------------------------------
+// JMAP Core endpoints (nie-8b1t)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_jmap_session_no_auth_rejected() {
+    let d = start_test_daemon().await;
+    let res = http_client()
+        .get(format!("http://{}/.well-known/jmap", d.addr))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        res.status(),
+        401,
+        "/.well-known/jmap without token must be 401"
+    );
+}
+
+#[tokio::test]
+async fn test_jmap_session_returns_session_object() {
+    let d = start_test_daemon().await;
+    let res = http_client()
+        .get(format!("http://{}/.well-known/jmap", d.addr))
+        .header("Authorization", format!("Bearer {}", d.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(body["@type"].as_str().unwrap(), "Session");
+    assert!(
+        body["capabilities"]
+            .as_object()
+            .unwrap()
+            .contains_key("urn:ietf:params:jmap:chat"),
+        "session must advertise jmap:chat capability"
+    );
+    assert!(
+        body["apiUrl"].as_str().unwrap().ends_with("/jmap"),
+        "apiUrl must end with /jmap"
+    );
+}
+
+#[tokio::test]
+async fn test_jmap_post_no_auth_rejected() {
+    let d = start_test_daemon().await;
+    let res = http_client()
+        .post(format!("http://{}/jmap", d.addr))
+        .json(&serde_json::json!({
+            "using": ["urn:ietf:params:jmap:chat"],
+            "methodCalls": []
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 401, "/jmap POST without token must be 401");
+}
+
+#[tokio::test]
+async fn test_jmap_post_unknown_method_returns_error() {
+    let d = start_test_daemon().await;
+    let res = http_client()
+        .post(format!("http://{}/jmap", d.addr))
+        .header("Authorization", format!("Bearer {}", d.token))
+        .json(&serde_json::json!({
+            "using": ["urn:ietf:params:jmap:chat"],
+            "methodCalls": [["Foo/unknownVerb", {}, "c0"]]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert!(
+        body["sessionState"].as_str().is_some(),
+        "sessionState must be present"
+    );
+    let responses = body["methodResponses"].as_array().unwrap();
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0][0].as_str().unwrap(), "error");
+    assert_eq!(responses[0][1]["type"].as_str().unwrap(), "unknownMethod");
+    assert_eq!(responses[0][2].as_str().unwrap(), "c0");
+}
+
+#[tokio::test]
+async fn test_jmap_post_empty_batch() {
+    let d = start_test_daemon().await;
+    let res = http_client()
+        .post(format!("http://{}/jmap", d.addr))
+        .header("Authorization", format!("Bearer {}", d.token))
+        .json(&serde_json::json!({
+            "using": ["urn:ietf:params:jmap:chat"],
+            "methodCalls": []
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert_eq!(
+        body["methodResponses"].as_array().unwrap().len(),
+        0,
+        "empty batch must return empty methodResponses"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// /jmap/eventsource/ — SSE push channel
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_eventsource_no_auth_rejected() {
+    let d = start_test_daemon().await;
+    let res = http_client()
+        .get(format!(
+            "http://{}/jmap/eventsource/?types=*&closeafter=no&ping=0",
+            d.addr
+        ))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 401, "EventSource without token must be 401");
+}
+
+#[tokio::test]
+async fn test_eventsource_query_token_accepted() {
+    let d = start_test_daemon().await;
+    let res = http_client()
+        .get(format!(
+            "http://{}/jmap/eventsource/?types=*&closeafter=no&ping=0&token={}",
+            d.addr, d.token
+        ))
+        // Keep the connection short: we just want the 200 + content-type header.
+        .timeout(std::time::Duration::from_millis(300))
+        .send()
+        .await;
+    // A timeout on an open SSE stream is expected — the important thing is that
+    // the server accepted the connection (not 401) and sent text/event-stream.
+    match res {
+        Ok(r) => {
+            assert_eq!(r.status(), 200);
+            let ct = r
+                .headers()
+                .get("content-type")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            assert!(
+                ct.starts_with("text/event-stream"),
+                "content-type must be text/event-stream, got: {ct}"
+            );
+        }
+        // Timeout means server kept the stream open — connection was accepted.
+        Err(e) if e.is_timeout() => {}
+        Err(e) => panic!("unexpected error: {e}"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// /jmap/upload + /jmap/download — blob store (RFC 8620 §6)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_blob_upload_and_download_roundtrip() {
+    let d = start_test_daemon_with_store().await;
+    let content = b"hello blob world";
+    let content_type = "text/plain";
+
+    // Upload
+    let upload_url = format!("http://{}/jmap/upload/{}", d.addr, d.pub_id);
+    let res = http_client()
+        .post(&upload_url)
+        .header("Authorization", format!("Bearer {}", d.token))
+        .header("Content-Type", content_type)
+        .body(content.as_slice())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 201, "upload must return 201 Created");
+    let body: serde_json::Value = res.json().await.unwrap();
+    let blob_id = body["blobId"].as_str().expect("blobId in response").to_string();
+    assert_eq!(body["type"].as_str().unwrap(), content_type);
+    assert_eq!(body["size"].as_u64().unwrap(), content.len() as u64);
+
+    // Download
+    let download_url = format!(
+        "http://{}/jmap/download/{}/{}/hello.txt",
+        d.addr, d.pub_id, blob_id
+    );
+    let res = http_client()
+        .get(&download_url)
+        .header("Authorization", format!("Bearer {}", d.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200, "download must return 200");
+    let ct = res
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(ct.starts_with(content_type), "content-type must match: {ct}");
+    let bytes = res.bytes().await.unwrap();
+    assert_eq!(bytes.as_ref(), content);
+}
+
+#[tokio::test]
+async fn test_blob_download_not_found() {
+    let d = start_test_daemon_with_store().await;
+    let res = http_client()
+        .get(format!(
+            "http://{}/jmap/download/{}/nonexistent/file.bin",
+            d.addr, d.pub_id
+        ))
+        .header("Authorization", format!("Bearer {}", d.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 404);
+}
+
+#[tokio::test]
+async fn test_blob_upload_wrong_account_rejected() {
+    let d = start_test_daemon_with_store().await;
+    let wrong_id = "z".repeat(64);
+    let res = http_client()
+        .post(format!("http://{}/jmap/upload/{}", d.addr, wrong_id))
+        .header("Authorization", format!("Bearer {}", d.token))
+        .header("Content-Type", "text/plain")
+        .body(b"data".as_slice())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 403, "wrong accountId must be 403");
+}
+
+#[tokio::test]
+async fn test_blob_upload_deduplicates_same_content() {
+    let d = start_test_daemon_with_store().await;
+    let url = format!("http://{}/jmap/upload/{}", d.addr, d.pub_id);
+    let auth = format!("Bearer {}", d.token);
+
+    // Upload same content twice
+    let r1 = http_client()
+        .post(&url)
+        .header("Authorization", &auth)
+        .header("Content-Type", "application/octet-stream")
+        .body(b"dup-content".as_slice())
+        .send()
+        .await
+        .unwrap();
+    let r2 = http_client()
+        .post(&url)
+        .header("Authorization", &auth)
+        .header("Content-Type", "application/octet-stream")
+        .body(b"dup-content".as_slice())
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(r1.status(), 201);
+    assert_eq!(r2.status(), 201);
+    let id1 = r1.json::<serde_json::Value>().await.unwrap()["blobId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let id2 = r2.json::<serde_json::Value>().await.unwrap()["blobId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(id1, id2, "same content must produce same blobId");
 }

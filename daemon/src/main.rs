@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 
 mod api;
+mod jmap;
 mod pid;
 mod relay;
 mod state;
@@ -157,14 +158,22 @@ async fn main() -> Result<()> {
     daemon_state.set_default_space_id(space_id);
     daemon_state.set_default_channel_id(channel_id);
 
-    // Build router.  /api/* routes require Bearer token auth; other routes do
-    // not (ws/events does its own auth check inside the handler).
+    // Build router.  /api/* and JMAP routes require Bearer token auth;
+    // /health and /ws/events do their own auth.
     let api_router = Router::new()
         .route("/api/whoami", get(api::handle_whoami))
         .route("/api/users", get(api::handle_users))
         .route("/api/send", post(api::handle_send))
         .route("/api/wallet/balance", get(api::handle_wallet_balance))
         .route("/api/wallet/pay", post(api::handle_wallet_pay))
+        // JMAP Core (RFC 8620)
+        .route("/.well-known/jmap", get(jmap::handle_jmap_session))
+        .route("/jmap", post(jmap::handle_jmap_request))
+        .route("/jmap/upload/{account_id}", post(jmap::handle_jmap_upload))
+        .route(
+            "/jmap/download/{account_id}/{blob_id}/{name}",
+            get(jmap::handle_jmap_download),
+        )
         .route_layer(axum::middleware::from_fn_with_state(
             daemon_state.clone(),
             token::require_token,
@@ -175,6 +184,11 @@ async fn main() -> Result<()> {
         .route("/index.html", get(web::handle_index))
         .route("/health", get(|| async { "ok" }))
         .route("/ws/events", get(ws_events::handle_ws_events))
+        // EventSource: auth done inline (browser EventSource can't set headers)
+        .route(
+            "/jmap/eventsource/",
+            get(jmap::handle_jmap_eventsource),
+        )
         .merge(api_router)
         .layer(cors)
         .with_state(daemon_state.clone());
@@ -186,6 +200,22 @@ async fn main() -> Result<()> {
         "token stored at {}",
         data_dir.join("daemon.token").display()
     );
+
+    // Background task: hard-delete expired messages every 60 seconds.
+    let expiry_state = daemon_state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            if let Some(store) = expiry_state.store() {
+                match store.hard_delete_expired_messages().await {
+                    Ok(n) if n > 0 => tracing::info!("expiry reaper: deleted {n} expired messages"),
+                    Ok(_) => {}
+                    Err(e) => tracing::warn!("expiry reaper: {e}"),
+                }
+            }
+        }
+    });
 
     // Connect to relay if RELAY_URL is set and a keyfile exists.
     if let Ok(relay_url) = std::env::var("RELAY_URL") {

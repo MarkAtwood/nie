@@ -3,6 +3,7 @@
 
 use crate::store::Store;
 use crate::types::{DaemonEvent, UserInfo};
+use nie_core::mls::MlsClient;
 use nie_core::protocol::JsonRpcRequest;
 use nie_wallet::db::WalletStore;
 use std::sync::Arc;
@@ -24,6 +25,7 @@ struct Inner {
     wallet_store: Option<WalletStore>,
     store: Option<Store>,
     relay_tx: Mutex<Option<tokio::sync::mpsc::Sender<JsonRpcRequest>>>,
+    mls_client: Mutex<Option<Arc<Mutex<MlsClient>>>>,
     directory: Mutex<DirectoryState>,
     events_tx: broadcast::Sender<DaemonEvent>,
     default_space_id: tokio::sync::OnceCell<String>,
@@ -51,6 +53,7 @@ impl DaemonState {
             wallet_store,
             store,
             relay_tx: Mutex::new(None),
+            mls_client: Mutex::new(None),
             directory: Mutex::new(DirectoryState::default()),
             events_tx,
             default_space_id: tokio::sync::OnceCell::new(),
@@ -94,6 +97,16 @@ impl DaemonState {
     pub fn broadcast_event(&self, event: DaemonEvent) {
         // send() returns Err if no receivers — that's fine
         let _ = self.0.events_tx.send(event);
+    }
+
+    /// Store the MLS client after the relay connection is established.
+    pub async fn set_mls_client(&self, client: Arc<Mutex<MlsClient>>) {
+        *self.0.mls_client.lock().await = Some(client);
+    }
+
+    /// Get the MLS client if the relay has connected and bootstrapped MLS.
+    pub async fn mls_client(&self) -> Option<Arc<Mutex<MlsClient>>> {
+        self.0.mls_client.lock().await.clone()
     }
 
     /// Set the relay transmit channel after connection is established.

@@ -1,4 +1,5 @@
 pub mod api;
+pub mod jmap;
 pub mod relay;
 pub mod state;
 pub mod store;

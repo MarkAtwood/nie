@@ -37,6 +37,9 @@ pub async fn start_relay_connector(
     let mls_client = MlsClient::new(&identity.pub_id().0).context("create MLS client")?;
     let mls_client = Arc::new(Mutex::new(mls_client));
 
+    // Store MLS client in state so HTTP handlers (Message/set create) can encrypt.
+    state.set_mls_client(Arc::clone(&mls_client)).await;
+
     let conn = transport::connect_with_retry(relay_url.to_string(), identity, insecure, proxy);
 
     state.set_relay_tx(conn.tx).await;
