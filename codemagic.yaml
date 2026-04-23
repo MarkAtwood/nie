@@ -8,7 +8,7 @@ workflows:
 
     scripts:
       - name: Build Android debug APK
-        script: flutter build apk --debug
+        script: flutter build apk --debug --verbose 2>&1
 
     artifacts:
       - build/app/outputs/flutter-apk/app-debug.apk

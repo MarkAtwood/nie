@@ -31,8 +31,6 @@ android {
 
     sourceSets {
         main.java.srcDirs += "src/main/kotlin"
-        // Include the jniLibs directory where cargo-ndk places the .so files.
-        main.jniLibs.srcDirs += "src/main/jniLibs"
     }
 
     defaultConfig {
