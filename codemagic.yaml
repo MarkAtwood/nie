@@ -28,6 +28,13 @@ workflows:
           cargo install cargo-ndk --version "$CARGO_NDK_VERSION" --locked
           cargo install flutter_rust_bridge_codegen --version "$FRB_VERSION" --locked
 
+      - name: Generate Dart FFI bindings
+        script: |
+          source "$HOME/.cargo/env"
+          flutter_rust_bridge_codegen generate \
+            --rust-input ffi/src/api \
+            --dart-output lib/src/rust
+
       - name: Cross-compile nie-ffi for Android
         script: |
           source "$HOME/.cargo/env"
@@ -37,16 +44,6 @@ workflows:
             --target x86_64-linux-android \
             --output-dir android/app/src/main/jniLibs \
             build --release -p nie-ffi
-
-      - name: Generate Dart FFI bindings
-        script: |
-          source "$HOME/.cargo/env"
-          flutter_rust_bridge_codegen generate \
-            --rust-input ffi/src/api \
-            --dart-output lib/src/rust
-
-      - name: Flutter pub get
-        script: flutter pub get
 
       - name: Build Android debug APK
         script: flutter build apk --debug
@@ -91,6 +88,13 @@ workflows:
           cargo install cargo-ndk --version "$CARGO_NDK_VERSION" --locked
           cargo install flutter_rust_bridge_codegen --version "$FRB_VERSION" --locked
 
+      - name: Generate Dart FFI bindings
+        script: |
+          source "$HOME/.cargo/env"
+          flutter_rust_bridge_codegen generate \
+            --rust-input ffi/src/api \
+            --dart-output lib/src/rust
+
       - name: Cross-compile nie-ffi for Android
         script: |
           source "$HOME/.cargo/env"
@@ -100,16 +104,6 @@ workflows:
             --target x86_64-linux-android \
             --output-dir android/app/src/main/jniLibs \
             build --release -p nie-ffi
-
-      - name: Generate Dart FFI bindings
-        script: |
-          source "$HOME/.cargo/env"
-          flutter_rust_bridge_codegen generate \
-            --rust-input ffi/src/api \
-            --dart-output lib/src/rust
-
-      - name: Flutter pub get
-        script: flutter pub get
 
       - name: Build Android release APK
         script: flutter build apk --release

@@ -24,3 +24,4 @@ AGENTS.md
 audit/
 .claude/worktrees/
 .codemagic.env
+lib/src/rust/
