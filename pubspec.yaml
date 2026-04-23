@@ -24,10 +24,9 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  # Generates Dart bindings from ffi/src/api/*.rs.
-  # Run: flutter_rust_bridge_codegen generate --rust-input ../ffi/src/api --dart-output lib/src/rust
-  flutter_rust_bridge_codegen: "2.7.0"
   flutter_lints: ^3.0.1
+  # Note: flutter_rust_bridge_codegen is a Rust binary, not a pub package.
+  # Install it with: cargo install flutter_rust_bridge_codegen --version 2.7.0 --locked
 
 flutter:
   uses-material-design: true
