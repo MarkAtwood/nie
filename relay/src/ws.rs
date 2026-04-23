@@ -361,7 +361,7 @@ async fn handle(socket: WebSocket, state: AppState) {
     // Set up per-client channel before building the directory so the new
     // client appears as online in the list we send them.
     let (client_tx, mut client_rx) = mpsc::channel::<String>(64);
-    state.connect(&pub_id, client_tx.clone());
+    let conn_seq = state.connect(&pub_id, client_tx.clone());
 
     // Send AuthOk response (reply to the authenticate request)
     // serde_json::to_string on a derived Serialize cannot fail
@@ -377,7 +377,7 @@ async fn handle(socket: WebSocket, state: AppState) {
     )
     .unwrap();
     if sink.send(Message::Text(auth_ok.into())).await.is_err() {
-        state.disconnect(&pub_id);
+        state.disconnect(&pub_id, conn_seq);
         return;
     }
 
@@ -391,7 +391,7 @@ async fn handle(socket: WebSocket, state: AppState) {
         Ok(v) => v,
         Err(e) => {
             error!("all_users DB error for {pub_id}: {e}");
-            state.disconnect(&pub_id);
+            state.disconnect(&pub_id, conn_seq);
             return;
         }
     };
@@ -431,7 +431,7 @@ async fn handle(socket: WebSocket, state: AppState) {
     )
     .unwrap();
     if sink.send(Message::Text(dir_json.into())).await.is_err() {
-        state.disconnect(&pub_id);
+        state.disconnect(&pub_id, conn_seq);
         return;
     }
 
@@ -1677,7 +1677,7 @@ async fn handle(socket: WebSocket, state: AppState) {
     }
 
     info!("disconnected: {pub_id}");
-    state.disconnect(&pub_id);
+    state.disconnect(&pub_id, conn_seq);
 
     // Tell everyone else this user has left.
     // serde_json::to_string on a derived Serialize cannot fail

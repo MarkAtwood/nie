@@ -33,12 +33,13 @@ pub struct AppState {
 }
 
 pub struct Inner {
-    /// Live connections: pub_id → (sender channel, connection sequence number).
-    /// Sequence number is assigned monotonically on each connect; the client
+    /// Live connections: pub_id → list of (sender channel, connection sequence number).
+    /// A single pub_id may have multiple simultaneous connections.
+    /// Sequence numbers are assigned monotonically on each connect; the connection
     /// with the lowest sequence is the session admin (first connected this run).
     /// DashMap does not preserve insertion order, so callers that need admin
     /// ordering must sort by sequence number explicitly.
-    pub clients: DashMap<String, (ClientTx, u64)>,
+    pub clients: DashMap<String, Vec<(ClientTx, u64)>>,
     /// Monotonically increasing connection counter. Incremented on each connect.
     pub connection_counter: AtomicU64,
     pub store: Store,
@@ -123,43 +124,70 @@ impl AppState {
 
     /// Register a new connection. Assigns a monotonically increasing sequence
     /// number so the DirectoryList can be ordered by session connection order.
-    pub fn connect(&self, pub_id: &PubId, tx: ClientTx) {
+    /// Returns the sequence number assigned to this connection.
+    pub fn connect(&self, pub_id: &PubId, tx: ClientTx) -> u64 {
         let seq = self
             .inner
             .connection_counter
             .fetch_add(1, Ordering::Relaxed);
-        self.inner.clients.insert(pub_id.0.clone(), (tx, seq));
+        self.inner
+            .clients
+            .entry(pub_id.0.clone())
+            .or_default()
+            .push((tx, seq));
+        seq
     }
 
-    pub fn disconnect(&self, pub_id: &PubId) {
-        self.inner.clients.remove(&pub_id.0);
-        self.inner.rate_limits.remove(&pub_id.0);
+    /// Remove the specific connection identified by `seq` for `pub_id`.
+    /// If this was the last connection for that pub_id, also clears rate limit state.
+    pub fn disconnect(&self, pub_id: &PubId, seq: u64) {
+        let remove_key = {
+            let mut entry = match self.inner.clients.get_mut(&pub_id.0) {
+                Some(e) => e,
+                None => return,
+            };
+            entry.retain(|(_, s)| *s != seq);
+            entry.is_empty()
+        };
+        if remove_key {
+            self.inner.clients.remove(&pub_id.0);
+            self.inner.rate_limits.remove(&pub_id.0);
+        }
     }
 
-    /// Returns the session connection sequence number for `pub_id`, or `u64::MAX`
-    /// if not currently connected. Lower sequence = connected earlier this session.
+    /// Returns the minimum session connection sequence number for `pub_id`
+    /// across all active connections, or `u64::MAX` if not currently connected.
+    /// Lower sequence = connected earlier this session.
     pub fn connection_seq(&self, pub_id: &str) -> u64 {
         self.inner
             .clients
             .get(pub_id)
-            .map(|e| e.1)
+            .map(|e| e.iter().map(|(_, s)| *s).min().unwrap_or(u64::MAX))
             .unwrap_or(u64::MAX)
     }
 
-    /// Attempt live delivery to a single client. Returns true if delivered.
+    /// Attempt live delivery to all connections for a single client.
+    /// Returns true if at least one channel accepted the message.
     pub async fn deliver_live(&self, to: &str, msg: String) -> bool {
-        if let Some(entry) = self.inner.clients.get(to) {
-            entry.0.send(msg).await.is_ok()
-        } else {
-            false
+        let channels: Vec<ClientTx> = match self.inner.clients.get(to) {
+            Some(e) => e.iter().map(|(tx, _)| tx.clone()).collect(),
+            None => return false,
+        };
+        let mut any_ok = false;
+        for tx in channels {
+            if tx.send(msg.clone()).await.is_ok() {
+                any_ok = true;
+            }
         }
+        any_ok
     }
 
     /// Fan out a message to a specific set of group members.
     ///
     /// For each member in `members` (excluding `exclude`):
-    /// - Attempts live delivery via the client's sender channel.
-    /// - If the client is offline, enqueues via `store.enqueue()`.
+    /// - Attempts live delivery via all of the client's sender channels.
+    /// - If ANY channel for a pub_id succeeds, that pub_id is marked delivered.
+    /// - If the client is offline (no channels succeed), enqueues via `store.enqueue()`.
     ///
     /// Never holds the DashMap lock across an await point.
     pub async fn broadcast_to_group(&self, members: &[String], exclude: Option<&str>, msg: String) {
@@ -168,17 +196,21 @@ impl AppState {
             .inner
             .clients
             .iter()
-            .filter_map(|entry| {
+            .flat_map(|entry| {
                 let pub_id = entry.key().clone();
                 if members.contains(&pub_id) && exclude.is_none_or(|ex| pub_id != ex) {
-                    Some((pub_id, entry.value().0.clone()))
+                    entry
+                        .value()
+                        .iter()
+                        .map(|(tx, _)| (pub_id.clone(), tx.clone()))
+                        .collect::<Vec<_>>()
                 } else {
-                    None
+                    vec![]
                 }
             })
             .collect();
 
-        // Drive live deliveries.
+        // Drive live deliveries; track which pub_ids had at least one success.
         let mut delivered: std::collections::HashSet<String> = std::collections::HashSet::new();
         for (pub_id, tx) in channels {
             if tx.send(msg.clone()).await.is_ok() {
@@ -215,7 +247,7 @@ impl AppState {
         &self.inner.pow_server_salt
     }
 
-    /// Fan `msg` out to every connected client.
+    /// Fan `msg` out to every connected client (all connections for every pub_id).
     ///
     /// `exclude`: pass `Some(pub_id)` to skip the sender; pass `None` to
     /// deliver to all clients including the originator.
@@ -231,7 +263,13 @@ impl AppState {
             .clients
             .iter()
             .filter(|entry| exclude.is_none_or(|id| entry.key().as_str() != id))
-            .map(|entry| entry.value().0.clone())
+            .flat_map(|entry| {
+                entry
+                    .value()
+                    .iter()
+                    .map(|(tx, _)| tx.clone())
+                    .collect::<Vec<_>>()
+            })
             .collect();
 
         futures::future::join_all(targets.into_iter().map(|tx| {
@@ -250,5 +288,100 @@ impl AppState {
         if let Err(e) = self.inner.bus.publish(&bus_msg).await {
             tracing::warn!("bus publish failed: {e}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::mpsc;
+
+    async fn make_state() -> AppState {
+        AppState::new("sqlite::memory:", 30, false, 1_000_000, 30, 120)
+            .await
+            .unwrap()
+    }
+
+    fn make_pub_id(hex: &str) -> PubId {
+        PubId(hex.to_string())
+    }
+
+    #[tokio::test]
+    async fn two_connections_same_pub_id_both_receive() {
+        let state = make_state().await;
+        let pub_id = make_pub_id("aaaa");
+
+        let (tx1, mut rx1) = mpsc::channel::<String>(8);
+        let (tx2, mut rx2) = mpsc::channel::<String>(8);
+
+        state.connect(&pub_id, tx1);
+        state.connect(&pub_id, tx2);
+
+        let delivered = state.deliver_live("aaaa", "hello".to_string()).await;
+        assert!(delivered);
+
+        let msg1 = rx1.recv().await.expect("rx1 should receive");
+        let msg2 = rx2.recv().await.expect("rx2 should receive");
+        assert_eq!(msg1, "hello");
+        assert_eq!(msg2, "hello");
+    }
+
+    #[tokio::test]
+    async fn disconnect_one_leaves_other() {
+        let state = make_state().await;
+        let pub_id = make_pub_id("bbbb");
+
+        let (tx1, rx1) = mpsc::channel::<String>(8);
+        let (tx2, mut rx2) = mpsc::channel::<String>(8);
+
+        let seq1 = state.connect(&pub_id, tx1);
+        let _seq2 = state.connect(&pub_id, tx2);
+
+        // Disconnect the first connection by its seq.
+        state.disconnect(&pub_id, seq1);
+
+        // The pub_id key must still exist (second connection is live).
+        assert!(state.inner.clients.contains_key("bbbb"));
+
+        // rx1 channel has no live sender anymore; rx2 still works.
+        drop(rx1); // avoid blocking — sender is gone
+        let delivered = state.deliver_live("bbbb", "still here".to_string()).await;
+        assert!(delivered);
+        let msg = rx2.recv().await.expect("rx2 should still receive");
+        assert_eq!(msg, "still here");
+    }
+
+    #[tokio::test]
+    async fn connection_seq_returns_min() {
+        let state = make_state().await;
+        let pub_id = make_pub_id("cccc");
+
+        let (tx1, _rx1) = mpsc::channel::<String>(8);
+        let (tx2, _rx2) = mpsc::channel::<String>(8);
+
+        let seq1 = state.connect(&pub_id, tx1);
+        let seq2 = state.connect(&pub_id, tx2);
+
+        let reported = state.connection_seq("cccc");
+        assert_eq!(reported, seq1.min(seq2));
+        assert!(reported < u64::MAX);
+    }
+
+    #[tokio::test]
+    async fn last_disconnect_removes_key() {
+        let state = make_state().await;
+        let pub_id = make_pub_id("dddd");
+
+        let (tx1, _rx1) = mpsc::channel::<String>(8);
+        let (tx2, _rx2) = mpsc::channel::<String>(8);
+
+        let seq1 = state.connect(&pub_id, tx1);
+        let seq2 = state.connect(&pub_id, tx2);
+
+        state.disconnect(&pub_id, seq1);
+        assert!(state.inner.clients.contains_key("dddd"), "key still present after first disconnect");
+
+        state.disconnect(&pub_id, seq2);
+        assert!(!state.inner.clients.contains_key("dddd"), "key removed after last disconnect");
     }
 }
