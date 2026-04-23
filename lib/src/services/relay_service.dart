@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
@@ -205,6 +204,9 @@ class RelayService extends ChangeNotifier {
       if (errCode == -32001) {
         _authFailed = true;
         _reconnecting = false;
+        // Auth permanently rejected — stop the foreground service so the
+        // notification doesn't keep showing "Relay connected" while disconnected.
+        BackgroundService.stop();
         _sub?.cancel();
         _channel?.sink.close();
       }

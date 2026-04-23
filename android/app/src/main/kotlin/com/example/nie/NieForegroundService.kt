@@ -67,7 +67,7 @@ class NieForegroundService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("nie")
             .setContentText("Relay connected")
-            .setSmallIcon(android.R.drawable.ic_menu_send)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
