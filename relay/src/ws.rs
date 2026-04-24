@@ -1773,6 +1773,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             &merchant.dfvk,
                             &state.inner.store,
                             &merchant.network,
+                            &state.inner.subscription_alloc_lock,
                         )
                         .await
                         {
@@ -1999,9 +2000,15 @@ async fn alloc_subscription_address(
     dfvk: &nie_wallet::address::SaplingDiversifiableFvk,
     store: &crate::store::Store,
     network: &nie_wallet::address::ZcashNetwork,
+    lock: &tokio::sync::Mutex<()>,
 ) -> anyhow::Result<String> {
     use zcash_address::{ToAddress, ZcashAddress};
     use zcash_protocol::consensus::NetworkType;
+
+    // Serialize the entire next_diversifier → find_address → advance_diversifier_to
+    // sequence so concurrent SUBSCRIBE_REQUEST handlers cannot race and allocate the
+    // same Sapling diversifier index when find_address() skips ahead past invalid indices.
+    let _guard = lock.lock().await;
 
     let start: u128 = store.next_diversifier(0).await?;
     let (actual_di, addr) = dfvk.find_address(start)?;

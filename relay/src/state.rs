@@ -6,7 +6,7 @@ use rand::rngs::OsRng;
 use rand::RngCore;
 
 use dashmap::DashMap;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 
 use nie_core::identity::PubId;
 use nie_wallet::address::{SaplingDiversifiableFvk, ZcashNetwork};
@@ -73,6 +73,15 @@ pub struct Inner {
     /// `LocalBus` (default) is a no-op for single-process deployments.
     /// Swap for `RedisBus` to enable multi-instance delivery.
     pub bus: MessageBus,
+    /// Serializes subscription address allocation across concurrent requests.
+    ///
+    /// `alloc_subscription_address` does next_diversifier → find_address →
+    /// advance_diversifier_to.  Two concurrent callers can receive the same
+    /// `start` value from `next_diversifier` if `find_address` on either side
+    /// skips ahead past the other's starting point, producing a duplicate
+    /// Sapling address.  This mutex prevents that race by making the whole
+    /// sequence atomic within a single process.
+    pub subscription_alloc_lock: Mutex<()>,
 }
 
 impl AppState {
@@ -105,6 +114,7 @@ impl AppState {
                 pow_difficulty: AtomicU8::new(0),
                 pow_replay_set: dashmap::DashMap::new(),
                 bus: MessageBus::local(),
+                subscription_alloc_lock: Mutex::new(()),
             }),
         })
     }
