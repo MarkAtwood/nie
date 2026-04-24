@@ -62,6 +62,15 @@ pub struct SpaceMemberRow {
     pub joined_at: String,
 }
 
+/// A single member patch operation for use with [`Store::update_space_fully`].
+pub enum SpaceMemberOp<'a> {
+    /// Add a member or update their role.  `role` must be one of the values
+    /// in `VALID_ROLES` (see `jmap.rs`); the store does not validate this.
+    Upsert { contact_id: &'a str, role: &'a str },
+    /// Remove a member from the space.
+    Remove { contact_id: &'a str },
+}
+
 #[derive(Debug)]
 pub struct SpaceInviteRow {
     pub id: String,
@@ -479,54 +488,6 @@ impl Store {
         )
     }
 
-    /// Update space name and/or description.  Returns `true` if found.
-    pub async fn update_space_props(
-        &self,
-        id: &str,
-        name: Option<&str>,
-        description: Option<&str>,
-    ) -> Result<bool> {
-        if name.is_none() && description.is_none() {
-            // Nothing to update; check existence.
-            let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM space WHERE id = ?")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
-            return Ok(exists.is_some());
-        }
-        let rows = if let Some(n) = name {
-            if let Some(d) = description {
-                sqlx::query("UPDATE space SET name = ?, description = ? WHERE id = ?")
-                    .bind(n)
-                    .bind(d)
-                    .bind(id)
-                    .execute(&self.pool)
-                    .await?
-                    .rows_affected()
-            } else {
-                sqlx::query("UPDATE space SET name = ? WHERE id = ?")
-                    .bind(n)
-                    .bind(id)
-                    .execute(&self.pool)
-                    .await?
-                    .rows_affected()
-            }
-        } else if let Some(d) = description {
-            sqlx::query("UPDATE space SET description = ? WHERE id = ?")
-                .bind(d)
-                .bind(id)
-                .execute(&self.pool)
-                .await?
-                .rows_affected()
-        } else {
-            0
-        };
-        if rows > 0 {
-            self.bump_state_seq("Space").await?;
-        }
-        Ok(rows > 0)
-    }
-
     /// Permanently delete a space row.  Returns `true` if a row was deleted.
     pub async fn delete_space(&self, id: &str) -> Result<bool> {
         let rows = sqlx::query("DELETE FROM space WHERE id = ?")
@@ -569,9 +530,10 @@ impl Store {
     /// If already a member, updates the role.
     ///
     /// **Precondition**: `role` must be one of `"admin"`, `"moderator"`, or
-    /// `"member"`. The store accepts any string — callers are responsible for
-    /// validation before calling this function. See `validate_member_patch` in
-    /// `jmap.rs` for the canonical validation site.
+    /// `"member"`. The store accepts any string value — callers must validate
+    /// before calling this function. An unrecognised role would be stored
+    /// verbatim and returned in JMAP responses, breaking clients that treat
+    /// the role field as an enum.
     pub async fn upsert_space_member_with_role(
         &self,
         space_id: &str,
@@ -625,6 +587,112 @@ impl Store {
             self.bump_state_seq("SpaceMember").await?;
         }
         Ok(rows > 0)
+    }
+
+    /// Apply space property updates and member patch operations atomically
+    /// in a single SQLite transaction.
+    ///
+    /// Returns `Ok(true)` if the space exists and all writes succeeded.
+    /// Returns `Ok(false)` if no space with `space_id` exists; in that
+    /// case the transaction is rolled back before returning (no partial write).
+    /// When `name` and `description` are both `None`, only member operations
+    /// are applied (the space existence is not verified in that case, matching
+    /// existing behaviour where member-only patches skip the existence check).
+    pub async fn update_space_fully<'a>(
+        &self,
+        space_id: &str,
+        name: Option<&str>,
+        description: Option<&str>,
+        member_ops: &[SpaceMemberOp<'a>],
+    ) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
+        let mut space_changed = false;
+        let mut members_changed = false;
+
+        if name.is_some() || description.is_some() {
+            let rows = match (name, description) {
+                (Some(n), Some(d)) => {
+                    sqlx::query("UPDATE space SET name = ?, description = ? WHERE id = ?")
+                        .bind(n)
+                        .bind(d)
+                        .bind(space_id)
+                        .execute(&mut *tx)
+                        .await?
+                        .rows_affected()
+                }
+                (Some(n), None) => sqlx::query("UPDATE space SET name = ? WHERE id = ?")
+                    .bind(n)
+                    .bind(space_id)
+                    .execute(&mut *tx)
+                    .await?
+                    .rows_affected(),
+                (None, Some(d)) => sqlx::query("UPDATE space SET description = ? WHERE id = ?")
+                    .bind(d)
+                    .bind(space_id)
+                    .execute(&mut *tx)
+                    .await?
+                    .rows_affected(),
+                (None, None) => unreachable!(),
+            };
+            if rows == 0 {
+                // Space not found; transaction is rolled back on drop.
+                return Ok(false);
+            }
+            space_changed = true;
+        }
+
+        for op in member_ops {
+            match op {
+                SpaceMemberOp::Upsert { contact_id, role } => {
+                    sqlx::query(
+                        "INSERT INTO space_member (space_id, contact_id, role)
+                         VALUES (?, ?, ?)
+                         ON CONFLICT(space_id, contact_id) DO UPDATE SET role = excluded.role",
+                    )
+                    .bind(space_id)
+                    .bind(*contact_id)
+                    .bind(*role)
+                    .execute(&mut *tx)
+                    .await?;
+                    members_changed = true;
+                }
+                SpaceMemberOp::Remove { contact_id } => {
+                    let rows = sqlx::query(
+                        "DELETE FROM space_member WHERE space_id = ? AND contact_id = ?",
+                    )
+                    .bind(space_id)
+                    .bind(*contact_id)
+                    .execute(&mut *tx)
+                    .await?
+                    .rows_affected();
+                    if rows > 0 {
+                        members_changed = true;
+                    }
+                }
+            }
+        }
+
+        if space_changed {
+            sqlx::query(
+                "INSERT INTO state_version (type_name, seq) VALUES (?, 1)
+                 ON CONFLICT(type_name) DO UPDATE SET seq = seq + 1",
+            )
+            .bind("Space")
+            .execute(&mut *tx)
+            .await?;
+        }
+        if members_changed {
+            sqlx::query(
+                "INSERT INTO state_version (type_name, seq) VALUES (?, 1)
+                 ON CONFLICT(type_name) DO UPDATE SET seq = seq + 1",
+            )
+            .bind("SpaceMember")
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(true)
     }
 
     // ── SpaceInvite ───────────────────────────────────────────────────────────

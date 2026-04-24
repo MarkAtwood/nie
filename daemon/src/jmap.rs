@@ -28,7 +28,7 @@ use unicode_normalization::UnicodeNormalization;
 use ulid::Ulid;
 
 use crate::state::DaemonState;
-use crate::store::{ChatContactRow, ChatRow, MessageRow, Store};
+use crate::store::{ChatContactRow, ChatRow, MessageRow, SpaceMemberOp};
 use crate::token::validate_token_header;
 use crate::types::DaemonEvent;
 
@@ -630,12 +630,15 @@ async fn contact_query(args: Value, state: &DaemonState) -> (String, Value) {
     let position = args.get("position").and_then(|v| v.as_i64()).unwrap_or(0);
     let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(total);
     // RFC 8620 §5.1: position and limit must be non-negative integers.
-    // Negative values would wrap on the as-usize cast and panic in slice indexing.
+    // Negative values wrap on the as-usize cast and panic in slice indexing.
+    // Saturating addition prevents a second panic class: two large-but-valid
+    // i64 values (e.g. position=i64::MAX-1, limit=2) overflow i64 before the
+    // .min() clamp can save them; saturating_add clamps to i64::MAX instead.
     if position < 0 || limit < 0 {
         return method_error("invalidArguments");
     }
     let start = (position as usize).min(ids.len());
-    let end = ((position + limit) as usize).min(ids.len());
+    let end = (position.saturating_add(limit) as usize).min(ids.len());
     let page_ids = &ids[start..end];
 
     method_ok(
@@ -965,11 +968,19 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
 }
 
 /// Valid role values for space members.  Single source of truth — used by
-/// both `validate_member_patch` (pre-write check) and `apply_member_patch`
-/// (defence-in-depth at write time).  Update this slice when adding roles;
-/// the store precondition doc on `upsert_space_member_with_role` references
-/// this constant by name.
+/// `validate_member_patch` in Phase 1 and by `update_space_fully` via the
+/// `SpaceMemberOp::Upsert` arm in Phase 2.  Update this slice when adding
+/// roles; the store precondition doc on `upsert_space_member_with_role`
+/// documents the same invariant.
 const VALID_ROLES: &[&str] = &["admin", "moderator", "member"];
+
+/// Returns true for patch paths handled as simple space properties (name,
+/// description) by `update_space_fully` rather than as member patch ops.
+/// Both the Phase 1 validation loop and the Phase 2 collection skip these
+/// paths.  Update this function when adding new simple Space properties.
+fn is_simple_space_prop(path: &str) -> bool {
+    matches!(path, "name" | "description")
+}
 
 /// Validate a member patch path and value without touching the store.
 ///
@@ -1013,66 +1024,6 @@ fn validate_member_patch(path: &str, value: &Value) -> Result<(), Value> {
                 "description": format!("role must be one of: {}", VALID_ROLES.join(", "))
             }));
         }
-    }
-    Ok(())
-}
-
-/// Apply a single member patch path ("members/<contact_id>") to a space.
-///
-/// Returns `Ok(())` if the patch was applied, or `Err(json_error)` with a
-/// JMAP error value if the path is unrecognized, validation fails, or the
-/// store call fails.  The caller breaks out of the patch loop on `Err`.
-///
-/// **Precondition**: callers should run `validate_member_patch` first.
-/// The validation checks here are kept as defence in depth.
-async fn apply_member_patch(
-    store: &Store,
-    space_id: &str,
-    path: &str,
-    value: &Value,
-) -> Result<(), Value> {
-    let Some(contact_id) = path.strip_prefix("members/") else {
-        // RFC 8620 §5.3: unrecognized patch path → invalidPatch error.
-        return Err(serde_json::json!({
-            "type": "invalidPatch",
-            "description": format!("unrecognized patch path: {path}")
-        }));
-    };
-    // Defence-in-depth: validate_member_patch should have caught this, but
-    // an empty contact_id must never reach the store.
-    if contact_id.is_empty() {
-        return Err(serde_json::json!({
-            "type": "invalidPatch",
-            "description": "members/ patch path requires a non-empty contact id"
-        }));
-    }
-    if value.is_null() {
-        // Null value = remove the member from the space.
-        store
-            .remove_space_member(space_id, contact_id)
-            .await
-            .map_err(|e| serde_json::json!({"type":"serverFail","description":e.to_string()}))?;
-    } else {
-        // Non-null value = add/update member with optional role.
-        // Defence-in-depth: validate_member_patch should have caught both a
-        // non-string role and an unrecognised role value, but check here too
-        // so neither can reach the store.
-        let role = match value.get("role") {
-            None => "member",
-            Some(v) => v.as_str().ok_or_else(|| {
-                serde_json::json!({"type":"invalidArguments","description":"role must be a string"})
-            })?,
-        };
-        if !VALID_ROLES.contains(&role) {
-            return Err(serde_json::json!({
-                "type": "invalidArguments",
-                "description": format!("role must be one of: {}", VALID_ROLES.join(", "))
-            }));
-        }
-        store
-            .upsert_space_member_with_role(space_id, contact_id, role)
-            .await
-            .map_err(|e| serde_json::json!({"type":"serverFail","description":e.to_string()}))?;
     }
     Ok(())
 }
@@ -1144,7 +1095,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // the name write nor the member write should happen and
                 // notUpdated must be returned without any side effect.
                 for (path, value) in patch_map {
-                    if matches!(path.as_str(), "name" | "description") {
+                    if is_simple_space_prop(path) {
                         continue;
                     }
                     if let Err(e) = validate_member_patch(path, value) {
@@ -1152,49 +1103,51 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                         break;
                     }
                 }
-                // Phase 2 (writes): only if all patches passed validation.
-                //
-                // Atomicity note: Phase 1 above guarantees that *input* errors
-                // (bad paths, invalid roles) are caught before any write
-                // occurs.  However, if update_space_props succeeds and a
-                // subsequent apply_member_patch returns a store (server) error,
-                // the name/description change will already be committed and
-                // notUpdated will still be returned — a partial write.  Fixing
-                // this fully requires wrapping both calls in a single SQLite
-                // transaction, which in turn requires a combined store method
-                // that accepts both the prop and member changes together.
-                // Server errors are rare in practice, so this is left as a
-                // known limitation rather than a larger refactor.
+                // Phase 2 (writes): all patches passed validation; apply atomically.
+                // update_space_fully wraps prop updates and member ops in one
+                // SQLite transaction — if any store write fails, the whole update
+                // is rolled back, satisfying RFC 8620 §7.1 for both input errors
+                // (caught in Phase 1) and server errors (caught in Phase 2).
                 if update_err.is_none() {
                     let new_name = patch_map.get("name").and_then(|v| v.as_str());
                     let new_desc = patch_map
                         .get("description")
                         .map(|v| if v.is_null() { None } else { v.as_str() })
                         .unwrap_or(None);
-                    if new_name.is_some() || new_desc.is_some() {
-                        match store.update_space_props(space_id, new_name, new_desc).await {
-                            Ok(false) => {
-                                update_err = Some(serde_json::json!({"type":"notFound"}));
+                    // Collect member ops from the validated patch map.  Phase 1
+                    // already verified every non-simple path starts with
+                    // "members/" and has a non-empty contact_id, so the
+                    // unwrap() on strip_prefix here is safe.
+                    let member_ops: Vec<SpaceMemberOp<'_>> = patch_map
+                        .iter()
+                        .filter(|(path, _)| !is_simple_space_prop(path))
+                        .map(|(path, value)| {
+                            let contact_id = path.strip_prefix("members/").unwrap();
+                            if value.is_null() {
+                                SpaceMemberOp::Remove { contact_id }
+                            } else {
+                                let role = value
+                                    .get("role")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("member");
+                                SpaceMemberOp::Upsert { contact_id, role }
                             }
-                            Err(e) => {
-                                update_err = Some(serde_json::json!({
-                                    "type":"serverFail",
-                                    "description":e.to_string()
-                                }));
-                            }
-                            Ok(true) => {}
+                        })
+                        .collect();
+                    match store
+                        .update_space_fully(space_id, new_name, new_desc, &member_ops)
+                        .await
+                    {
+                        Ok(false) => {
+                            update_err = Some(serde_json::json!({"type":"notFound"}));
                         }
-                    }
-                }
-                if update_err.is_none() {
-                    for (path, value) in patch_map {
-                        if matches!(path.as_str(), "name" | "description") {
-                            continue;
+                        Err(e) => {
+                            update_err = Some(serde_json::json!({
+                                "type":"serverFail",
+                                "description":e.to_string()
+                            }));
                         }
-                        if let Err(e) = apply_member_patch(store, space_id, path, value).await {
-                            update_err = Some(e);
-                            break;
-                        }
+                        Ok(true) => {}
                     }
                 }
                 if let Some(err) = update_err {
@@ -1202,6 +1155,17 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 } else {
                     updated.insert(space_id.clone(), Value::Null);
                 }
+            } else {
+                // RFC 8620 §7.1: a patch value that is not a JSON object is
+                // invalid. Return notUpdated so the client knows the update
+                // was rejected rather than silently dropped.
+                not_updated.insert(
+                    space_id.clone(),
+                    serde_json::json!({
+                        "type": "invalidArguments",
+                        "description": "patch must be a JSON object"
+                    }),
+                );
             }
         }
     }
@@ -2825,9 +2789,10 @@ mod tests {
         );
     }
 
-    // Regression: name/description patch paths must not reach apply_member_patch.
-    // Before the fix, patch_map was iterated in full — "name" and "description"
-    // would return invalidPatch even though update_space_props already wrote them.
+    // Regression: name/description patch paths must be handled as simple props
+    // and not treated as unknown member-patch paths.  Before is_simple_space_prop
+    // was introduced, they fell through to member-patch validation and returned
+    // invalidPatch.
     #[tokio::test]
     async fn test_space_set_update_name_succeeds() {
         let state = make_store_state().await;
@@ -2886,12 +2851,11 @@ mod tests {
         );
     }
 
-    // ── apply_member_patch tests ──────────────────────────────────────────────
+    // ── Space/set member patch tests ──────────────────────────────────────────
     //
-    // Oracle: RFC 8620 §5.3 (patch semantics) and the role enum defined in
-    // apply_member_patch. These tests exercise apply_member_patch via the
-    // Space/set update path, which is the only caller, so the full request
-    // stack is the correct locus.
+    // Oracle: RFC 8620 §5.3 (patch semantics) and VALID_ROLES.  These tests
+    // exercise member patch handling through the Space/set update path, which
+    // is the only entry point, so the full request stack is the correct locus.
 
     /// Helper: create a space via Space/set and return its server-assigned id.
     async fn create_test_space(state: &DaemonState, name: &str) -> String {
@@ -3113,10 +3077,9 @@ mod tests {
 
     // Regression: combined patch {name + members/* with invalid role} must be
     // fully rejected — name must NOT be written even though it is individually
-    // valid.  Before the validate-first fix, update_space_props wrote the name
-    // and then apply_member_patch returned invalidArguments, producing
-    // notUpdated while the name change had already been persisted (RFC 8620
-    // §7.1 atomicity violation).
+    // valid.  Before Phase 1 validation was added, the name write went through
+    // before the role was checked, producing notUpdated while the name change
+    // had already been persisted (RFC 8620 §7.1 atomicity violation).
     #[tokio::test]
     async fn test_space_set_mixed_patch_invalid_role_leaves_name_unchanged() {
         let state = make_store_state().await;
@@ -3630,5 +3593,93 @@ mod tests {
             "negative limit must yield error response: {result}"
         );
         assert_eq!(result["type"].as_str().unwrap(), "invalidArguments",);
+    }
+
+    // Regression: Space/set with a non-Object patch value (e.g. a string)
+    // must return notUpdated rather than silently dropping the space_id from
+    // both updated and notUpdated, which left the client with no signal.
+    #[tokio::test]
+    async fn test_space_set_non_object_patch_returns_not_updated() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "Test Space").await;
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): "not-an-object"
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "Space/set");
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "non-Object patch must appear in notUpdated, got: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][&space_id]["type"], "invalidArguments",
+            "error type must be invalidArguments"
+        );
+        assert!(
+            result["updated"].as_object().unwrap().is_empty(),
+            "updated must be empty for non-Object patch"
+        );
+    }
+
+    // Regression: position + limit overflows i64 before the .min() clamp if
+    // both are large. In debug builds this panicked the daemon; in release it
+    // wrapped to a large usize and returned the wrong slice. Fixed by using
+    // saturating_add so the sum clamps to i64::MAX before the usize cast.
+    #[tokio::test]
+    async fn test_contact_query_large_position_limit_does_not_panic() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        // Insert one contact so the query has something to page over.
+        state
+            .store()
+            .unwrap()
+            .upsert_chat_contact(&pub_id)
+            .await
+            .unwrap();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/query".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    // position + limit overflows i64 if added directly.
+                    "position": i64::MAX - 1,
+                    "limit": i64::MAX - 1,
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        // Must not panic. Response may be an empty page (position beyond end)
+        // or an error; either is acceptable — the daemon must survive the input.
+        assert!(
+            method == "ChatContact/query" || method == "error",
+            "unexpected method: {method}, result: {result}"
+        );
+        if method == "ChatContact/query" {
+            // If it succeeded, the result must be a valid (possibly empty) page.
+            assert!(
+                result["ids"].is_array(),
+                "ids must be an array, got: {result}"
+            );
+        }
     }
 }
