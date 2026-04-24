@@ -24,47 +24,10 @@ use nie_core::messages::{pad, unpad, ClearMessage};
 use nie_core::protocol::{rpc_methods, BroadcastParams, DeliverParams, JsonRpcRequest};
 use nie_core::transport::{next_request_id, ClientEvent};
 use serde_json::Value;
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::config::BridgeConfig;
 use crate::slack::{verify_slack_signature, SlackClient, SlackEvent};
-
-/// Bounded set of recently-seen Slack timestamps used to prevent echo loops.
-///
-/// When we post a message to Slack, Slack echoes it back via the Events API.
-/// We suppress those echoes by recording the outgoing message text and ignoring
-/// incoming events whose text matches a recently-sent one.  The deque is bounded
-/// to 1000 entries so memory use is constant regardless of message volume.
-struct SentTexts {
-    texts: VecDeque<String>,
-    set: std::collections::HashSet<String>,
-}
-
-impl SentTexts {
-    fn new() -> Self {
-        Self {
-            texts: VecDeque::new(),
-            set: std::collections::HashSet::new(),
-        }
-    }
-
-    fn insert(&mut self, text: String) {
-        const MAX: usize = 1000;
-        if self.texts.len() >= MAX {
-            if let Some(old) = self.texts.pop_front() {
-                self.set.remove(&old);
-            }
-        }
-        self.set.insert(text.clone());
-        self.texts.push_back(text);
-    }
-
-    #[allow(dead_code)]
-    fn contains(&self, text: &str) -> bool {
-        self.set.contains(text)
-    }
-}
 
 /// Format a nie message for display in Slack.
 ///
@@ -148,7 +111,6 @@ async fn handle_nie_deliver(
     slack: &SlackClient,
     channel_id: &str,
     bridge_prefix: Option<&str>,
-    sent_texts: &Arc<Mutex<SentTexts>>,
 ) {
     let Some(params) = params else { return };
     let Ok(deliver) = serde_json::from_value::<DeliverParams>(params) else {
@@ -166,12 +128,10 @@ async fn handle_nie_deliver(
     let ClearMessage::Chat { text } = clear else {
         return;
     };
+    // Echo suppression: the Slack bot token causes outbound messages to arrive
+    // back as bot_message events; `is_bot_message()` in SlackInnerEvent filters
+    // those before they reach this handler.
     let formatted = format_for_slack(&deliver.from, &text, bridge_prefix);
-    // Record this text so the Slack echo is suppressed.
-    sent_texts
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .insert(formatted.clone());
     if let Err(e) = slack.post_message(channel_id, &formatted).await {
         tracing::warn!("Slack post_message failed: {e}");
     }
@@ -192,7 +152,6 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
     let channel_id = config.slack_channel_id.clone();
     let bridge_prefix = config.bridge_prefix.clone();
     let listen_port = config.listen_port;
-    let sent_texts: Arc<Mutex<SentTexts>> = Arc::new(Mutex::new(SentTexts::new()));
 
     // Channel: Slack events → nie broadcast.
     let (slack_tx, mut slack_rx) = tokio::sync::mpsc::channel::<String>(64);
@@ -250,7 +209,6 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                                 &slack,
                                 &channel_id,
                                 bridge_prefix.as_deref(),
-                                &sent_texts,
                             )
                             .await;
                         }
@@ -294,22 +252,4 @@ mod tests {
         assert_eq!(result, "[Slack/U123456] hello world");
     }
 
-    #[test]
-    fn sent_texts_insert_and_lookup() {
-        let mut st = SentTexts::new();
-        st.insert("hello".to_string());
-        assert!(st.contains("hello"));
-        assert!(!st.contains("world"));
-    }
-
-    #[test]
-    fn sent_texts_bounded_at_1000() {
-        let mut st = SentTexts::new();
-        for i in 0..1001 {
-            st.insert(format!("msg-{i}"));
-        }
-        // msg-0 should have been evicted (1001 inserts, cap=1000).
-        assert!(!st.contains("msg-0"));
-        assert!(st.contains("msg-1000"));
-    }
 }

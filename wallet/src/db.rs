@@ -386,7 +386,8 @@ impl WalletStore {
         // max_age_secs is u64; cast to i64 is safe for any realistic duration
         // (u64::MAX seconds ≈ 585 billion years, far beyond i64::MAX).
         // saturating_sub handles the degenerate case where now_ts < max_age_secs.
-        let cutoff = now_ts.saturating_sub(max_age_secs as i64);
+        let max_age_i64 = i64::try_from(max_age_secs).unwrap_or(i64::MAX);
+        let cutoff = now_ts.saturating_sub(max_age_i64);
         let result = sqlx::query(
             "UPDATE payment_sessions
              SET state = 'expired', updated_at = ?
@@ -966,10 +967,17 @@ impl WalletStore {
         let h = i64::try_from(height).map_err(|_| {
             anyhow::anyhow!("scan tip {height} exceeds i64::MAX; cannot store in SQLite")
         })?;
-        sqlx::query("UPDATE scan_state SET tip_height = ? WHERE id = 1")
+        let result = sqlx::query("UPDATE scan_state SET tip_height = ? WHERE id = 1")
             .bind(h)
             .execute(&self.pool)
             .await?;
+        if result.rows_affected() != 1 {
+            return Err(anyhow::anyhow!(
+                "set_scan_tip: scan_state row missing (rows_affected={}); \
+                 call init_scan_state before scanning",
+                result.rows_affected()
+            ));
+        }
         Ok(())
     }
 

@@ -24,7 +24,7 @@ pub fn load_identity(keyfile_path: &str, no_passphrase: bool) -> Result<Identity
     };
 
     let seed = decrypt_keyfile(&ciphertext, &passphrase)?;
-    Ok(Identity::from_secret_bytes(&seed))
+    Identity::from_secret_bytes(&seed)
 }
 
 /// Encrypt the 64-byte keyfile payload (Ed25519_seed || X25519_seed) with a
@@ -83,7 +83,8 @@ mod tests {
 
         // Decrypt and reconstruct
         let recovered_seed = decrypt_keyfile(&ciphertext, "").expect("decrypt_keyfile failed");
-        let recovered = Identity::from_secret_bytes(&recovered_seed);
+        let recovered = Identity::from_secret_bytes(&recovered_seed).expect("recovered seed must be valid");
+
 
         assert_eq!(
             original_pub_id.0,

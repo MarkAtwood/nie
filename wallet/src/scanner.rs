@@ -371,7 +371,11 @@ impl CompactBlockScanner {
             warn!("scanner: scan_tip is 0 — scanning from genesis; call set_scan_tip with wallet birthday height to avoid downloading the full chain");
             self.birthday_warned = true;
         }
-        let start = scan_tip + 1;
+        let start = scan_tip.checked_add(1).ok_or_else(|| {
+            anyhow::anyhow!(
+                "scan_tip ({scan_tip}) is u64::MAX; cannot advance scanner"
+            )
+        })?;
         let end = self.client.latest_height().await?;
         if start > end {
             // Already at (or ahead of) chain tip.

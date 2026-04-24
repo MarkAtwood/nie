@@ -19,12 +19,46 @@ use nie_core::messages::{pad, unpad, ClearMessage};
 use nie_core::protocol::{rpc_methods, BroadcastParams, DeliverParams, JsonRpcRequest};
 use nie_core::transport::{next_request_id, ClientEvent};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, Mutex};
 use tokio::time::{interval, Duration};
 
 use crate::config::BridgeConfig;
 use crate::jmap::JmapClient;
+
+/// Bounded set of recently-seen JMAP email IDs used to avoid reprocessing.
+///
+/// Capped at 1000 entries; the oldest entry is evicted when the cap is reached.
+/// Each poll fetches at most 50 IDs, so 1000 entries covers 20 full-scan
+/// cycles before the first eviction.
+struct SeenIds {
+    ids: VecDeque<String>,
+    set: HashSet<String>,
+}
+
+impl SeenIds {
+    fn new() -> Self {
+        Self {
+            ids: VecDeque::new(),
+            set: HashSet::new(),
+        }
+    }
+
+    fn contains(&self, id: &str) -> bool {
+        self.set.contains(id)
+    }
+
+    fn insert(&mut self, id: String) {
+        const MAX: usize = 1000;
+        if self.ids.len() >= MAX {
+            if let Some(old) = self.ids.pop_front() {
+                self.set.remove(&old);
+            }
+        }
+        self.set.insert(id.clone());
+        self.ids.push_back(id);
+    }
+}
 
 /// Format a nie message as an email subject/body for delivery to the JMAP mailbox.
 pub fn format_subject(sender_pub_id: &str, prefix: Option<&str>) -> String {
@@ -64,8 +98,8 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
     let mailbox_name = config.mailbox_name.clone();
     let poll_interval_secs = config.poll_interval_secs;
 
-    // Track seen email IDs to avoid reprocessing on each poll.
-    let seen_ids: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+    // Track seen email IDs to avoid reprocessing on each poll (bounded at 1000).
+    let seen_ids: Arc<Mutex<SeenIds>> = Arc::new(Mutex::new(SeenIds::new()));
     // Track the last JMAP query state for incremental polling.
     let query_state: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 

@@ -301,23 +301,13 @@ async fn handle(socket: WebSocket, state: AppState) {
         {
             let now_instant = std::time::Instant::now();
             let ttl = std::time::Duration::from_secs(600);
-            // Evict expired entries
+            // Evict expired entries.
             state
                 .inner
                 .pow_replay_set
                 .retain(|_, accepted_at| now_instant.duration_since(*accepted_at) < ttl);
-            // Check if h16 is already in the set
-            if state.inner.pow_replay_set.contains_key(&h16) {
-                send_error_response(
-                    &mut sink,
-                    req.id,
-                    rpc_errors::POW_REPLAYED,
-                    "PoW token replayed",
-                )
-                .await;
-                return;
-            }
-            // Reject if flood is saturating the replay set.
+            // Size cap (checked before entry to avoid holding a shard lock during
+            // the length computation, which acquires all shard locks and would deadlock).
             if state.inner.pow_replay_set.len() >= MAX_REPLAY_ENTRIES {
                 send_error_response(
                     &mut sink,
@@ -328,19 +318,36 @@ async fn handle(socket: WebSocket, state: AppState) {
                 .await;
                 return;
             }
-            // Mark as seen
-            state.inner.pow_replay_set.insert(h16, now_instant);
+            // Atomic check-and-insert: DashMap::entry() locks the shard for the
+            // entire operation, eliminating the TOCTOU between contains_key + insert.
+            use dashmap::mapref::entry::Entry;
+            match state.inner.pow_replay_set.entry(h16) {
+                Entry::Occupied(_) => {
+                    send_error_response(
+                        &mut sink,
+                        req.id,
+                        rpc_errors::POW_REPLAYED,
+                        "PoW token replayed",
+                    )
+                    .await;
+                    return;
+                }
+                Entry::Vacant(e) => {
+                    e.insert(now_instant);
+                }
+            }
         }
     }
     // SECURITY: PoW check precedes signature check
     let pub_id = match verify_challenge(&params.pub_key, &nonce, &params.signature) {
         Ok(id) => id,
         Err(e) => {
+            tracing::debug!("auth verification failed: {e}");
             send_error_response(
                 &mut sink,
                 req.id,
                 rpc_errors::AUTH_FAILED,
-                &format!("auth failed: {e}"),
+                "auth failed",
             )
             .await;
             return;
@@ -614,7 +621,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             send_client_error(
                                 &client_tx,
                                 req.id,
-                                rpc_errors::NOT_AUTHENTICATED,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
                                 "an active subscription is required to send messages",
                             )
                             .await;
@@ -679,7 +686,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             send_client_error(
                                 &client_tx,
                                 req.id,
-                                rpc_errors::NOT_AUTHENTICATED,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
                                 "an active subscription is required to send messages",
                             )
                             .await;
@@ -1065,6 +1072,18 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Route opaque bytes to one specific connected user.
                         // The relay never inspects the payload (MLS Welcome or other control msg).
                         // `from` in the outgoing WhisperDeliver is set by the relay from the
@@ -1110,6 +1129,18 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
                         // SEALED SENDER: relay forwards opaque bytes to `to` with NO `from` field.
                         // Sender identity is hidden inside the encrypted sealed bytes.
                         // The relay never inspects params.sealed — it is opaque by construction.
@@ -1159,7 +1190,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             send_client_error(
                                 &client_tx,
                                 req.id,
-                                rpc_errors::NOT_AUTHENTICATED,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
                                 "an active subscription is required to create groups",
                             )
                             .await;
@@ -1410,12 +1441,18 @@ async fn handle(socket: WebSocket, state: AppState) {
                             }
                         };
                         // Fetch all member counts in one query rather than one per group.
-                        let counts = state
+                        let counts = match state
                             .inner
                             .store
                             .member_counts_for_user(&pub_id.0)
                             .await
-                            .unwrap_or_default();
+                        {
+                            Ok(m) => m,
+                            Err(e) => {
+                                warn!("member_counts_for_user DB error for {}: {e}", pub_id.0);
+                                std::collections::HashMap::new()
+                            }
+                        };
                         let mut group_infos: Vec<GroupInfo> = Vec::with_capacity(groups.len());
                         for g in groups {
                             let member_count = counts.get(&g.group_id).copied().unwrap_or(0);
@@ -1525,12 +1562,18 @@ async fn handle(socket: WebSocket, state: AppState) {
                             continue;
                         }
                         // Delete the group when the last member leaves.
-                        let remaining = state
+                        let remaining = match state
                             .inner
                             .store
                             .member_count(&params.group_id)
                             .await
-                            .unwrap_or(1);
+                        {
+                            Ok(n) => n,
+                            Err(e) => {
+                                warn!("member_count DB error for {}: {e}", params.group_id);
+                                1 // conservative: assume non-empty to avoid deleting
+                            }
+                        };
                         if remaining == 0 {
                             if let Err(e) = state.inner.store.delete_group(&params.group_id).await {
                                 // Non-fatal: group is effectively empty; log and continue.

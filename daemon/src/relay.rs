@@ -30,7 +30,7 @@ pub async fn start_relay_connector(
     let key_bytes: [u8; 64] = key_bytes
         .try_into()
         .map_err(|_| anyhow::anyhow!("keyfile must be exactly 64 bytes"))?;
-    let identity = Identity::from_secret_bytes(&key_bytes);
+    let identity = Identity::from_secret_bytes(&key_bytes)?;
 
     // Log only the public side — never log secret bytes.
     tracing::info!("loaded identity: {}", identity.pub_id());

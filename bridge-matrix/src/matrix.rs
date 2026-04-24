@@ -79,7 +79,10 @@ impl MatrixClient {
         let resp = self
             .http
             .put(&url)
-            .query(&[("access_token", &self.as_token)])
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", self.as_token),
+            )
             .json(&body)
             .send()
             .await

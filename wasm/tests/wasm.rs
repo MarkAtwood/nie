@@ -119,7 +119,7 @@ fn test_parse_error_response() {
 /// of the PubId derivation path in nie_core.
 #[wasm_bindgen_test]
 fn test_auth_sign_verify_happy_path() {
-    let identity = Identity::from_secret_bytes(&TEST_SEED_64);
+    let identity = Identity::from_secret_bytes(&TEST_SEED_64).unwrap();
 
     let (pub_key_b64, sig_b64) = auth::sign_challenge(&identity, TEST_NONCE);
 
@@ -150,7 +150,7 @@ fn test_auth_sign_verify_happy_path() {
 /// Oracle: verify_challenge must return Err when given a modified signature.
 #[wasm_bindgen_test]
 fn test_auth_reject_wrong_signature() {
-    let identity = Identity::from_secret_bytes(&TEST_SEED_64);
+    let identity = Identity::from_secret_bytes(&TEST_SEED_64).unwrap();
     let (pub_key_b64, sig_b64) = auth::sign_challenge(&identity, TEST_NONCE);
 
     let mut sig_bytes = B64.decode(&sig_b64).unwrap();
@@ -169,7 +169,7 @@ fn test_auth_reject_wrong_signature() {
 /// message, so the signature is invalid.
 #[wasm_bindgen_test]
 fn test_auth_reject_wrong_nonce() {
-    let identity = Identity::from_secret_bytes(&TEST_SEED_64);
+    let identity = Identity::from_secret_bytes(&TEST_SEED_64).unwrap();
     let (pub_key_b64, sig_b64) = auth::sign_challenge(&identity, TEST_NONCE);
 
     let different_nonce = "BAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
@@ -185,7 +185,7 @@ fn test_auth_reject_wrong_nonce() {
 /// Oracle: compute SHA-256 independently with sha2; verify Identity::pub_id() matches.
 #[wasm_bindgen_test]
 fn test_pub_id_derivation() {
-    let identity = Identity::from_secret_bytes(&TEST_SEED_64);
+    let identity = Identity::from_secret_bytes(&TEST_SEED_64).unwrap();
     let pub_id = identity.pub_id();
 
     let key_bytes = identity.verifying_key().to_bytes();

@@ -106,7 +106,7 @@ pub async fn client_connect(
     let arr: [u8; 64] = bytes
         .try_into()
         .map_err(|_| anyhow!("keyfile corrupt: expected 64 bytes"))?;
-    let identity = Identity::from_secret_bytes(&arr);
+    let identity = Identity::from_secret_bytes(&arr)?;
     let pub_id = identity.pub_id().0.clone();
 
     // Synchronous — spawns the background manager, returns channel pair.

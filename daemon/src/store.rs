@@ -968,10 +968,19 @@ impl Store {
         let Some((space_id, expires_at)) = row else {
             return Ok(None);
         };
-        // Reject expired invites.
+        // Reject expired invites. Parse both sides as DateTime to avoid fragile
+        // lexicographic string comparison (which breaks if formats diverge).
         if let Some(exp) = &expires_at {
-            let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
-            if exp.as_str() < now.as_str() {
+            let now = chrono::Utc::now();
+            // Accept RFC 3339 (with T/offset) and the common "%Y-%m-%d %H:%M:%S" variant.
+            let expired = chrono::DateTime::parse_from_rfc3339(exp)
+                .map(|t| t <= now)
+                .or_else(|_| {
+                    chrono::NaiveDateTime::parse_from_str(exp, "%Y-%m-%d %H:%M:%S")
+                        .map(|t| t <= now.naive_utc())
+                })
+                .unwrap_or(true); // treat unparseable expiry as expired
+            if expired {
                 return Ok(None);
             }
         }

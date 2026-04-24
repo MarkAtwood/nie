@@ -48,19 +48,23 @@ impl Identity {
 
     /// Restore an identity from a 64-byte keyfile blob:
     /// bytes[0..32] = Ed25519 seed, bytes[32..64] = X25519 HPKE seed.
-    pub fn from_secret_bytes(bytes: &[u8; 64]) -> Self {
+    ///
+    /// Returns `Err` if the keyfile is corrupt (e.g. both seeds identical).
+    /// Callers must not panic on this — a corrupt or adversarial keyfile file
+    /// must produce a recoverable error, not a process abort.
+    pub fn from_secret_bytes(bytes: &[u8; 64]) -> Result<Self> {
         let ed_seed: [u8; 32] = bytes[0..32].try_into().unwrap(); // infallible: slice is exactly 32
         let hpke_seed_bytes: [u8; 32] = bytes[32..64].try_into().unwrap(); // infallible: slice is exactly 32
-        assert_ne!(
-            &ed_seed, &hpke_seed_bytes,
+        anyhow::ensure!(
+            ed_seed != hpke_seed_bytes,
             "keyfile corrupt: Ed25519 and HPKE seeds must not be equal"
         );
         let signing_key = SigningKey::from_bytes(&ed_seed);
         let hpke_secret = x25519_dalek::StaticSecret::from(hpke_seed_bytes);
-        Self {
+        Ok(Self {
             signing_key,
             hpke_secret,
-        }
+        })
     }
 
     /// Raw Ed25519 secret key bytes — used as bytes[0..32] of the keyfile.
@@ -171,7 +175,7 @@ mod tests {
     fn export_and_restore() {
         let id = Identity::generate();
         let bytes = id.to_secret_bytes_64();
-        let restored = Identity::from_secret_bytes(&bytes);
+        let restored = Identity::from_secret_bytes(&bytes).unwrap();
         assert_eq!(id.pub_id(), restored.pub_id());
         // HPKE public key must also round-trip.
         assert_eq!(id.hpke_pub_key_bytes(), restored.hpke_pub_key_bytes());

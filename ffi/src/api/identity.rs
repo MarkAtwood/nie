@@ -30,7 +30,7 @@ pub fn pub_id_from_secret(secret_b64: String) -> Result<String> {
     let arr: [u8; 64] = bytes
         .try_into()
         .map_err(|_| anyhow!("keyfile corrupt: expected 64 bytes"))?;
-    let identity = Identity::from_secret_bytes(&arr);
+    let identity = Identity::from_secret_bytes(&arr)?;
     Ok(identity.pub_id().0)
 }
 

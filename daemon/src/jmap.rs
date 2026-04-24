@@ -15,7 +15,7 @@ use axum::{
     response::{sse, IntoResponse},
     Json,
 };
-use nie_core::messages::ClearMessage;
+use nie_core::messages::{pad, ClearMessage};
 use nie_core::protocol::{rpc_methods, BroadcastParams, JsonRpcRequest, TypingParams};
 use nie_core::transport::next_request_id;
 use serde::{Deserialize, Serialize};
@@ -1795,14 +1795,21 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 let encrypted = mls.lock().await.encrypt(&payload_bytes);
                 match encrypted {
                     Ok(cipher) => {
-                        if let Some(tx) = state.relay_tx().await {
-                            let rpc = JsonRpcRequest::new(
-                                next_request_id(),
-                                rpc_methods::BROADCAST,
-                                BroadcastParams { payload: cipher },
-                            )
-                            .unwrap();
-                            let _ = tx.send(rpc).await;
+                        match pad(&cipher) {
+                            Ok(padded) => {
+                                if let Some(tx) = state.relay_tx().await {
+                                    let rpc = JsonRpcRequest::new(
+                                        next_request_id(),
+                                        rpc_methods::BROADCAST,
+                                        BroadcastParams { payload: padded },
+                                    )
+                                    .unwrap();
+                                    let _ = tx.send(rpc).await;
+                                }
+                            }
+                            Err(e) => {
+                                tracing::warn!("Message/set: MLS payload too large to pad: {e}");
+                            }
                         }
                     }
                     Err(e) => {
@@ -2036,6 +2043,12 @@ async fn message_query(args: Value, state: &DaemonState) -> (String, Value) {
 
     let position = args.get("position").and_then(|v| v.as_i64()).unwrap_or(0);
     let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(256);
+    if position < 0 {
+        return invalid_args("position must be non-negative");
+    }
+    if limit < 0 {
+        return invalid_args("limit must be non-negative");
+    }
     let total = match store.count_messages_in_chat(&chat_id).await {
         Ok(n) => n,
         Err(e) => return server_fail(&e.to_string()),

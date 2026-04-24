@@ -183,10 +183,32 @@ pub async fn send_payment<C: WalletClient>(
     }
 
     // Step 3: Derive change address diversifier.
-    let change_di = store
+    //
+    // `next_diversifier` reserves a slot and advances the DB counter by 1.
+    // `find_address` may skip ahead to the next *valid* Sapling diversifier,
+    // leaving a gap.  Advance the DB counter past the actual index so that
+    // a future call cannot allocate the same address again (ZIP-316 §Fresh
+    // subaddress per payment).  Mirrors the pattern in `alloc_fresh_address`.
+    let change_di_start = store
         .next_diversifier(PAYMENT_ACCOUNT)
         .await
         .map_err(SendPaymentError::Db)?;
+    let (actual_di, _) = sk
+        .to_dfvk()
+        .find_address(change_di_start)
+        .map_err(|e| {
+            SendPaymentError::Build(TxBuildError::BuilderError(format!(
+                "change address diversifier derivation: {e}"
+            )))
+        })?;
+    let actual_u128 = u128::from(actual_di);
+    if actual_u128 > change_di_start {
+        store
+            .advance_diversifier_to(PAYMENT_ACCOUNT, actual_u128 + 1)
+            .await
+            .map_err(SendPaymentError::Db)?;
+    }
+    let change_di = actual_u128;
 
     // Step 4: Encode the session UUID into a ZIP-302 memo.
     let memo = session_id_to_memo(session_id);

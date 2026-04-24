@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
             .ok()
             .and_then(|b| <[u8; 64]>::try_from(b.as_slice()).ok())
         {
-            Some(arr) => Identity::from_secret_bytes(&arr).pub_id().0,
+            Some(arr) => Identity::from_secret_bytes(&arr)?.pub_id().0,
             None => {
                 anyhow::bail!(
                     "keyfile {} must be exactly 64 bytes",

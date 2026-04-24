@@ -179,7 +179,7 @@ impl LightwalletdClient {
         start: u64,
         end: u64,
     ) -> Result<tonic::Streaming<CompactBlock>> {
-        assert!(
+        anyhow::ensure!(
             start <= end,
             "get_block_range: start ({start}) must be <= end ({end})"
         );

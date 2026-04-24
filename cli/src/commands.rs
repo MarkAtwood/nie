@@ -2671,7 +2671,15 @@ pub async fn chat(
                                 .unwrap();
                                 let payload = if mls.has_group_id(gid.as_bytes()) {
                                     match mls.encrypt_for_group(gid.as_bytes(), &clear_bytes) {
-                                        Ok(ct) => ct,
+                                        Ok(ct) => match nie_core::messages::pad(&ct) {
+                                            Ok(padded) => padded,
+                                            Err(e) => {
+                                                eprintln!(
+                                                    "[group] payload too large to pad for '{gname}': {e}"
+                                                );
+                                                continue;
+                                            }
+                                        },
                                         Err(e) => {
                                             eprintln!(
                                                 "[group] MLS encrypt failed for '{gname}': {e}"

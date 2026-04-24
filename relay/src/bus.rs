@@ -81,12 +81,16 @@ impl BusSubscriber {
         match &mut self.inner {
             SubscriberInner::Local(rx) => {
                 // Drain messages or block until one arrives.
-                match rx.recv().await {
-                    Ok(msg) => Some(msg),
-                    Err(broadcast::error::RecvError::Closed) => None,
-                    Err(broadcast::error::RecvError::Lagged(_)) => {
-                        // Lagged: skip dropped messages and try again.
-                        Box::pin(self.recv()).await
+                // Loop instead of recursing on Lagged to prevent unbounded stack growth
+                // in a sustained-lag scenario (e.g. slow consumer on a busy channel).
+                loop {
+                    match rx.recv().await {
+                        Ok(msg) => return Some(msg),
+                        Err(broadcast::error::RecvError::Closed) => return None,
+                        Err(broadcast::error::RecvError::Lagged(_)) => {
+                            // Lagged: some messages were dropped; retry from the oldest available.
+                            continue;
+                        }
                     }
                 }
             }
