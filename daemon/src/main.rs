@@ -43,11 +43,14 @@ async fn main() -> Result<()> {
         socket_addr.ip()
     );
 
-    // CORS: allow localhost origins only
+    // CORS: allow localhost origins on the configured port.
+    // Derive the port from LISTEN_ADDR so CORS stays consistent when operators
+    // change the port via the env var.
+    let port = socket_addr.port();
     let cors = CorsLayer::new()
         .allow_origin([
-            "http://localhost:7734".parse::<HeaderValue>()?,
-            "http://127.0.0.1:7734".parse::<HeaderValue>()?,
+            format!("http://localhost:{port}").parse::<HeaderValue>()?,
+            format!("http://127.0.0.1:{port}").parse::<HeaderValue>()?,
         ])
         .allow_methods([Method::GET, Method::POST])
         .allow_headers(tower_http::cors::Any);
@@ -218,8 +221,11 @@ async fn main() -> Result<()> {
     if let Ok(relay_url) = std::env::var("RELAY_URL") {
         let insecure = std::env::var("RELAY_INSECURE").is_ok();
         let proxy = std::env::var("RELAY_PROXY").ok();
+        let keyfile_str = keyfile_path
+            .to_str()
+            .ok_or_else(|| anyhow::anyhow!("keyfile path contains non-UTF-8 bytes: {keyfile_path:?}"))?;
         relay::start_relay_connector(
-            keyfile_path.to_str().unwrap_or(""),
+            keyfile_str,
             &relay_url,
             insecure,
             proxy,

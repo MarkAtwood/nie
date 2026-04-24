@@ -305,6 +305,13 @@ fn server_fail(msg: &str) -> (String, Value) {
     )
 }
 
+/// Log a database error internally and return a generic serverFail response.
+/// Never exposes raw SQLite error strings (table/column names) to the client.
+fn db_error(e: impl std::fmt::Display) -> (String, Value) {
+    tracing::error!("database error: {e}");
+    server_fail("database error")
+}
+
 fn contact_to_json(c: &ChatContactRow) -> Value {
     serde_json::json!({
         "id": c.id,
@@ -409,7 +416,7 @@ async fn contact_get(args: Value, state: &DaemonState) -> (String, Value) {
 
     let state_tok = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     match store.get_contacts(id_strs.as_deref()).await {
         Ok((list, not_found)) => method_ok(
@@ -421,7 +428,7 @@ async fn contact_get(args: Value, state: &DaemonState) -> (String, Value) {
                 "notFound": not_found,
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -439,7 +446,7 @@ async fn contact_changes(args: Value, state: &DaemonState) -> (String, Value) {
         .unwrap_or("0");
     let new_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     if since_state != new_state {
@@ -476,7 +483,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let old_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let mut updated: HashMap<String, Value> = HashMap::new();
@@ -571,7 +578,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // RFC 8620 §7.1: empty patch is a no-op if the object exists.
                 let (_, not_found) = match store.get_contacts(Some(&[id.as_str()])).await {
                     Ok(r) => r,
-                    Err(e) => return server_fail(&e.to_string()),
+                    Err(e) => return db_error(e),
                 };
                 if not_found.is_empty() {
                     updated.insert(id.clone(), Value::Null);
@@ -596,7 +603,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 Ok(false) => {
                     not_updated.insert(id.clone(), serde_json::json!({"type": "notFound"}));
                 }
-                Err(e) => return server_fail(&e.to_string()),
+                Err(e) => return db_error(e),
             }
         }
     }
@@ -614,7 +621,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let new_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     method_ok(
@@ -652,11 +659,11 @@ async fn contact_query(args: Value, state: &DaemonState) -> (String, Value) {
 
     let query_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let ids = match store.query_contacts(presence, blocked).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
 
@@ -704,7 +711,7 @@ async fn contact_query_changes(args: Value, state: &DaemonState) -> (String, Val
         .unwrap_or("0");
     let new_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     if since != new_state {
         // The daemon has no per-object change log.  ChatContact/query already
@@ -725,7 +732,7 @@ async fn contact_query_changes(args: Value, state: &DaemonState) -> (String, Val
         .and_then(|v| v.as_bool());
     let ids = match store.query_contacts(presence, blocked).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
     method_ok(
@@ -765,7 +772,7 @@ async fn chat_get(args: Value, state: &DaemonState) -> (String, Value) {
         .map(|v| v.iter().map(|s| s.as_str()).collect());
     let state_tok = match store.state_token("Chat").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     match store.get_chats(id_strs.as_deref()).await {
         Ok((list, not_found)) => method_ok(
@@ -777,7 +784,7 @@ async fn chat_get(args: Value, state: &DaemonState) -> (String, Value) {
                 "notFound": not_found,
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -795,14 +802,14 @@ async fn chat_changes(args: Value, state: &DaemonState) -> (String, Value) {
         .unwrap_or("0");
     let new_state = match store.state_token("Chat").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let (created, updated): (Vec<String>, Vec<String>) = if since_state == new_state {
         (vec![], vec![])
     } else {
         let ids = match store.get_chats(None).await {
             Ok((list, _)) => list.iter().map(|c| c.id.clone()).collect::<Vec<String>>(),
-            Err(e) => return server_fail(&e.to_string()),
+            Err(e) => return db_error(e),
         };
         (ids, vec![])
     };
@@ -830,11 +837,11 @@ async fn chat_query(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let query_state = match store.state_token("Chat").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let (all_chats, _) = match store.get_chats(None).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     // Optional kind filter
     let kind_filter = args
@@ -939,17 +946,17 @@ async fn space_get(args: Value, state: &DaemonState) -> (String, Value) {
         .map(|v| v.iter().map(|s| s.as_str()).collect());
     let state_tok = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let (spaces, not_found) = match store.get_spaces(id_strs.as_deref()).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let mut list = Vec::new();
     for s in &spaces {
         let members = match store.get_space_members(&s.id).await {
             Ok(m) => m,
-            Err(e) => return server_fail(&e.to_string()),
+            Err(e) => return db_error(e),
         };
         list.push(space_to_json(s, &members));
     }
@@ -978,7 +985,7 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
         .unwrap_or("0");
     let new_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     if since != new_state {
         // The daemon has no per-object change log, so it cannot enumerate
@@ -1141,7 +1148,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let old_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let mut created = serde_json::Map::new();
@@ -1155,11 +1162,25 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Object(creates)) = args.get("create") {
         for (client_id, props) in creates {
             let name = match props.get("name").and_then(|v| v.as_str()) {
-                Some(n) => n.to_string(),
+                Some(n) => n,
                 None => {
                     not_created.insert(
                         client_id.clone(),
                         serde_json::json!({"type":"invalidProperties","properties":["name"]}),
+                    );
+                    continue;
+                }
+            };
+            let name = match canonicalize_display_name(name) {
+                Ok(n) => n,
+                Err(_) => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({
+                            "type": "invalidProperties",
+                            "properties": ["name"],
+                            "description": "display name invalid"
+                        }),
                     );
                     continue;
                 }
@@ -1196,7 +1217,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 Err(e) => {
                     not_created.insert(
                         client_id.clone(),
-                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
                     );
                 }
             }
@@ -1274,9 +1295,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                             update_err = Some(serde_json::json!({"type":"notFound"}));
                         }
                         Err(e) => {
+                            tracing::error!("database error: {e}");
                             update_err = Some(serde_json::json!({
                                 "type":"serverFail",
-                                "description":e.to_string()
+                                "description":"database error"
                             }));
                         }
                         Ok(true) => {}
@@ -1315,7 +1337,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                     Err(e) => {
                         not_destroyed.insert(
                             id.to_string(),
-                            serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
                         );
                     }
                 }
@@ -1325,7 +1347,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let new_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     method_ok(
         "Space/set",
@@ -1353,11 +1375,11 @@ async fn space_query(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let query_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let ids = match store.query_spaces().await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
     method_ok(
@@ -1387,11 +1409,11 @@ async fn space_query_changes(args: Value, state: &DaemonState) -> (String, Value
         .unwrap_or("0");
     let new_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let ids = match store.query_spaces().await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
     let added: Vec<Value> = if since == new_state {
@@ -1440,7 +1462,7 @@ async fn space_join(args: Value, state: &DaemonState) -> (String, Value) {
                 "description": "invite code not found or expired"
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -1479,7 +1501,7 @@ async fn space_invite_get(args: Value, state: &DaemonState) -> (String, Value) {
         .map(|v| v.iter().map(|s| s.as_str()).collect());
     let state_tok = match store.state_token("SpaceInvite").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     match store.get_space_invites(id_strs.as_deref()).await {
         Ok((invites, not_found)) => method_ok(
@@ -1491,7 +1513,7 @@ async fn space_invite_get(args: Value, state: &DaemonState) -> (String, Value) {
                 "notFound": not_found,
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -1509,7 +1531,7 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let old_state = match store.state_token("SpaceInvite").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let mut created = serde_json::Map::new();
@@ -1555,16 +1577,16 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                 Err(e) => {
                     not_created.insert(
                         client_id.clone(),
-                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
                     );
                     continue;
                 }
                 Ok(Some(_)) => {} // caller is a member, proceed
             }
             let id = crate::store::Store::new_id();
-            // Use chars [10..18] of the ULID — the random suffix (80-bit
-            // random encoded in Crockford Base32).  [..8] would be pure
-            // timestamp: zero random bits and trivially enumerable.
+            // Use chars [10..18] of the ULID — 8 Crockford Base32 chars from the
+            // random suffix (~40-bit entropy).  [..8] would be pure timestamp:
+            // zero random bits and trivially enumerable.
             let code = Ulid::new().to_string()[10..18].to_uppercase();
             match store
                 .create_space_invite(&id, &code, &space_id, &account_id)
@@ -1579,7 +1601,7 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                 Err(e) => {
                     not_created.insert(
                         client_id.clone(),
-                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
                     );
                 }
             }
@@ -1610,7 +1632,7 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let new_state = match store.state_token("SpaceInvite").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     method_ok(
         "SpaceInvite/set",
@@ -1648,7 +1670,7 @@ async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
     let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
     let state_tok = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     match store.get_messages(&id_strs).await {
         Ok((list, not_found)) => method_ok(
@@ -1660,7 +1682,7 @@ async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
                 "notFound": not_found,
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -1678,19 +1700,27 @@ async fn message_changes(args: Value, state: &DaemonState) -> (String, Value) {
         .unwrap_or("0");
     let new_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
-    // Simplified: if unchanged → empty; else return all message IDs as "created".
-    let created = if since_state == new_state {
-        vec![]
+    // Simplified: if unchanged → empty; else return up to 256 message IDs as "created".
+    const MAX_CHANGES: i64 = 256;
+    let (created, has_more) = if since_state == new_state {
+        (vec![], false)
     } else {
         // We don't have a cheap "all message ids" query — use default channel only.
         match state.default_channel_id() {
-            Some(chan) => match store.query_messages(chan, 0, i64::MAX).await {
-                Ok(ids) => ids,
-                Err(e) => return server_fail(&e.to_string()),
+            Some(chan) => match store.query_messages(chan, 0, MAX_CHANGES).await {
+                Ok(ids) => {
+                    let total = store
+                        .count_messages_in_chat(chan)
+                        .await
+                        .unwrap_or(0);
+                    let has_more = total > MAX_CHANGES;
+                    (ids, has_more)
+                }
+                Err(e) => return db_error(e),
             },
-            None => vec![],
+            None => (vec![], false),
         }
     };
     method_ok(
@@ -1699,7 +1729,7 @@ async fn message_changes(args: Value, state: &DaemonState) -> (String, Value) {
             "accountId": account_id,
             "oldState": since_state,
             "newState": new_state,
-            "hasMoreChanges": false,
+            "hasMoreChanges": has_more,
             "removed": [],
             "created": created,
             "updated": [],
@@ -1718,7 +1748,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let old_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let mut created: HashMap<String, Value> = HashMap::new();
@@ -1760,10 +1790,27 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 .get("threadRootId")
                 .and_then(|v| v.as_str())
                 .map(String::from);
-            let expires_at = props
-                .get("senderExpiresAt")
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            // Normalize senderExpiresAt to SQLite datetime format so that the
+            // expires_at <= datetime('now') comparison in hard_delete_expired_messages
+            // works correctly.  RFC 3339 "T" separators compare incorrectly against
+            // SQLite's space-separated datetime() output.
+            let expires_at = match props.get("senderExpiresAt").and_then(|v| v.as_str()) {
+                None => None,
+                Some(s) => match chrono::DateTime::parse_from_rfc3339(s) {
+                    Ok(dt) => Some(dt.naive_utc().format("%Y-%m-%d %H:%M:%S").to_string()),
+                    Err(_) => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "invalidProperties",
+                                "properties": ["senderExpiresAt"],
+                                "description": "senderExpiresAt must be a valid RFC 3339 datetime"
+                            }),
+                        );
+                        continue;
+                    }
+                },
+            };
             let burn_on_read = props
                 .get("burnOnRead")
                 .and_then(|v| v.as_bool())
@@ -1785,7 +1832,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 .await
             {
                 Ok(id) => id,
-                Err(e) => return server_fail(&e.to_string()),
+                Err(e) => return db_error(e),
             };
 
             // Encrypt and send via relay if MLS client available.
@@ -1837,9 +1884,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                     break;
                                 }
                                 Err(e) => {
+                                    tracing::error!("database error: {e}");
                                     update_err = Some(serde_json::json!({
                                         "type": "serverFail",
-                                        "description": e.to_string()
+                                        "description": "database error"
                                     }));
                                     break;
                                 }
@@ -1860,9 +1908,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                     break;
                                 }
                                 Err(e) => {
+                                    tracing::error!("database error: {e}");
                                     update_err = Some(serde_json::json!({
                                         "type": "serverFail",
-                                        "description": e.to_string()
+                                        "description": "database error"
                                     }));
                                     break;
                                 }
@@ -1893,7 +1942,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                     }
                                     Err(e) => {
                                         update_err = Some(
-                                            serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
                                         );
                                         break;
                                     }
@@ -1913,7 +1962,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                 }
                                 Err(e) => {
                                     update_err = Some(
-                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
                                     );
                                     break;
                                 }
@@ -1938,7 +1987,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                             Some(ts) => {
                                 if let Err(e) = store.read_message(msg_id, ts).await {
                                     update_err = Some(
-                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
                                     );
                                     break;
                                 }
@@ -1980,7 +2029,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                     Err(e) => {
                         not_destroyed.insert(
                             id.to_string(),
-                            serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
                         );
                     }
                 }
@@ -1990,7 +2039,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let new_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     method_ok(
@@ -2038,7 +2087,7 @@ async fn message_query(args: Value, state: &DaemonState) -> (String, Value) {
 
     let query_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let position = args.get("position").and_then(|v| v.as_i64()).unwrap_or(0);
@@ -2051,11 +2100,11 @@ async fn message_query(args: Value, state: &DaemonState) -> (String, Value) {
     }
     let total = match store.count_messages_in_chat(&chat_id).await {
         Ok(n) => n,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let ids = match store.query_messages(&chat_id, position, limit).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     method_ok(
@@ -2099,18 +2148,19 @@ async fn message_query_changes(args: Value, state: &DaemonState) -> (String, Val
         .unwrap_or("0");
     let new_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = match store.count_messages_in_chat(&chat_id).await {
         Ok(n) => n,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
+    const MAX_QUERY_CHANGES: i64 = 256;
     let added: Vec<Value> = if since == new_state {
         vec![]
     } else {
-        let ids = match store.query_messages(&chat_id, 0, i64::MAX).await {
+        let ids = match store.query_messages(&chat_id, 0, MAX_QUERY_CHANGES).await {
             Ok(v) => v,
-            Err(e) => return server_fail(&e.to_string()),
+            Err(e) => return db_error(e),
         };
         ids.iter()
             .enumerate()
@@ -2136,6 +2186,9 @@ async fn message_query_changes(args: Value, state: &DaemonState) -> (String, Val
 ///
 /// Upload raw bytes.  Returns a BlobDescriptor JSON object with the blobId.
 /// The blobId is the hex-encoded SHA-256 of the content (content-addressed).
+/// Maximum permitted upload size (RFC 8620 §6 maxSizeUpload).
+const UPLOAD_MAX_BYTES: usize = 25 * 1024 * 1024; // 25 MB
+
 pub async fn handle_jmap_upload(
     State(state): State<DaemonState>,
     Path(account_id): Path<String>,
@@ -2144,6 +2197,9 @@ pub async fn handle_jmap_upload(
 ) -> axum::response::Response {
     if account_id != state.my_pub_id() {
         return StatusCode::FORBIDDEN.into_response();
+    }
+    if body.len() > UPLOAD_MAX_BYTES {
+        return (StatusCode::PAYLOAD_TOO_LARGE, "upload exceeds limit").into_response();
     }
     let content_type = headers
         .get(header::CONTENT_TYPE)
@@ -3092,7 +3148,8 @@ mod tests {
 
         // Verify expires_at was stored
         let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
-        assert_eq!(msgs[0].expires_at.as_deref(), Some("2026-01-01T00:00:00Z"));
+        // Stored in SQLite datetime format (normalized from RFC 3339 on write).
+        assert_eq!(msgs[0].expires_at.as_deref(), Some("2026-01-01 00:00:00"));
 
         // Run the reaper — should hard-delete this message (past expiry)
         let deleted = store.hard_delete_expired_messages().await.unwrap();

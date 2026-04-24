@@ -438,11 +438,17 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
         anyhow::bail!("authentication failed: {} (code {})", err.message, err.code);
     }
 
-    // Extract pub_id from result for the info log; missing result is still auth success.
+    // Verify and log the pub_id returned by the relay.
     if let Some(result) = &resp.result {
-        if let Some(pub_id) = result.get("pub_id").and_then(|v| v.as_str()) {
+        if let Some(relay_pub_id) = result.get("pub_id").and_then(|v| v.as_str()) {
+            let expected = identity.pub_id().0;
+            if relay_pub_id != expected {
+                anyhow::bail!(
+                    "relay returned unexpected pub_id: got {relay_pub_id}, expected {expected}"
+                );
+            }
             let sub_expires = result.get("subscription_expires").and_then(|v| v.as_str());
-            info!("authenticated as {pub_id} (subscription: {sub_expires:?})");
+            info!("authenticated as {relay_pub_id} (subscription: {sub_expires:?})");
         }
     }
 

@@ -5,7 +5,7 @@ use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use futures::channel::oneshot;
 use js_sys::Function;
-use nie_core::{auth, identity::Identity, messages::ClearMessage, protocol::UserInfo};
+use nie_core::{auth, identity::Identity, messages::{pad, unpad, ClearMessage}, protocol::UserInfo};
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
@@ -260,7 +260,7 @@ impl NieRelayClient {
             .transport
             .send_request(
                 "broadcast",
-                serde_json::json!({ "payload": build_payload(text) }),
+                serde_json::json!({ "payload": build_payload(text)? }),
             )
             .await?;
 
@@ -279,7 +279,7 @@ impl NieRelayClient {
             .transport
             .send_request(
                 "whisper",
-                serde_json::json!({ "to": to, "payload": build_payload(text) }),
+                serde_json::json!({ "to": to, "payload": build_payload(text)? }),
             )
             .await?;
 
@@ -321,18 +321,20 @@ impl NieRelayClient {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/// Serialize `text` as a `ClearMessage::Chat` and base64-encode the result.
+/// Serialize `text` as a `ClearMessage::Chat`, pad for traffic-analysis resistance,
+/// and base64-encode the result.
 ///
 /// This is the MLS insertion point: when MLS lands, replace the plaintext
 /// `serde_json::to_vec` with an MLS encrypt call. The base64 encoding and
 /// `"payload"` key in the JSON-RPC params stay the same.
-fn build_payload(text: &str) -> String {
+fn build_payload(text: &str) -> Result<String, String> {
     let msg = ClearMessage::Chat {
         text: text.to_string(),
     };
     // ClearMessage::Chat is a derived Serialize with a single String field — infallible.
     let payload_bytes = serde_json::to_vec(&msg).expect("ClearMessage::Chat serializes infallibly");
-    B64.encode(payload_bytes)
+    let padded = pad(&payload_bytes).map_err(|e| e.to_string())?;
+    Ok(B64.encode(padded))
 }
 
 /// Decode a base64-encoded payload string into a human-readable text.
@@ -349,11 +351,16 @@ fn decode_payload_text(payload_b64: &str) -> String {
         Err(_) => return "(invalid base64 payload)".to_string(),
     };
 
+    let plaintext = match unpad(&bytes) {
+        Ok(p) => p,
+        Err(_) => return "(invalid padded payload)".to_string(),
+    };
+
     // Attempt to parse as ClearMessage::Chat.
-    if let Ok(ClearMessage::Chat { text }) = serde_json::from_slice::<ClearMessage>(&bytes) {
+    if let Ok(ClearMessage::Chat { text }) = serde_json::from_slice::<ClearMessage>(&plaintext) {
         return text;
     }
 
     // Fall back to raw UTF-8 if it isn't a Chat variant (e.g. Payment, Ack).
-    String::from_utf8(bytes).unwrap_or_else(|_| "(binary payload)".to_string())
+    String::from_utf8(plaintext).unwrap_or_else(|_| "(binary payload)".to_string())
 }

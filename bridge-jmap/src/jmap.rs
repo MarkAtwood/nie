@@ -254,9 +254,9 @@ impl JmapClient {
             .filter_map(|v| {
                 serde_json::from_value::<EmailObject>(v.clone())
                     .map_err(|e| {
+                        let id = v.get("id").and_then(|i| i.as_str()).unwrap_or("<unknown>");
                         tracing::warn!(
-                            "JMAP Email/get: dropping email that failed to deserialize: {e} — raw: {}",
-                            v
+                            "JMAP Email/get: dropping email that failed to deserialize: {e} (id: {id})"
                         );
                     })
                     .ok()

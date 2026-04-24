@@ -256,12 +256,20 @@ impl WalletStore {
             // Add block_height column to notes.  Needed for confirmation-depth
             // balance queries.  Existing rows (none in practice — scanner was
             // not yet live) default to 0.
+            //
+            // Wrapped in a transaction so a crash between the ALTER TABLE and the
+            // PRAGMA user_version update leaves the schema in a consistent state:
+            // user_version stays < 4 and the next open retries cleanly rather than
+            // hitting "duplicate column name".  SQLite supports transactional DDL
+            // for ALTER TABLE ADD COLUMN.
+            let mut txn = pool.begin().await?;
             sqlx::query("ALTER TABLE notes ADD COLUMN block_height INTEGER NOT NULL DEFAULT 0")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
             sqlx::query("PRAGMA user_version = 4")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
+            txn.commit().await?;
         }
 
         if version < 5 {
@@ -337,15 +345,21 @@ impl WalletStore {
             // and this one is selective: in a normal wallet most notes are spent.
             // When the notes table gains an account_index column, extend this
             // to (account_index, spent) for efficient per-account queries.
+            //
+            // Wrapped in a transaction: a crash between CREATE INDEX and PRAGMA
+            // user_version leaves user_version < 7 so the next open retries.
+            // CREATE INDEX IF NOT EXISTS is idempotent on retry.
+            let mut txn = pool.begin().await?;
             sqlx::query(
                 "CREATE INDEX IF NOT EXISTS notes_unspent ON notes(spent)
                  WHERE spent = 0",
             )
-            .execute(&pool)
+            .execute(&mut *txn)
             .await?;
             sqlx::query("PRAGMA user_version = 7")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
+            txn.commit().await?;
         }
 
         if version < 8 {
@@ -353,12 +367,18 @@ impl WalletStore {
             // CommitmentTree<sapling::Node, 32> snapshot so the scanner can resume
             // without replaying the full chain from genesis on restart.
             // NULL means no snapshot yet; scanner falls back to an empty tree.
+            //
+            // Wrapped in a transaction: a crash between ALTER TABLE and PRAGMA
+            // user_version leaves user_version < 8 so the next open retries.
+            // SQLite supports transactional DDL for ALTER TABLE ADD COLUMN.
+            let mut txn = pool.begin().await?;
             sqlx::query("ALTER TABLE scan_state ADD COLUMN tree_state BLOB")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
             sqlx::query("PRAGMA user_version = 8")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
+            txn.commit().await?;
         }
 
         Ok(Self { pool })
@@ -868,6 +888,26 @@ impl WalletStore {
         Ok(note_id)
     }
 
+    /// Fetch the `note_id` for an existing note by its `(txid, output_index)` pair.
+    ///
+    /// Returns `None` if no row matches.  Used by the scanner on a unique-constraint
+    /// collision during rescan: the note is already in the DB, so look up its primary
+    /// key to populate the in-memory witness map and keep it current.
+    pub(crate) async fn get_note_id_by_output(
+        &self,
+        txid: &str,
+        output_index: i64,
+    ) -> Result<Option<i64>> {
+        let row: Option<(i64,)> = sqlx::query_as(
+            "SELECT note_id FROM notes WHERE txid = ?1 AND output_index = ?2",
+        )
+        .bind(txid)
+        .bind(output_index)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|(id,)| id))
+    }
+
     // ---- transactions ----
 
     /// Record a confirmed transaction.  Ignores conflicts (idempotent re-index).
@@ -1039,7 +1079,13 @@ impl WalletStore {
         let threshold_i64: i64 = if scan_tip < min_confirmations {
             -1 // No note can be confirmed yet; -1 is below any valid block_height.
         } else {
-            i64::try_from(scan_tip - min_confirmations).unwrap_or(i64::MAX)
+            // scan_tip - min_confirmations is safe (checked above); the result
+            // must fit in i64 (block heights are bounded by the chain length,
+            // far below i64::MAX).  Overflow here would mean every note is
+            // counted as confirmed regardless of depth — return an error instead.
+            (scan_tip - min_confirmations)
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("scan_tip computation overflow: scan_tip={scan_tip} min_confirmations={min_confirmations}"))?
         };
 
         #[derive(sqlx::FromRow)]
@@ -1354,6 +1400,10 @@ impl WalletStore {
     /// Sets all three plaintext columns and inserts a witness row so that
     /// `spendable_notes()` returns this note immediately.
     ///
+    /// Each call generates a unique (txid, output_index) pair via an atomic
+    /// counter so multiple calls in the same store do not hit the UNIQUE
+    /// constraint on (txid, output_index).
+    ///
     /// The `witness_data` bytes must be a valid serialized `IncrementalWitness`
     /// whose tree state is consistent with `block_height`; otherwise the tx
     /// builder will reject the spend proof.
@@ -1367,18 +1417,24 @@ impl WalletStore {
         rseed_after_zip212: bool,
         witness_data: &[u8],
     ) -> Result<i64> {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static NEXT_IDX: AtomicU32 = AtomicU32::new(0);
+        let idx = NEXT_IDX.fetch_add(1, Ordering::Relaxed);
+
         let value = i64::try_from(value_zatoshi).map_err(|_| anyhow::anyhow!("value overflow"))?;
         let height =
             i64::try_from(block_height).map_err(|_| anyhow::anyhow!("block_height overflow"))?;
+        // Unique synthetic txid per call: zero-padded decimal index fills 64 hex chars.
+        let txid = format!("{idx:0>64}");
         let note_id: i64 = sqlx::query_scalar(
             "INSERT INTO notes
                (txid, output_index, value_zatoshi, block_height, created_at,
                 note_diversifier, note_pk_d, note_rseed, note_rseed_after_zip212)
-             VALUES \
-              ('0000000000000000000000000000000000000000000000000000000000000000',
-               0, ?, ?, 0, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
              RETURNING note_id",
         )
+        .bind(&txid)
+        .bind(idx as i64)
         .bind(value)
         .bind(height)
         .bind(note_diversifier)

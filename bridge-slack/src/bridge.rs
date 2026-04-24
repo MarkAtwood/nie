@@ -164,6 +164,7 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
         };
         let app = axum::Router::new()
             .route("/slack/events", axum::routing::post(slack_events))
+            .layer(axum::extract::DefaultBodyLimit::max(1 * 1024 * 1024))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Slack events server listening on port {listen_port}");

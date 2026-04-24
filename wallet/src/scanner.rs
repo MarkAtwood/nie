@@ -322,29 +322,21 @@ impl CompactBlockScanner {
         }
 
         // Load per-note witnesses for all unspent notes that have a witness row.
-        let notes = self.store.spendable_notes(0).await;
-        match notes {
-            Ok(spendable) => {
-                for sn in spendable {
-                    match read_incremental_witness::<sapling::Node, _, 32>(Cursor::new(
-                        &sn.witness_data,
-                    )) {
-                        Ok(w) => {
-                            self.witnesses.insert(sn.note_id, w);
-                        }
-                        Err(e) => {
-                            warn!(
-                                note_id = sn.note_id,
-                                "scanner: failed to deserialize witness ({e}); note will be unspendable until rescan"
-                            );
-                        }
-                    }
+        // spendable_notes() returns Ok(vec![]) on an empty or new wallet — it does
+        // not return Err in the normal "no notes yet" case.  Any Err here is a real
+        // DB error (schema mismatch, I/O failure, etc.) and must be propagated.
+        let spendable = self.store.spendable_notes(0).await?;
+        for sn in spendable {
+            match read_incremental_witness::<sapling::Node, _, 32>(Cursor::new(&sn.witness_data)) {
+                Ok(w) => {
+                    self.witnesses.insert(sn.note_id, w);
                 }
-            }
-            Err(e) => {
-                // spendable_notes() may fail if the plaintext columns are NULL
-                // (notes not yet fully decrypted); that is expected for a new wallet.
-                debug!("scanner: spendable_notes() returned error during load_state: {e}");
+                Err(e) => {
+                    warn!(
+                        note_id = sn.note_id,
+                        "scanner: failed to deserialize witness ({e}); note will be unspendable until rescan"
+                    );
+                }
             }
         }
 
@@ -418,13 +410,14 @@ impl CompactBlockScanner {
             let mut wbytes = Vec::new();
             write_incremental_witness(witness, &mut wbytes)
                 .map_err(|e| anyhow::anyhow!("witness serialize failed for note {note_id}: {e}"))?;
-            if let Err(e) = self
-                .store
+            self.store
                 .upsert_witness(*note_id, block_height, &wbytes)
                 .await
-            {
-                warn!(note_id, "scanner: upsert_witness failed: {e}");
-            }
+                .map_err(|e| {
+                    anyhow::anyhow!(
+                        "scanner: upsert_witness failed for note {note_id} at height {block_height}: {e}"
+                    )
+                })?;
         }
 
         // Advance tip after the full block is committed.
@@ -525,11 +518,35 @@ impl CompactBlockScanner {
                     Err(e) if is_unique_constraint(&e) => {
                         // Already indexed — scanner is re-processing a block after a
                         // restart from a tip earlier than the actual last-scanned height.
+                        // Fetch the existing note_id so this note's witness is updated
+                        // for subsequent blocks; without this the note is unspendable
+                        // after a rescan because its witness never advances.
                         debug!(
                             height = block_height,
                             output_index = idx,
                             "scanner: note already in DB"
                         );
+                        match self
+                            .store
+                            .get_note_id_by_output(&note.txid, note.output_index)
+                            .await
+                        {
+                            Ok(Some(existing_id)) => {
+                                self.witnesses.insert(existing_id, witness);
+                            }
+                            Ok(None) => {
+                                warn!(
+                                    height = block_height,
+                                    output_index = idx,
+                                    "scanner: note claimed UNIQUE conflict but not found in DB; skipping witness"
+                                );
+                            }
+                            Err(e) => {
+                                return Err(anyhow::anyhow!(
+                                    "scanner: get_note_id_by_output failed after UNIQUE conflict: {e}"
+                                ));
+                            }
+                        }
                     }
                     Err(e) => return Err(e),
                 }

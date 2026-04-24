@@ -2,14 +2,15 @@ use anyhow::Result;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use ed25519_dalek::Verifier;
-use rand::Rng;
+use rand::RngCore;
+use rand::rngs::OsRng;
 
 use crate::identity::{decode_pub_key, hash_key, Identity, PubId};
 
 /// Generate a random 32-byte challenge nonce (base64-encoded).
 pub fn new_challenge() -> String {
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill(&mut bytes);
+    OsRng.fill_bytes(&mut bytes);
     B64.encode(bytes)
 }
 

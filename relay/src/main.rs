@@ -90,6 +90,12 @@ async fn main() -> anyhow::Result<()> {
         .ok()
         .and_then(|v| v.parse::<u8>().ok())
         .unwrap_or(0); // 0 = disabled; safe default
+    anyhow::ensure!(
+        pow_difficulty == 0 || pow_difficulty <= nie_core::pow::MAX_DIFFICULTY,
+        "POW_DIFFICULTY={pow_difficulty} exceeds MAX_DIFFICULTY ({}); \
+         clients would permanently fail PoW verification — refusing to start",
+        nie_core::pow::MAX_DIFFICULTY,
+    );
     if pow_difficulty > 0 && pow_difficulty < 20 {
         tracing::warn!(
             pow_difficulty,

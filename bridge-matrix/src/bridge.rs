@@ -172,6 +172,7 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
         };
         let app = axum::Router::new()
             .route("/transactions/{txn_id}", axum::routing::put(as_transaction))
+            .layer(axum::extract::DefaultBodyLimit::max(1 * 1024 * 1024))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Matrix AS server listening on :{listen_port}");

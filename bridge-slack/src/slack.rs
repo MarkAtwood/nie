@@ -68,6 +68,21 @@ impl SlackInnerEvent {
 
 // ---- Signature verification ----
 
+/// Compute the raw HMAC-SHA256 bytes for a Slack signature base string.
+///
+/// Extracted as a standalone function so the cryptographic computation can be
+/// tested against an independently-computed oracle (Python `hmac.new`) without
+/// needing a valid (non-stale) timestamp.
+fn compute_slack_hmac(signing_secret: &str, timestamp_str: &str, body: &[u8]) -> Result<Vec<u8>> {
+    let body_str =
+        std::str::from_utf8(body).map_err(|_| anyhow!("Slack request body is not valid UTF-8"))?;
+    let base = format!("v0:{timestamp_str}:{body_str}");
+    let mut mac = HmacSha256::new_from_slice(signing_secret.as_bytes())
+        .map_err(|e| anyhow!("HMAC key error: {e}"))?;
+    mac.update(base.as_bytes());
+    Ok(mac.finalize().into_bytes().to_vec())
+}
+
 /// Verify a Slack request signature.
 ///
 /// Slack signs every incoming webhook request with HMAC-SHA256:
@@ -97,34 +112,27 @@ pub fn verify_slack_signature(
         return Err(anyhow!("Slack request timestamp too old"));
     }
 
-    // Build base string.
-    let mut base = format!("v0:{timestamp_str}:");
-    let body_str =
-        std::str::from_utf8(body).map_err(|_| anyhow!("Slack request body is not valid UTF-8"))?;
-    base.push_str(body_str);
+    let mac_bytes = compute_slack_hmac(signing_secret, timestamp_str, body)?;
 
-    // Compute HMAC-SHA256.
-    let mut mac = HmacSha256::new_from_slice(signing_secret.as_bytes())
-        .map_err(|e| anyhow!("HMAC key error: {e}"))?;
-    mac.update(base.as_bytes());
-    let computed = format!("v0={}", hex::encode(mac.finalize().into_bytes()));
+    // Strip "v0=" prefix from the provided signature header before comparing raw bytes.
+    let provided_hex = signature_header
+        .strip_prefix("v0=")
+        .ok_or_else(|| anyhow!("Slack signature missing v0= prefix"))?;
+    let provided_bytes =
+        hex::decode(provided_hex).map_err(|_| anyhow!("Slack signature not valid hex"))?;
 
-    // Constant-time comparison via byte-by-byte XOR.
-    if !constant_time_eq(computed.as_bytes(), signature_header.as_bytes()) {
+    // Constant-time comparison: fold XOR of all byte pairs; any mismatch sets a bit.
+    // Length mismatch also fails because HMAC output is always 32 bytes.
+    if mac_bytes.len() != provided_bytes.len()
+        || mac_bytes
+            .iter()
+            .zip(provided_bytes.iter())
+            .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+            != 0
+    {
         return Err(anyhow!("Slack signature mismatch"));
     }
     Ok(())
-}
-
-/// Constant-time equality check to prevent timing side-channels.
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    a.iter()
-        .zip(b.iter())
-        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
-        == 0
 }
 
 // ---- Slack Web API client ----
@@ -302,16 +310,31 @@ mod tests {
             .contains("timestamp too old"));
     }
 
-    /// Oracle: known HMAC computed offline with Python:
+    /// Oracle: HMAC-SHA256 computed with Python's independent implementation:
     ///   import hmac, hashlib
     ///   secret = b"test_signing_secret"
     ///   ts = "1609459200"
     ///   body = b"test=body"
-    ///   base = f"v0:{ts}:test=body".encode()
-    ///   sig = "v0=" + hmac.new(secret, base, hashlib.sha256).hexdigest()
+    ///   base = f"v0:{ts}:{body.decode()}".encode()
+    ///   hex_sig = hmac.new(secret, base, hashlib.sha256).hexdigest()
+    ///   # result: f8df6d84b5326caa77e72d49b8c10603dd30bc2deb26fe8c9051276bacbe0fd0
+    #[test]
+    fn verify_signature_hmac_oracle() {
+        // This test proves compute_slack_hmac is correct per the Slack signing spec,
+        // using a value computed by Python's hmac module as the independent oracle.
+        let sig_bytes =
+            compute_slack_hmac("test_signing_secret", "1609459200", b"test=body").unwrap();
+        assert_eq!(
+            hex::encode(sig_bytes),
+            "f8df6d84b5326caa77e72d49b8c10603dd30bc2deb26fe8c9051276bacbe0fd0"
+        );
+    }
+
     #[test]
     fn verify_signature_accepts_correct_signature() {
-        // Use a timestamp 1 second in the future (well within 5-min window).
+        // Integration test: verify_slack_signature accepts a correctly-computed sig.
+        // The oracle test above guarantees compute_slack_hmac is correct;
+        // this test guarantees verify_slack_signature uses it correctly.
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -320,14 +343,8 @@ mod tests {
         let body = b"test=body";
         let secret = "test_signing_secret";
 
-        // Compute the expected signature using the same algorithm as verify_slack_signature.
-        use hmac::{Hmac, Mac};
-        use sha2::Sha256;
-        type HmacSha256 = Hmac<Sha256>;
-        let base = format!("v0:{}:test=body", ts);
-        let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
-        mac.update(base.as_bytes());
-        let expected_sig = format!("v0={}", hex::encode(mac.finalize().into_bytes()));
+        let mac_bytes = compute_slack_hmac(secret, &ts, body).unwrap();
+        let expected_sig = format!("v0={}", hex::encode(mac_bytes));
 
         let result = verify_slack_signature(secret, &ts, body, &expected_sig);
         assert!(

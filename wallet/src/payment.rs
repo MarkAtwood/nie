@@ -20,7 +20,7 @@
 
 use std::fmt;
 
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use sapling::circuit::{OutputParameters, SpendParameters};
@@ -51,6 +51,13 @@ pub enum SendPaymentError {
     Connect(anyhow::Error),
     /// A wallet store operation failed (note queries, tx record insertion, etc.).
     Db(anyhow::Error),
+    /// The transaction was broadcast but `mark_notes_spent` failed.
+    ///
+    /// The payment is on-chain and cannot be recalled.  The spent notes remain
+    /// "unspent" in the local DB and will be re-selected on the next send,
+    /// producing a double-spend rejection from the network.  Recovery requires
+    /// a full wallet rescan from seed.
+    MarkSpentFailed(String),
 }
 
 impl fmt::Display for SendPaymentError {
@@ -61,6 +68,7 @@ impl fmt::Display for SendPaymentError {
             Self::Broadcast(e) => write!(f, "broadcast failed: {e}"),
             Self::Connect(e) => write!(f, "could not connect to lightwalletd: {e}"),
             Self::Db(e) => write!(f, "database error: {e}"),
+            Self::MarkSpentFailed(msg) => write!(f, "mark notes spent failed: {msg}"),
         }
     }
 }
@@ -71,7 +79,7 @@ impl std::error::Error for SendPaymentError {
             Self::SyncLag(e) => Some(e),
             Self::Build(e) => Some(e),
             Self::Broadcast(e) => Some(e),
-            Self::Connect(_) | Self::Db(_) => None,
+            Self::Connect(_) | Self::Db(_) | Self::MarkSpentFailed(_) => None,
         }
     }
 }
@@ -247,11 +255,24 @@ pub async fn send_payment<C: WalletClient>(
 
     info!(txid = %txid, amount_zatoshi, session_id = %session_id, "payment broadcast");
 
-    // Step 7: Best-effort post-broadcast DB updates.
+    // Step 7: Post-broadcast DB updates.
 
     // Mark selected notes as spent in one transaction.
+    // The transaction is already on-chain — there is no way to undo it.
+    // If this fails, the notes remain "unspent" in the DB and will be re-selected
+    // on the next send, causing a double-spend rejection.  Return an error so the
+    // caller can surface the "please rescan" message to the user.
     if let Err(e) = store.mark_notes_spent(&selected_ids, &txid).await {
-        warn!(txid = %txid, error = %e, "failed to mark notes spent after broadcast — notes remain unspent in DB; next send will re-select them and be rejected as double-spend; recovery requires wallet rescan from seed");
+        error!(
+            txid = %txid,
+            error = %e,
+            "mark_notes_spent failed after successful broadcast — \
+             notes remain unspent in DB; rescan required to recover"
+        );
+        return Err(SendPaymentError::MarkSpentFailed(format!(
+            "txid {txid} was broadcast but notes could not be marked spent ({e}); \
+             rescan the wallet from seed to recover"
+        )));
     }
 
     // Insert the outgoing tx record.

@@ -84,7 +84,7 @@ pub enum ClearMessage {
     PeerReceipt {
         /// The `message_id` from the original `PeerDeliver`.
         message_id: String,
-        /// "delivered" | "read"
+        #[serde(deserialize_with = "deserialize_receipt_type")]
         receipt_type: String,
         at: String,
     },
@@ -108,13 +108,47 @@ pub enum ClearMessage {
     /// Peer/groupUpdate — space membership change notification.
     PeerGroupUpdate {
         space_id: String,
-        /// "join" | "leave" | "role_change"
+        #[serde(deserialize_with = "deserialize_group_action")]
         action: String,
         contact_id: String,
         /// New role (only set for "role_change").
         #[serde(default, skip_serializing_if = "Option::is_none")]
         role: Option<String>,
     },
+}
+
+/// Deserialize `receipt_type`, rejecting any value that is not a known variant.
+///
+/// Valid values: `"delivered"`, `"read"`.
+fn deserialize_receipt_type<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    match s.as_str() {
+        "delivered" | "read" => Ok(s),
+        other => Err(serde::de::Error::custom(format!(
+            "unknown receipt_type {:?}; expected \"delivered\" or \"read\"",
+            other
+        ))),
+    }
+}
+
+/// Deserialize `action` for `PeerGroupUpdate`, rejecting unknown variants.
+///
+/// Valid values: `"add"`, `"update"`, `"remove"`.
+fn deserialize_group_action<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    match s.as_str() {
+        "add" | "update" | "remove" => Ok(s),
+        other => Err(serde::de::Error::custom(format!(
+            "unknown group action {:?}; expected \"add\", \"update\", or \"remove\"",
+            other
+        ))),
+    }
 }
 
 /// The four steps of P2P payment negotiation, plus an error response.

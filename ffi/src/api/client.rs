@@ -4,7 +4,7 @@ use base64::Engine;
 use flutter_rust_bridge::frb;
 use nie_core::{
     identity::Identity,
-    messages::ClearMessage,
+    messages::{pad, unpad, ClearMessage},
     protocol::{
         rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcRequest,
         SetNicknameParams, UserJoinedParams, UserLeftParams, UserNicknameParams,
@@ -157,7 +157,7 @@ pub fn client_pub_id(client: &NieClient) -> String {
 
 /// Broadcast a chat message to all online peers (fire-and-forget).
 pub async fn client_send_message(client: &NieClient, text: String) -> Result<()> {
-    let payload = encode_chat_payload(&text);
+    let payload = encode_chat_payload(&text)?;
     let req = JsonRpcRequest::new(
         transport::next_request_id(),
         rpc_methods::BROADCAST,
@@ -175,7 +175,7 @@ pub async fn client_send_message(client: &NieClient, text: String) -> Result<()>
 ///
 /// `to` is the recipient's pub_id (64 hex chars).
 pub async fn client_send_whisper(client: &NieClient, to: String, text: String) -> Result<()> {
-    let payload = encode_chat_payload(&text);
+    let payload = encode_chat_payload(&text)?;
     let req = JsonRpcRequest::new(
         transport::next_request_id(),
         rpc_methods::WHISPER,
@@ -216,20 +216,25 @@ pub fn client_disconnect(_client: NieClient) {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-fn encode_chat_payload(text: &str) -> Vec<u8> {
+fn encode_chat_payload(text: &str) -> Result<Vec<u8>> {
     // ClearMessage::Chat is a derived Serialize with a single String field;
     // serde_json::to_vec on it is infallible by construction.
-    serde_json::to_vec(&ClearMessage::Chat {
+    let bytes = serde_json::to_vec(&ClearMessage::Chat {
         text: text.to_string(),
     })
-    .expect("ClearMessage::Chat serializes infallibly")
+    .expect("ClearMessage::Chat serializes infallibly");
+    pad(&bytes).map_err(|e| anyhow!("pad error: {e}"))
 }
 
 fn decode_payload_text(payload: &[u8]) -> String {
-    if let Ok(ClearMessage::Chat { text }) = serde_json::from_slice::<ClearMessage>(payload) {
+    let plaintext = match unpad(payload) {
+        Ok(p) => p,
+        Err(_) => return "(invalid padded payload)".to_string(),
+    };
+    if let Ok(ClearMessage::Chat { text }) = serde_json::from_slice::<ClearMessage>(&plaintext) {
         return text;
     }
-    String::from_utf8(payload.to_vec()).unwrap_or_else(|_| "(binary payload)".to_string())
+    String::from_utf8(plaintext).unwrap_or_else(|_| "(binary payload)".to_string())
 }
 
 fn map_notification(notif: nie_core::protocol::JsonRpcNotification) -> Option<NieEvent> {

@@ -235,11 +235,19 @@ impl AppState {
     }
 
     /// Set the PoW difficulty.  0 = disabled; 20 = default.
-    /// Capped at 30 to prevent impossible challenges.
+    /// Capped at MAX_DIFFICULTY (30) to prevent impossible challenges.
     pub fn set_pow_difficulty(&self, d: u8) {
+        use nie_core::pow::MAX_DIFFICULTY;
+        if d > MAX_DIFFICULTY {
+            tracing::warn!(
+                "POW_DIFFICULTY {} exceeds MAX_DIFFICULTY {MAX_DIFFICULTY}, \
+                 clamping to {MAX_DIFFICULTY}",
+                d
+            );
+        }
         self.inner
             .pow_difficulty
-            .store(d.min(30), Ordering::Relaxed);
+            .store(d.min(MAX_DIFFICULTY), Ordering::Relaxed);
     }
 
     /// Return a reference to the server PoW salt.

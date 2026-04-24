@@ -83,9 +83,19 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
     };
 
     // `last_scanned_height` tracks the highest block we have fully processed.
-    // 0 means we have not started yet; the first iteration sets it to
-    // `max(1, tip - INITIAL_LOOKBACK)` to catch recent payments.
-    let mut last_scanned_height: u64 = 0;
+    // On first run it defaults to `tip - INITIAL_LOOKBACK`; on restart it is
+    // loaded from the DB so payments confirmed between restarts are not missed.
+    let persisted_tip = match state.inner.store.get_payment_scan_tip().await {
+        Ok(h) => h,
+        Err(e) => {
+            warn!("payment_watcher: failed to load persisted scan tip ({e}); defaulting to tip-based lookback");
+            None
+        }
+    };
+    // 0 signals "not yet initialized"; the inner loop will set it from the
+    // live chain tip when first called.  A persisted value of 0 is treated
+    // the same way to avoid scanning from genesis after a DB wipe.
+    let mut last_scanned_height: u64 = persisted_tip.unwrap_or(0);
     let mut blocks_since_purge: u64 = 0;
 
     loop {
@@ -161,6 +171,9 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                 scan_block(&block, &decryptor, network_type, &state).await;
 
                 last_scanned_height = block.height;
+                if let Err(e) = state.inner.store.set_payment_scan_tip(last_scanned_height).await {
+                    warn!("payment_watcher: failed to persist scan tip {last_scanned_height}: {e}");
+                }
                 blocks_since_purge += 1;
 
                 // Purge expired invoices every 100 blocks to keep the table clean.

@@ -212,17 +212,22 @@ fn ensure_param_file(
     name: &str,
 ) -> Result<()> {
     // Check if the cached file is present and valid.
-    if path.exists() {
-        let data = std::fs::read(path)?;
-        if verify_blake2b(&data, expected_blake2b) {
-            tracing::debug!("{name}: cache hit (hash verified)");
-            return Ok(());
+    // Read directly instead of checking exists() first to avoid TOCTOU: a file
+    // removed between exists() and read() would produce an unexpected NotFound.
+    match std::fs::read(path) {
+        Ok(data) => {
+            if verify_blake2b(&data, expected_blake2b) {
+                tracing::debug!("{name}: cache hit (hash verified)");
+                return Ok(());
+            }
+            tracing::warn!("{name}: cached file hash mismatch — re-downloading");
+            // Remove the corrupt/outdated file before re-fetching.
+            std::fs::remove_file(path)?;
         }
-        tracing::warn!("{name}: cached file hash mismatch — re-downloading");
-        // Remove the corrupt/outdated file before re-fetching.
-        std::fs::remove_file(path)?;
-    } else {
-        tracing::info!("{name}: not cached — downloading");
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::info!("{name}: not cached — downloading");
+        }
+        Err(e) => return Err(e.into()),
     }
 
     // Fetch from CDN (60-second timeout per request).

@@ -1055,6 +1055,7 @@ impl Store {
             .bind(contact_id)
             .execute(&self.pool)
             .await?;
+        self.bump_state_seq("SpaceMember").await?;
         Ok(())
     }
 

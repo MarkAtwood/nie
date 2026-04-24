@@ -34,7 +34,7 @@ impl Identity {
         // Generate separate entropy for HPKE key (key separation invariant).
         let hpke_seed: [u8; 32] = rand::random();
         // Astronomically unlikely, but the invariant requires it.
-        assert_ne!(
+        debug_assert_ne!(
             &hpke_seed,
             signing_key.to_bytes().as_slice(),
             "Ed25519 and HPKE seeds must differ"

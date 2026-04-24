@@ -180,6 +180,28 @@ impl Store {
             }
         }
 
+        // Migration v2 → v3: add relay_kv table for persistent relay state.
+        {
+            let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await?;
+            if sv < 3 {
+                let mut tx = pool.begin().await?;
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS relay_kv (
+                        key   TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
+                    )",
+                )
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query("PRAGMA user_version = 3")
+                    .execute(&mut *tx)
+                    .await?;
+                tx.commit().await?;
+            }
+        }
+
         // Persistent user directory: every pub_id that has ever authenticated.
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS users (
@@ -456,7 +478,24 @@ impl Store {
     /// Enqueue a JSON-encoded relay message for a recipient who is not currently live.
     /// The payload is the serialized wire message (already a JSON string).
     /// Expires after 72 hours via SQLite's datetime() function.
+    ///
+    /// Silently drops the message (returning `Ok`) if the recipient's queue already
+    /// holds 1000 messages.  This prevents a flood of whispers from growing the
+    /// `offline_messages` table without bound.
     pub async fn enqueue(&self, to_pub_id: &str, payload_json: &str) -> Result<()> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM offline_messages WHERE to_pub_id = ?1",
+        )
+        .bind(to_pub_id)
+        .fetch_one(&self.pool)
+        .await?;
+        if count >= 1000 {
+            tracing::warn!(
+                to_pub_id,
+                "offline queue full (1000 messages), dropping message"
+            );
+            return Ok(());
+        }
         sqlx::query(
             "INSERT INTO offline_messages (to_pub_id, payload, expires_at) \
              VALUES (?1, ?2, datetime('now', '+72 hours'))",
@@ -490,6 +529,39 @@ impl Store {
             .await?;
         tx.commit().await?;
         Ok(rows.into_iter().map(|(s,)| s).collect())
+    }
+
+    // ---- Payment watcher state ----
+
+    /// Read the last height fully scanned by the payment watcher, or `None` if
+    /// the watcher has never run on this relay instance.
+    pub async fn get_payment_scan_tip(&self) -> Result<Option<u64>> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT value FROM relay_kv WHERE key = 'payment_watcher_scan_height'",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        match row {
+            None => Ok(None),
+            Some((s,)) => {
+                let h: u64 = s.parse().map_err(|e| {
+                    anyhow::anyhow!("corrupt payment_watcher_scan_height in DB: {e}")
+                })?;
+                Ok(Some(h))
+            }
+        }
+    }
+
+    /// Persist the last height fully scanned by the payment watcher.
+    pub async fn set_payment_scan_tip(&self, height: u64) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO relay_kv (key, value) VALUES ('payment_watcher_scan_height', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        )
+        .bind(height.to_string())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     // ---- Subscriptions (Phase 3) ----
@@ -872,6 +944,81 @@ impl Store {
                     .map(|n| (gid, n))
             })
             .collect()
+    }
+
+    /// Atomically remove `pub_id` from `group_id`, then delete the group if it
+    /// has no remaining members.
+    ///
+    /// Returns `true` if the group was deleted (member count dropped to 0),
+    /// `false` if other members remain.
+    ///
+    /// All three operations (DELETE member row, COUNT remaining members,
+    /// conditional DELETE group) run inside a single SQLite transaction,
+    /// eliminating the TOCTOU between a concurrent GROUP_ADD and the final
+    /// delete decision.
+    pub async fn remove_member_and_maybe_delete_group(
+        &self,
+        group_id: &str,
+        pub_id: &str,
+    ) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM group_members WHERE group_id = ?1 AND pub_id = ?2")
+            .bind(group_id)
+            .bind(pub_id)
+            .execute(&mut *tx)
+            .await?;
+        let remaining: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+                .bind(group_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        if remaining == 0 {
+            sqlx::query("DELETE FROM group_members WHERE group_id = ?1")
+                .bind(group_id)
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("DELETE FROM groups WHERE group_id = ?1")
+                .bind(group_id)
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+            Ok(true)
+        } else {
+            tx.commit().await?;
+            Ok(false)
+        }
+    }
+
+    /// Atomically create a group and add its creator as the first member.
+    ///
+    /// Both the INSERT into `groups` and the INSERT into `group_members` run
+    /// inside a single SQLite transaction.  If either fails, the transaction
+    /// rolls back and no orphan group row is left behind.
+    ///
+    /// Idempotent on the group row (INSERT OR IGNORE): if the group already
+    /// exists the creator is still added as a member (also idempotent).
+    pub async fn create_group_with_creator(
+        &self,
+        group_id: &str,
+        created_by: &str,
+        name: &str,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)",
+        )
+        .bind(group_id)
+        .bind(created_by)
+        .bind(name)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
+            .bind(group_id)
+            .bind(created_by)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     /// Delete a group and all its membership rows, atomically.

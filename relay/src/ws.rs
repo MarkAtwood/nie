@@ -565,10 +565,10 @@ async fn handle(socket: WebSocket, state: AppState) {
         client_tx.send(msg).await.ok();
     }
 
-    // The device_id this connection published via PUBLISH_KEY_PACKAGE, if any.
-    // Set on successful publish; used at disconnect to remove the stale package
-    // so other devices' packages are unaffected.
-    let mut connection_device_id: Option<String> = None;
+    // All device_ids published by this connection via PUBLISH_KEY_PACKAGE.
+    // Pushed on each successful publish; all entries are cleaned up at
+    // disconnect so no stale key packages accumulate for any device.
+    let mut connection_device_ids: Vec<String> = Vec::new();
 
     // Track whether this connection has an active typing indicator outstanding.
     // If the client disconnects while typing=true, we synthesise a typing=false
@@ -846,8 +846,12 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await
                         {
                             Ok(()) => {
-                                // Record device_id so we can delete the package on disconnect.
-                                connection_device_id = Some(params.device_id.clone());
+                                // Track device_id so we can delete the package on disconnect.
+                                // Push rather than replace: a connection may publish multiple
+                                // device IDs; all must be cleaned up at disconnect.
+                                if !connection_device_ids.contains(&params.device_id) {
+                                    connection_device_ids.push(params.device_id.clone());
+                                }
                                 // Broadcast KeyPackageReady AFTER the write succeeds.
                                 // This creates a happens-before edge: any GetKeyPackage sent
                                 // in response to this notification is guaranteed to find the
@@ -1072,6 +1076,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // Validate recipient pub_id: must be exactly 64 lowercase hex chars.
+                        if params.to.len() != 64
+                            || !params
+                                .to
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "invalid recipient pub_id",
+                            )
+                            .await;
+                            continue;
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {
@@ -1129,6 +1149,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        // Validate recipient pub_id: must be exactly 64 lowercase hex chars.
+                        if params.to.len() != 64
+                            || !params
+                                .to
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "invalid recipient pub_id",
+                            )
+                            .await;
+                            continue;
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {
@@ -1213,26 +1249,10 @@ async fn handle(socket: WebSocket, state: AppState) {
                         if let Err(e) = state
                             .inner
                             .store
-                            .create_group(&group_id, &pub_id.0, &name)
+                            .create_group_with_creator(&group_id, &pub_id.0, &name)
                             .await
                         {
-                            error!("create_group for {pub_id}: {e}");
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INTERNAL_ERROR,
-                                "internal error",
-                            )
-                            .await;
-                            continue;
-                        }
-                        if let Err(e) = state
-                            .inner
-                            .store
-                            .add_group_member(&group_id, &pub_id.0)
-                            .await
-                        {
-                            error!("add_group_member (creator) for {pub_id}: {e}");
+                            error!("create_group_with_creator for {pub_id}: {e}");
                             send_client_error(
                                 &client_tx,
                                 req.id,
@@ -1356,6 +1376,35 @@ async fn handle(socket: WebSocket, state: AppState) {
                             }
                             Err(e) => {
                                 error!("is_group_member failed: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
+
+                        // Enforce group size cap before adding the new member.
+                        // O(N) offline writes per GROUP_SEND make unbounded groups
+                        // a DoS vector against the relay's SQLite store.
+                        const MAX_GROUP_MEMBERS: u64 = 100;
+                        match state.inner.store.member_count(&params.group_id).await {
+                            Ok(n) if n >= MAX_GROUP_MEMBERS => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "group has reached the maximum member limit",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("member_count failed: {e}");
                                 send_client_error(
                                     &client_tx,
                                     req.id,
@@ -1545,13 +1594,16 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         }
+                        // Atomically remove member and delete the group if empty.
+                        // This is a single transaction to eliminate the TOCTOU
+                        // between remove, count, and delete.
                         if let Err(e) = state
                             .inner
                             .store
-                            .remove_group_member(&params.group_id, &pub_id.0)
+                            .remove_member_and_maybe_delete_group(&params.group_id, &pub_id.0)
                             .await
                         {
-                            error!("remove_group_member for {pub_id}: {e}");
+                            error!("remove_member_and_maybe_delete_group for {pub_id}: {e}");
                             send_client_error(
                                 &client_tx,
                                 req.id,
@@ -1560,25 +1612,6 @@ async fn handle(socket: WebSocket, state: AppState) {
                             )
                             .await;
                             continue;
-                        }
-                        // Delete the group when the last member leaves.
-                        let remaining = match state
-                            .inner
-                            .store
-                            .member_count(&params.group_id)
-                            .await
-                        {
-                            Ok(n) => n,
-                            Err(e) => {
-                                warn!("member_count DB error for {}: {e}", params.group_id);
-                                1 // conservative: assume non-empty to avoid deleting
-                            }
-                        };
-                        if remaining == 0 {
-                            if let Err(e) = state.inner.store.delete_group(&params.group_id).await {
-                                // Non-fatal: group is effectively empty; log and continue.
-                                error!("delete_group (empty) {}: {e}", params.group_id);
-                            }
                         }
                         // serde_json::to_string on a derived Serialize cannot fail
                         let ok = serde_json::to_string(
@@ -1756,6 +1789,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // Cap duration_days to the operator-configured maximum.
+                        // A u32 with no upper bound could request multi-millennium
+                        // subscriptions that overflow chrono::Duration::days().
+                        let max_days = state.inner.subscription_days;
+                        if params.duration_days as u64 > max_days {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "duration_days exceeds maximum allowed subscription length",
+                            )
+                            .await;
+                            continue;
+                        }
                         let days = params.duration_days as i64;
                         let expires_at = (chrono::Utc::now() + chrono::Duration::days(days))
                             .format("%Y-%m-%d %H:%M:%S")
@@ -1877,13 +1924,14 @@ async fn handle(socket: WebSocket, state: AppState) {
         state.broadcast(Some(&pub_id.0), stop_notif).await;
     }
 
-    // Remove stale key package for this device so the store stays current.
-    // Only this device's package is removed; other devices' packages are unaffected.
-    if let Some(did) = connection_device_id {
+    // Remove stale key packages for all devices published by this connection.
+    // A connection may have published multiple device IDs; all must be removed
+    // so no stale packages accumulate when only the last one was previously tracked.
+    for did in &connection_device_ids {
         if let Err(e) = state
             .inner
             .store
-            .delete_device_key_package(&pub_id.0, &did)
+            .delete_device_key_package(&pub_id.0, did)
             .await
         {
             tracing::warn!("delete_device_key_package for {pub_id}/{did}: {e}");

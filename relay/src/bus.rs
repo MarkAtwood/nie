@@ -207,11 +207,14 @@ impl RedisClient {
     }
 
     async fn subscribe(&self) -> Result<RedisSubscriber> {
-        let conn = self
+        let mut conn = self
             .client
             .get_async_pubsub()
             .await
             .map_err(|e| anyhow::anyhow!("Redis pubsub connection error: {e}"))?;
+        conn.subscribe(REDIS_CHANNEL)
+            .await
+            .map_err(|e| anyhow::anyhow!("Redis SUBSCRIBE error: {e}"))?;
         Ok(RedisSubscriber { conn })
     }
 }
@@ -225,7 +228,6 @@ struct RedisSubscriber {
 impl RedisSubscriber {
     async fn recv(&mut self) -> Option<BusMessage> {
         use futures::StreamExt;
-        self.conn.subscribe(REDIS_CHANNEL).await.ok()?;
         let msg = self.conn.on_message().next().await?;
         let payload: String = msg.get_payload().ok()?;
         serde_json::from_str(&payload).ok()
