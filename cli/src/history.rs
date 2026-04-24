@@ -113,6 +113,7 @@ impl History {
 
     /// Return the most recent `limit` messages in chronological order.
     pub async fn recent(&self, limit: i64) -> Result<Vec<HistoryEntry>> {
+        anyhow::ensure!(limit > 0, "limit must be positive, got {limit}");
         let rows: Vec<(String, String, Vec<u8>, i64)> = sqlx::query_as(
             "SELECT direction, from_pub_id, payload, timestamp
              FROM messages

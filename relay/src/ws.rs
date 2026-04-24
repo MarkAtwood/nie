@@ -436,15 +436,15 @@ async fn handle(socket: WebSocket, state: AppState) {
             }
         })
         .partition(|u| state.inner.clients.contains_key(u.pub_id.as_str()));
-    // Sort online users by session connection order (lowest sequence = admin).
-    // This uses the monotonic connection_counter, not historical first_seen,
-    // so the first client to connect in the current relay session is always admin.
-    online.sort_by_key(|u| state.connection_seq(&u.pub_id));
-    // Stamp each online entry with its sequence number so clients can maintain
-    // sorted order when handling subsequent UserJoined events.
+    // Stamp each online entry with its sequence number first, then sort.
+    // Reading connection_seq() once per user (rather than once for sort and
+    // once for stamp) avoids a TOCTOU where a user disconnects between the
+    // two calls and the stamped sequence disagrees with the sort order.
     for u in &mut online {
         u.sequence = state.connection_seq(&u.pub_id);
     }
+    // Sort by the stamped sequence: lowest = earliest connected = admin.
+    online.sort_by_key(|u| u.sequence);
 
     // serde_json::to_string on a derived Serialize cannot fail
     let dir_json = serde_json::to_string(

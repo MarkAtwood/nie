@@ -168,7 +168,10 @@ async fn handle_nie_deliver(
     };
     let formatted = format_for_slack(&deliver.from, &text, bridge_prefix);
     // Record this text so the Slack echo is suppressed.
-    sent_texts.lock().unwrap().insert(formatted.clone());
+    sent_texts
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(formatted.clone());
     if let Err(e) = slack.post_message(channel_id, &formatted).await {
         tracing::warn!("Slack post_message failed: {e}");
     }

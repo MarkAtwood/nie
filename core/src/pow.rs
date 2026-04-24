@@ -75,7 +75,7 @@ fn build_hash_input(
     // Hex-encode each pub_key byte as two lowercase ASCII characters.
     // Total: 32 bytes × 2 chars = 64 bytes.
     // Use a const lookup table to avoid heap allocations in the mining hot path.
-    const HEX: &[u8] = b"0123456789abcdef";
+    const HEX: [u8; 16] = *b"0123456789abcdef";
     for &byte in pub_key_bytes.iter() {
         input[pos] = HEX[(byte >> 4) as usize];
         input[pos + 1] = HEX[(byte & 0x0f) as usize];

@@ -86,7 +86,10 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
             loop {
                 ticker.tick().await;
 
-                let since = query_state.lock().unwrap().clone();
+                let since = query_state
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .clone();
                 let (ids, new_state) = match jmap
                     .email_query(&account_id, &mailbox_id, since.as_deref())
                     .await
@@ -102,7 +105,7 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                 // insert yet; we only mark an ID seen after a successful send
                 // so that channel-full drops are retried on the next poll).
                 let new_ids: Vec<String> = {
-                    let seen = seen_ids.lock().unwrap();
+                    let seen = seen_ids.lock().unwrap_or_else(|e| e.into_inner());
                     ids.into_iter()
                         .filter(|id| !seen.contains(id.as_str()))
                         .collect()
@@ -118,12 +121,18 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                                     Some(t) => t.trim().to_string(),
                                     None => {
                                         // No text body — mark seen so we don't retry endlessly.
-                                        seen_ids.lock().unwrap().insert(email.id.clone());
+                                        seen_ids
+                                            .lock()
+                                            .unwrap_or_else(|e| e.into_inner())
+                                            .insert(email.id.clone());
                                         continue;
                                     }
                                 };
                                 if text.is_empty() {
-                                    seen_ids.lock().unwrap().insert(email.id.clone());
+                                    seen_ids
+                                        .lock()
+                                        .unwrap_or_else(|e| e.into_inner())
+                                        .insert(email.id.clone());
                                     continue;
                                 }
                                 let display_subject = email.subject.as_deref();
@@ -132,7 +141,10 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                                 if tx.try_send(nie_text).is_ok() {
                                     // Only mark seen after successful enqueue so that
                                     // a channel-full drop is retried on the next poll.
-                                    seen_ids.lock().unwrap().insert(email.id.clone());
+                                    seen_ids
+                                        .lock()
+                                        .unwrap_or_else(|e| e.into_inner())
+                                        .insert(email.id.clone());
                                 } else {
                                     tracing::warn!("JMAP→nie channel full; email will retry");
                                 }
@@ -144,7 +156,7 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                     }
                 }
 
-                *query_state.lock().unwrap() = Some(new_state);
+                *query_state.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_state);
             }
         });
     }
