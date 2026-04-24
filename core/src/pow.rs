@@ -5,6 +5,11 @@ pub const TOKEN_VERSION: u8 = 0x01;
 pub const OP_ENROLLMENT: u8 = 0x01;
 pub const MIN_DIFFICULTY: u8 = 20;
 pub const MAX_DIFFICULTY: u8 = 30;
+/// Nominal staleness window in seconds.  The actual enforced window is
+/// `ts_floor ± 10 minute-floors`, where `ts_floor = unix_time / 60`.
+/// Due to floor rounding on both sides the effective window is up to
+/// 10 × 60 + 59 = 659 seconds, not exactly 600.  The constant names the
+/// intent; the check in `verify_token` is the authoritative definition.
 pub const STALENESS_WINDOW_SECS: u64 = 600;
 
 #[derive(Debug, PartialEq, Eq)]

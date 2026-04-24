@@ -94,6 +94,33 @@ use nie_wallet::scanner::{NoteDecryptor, SaplingIvkDecryptor};
 use nie_wallet::tx_builder::{load_sapling_params, DUST_THRESHOLD};
 use nie_wallet::unified::{decode_unified_address, diversified_address, sapling_receiver};
 
+// ---- Secret file helpers ----
+
+/// Write `data` to `path` with owner-read-write-only (0600) permissions.
+///
+/// On Unix the file is created with mode 0600 from the start so there is no
+/// window where another process can read the plaintext or ciphertext.  On
+/// non-Unix platforms (e.g. Windows) we fall back to a plain write; Windows
+/// ACLs are set separately by the OS based on the user account.
+fn write_secret_file(path: impl AsRef<std::path::Path>, data: &[u8]) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)?;
+        std::io::Write::write_all(&mut file, data)?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, data)
+    }
+}
+
 // ---- Identity management ----
 
 pub async fn init(keyfile: &str, no_passphrase: bool) -> Result<()> {
@@ -114,7 +141,7 @@ pub async fn init(keyfile: &str, no_passphrase: bool) -> Result<()> {
     };
 
     let encrypted = encrypt_keyfile(&seed, &passphrase)?;
-    std::fs::write(keyfile, &encrypted)?;
+    write_secret_file(keyfile, &encrypted)?;
 
     println!("identity created");
     println!("public id  : {}", id.pub_id().0);
@@ -3950,7 +3977,7 @@ pub async fn wallet_init(
     };
 
     let encrypted = encrypt_wallet_key(&seed, &passphrase)?;
-    std::fs::write(&wallet_key_path, &encrypted)?;
+    write_secret_file(&wallet_key_path, &encrypted)?;
 
     // Paranoid write-verify: immediately decrypt and compare.
     // Detects file-system corruption or age bugs before the mnemonic display is dismissed.
@@ -4040,7 +4067,7 @@ pub async fn wallet_restore(
     };
 
     let encrypted = encrypt_wallet_key(&seed, &passphrase)?;
-    std::fs::write(&wallet_key_path, &encrypted)?;
+    write_secret_file(&wallet_key_path, &encrypted)?;
 
     // Paranoid write-verify.
     let recovered = decrypt_wallet_key(&encrypted, &passphrase)?;

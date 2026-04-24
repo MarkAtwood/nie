@@ -105,12 +105,16 @@ pub async fn handle_relay_event(
             // provider.  Without this, create_group() returns GroupAlreadyExists
             // on reconnect (openmls checks its storage before writing).
             let my_pub_id = state.my_pub_id.clone();
-            state.mls_client = nie_core::mls::MlsClient::new(&my_pub_id).unwrap_or_else(|e| {
-                tracing::warn!("failed to reset MLS client on reconnect: {e}");
-                // Return the old client; it may error on create_group but that is
-                // recoverable (mls_active stays false).
-                nie_core::mls::MlsClient::new(&my_pub_id).unwrap()
-            });
+            // Reset MLS client. If init fails, keep the stale client — mls_active
+            // stays false so create_group will not be called on the stale instance.
+            match nie_core::mls::MlsClient::new(&my_pub_id) {
+                Ok(fresh) => state.mls_client = fresh,
+                Err(e) => {
+                    tracing::warn!(
+                        "failed to reset MLS client on reconnect: {e}; keeping stale client"
+                    );
+                }
+            }
             state.push_message(ChatLine::System(format!(
                 "[!] disconnected. reconnecting in {delay_secs}s…"
             )));

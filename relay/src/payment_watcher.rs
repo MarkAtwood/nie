@@ -288,18 +288,12 @@ async fn activate_subscription(state: &AppState, invoice: &InvoiceRow) -> anyhow
     let subscription_days = state.inner.subscription_days;
     let expires_at = Utc::now() + chrono::Duration::days(subscription_days as i64);
 
-    // 1. Write subscription to DB.
+    // 1. Write subscription and delete invoice atomically so a crash between
+    //    the two operations cannot trigger a double-activation or silent loss.
     state
         .inner
         .store
-        .set_subscription(&invoice.pub_id, expires_at)
-        .await?;
-
-    // 2. Delete the fulfilled invoice.
-    state
-        .inner
-        .store
-        .delete_invoice(&invoice.invoice_id)
+        .activate_subscription_atomic(&invoice.pub_id, expires_at, &invoice.invoice_id)
         .await?;
 
     // 3. Notify the client if online.

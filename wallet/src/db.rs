@@ -510,6 +510,21 @@ impl WalletStore {
 
     // ---- notes ----
 
+    /// INSERT SQL for a note row with all plaintext fields populated.
+    /// Shared between `insert_note` and `insert_note_with_witness` so a schema
+    /// change only needs one update.
+    const NOTE_INSERT_FULL: &'static str = "INSERT INTO notes
+       (txid, output_index, value_zatoshi, memo, block_height, created_at,
+        note_diversifier, note_pk_d, note_rseed, note_rseed_after_zip212)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     RETURNING note_id";
+
+    /// INSERT SQL for a note row without plaintext fields (trial-decrypt pending).
+    const NOTE_INSERT_PARTIAL: &'static str =
+        "INSERT INTO notes (txid, output_index, value_zatoshi, memo, block_height, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         RETURNING note_id";
+
     /// Insert a received note.  Returns the DB-assigned `note_id`.
     ///
     /// Fails with a unique-constraint error if `(txid, output_index)` already
@@ -531,8 +546,6 @@ impl WalletStore {
         // populated.  `note_rseed_after_zip212` has a NOT NULL DEFAULT 1 constraint:
         // binding NULL for it would violate the constraint.  When plaintext fields are
         // absent, omit them from the INSERT and let the DEFAULT apply.
-        // NOTE: This INSERT SQL is duplicated in insert_note_with_witness().
-        // Keep both in sync when the schema changes.
         let id = if let (Some(diversifier), Some(pk_d), Some(rseed), Some(after_zip212)) = (
             &note.note_diversifier,
             &note.note_pk_d,
@@ -540,39 +553,29 @@ impl WalletStore {
             note.rseed_after_zip212,
         ) {
             let rseed_after_zip212_int: i64 = if after_zip212 { 1 } else { 0 };
-            sqlx::query_scalar(
-                "INSERT INTO notes
-                   (txid, output_index, value_zatoshi, memo, block_height, created_at,
-                    note_diversifier, note_pk_d, note_rseed, note_rseed_after_zip212)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 RETURNING note_id",
-            )
-            .bind(&note.txid)
-            .bind(note.output_index)
-            .bind(value)
-            .bind(&note.memo)
-            .bind(block_height)
-            .bind(note.created_at)
-            .bind(diversifier)
-            .bind(pk_d)
-            .bind(rseed)
-            .bind(rseed_after_zip212_int)
-            .fetch_one(&self.pool)
-            .await?
+            sqlx::query_scalar(Self::NOTE_INSERT_FULL)
+                .bind(&note.txid)
+                .bind(note.output_index)
+                .bind(value)
+                .bind(&note.memo)
+                .bind(block_height)
+                .bind(note.created_at)
+                .bind(diversifier)
+                .bind(pk_d)
+                .bind(rseed)
+                .bind(rseed_after_zip212_int)
+                .fetch_one(&self.pool)
+                .await?
         } else {
-            sqlx::query_scalar(
-                "INSERT INTO notes (txid, output_index, value_zatoshi, memo, block_height, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 RETURNING note_id",
-            )
-            .bind(&note.txid)
-            .bind(note.output_index)
-            .bind(value)
-            .bind(&note.memo)
-            .bind(block_height)
-            .bind(note.created_at)
-            .fetch_one(&self.pool)
-            .await?
+            sqlx::query_scalar(Self::NOTE_INSERT_PARTIAL)
+                .bind(&note.txid)
+                .bind(note.output_index)
+                .bind(value)
+                .bind(&note.memo)
+                .bind(block_height)
+                .bind(note.created_at)
+                .fetch_one(&self.pool)
+                .await?
         };
         Ok(id)
     }
@@ -811,10 +814,9 @@ impl WalletStore {
         let mut txn = self.pool.begin().await?;
 
         // Insert note — two query variants depending on whether plaintext columns
-        // are populated, matching the logic in insert_note().
-        // NOTE: The INSERT SQL below is intentionally duplicated from insert_note().
-        // If the notes table schema changes (e.g., new columns added in a migration),
-        // BOTH insert_note() and insert_note_with_witness() must be updated together.
+        // are populated, matching the logic in insert_note().  SQL strings shared
+        // via NOTE_INSERT_FULL / NOTE_INSERT_PARTIAL so schema changes only need
+        // one update.
         let note_id: i64 = if let (Some(diversifier), Some(pk_d), Some(rseed), Some(after_zip212)) = (
             &note.note_diversifier,
             &note.note_pk_d,
@@ -822,39 +824,29 @@ impl WalletStore {
             note.rseed_after_zip212,
         ) {
             let rseed_flag: i64 = if after_zip212 { 1 } else { 0 };
-            sqlx::query_scalar(
-                "INSERT INTO notes
-                   (txid, output_index, value_zatoshi, memo, block_height, created_at,
-                    note_diversifier, note_pk_d, note_rseed, note_rseed_after_zip212)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 RETURNING note_id",
-            )
-            .bind(&note.txid)
-            .bind(note.output_index)
-            .bind(value)
-            .bind(&note.memo)
-            .bind(note_bh)
-            .bind(note.created_at)
-            .bind(diversifier)
-            .bind(pk_d)
-            .bind(rseed)
-            .bind(rseed_flag)
-            .fetch_one(&mut *txn)
-            .await?
+            sqlx::query_scalar(Self::NOTE_INSERT_FULL)
+                .bind(&note.txid)
+                .bind(note.output_index)
+                .bind(value)
+                .bind(&note.memo)
+                .bind(note_bh)
+                .bind(note.created_at)
+                .bind(diversifier)
+                .bind(pk_d)
+                .bind(rseed)
+                .bind(rseed_flag)
+                .fetch_one(&mut *txn)
+                .await?
         } else {
-            sqlx::query_scalar(
-                "INSERT INTO notes (txid, output_index, value_zatoshi, memo, block_height, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 RETURNING note_id",
-            )
-            .bind(&note.txid)
-            .bind(note.output_index)
-            .bind(value)
-            .bind(&note.memo)
-            .bind(note_bh)
-            .bind(note.created_at)
-            .fetch_one(&mut *txn)
-            .await?
+            sqlx::query_scalar(Self::NOTE_INSERT_PARTIAL)
+                .bind(&note.txid)
+                .bind(note.output_index)
+                .bind(value)
+                .bind(&note.memo)
+                .bind(note_bh)
+                .bind(note.created_at)
+                .fetch_one(&mut *txn)
+                .await?
         };
 
         // Insert witness in the same transaction so both succeed or both roll back.

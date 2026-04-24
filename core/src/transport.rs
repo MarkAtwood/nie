@@ -382,9 +382,12 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
 
         let pub_key_bytes: [u8; 32] = identity.verifying_key().to_bytes();
         let diff = params.difficulty;
+        // Fail explicitly if the system clock is broken.  unwrap_or_default()
+        // would silently produce ts_floor=0, which the relay rejects as stale
+        // with a cryptic POW_STALE error that gives no hint about the real cause.
         let ts_floor = (std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
+            .context("system clock is before the Unix epoch; check your clock")?
             .as_secs()
             / 60) as u32;
 

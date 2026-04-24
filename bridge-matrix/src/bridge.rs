@@ -176,9 +176,9 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Matrix AS server listening on :{listen_port}");
         tokio::spawn(async move {
-            axum::serve(listener, app)
-                .await
-                .expect("AS HTTP server terminated unexpectedly");
+            if let Err(e) = axum::serve(listener, app).await {
+                tracing::error!("Matrix AS HTTP server error: {e}");
+            }
         });
     }
 

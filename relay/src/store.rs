@@ -33,6 +33,17 @@ impl Store {
     pub async fn new(db_url: &str) -> Result<Self> {
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
+            // Enable FK enforcement on every connection from the pool.
+            // SQLite disables FK checks by default; this makes group_member →
+            // groups and group_member → users constraints actually enforced.
+            .after_connect(|conn, _meta| {
+                Box::pin(async move {
+                    sqlx::query("PRAGMA foreign_keys = ON")
+                        .execute(&mut *conn)
+                        .await?;
+                    Ok(())
+                })
+            })
             .connect(db_url)
             .await?;
 
@@ -85,6 +96,88 @@ impl Store {
                 .execute(&mut *tx)
                 .await?;
             tx.commit().await?;
+        }
+
+        // Migration v1 → v2: add FK constraints to group_members.
+        //
+        // SQLite does not support ALTER TABLE ADD FOREIGN KEY, so we recreate
+        // the table.  The new table enforces:
+        //   group_id → groups(group_id) ON DELETE CASCADE
+        //   pub_id   → users(pub_id)   ON DELETE CASCADE
+        //
+        // This migration runs AFTER the base CREATE TABLE IF NOT EXISTS blocks
+        // below (by reading schema_version before those blocks run), so it
+        // operates on the already-populated table when upgrading.  On a fresh
+        // install the table does not yet exist, so the migration re-reads
+        // schema_version and only runs if < 2 at that point.
+        {
+            let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await?;
+            if sv < 2 {
+                let mut tx = pool.begin().await?;
+                // Ensure the base tables exist first (migration may run before
+                // the CREATE TABLE IF NOT EXISTS blocks below on a fresh DB).
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS users (
+                        pub_id      TEXT PRIMARY KEY,
+                        nickname    TEXT,
+                        first_seen  TEXT NOT NULL DEFAULT (datetime('now')),
+                        last_seen   TEXT NOT NULL DEFAULT (datetime('now'))
+                    )",
+                )
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS groups (
+                        group_id   TEXT PRIMARY KEY,
+                        created_by TEXT NOT NULL,
+                        name       TEXT NOT NULL,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                    )",
+                )
+                .execute(&mut *tx)
+                .await?;
+                // Recreate group_members with FK constraints.
+                sqlx::query(
+                    "CREATE TABLE IF NOT EXISTS group_members_v2 (
+                        group_id  TEXT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+                        pub_id    TEXT NOT NULL REFERENCES users(pub_id)  ON DELETE CASCADE,
+                        joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        PRIMARY KEY (group_id, pub_id)
+                    )",
+                )
+                .execute(&mut *tx)
+                .await?;
+                let gm_exists: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='group_members'",
+                )
+                .fetch_one(&mut *tx)
+                .await?;
+                if gm_exists > 0 {
+                    // Only migrate rows whose FKs resolve; orphaned rows are dropped
+                    // rather than causing the migration to fail.
+                    sqlx::query(
+                        "INSERT INTO group_members_v2 \
+                         SELECT gm.group_id, gm.pub_id, gm.joined_at \
+                         FROM group_members gm \
+                         WHERE EXISTS (SELECT 1 FROM groups g WHERE g.group_id = gm.group_id) \
+                           AND EXISTS (SELECT 1 FROM users  u WHERE u.pub_id   = gm.pub_id)",
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                    sqlx::query("DROP TABLE group_members")
+                        .execute(&mut *tx)
+                        .await?;
+                }
+                sqlx::query("ALTER TABLE group_members_v2 RENAME TO group_members")
+                    .execute(&mut *tx)
+                    .await?;
+                sqlx::query("PRAGMA user_version = 2")
+                    .execute(&mut *tx)
+                    .await?;
+                tx.commit().await?;
+            }
         }
 
         // Persistent user directory: every pub_id that has ever authenticated.
@@ -256,6 +349,15 @@ impl Store {
                 .fetch_all(&self.pool)
                 .await?;
         Ok(rows)
+    }
+
+    /// Return `true` if `pub_id` is in the users table (i.e., has ever enrolled).
+    pub async fn user_exists(&self, pub_id: &str) -> Result<bool> {
+        let row: Option<(String,)> = sqlx::query_as("SELECT pub_id FROM users WHERE pub_id = ?")
+            .bind(pub_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row.is_some())
     }
 
     /// Attempt to set a nickname for `pub_id`. Succeeds only if no nickname is
@@ -599,6 +701,36 @@ impl Store {
         Ok(())
     }
 
+    /// Atomically activate a subscription and delete the fulfilled invoice.
+    ///
+    /// Both writes execute inside a single SQLite transaction so that a crash
+    /// between the two operations cannot leave the invoice present (causing a
+    /// second activation on the next scan) or absent with no subscription
+    /// (causing the payment to be silently lost).
+    pub async fn activate_subscription_atomic(
+        &self,
+        pub_id: &str,
+        expires_at: DateTime<Utc>,
+        invoice_id: &str,
+    ) -> Result<()> {
+        let expires_str = expires_at.format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT INTO subscriptions (pub_id, expires_at) VALUES (?, ?)
+             ON CONFLICT(pub_id) DO UPDATE SET expires_at = excluded.expires_at",
+        )
+        .bind(pub_id)
+        .bind(&expires_str)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM subscription_invoices WHERE invoice_id = ?1")
+            .bind(invoice_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
     /// Delete all invoices whose `expires_at` is in the past. Returns the
     /// number of rows deleted.
     pub async fn purge_expired_invoices(&self) -> Result<u64> {
@@ -715,6 +847,31 @@ impl Store {
                 .fetch_one(&self.pool)
                 .await?;
         u64::try_from(count).context("member_count overflow")
+    }
+
+    /// Return a map of `group_id → member_count` for all groups that `pub_id`
+    /// belongs to, in a single SQL query (avoids N+1 in GROUP_LIST).
+    pub async fn member_counts_for_user(
+        &self,
+        pub_id: &str,
+    ) -> Result<std::collections::HashMap<String, u64>> {
+        // Aggregate counts for only the groups this user belongs to.
+        let rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT gm.group_id, COUNT(*) \
+             FROM group_members gm \
+             WHERE gm.group_id IN (SELECT group_id FROM group_members WHERE pub_id = ?1) \
+             GROUP BY gm.group_id",
+        )
+        .bind(pub_id)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|(gid, cnt)| {
+                u64::try_from(cnt)
+                    .context("member_count overflow")
+                    .map(|n| (gid, n))
+            })
+            .collect()
     }
 
     /// Delete a group and all its membership rows, atomically.
@@ -1191,6 +1348,7 @@ mod tests {
     #[tokio::test]
     async fn group_add_and_is_member() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
         store
             .create_group("grp-mem", "alice", "member test")
             .await
@@ -1208,6 +1366,7 @@ mod tests {
     #[tokio::test]
     async fn group_add_member_idempotent() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
         store
             .create_group("grp-idem-mem", "alice", "idempotent member")
             .await
@@ -1225,6 +1384,8 @@ mod tests {
     #[tokio::test]
     async fn group_list_members() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-list", "alice", "list test")
             .await
@@ -1260,6 +1421,8 @@ mod tests {
     #[tokio::test]
     async fn group_member_count() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-count", "alice", "count test")
             .await
@@ -1287,6 +1450,8 @@ mod tests {
     #[tokio::test]
     async fn group_remove_member() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-rm", "alice", "remove test")
             .await
@@ -1329,6 +1494,8 @@ mod tests {
     #[tokio::test]
     async fn group_delete_cascades() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-del", "alice", "delete test")
             .await
@@ -1357,6 +1524,8 @@ mod tests {
     #[tokio::test]
     async fn group_list_for_user() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-a", "alice", "group a")
             .await

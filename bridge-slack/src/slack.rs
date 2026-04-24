@@ -99,7 +99,9 @@ pub fn verify_slack_signature(
 
     // Build base string.
     let mut base = format!("v0:{timestamp_str}:");
-    base.push_str(std::str::from_utf8(body).unwrap_or(""));
+    let body_str =
+        std::str::from_utf8(body).map_err(|_| anyhow!("Slack request body is not valid UTF-8"))?;
+    base.push_str(body_str);
 
     // Compute HMAC-SHA256.
     let mut mac = HmacSha256::new_from_slice(signing_secret.as_bytes())

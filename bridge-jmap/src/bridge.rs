@@ -98,11 +98,13 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                     }
                 };
 
-                // Filter to IDs we haven't seen yet.
+                // Filter to IDs we haven't seen yet (read-only check — do not
+                // insert yet; we only mark an ID seen after a successful send
+                // so that channel-full drops are retried on the next poll).
                 let new_ids: Vec<String> = {
-                    let mut seen = seen_ids.lock().unwrap();
+                    let seen = seen_ids.lock().unwrap();
                     ids.into_iter()
-                        .filter(|id| seen.insert(id.clone()))
+                        .filter(|id| !seen.contains(id.as_str()))
                         .collect()
                 };
 
@@ -114,16 +116,25 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                                     email.sender_display().unwrap_or("unknown").to_string();
                                 let text = match email.plain_text() {
                                     Some(t) => t.trim().to_string(),
-                                    None => continue,
+                                    None => {
+                                        // No text body — mark seen so we don't retry endlessly.
+                                        seen_ids.lock().unwrap().insert(email.id.clone());
+                                        continue;
+                                    }
                                 };
                                 if text.is_empty() {
+                                    seen_ids.lock().unwrap().insert(email.id.clone());
                                     continue;
                                 }
                                 let display_subject = email.subject.as_deref();
                                 let mbox = mailbox_name.as_deref().unwrap_or(&sender);
                                 let nie_text = format_for_nie(mbox, display_subject, &text);
-                                if tx.try_send(nie_text).is_err() {
-                                    tracing::warn!("JMAP→nie channel full; email dropped");
+                                if tx.try_send(nie_text).is_ok() {
+                                    // Only mark seen after successful enqueue so that
+                                    // a channel-full drop is retried on the next poll.
+                                    seen_ids.lock().unwrap().insert(email.id.clone());
+                                } else {
+                                    tracing::warn!("JMAP→nie channel full; email will retry");
                                 }
                             }
                         }

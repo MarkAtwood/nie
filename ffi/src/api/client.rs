@@ -217,10 +217,12 @@ pub fn client_disconnect(_client: NieClient) {
 // ---------------------------------------------------------------------------
 
 fn encode_chat_payload(text: &str) -> Vec<u8> {
+    // ClearMessage::Chat is a derived Serialize with a single String field;
+    // serde_json::to_vec on it is infallible by construction.
     serde_json::to_vec(&ClearMessage::Chat {
         text: text.to_string(),
     })
-    .unwrap()
+    .expect("ClearMessage::Chat serializes infallibly")
 }
 
 fn decode_payload_text(payload: &[u8]) -> String {

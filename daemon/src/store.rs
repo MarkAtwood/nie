@@ -167,6 +167,16 @@ impl Store {
     pub async fn new(db_url: &str) -> Result<Self> {
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
+            // Enable FK enforcement on every connection from the pool so that
+            // space_member → space and message → chat constraints are enforced.
+            .after_connect(|conn, _meta| {
+                Box::pin(async move {
+                    sqlx::query("PRAGMA foreign_keys = ON")
+                        .execute(&mut *conn)
+                        .await?;
+                    Ok(())
+                })
+            })
             .connect(db_url)
             .await
             .with_context(|| format!("open JMAP store: {db_url}"))?;
@@ -365,6 +375,94 @@ impl Store {
                     .await?;
             }
             sqlx::query("PRAGMA user_version = 4")
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+        }
+
+        if version < 5 {
+            // Add FK constraints to space_member and message tables.
+            // SQLite cannot ALTER TABLE to add FK constraints, so we recreate
+            // both tables.  Only rows with valid parent keys are migrated;
+            // orphaned rows (space/chat deleted outside normal code paths) are
+            // silently dropped rather than causing the migration to fail.
+            let mut tx = self.pool.begin().await?;
+
+            // space_member → space (ON DELETE CASCADE)
+            sqlx::query(
+                "CREATE TABLE space_member_v5 (
+                    space_id   TEXT NOT NULL REFERENCES space(id) ON DELETE CASCADE,
+                    contact_id TEXT NOT NULL,
+                    nick       TEXT,
+                    joined_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                    role       TEXT NOT NULL DEFAULT 'member',
+                    PRIMARY KEY (space_id, contact_id)
+                )",
+            )
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query(
+                "INSERT INTO space_member_v5 \
+                 SELECT sm.space_id, sm.contact_id, sm.nick, sm.joined_at, sm.role \
+                 FROM space_member sm \
+                 WHERE EXISTS (SELECT 1 FROM space s WHERE s.id = sm.space_id)",
+            )
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query("DROP TABLE space_member")
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("ALTER TABLE space_member_v5 RENAME TO space_member")
+                .execute(&mut *tx)
+                .await?;
+
+            // message → chat (ON DELETE CASCADE)
+            sqlx::query(
+                "CREATE TABLE message_v5 (
+                    id               TEXT NOT NULL PRIMARY KEY,
+                    sender_msg_id    TEXT NOT NULL,
+                    chat_id          TEXT NOT NULL REFERENCES chat(id) ON DELETE CASCADE,
+                    sender_id        TEXT NOT NULL,
+                    body             TEXT NOT NULL DEFAULT '',
+                    body_type        TEXT NOT NULL DEFAULT 'text/plain',
+                    sent_at          TEXT NOT NULL,
+                    received_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                    delivery_state   TEXT NOT NULL DEFAULT 'delivered',
+                    deleted_at       TEXT,
+                    reactions        TEXT NOT NULL DEFAULT '{}',
+                    edit_history     TEXT NOT NULL DEFAULT '[]',
+                    reply_to         TEXT,
+                    deleted_for_all  INTEGER NOT NULL DEFAULT 0,
+                    thread_root_id   TEXT,
+                    expires_at       TEXT,
+                    burn_on_read     INTEGER NOT NULL DEFAULT 0
+                )",
+            )
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query(
+                "INSERT INTO message_v5 \
+                 SELECT m.id, m.sender_msg_id, m.chat_id, m.sender_id, m.body, m.body_type, \
+                        m.sent_at, m.received_at, m.delivery_state, m.deleted_at, \
+                        m.reactions, m.edit_history, m.reply_to, m.deleted_for_all, \
+                        m.thread_root_id, m.expires_at, m.burn_on_read \
+                 FROM message m \
+                 WHERE EXISTS (SELECT 1 FROM chat c WHERE c.id = m.chat_id)",
+            )
+            .execute(&mut *tx)
+            .await?;
+            sqlx::query("DROP INDEX IF EXISTS idx_message_chat_id")
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("DROP TABLE message").execute(&mut *tx).await?;
+            sqlx::query("ALTER TABLE message_v5 RENAME TO message")
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("CREATE INDEX idx_message_chat_id ON message(chat_id, received_at)")
+                .execute(&mut *tx)
+                .await?;
+
+            sqlx::query("PRAGMA user_version = 5")
                 .execute(&mut *tx)
                 .await?;
             tx.commit().await?;
@@ -598,15 +696,18 @@ impl Store {
     }
 
     /// Update a member's role.  Returns `true` if the member was found.
+    ///
+    /// Takes a `SpaceRole` (not a raw `&str`) so only valid role values can
+    /// reach the database.
     pub async fn set_member_role(
         &self,
         space_id: &str,
         contact_id: &str,
-        role: &str,
+        role: SpaceRole,
     ) -> Result<bool> {
         let rows =
             sqlx::query("UPDATE space_member SET role = ? WHERE space_id = ? AND contact_id = ?")
-                .bind(role)
+                .bind(role.as_str())
                 .bind(space_id)
                 .bind(contact_id)
                 .execute(&self.pool)

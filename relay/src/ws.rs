@@ -253,10 +253,20 @@ async fn handle(socket: WebSocket, state: AppState) {
         pub_key_bytes.copy_from_slice(&pub_key_bytes_vec);
 
         // 3. Get current time
-        let now_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now_secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(d) => d.as_secs(),
+            Err(_) => {
+                tracing::error!("system clock is before the Unix epoch; cannot verify PoW token");
+                send_error_response(
+                    &mut sink,
+                    req.id,
+                    rpc_errors::INTERNAL_ERROR,
+                    "server clock error",
+                )
+                .await;
+                return;
+            }
+        };
 
         // 4. Verify the token
         let h16 = match nie_core::pow::verify_token(
@@ -285,6 +295,9 @@ async fn handle(socket: WebSocket, state: AppState) {
         };
 
         // 5. Replay check + lazy eviction
+        // Hard cap: reject if the set is suspiciously large even after eviction.
+        // 1 M entries ≈ 100 MB; beyond this something is flooding us.
+        const MAX_REPLAY_ENTRIES: usize = 1_000_000;
         {
             let now_instant = std::time::Instant::now();
             let ttl = std::time::Duration::from_secs(600);
@@ -300,6 +313,17 @@ async fn handle(socket: WebSocket, state: AppState) {
                     req.id,
                     rpc_errors::POW_REPLAYED,
                     "PoW token replayed",
+                )
+                .await;
+                return;
+            }
+            // Reject if flood is saturating the replay set.
+            if state.inner.pow_replay_set.len() >= MAX_REPLAY_ENTRIES {
+                send_error_response(
+                    &mut sink,
+                    req.id,
+                    rpc_errors::POW_REPLAYED,
+                    "PoW replay set saturated; try again later",
                 )
                 .await;
                 return;
@@ -1229,6 +1253,32 @@ async fn handle(socket: WebSocket, state: AppState) {
                             continue;
                         }
 
+                        // Member must be a known enrolled user.
+                        match state.inner.store.user_exists(&params.member_pub_id).await {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "unknown pub_id",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("user_exists failed: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
+
                         // Group must exist.
                         let group_row = match state.inner.store.get_group(&params.group_id).await {
                             Ok(Some(g)) => g,
@@ -1359,14 +1409,16 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // Fetch all member counts in one query rather than one per group.
+                        let counts = state
+                            .inner
+                            .store
+                            .member_counts_for_user(&pub_id.0)
+                            .await
+                            .unwrap_or_default();
                         let mut group_infos: Vec<GroupInfo> = Vec::with_capacity(groups.len());
                         for g in groups {
-                            let member_count = state
-                                .inner
-                                .store
-                                .member_count(&g.group_id)
-                                .await
-                                .unwrap_or(0);
+                            let member_count = counts.get(&g.group_id).copied().unwrap_or(0);
                             group_infos.push(GroupInfo {
                                 group_id: g.group_id,
                                 name: g.name,
@@ -1712,20 +1764,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
-                        if !check_rate_limit(
-                            &state.inner.rate_limits,
-                            &pub_id.0,
-                            state.inner.rate_limit_per_min,
-                        ) {
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::RATE_LIMITED,
-                                "rate limit exceeded",
-                            )
-                            .await;
-                            continue;
-                        }
+                        // DESIGN.md: TYPING is explicitly excluded from rate limiting.
                         // SECURITY: `from` is relay-set from authenticated pub_id.
                         // serde_json::to_string on a derived Serialize cannot fail
                         let notif = serde_json::to_string(

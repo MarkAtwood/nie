@@ -230,8 +230,9 @@ impl NieRelayClient {
                 }
             };
 
-            // serde_json::to_string on a Value from serde_json::json! cannot fail
-            let event_str = serde_json::to_string(&event).unwrap();
+            // serde_json::to_string on a serde_json::Value is infallible.
+            let event_str =
+                serde_json::to_string(&event).expect("serde_json::Value serializes infallibly");
             // Parse the JSON string into a native JS object so JS receives an
             // object directly rather than a string (nie-7bv6.4).
             let event_jsval = match js_sys::JSON::parse(&event_str) {
@@ -329,8 +330,8 @@ fn build_payload(text: &str) -> String {
     let msg = ClearMessage::Chat {
         text: text.to_string(),
     };
-    // serde_json::to_vec on a derived Serialize cannot fail
-    let payload_bytes = serde_json::to_vec(&msg).unwrap();
+    // ClearMessage::Chat is a derived Serialize with a single String field — infallible.
+    let payload_bytes = serde_json::to_vec(&msg).expect("ClearMessage::Chat serializes infallibly");
     B64.encode(payload_bytes)
 }
 

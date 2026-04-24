@@ -182,17 +182,16 @@ impl JmapClient {
         mailbox_id: &str,
         since_state: Option<&str>,
     ) -> Result<(Vec<String>, String)> {
-        let mut filter = json!({ "inMailbox": mailbox_id });
-        if let Some(s) = since_state {
-            // Use sinceQueryState to get only changes since last poll.
-            // This is the `Email/queryChanges` method; fall back to full query
-            // if the server does not support state.
-            filter["sinceQueryState"] = json!(s);
-        }
+        let filter = json!({ "inMailbox": mailbox_id });
+        // NOTE: true incremental polling uses Email/queryChanges with a top-level
+        // sinceQueryState arg.  The since_state parameter is kept for future use
+        // but the full-scan Email/query is used here for simplicity; seen_ids
+        // deduplication in the bridge prevents message replay.
+        let _ = since_state;
 
         let args = json!({
             "accountId": account_id,
-            "filter": { "inMailbox": mailbox_id },
+            "filter": filter,
             "sort": [{"property": "receivedAt", "isAscending": false}],
             "limit": 50
         });
@@ -252,7 +251,16 @@ impl JmapClient {
 
         let emails = list
             .iter()
-            .filter_map(|v| serde_json::from_value::<EmailObject>(v.clone()).ok())
+            .filter_map(|v| {
+                serde_json::from_value::<EmailObject>(v.clone())
+                    .map_err(|e| {
+                        tracing::warn!(
+                            "JMAP Email/get: dropping email that failed to deserialize: {e} — raw: {}",
+                            v
+                        );
+                    })
+                    .ok()
+            })
             .collect();
         Ok(emails)
     }

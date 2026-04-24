@@ -84,7 +84,10 @@ async fn teams_webhook(
             .and_then(|f| f.name.as_deref())
             .unwrap_or("unknown");
         let nie_text = format_for_nie(sender, text);
-        let _ = state.tx.try_send(nie_text);
+        // Back-pressure: drop the message rather than block the HTTP handler.
+        if state.tx.try_send(nie_text).is_err() {
+            tracing::warn!("Teams→nie channel full; message dropped");
+        }
     }
 
     Ok(Json(serde_json::json!({})))

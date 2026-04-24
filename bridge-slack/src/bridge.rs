@@ -129,8 +129,10 @@ async fn slack_events(
             if let Some(text) = inner.text_body() {
                 let user = inner.user.as_deref().unwrap_or("unknown");
                 let nie_text = format_for_nie(user, text);
-                // Fire-and-forget: if the channel is full, drop the message rather than block.
-                let _ = state.tx.try_send(nie_text);
+                // Back-pressure: drop the message rather than block the HTTP handler.
+                if state.tx.try_send(nie_text).is_err() {
+                    tracing::warn!("Slack→nie channel full; message dropped");
+                }
             }
         }
     }

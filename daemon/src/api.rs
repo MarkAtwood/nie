@@ -180,6 +180,22 @@ pub async fn handle_wallet_pay(
     State(state): State<DaemonState>,
     Json(req): Json<PayRequest>,
 ) -> Result<Json<PayResponse>, (StatusCode, Json<ApiError>)> {
+    // Validate to_pub_id: must be exactly 64 lowercase hex chars (SHA-256 of verifying key).
+    if req.to_pub_id.len() != 64
+        || !req
+            .to_pub_id
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                code: "invalid_pub_id".to_string(),
+                message: "to_pub_id must be 64 lowercase hex characters".to_string(),
+            }),
+        ));
+    }
+
     // Validate amount.
     let amount = i64::try_from(req.amount_zatoshi).map_err(|_| {
         (
