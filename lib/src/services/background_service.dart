@@ -11,12 +11,15 @@ import 'package:flutter/services.dart';
 class BackgroundService {
   static const _channel = MethodChannel('io.nie.app/background');
 
-  // Tracks whether the Android foreground service is currently running so that
-  // stop() does not send stopService to a never-started service.
+  // Tracks whether the Android foreground service is currently running.
+  // Guards start() (prevents duplicate starts on reconnect) and stop()
+  // (prevents stopService on a never-started service).
   bool _running = false;
 
   /// Start the Android foreground service.  Safe to call on non-Android.
+  /// Idempotent: if the service is already running, returns immediately.
   Future<void> start() async {
+    if (_running) return;
     // Await the permission dialog so the POST_NOTIFICATIONS prompt (Android
     // 13+, API 33) appears before startService, giving the user context while
     // the app is in the foreground. Service starts regardless of grant or deny.

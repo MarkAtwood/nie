@@ -926,8 +926,8 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
 
 /// Apply a single member patch path ("members/<contact_id>") to a space.
 ///
-/// Returns `Ok(())` if the patch was applied (or the path is not a member
-/// path), or `Err(json_error)` with a JMAP error value if validation or the
+/// Returns `Ok(())` if the patch was applied, or `Err(json_error)` with a
+/// JMAP error value if the path is unrecognized, validation fails, or the
 /// store call fails.  The caller breaks out of the patch loop on `Err`.
 async fn apply_member_patch(
     store: &Store,
@@ -936,7 +936,11 @@ async fn apply_member_patch(
     value: &Value,
 ) -> Result<(), Value> {
     let Some(contact_id) = path.strip_prefix("members/") else {
-        return Ok(());
+        // RFC 8620 §5.3: unrecognized patch path → invalidPatch error.
+        return Err(serde_json::json!({
+            "type": "invalidPatch",
+            "description": format!("unrecognized patch path: {path}")
+        }));
     };
     if value.is_null() {
         // Null value = remove the member from the space.

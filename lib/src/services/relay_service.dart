@@ -229,7 +229,7 @@ class RelayService extends ChangeNotifier {
         // reconnect with a different identity doesn't show stale indicators.
         for (final t in _typingTimers.values) t.cancel();
         _typingTimers.clear();
-            _onlineUsers.clear();
+        _onlineUsers.clear();
         // Auth permanently rejected — stop the foreground service so the
         // notification doesn't keep showing "Relay connected" while disconnected.
         _bgService.stop();

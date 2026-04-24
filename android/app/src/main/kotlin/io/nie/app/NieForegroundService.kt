@@ -29,9 +29,10 @@ class NieForegroundService : Service() {
         // Without this the OS can silently close the WebSocket while the screen
         // is off, leaving the relay "connected" in the UI while actually dead.
         // Released in onDestroy() so it's tied to the service lifetime.
+        // Timeout caps battery impact if onDestroy is somehow never called.
         wakeLock = getSystemService(PowerManager::class.java)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "nie:RelayWakeLock")
-            .also { it.acquire() }
+            .also { it.acquire(60 * 60 * 1000L /* 1 hour */) }
     }
 
     override fun onDestroy() {
@@ -42,10 +43,7 @@ class NieForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            // null intent: OS restarted the service after killing it (START_STICKY).
-            // START_STICKY delivers null, not the last intent, so we must handle it
-            // explicitly to avoid running as an unprovisioned background service.
-            ACTION_START, null -> {
+            ACTION_START -> {
                 // startForeground() throws SecurityException on Android 14+ if the
                 // FOREGROUND_SERVICE_CONNECTED_DEVICE permission is missing, and on
                 // Android 13+ if POST_NOTIFICATIONS was denied. Catch it so the app
@@ -67,10 +65,18 @@ class NieForegroundService : Service() {
                 }
                 stopSelf()
             }
+            else -> {
+                // Unexpected intent action (including null). Stop rather than run
+                // silently without a foreground notification.
+                stopSelf()
+            }
         }
-        // START_STICKY: if the OS kills this service under memory pressure it will
-        // restart onStartCommand with a null intent (not ACTION_START), handled above.
-        return START_STICKY
+        // START_NOT_STICKY: if Android kills this service under memory pressure it
+        // will NOT restart it. The relay WebSocket lives in the Dart isolate; when
+        // the user brings the app back, RelayService reconnects and calls start()
+        // again. A phantomed notification showing "nie is running" with no active
+        // connection is worse than no notification at all.
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
