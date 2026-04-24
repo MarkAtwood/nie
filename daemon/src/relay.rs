@@ -13,6 +13,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::state::DaemonState;
+use crate::store::SpaceRole;
 use crate::types::{DaemonEvent, UserInfo};
 
 /// Load identity, establish a retrying relay connection, store the tx channel in
@@ -499,7 +500,7 @@ async fn dispatch_peer_group_update(
     let Some(store) = state.store() else { return };
     match action.as_str() {
         "add" | "update" => {
-            let role = role.as_deref().unwrap_or("member");
+            let role = role.as_deref().and_then(SpaceRole::parse).unwrap_or(SpaceRole::Member);
             if let Err(e) = store
                 .upsert_space_member_with_role(&space_id, &contact_id, role)
                 .await

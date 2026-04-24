@@ -28,7 +28,7 @@ use unicode_normalization::UnicodeNormalization;
 use ulid::Ulid;
 
 use crate::state::DaemonState;
-use crate::store::{ChatContactRow, ChatRow, MessageRow, SpaceMemberOp};
+use crate::store::{ChatContactRow, ChatRow, MessageRow, SpaceMemberOp, SpaceRole};
 use crate::token::validate_token_header;
 use crate::types::DaemonEvent;
 
@@ -589,44 +589,36 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 continue;
             }
 
-            let mut update_err: Option<Value> = None;
+            // ── Phase 2 (writes, only if Phase 1 passed) ─────────────────────
+            // Extract typed values from ops and call update_contact_fully,
+            // which wraps all writes in a single SQLite transaction.  This
+            // ensures a multi-field patch ({blocked, displayName}) is visible
+            // atomically — no concurrent reader sees an intermediate state —
+            // and emits a single ChatContact state-token bump.
+            let mut blocked: Option<bool> = None;
+            let mut display_name: Option<Option<String>> = None;
             for op in ops {
                 match op {
-                    ContactPatchOp::SetBlocked(b) => match store.set_contact_blocked(id, b).await {
-                        Ok(true) => {}
-                        Ok(false) => {
-                            update_err = Some(serde_json::json!({"type": "notFound"}));
-                            break;
-                        }
-                        Err(e) => return server_fail(&e.to_string()),
-                    },
-                    ContactPatchOp::ClearDisplayName => {
-                        match store.clear_contact_display_name(id).await {
-                            Ok(true) => {}
-                            Ok(false) => {
-                                update_err = Some(serde_json::json!({"type": "notFound"}));
-                                break;
-                            }
-                            Err(e) => return server_fail(&e.to_string()),
-                        }
-                    }
-                    ContactPatchOp::SetDisplayName(n) => {
-                        match store.set_contact_display_name(id, &n).await {
-                            Ok(true) => {}
-                            Ok(false) => {
-                                update_err = Some(serde_json::json!({"type": "notFound"}));
-                                break;
-                            }
-                            Err(e) => return server_fail(&e.to_string()),
-                        }
-                    }
+                    ContactPatchOp::SetBlocked(b) => blocked = Some(b),
+                    ContactPatchOp::ClearDisplayName => display_name = Some(None),
+                    ContactPatchOp::SetDisplayName(n) => display_name = Some(Some(n)),
                 }
             }
-
-            if let Some(err) = update_err {
-                not_updated.insert(id.clone(), err);
-            } else {
-                updated.insert(id.clone(), Value::Null);
+            match store
+                .update_contact_fully(
+                    id,
+                    blocked,
+                    display_name.as_ref().map(|o| o.as_deref()),
+                )
+                .await
+            {
+                Ok(true) => {
+                    updated.insert(id.clone(), Value::Null);
+                }
+                Ok(false) => {
+                    not_updated.insert(id.clone(), serde_json::json!({"type": "notFound"}));
+                }
+                Err(e) => return server_fail(&e.to_string()),
             }
         }
     }
@@ -1031,12 +1023,7 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
     )
 }
 
-/// Valid role values for space members.  Single source of truth — used by
-/// `validate_member_patch` in Phase 1 and by `update_space_fully` via the
-/// `SpaceMemberOp::Upsert` arm in Phase 2.  Update this slice when adding
-/// roles; the store precondition doc on `upsert_space_member_with_role`
-/// documents the same invariant.
-const VALID_ROLES: &[&str] = &["admin", "moderator", "member"];
+// SpaceRole in store.rs is the single source of truth for valid role values.
 
 /// A validated, parsed simple-space-property update ready to pass to Phase 2.
 ///
@@ -1061,8 +1048,9 @@ enum SimplePropPatch<'a> {
 /// wrong type.
 ///
 /// When adding a new simple Space property, add a variant to `SimplePropPatch`
-/// and a match arm here.  The `_` arm below is unreachable by construction —
-/// it exists to ensure the match stays exhaustive as new arms are added.
+/// and a match arm here.  The compiler enforces exhaustiveness on the Phase 2
+/// `match op {}` over `SimplePropPatch`; it does not enforce completeness here
+/// (string matches cannot be exhaustive).  The prose doc is the contract.
 fn try_parse_simple_space_prop<'a>(
     path: &str,
     value: &'a Value,
@@ -1126,22 +1114,28 @@ fn validate_member_patch(path: &str, value: &Value) -> Result<(), Value> {
         }));
     }
     if !value.is_null() {
-        let role = match value.get("role") {
-            None => "member",
+        match value.get("role") {
+            None => {} // absent → default (member); validated at parse time in Phase 2
             // Present but not a string (e.g. {"role": 42}) — reject explicitly
             // rather than silently coercing to the default.
-            Some(v) => v.as_str().ok_or_else(|| {
-                serde_json::json!({
-                    "type": "invalidArguments",
-                    "description": "role must be a string"
-                })
-            })?,
-        };
-        if !VALID_ROLES.contains(&role) {
-            return Err(serde_json::json!({
-                "type": "invalidArguments",
-                "description": format!("role must be one of: {}", VALID_ROLES.join(", "))
-            }));
+            Some(v) => {
+                let s = v.as_str().ok_or_else(|| {
+                    serde_json::json!({
+                        "type": "invalidArguments",
+                        "description": "role must be a string"
+                    })
+                })?;
+                // SpaceRole::parse is the single source of truth for valid roles.
+                if SpaceRole::parse(s).is_none() {
+                    return Err(serde_json::json!({
+                        "type": "invalidArguments",
+                        "description": format!(
+                            "role must be one of: {}",
+                            ["admin", "moderator", "member"].join(", ")
+                        )
+                    }));
+                }
+            }
         }
     }
     Ok(())
@@ -1236,10 +1230,13 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                     let op = if value.is_null() {
                         SpaceMemberOp::Remove { contact_id }
                     } else {
+                        // Phase 1 (validate_member_patch) already verified the role
+                        // is a valid SpaceRole string if present; parse here is safe.
                         let role = value
                             .get("role")
                             .and_then(|v| v.as_str())
-                            .unwrap_or("member");
+                            .and_then(SpaceRole::parse)
+                            .unwrap_or(SpaceRole::Member);
                         SpaceMemberOp::Upsert { contact_id, role }
                     };
                     member_ops.push(op);
@@ -4064,6 +4061,54 @@ mod tests {
         assert!(
             !rows[0].blocked,
             "blocked must remain false after atomicity violation was prevented"
+        );
+    }
+
+    // ── nie-cp2h.1: contact_set Phase 2 single state bump ────────────────────
+
+    /// A two-field patch ({blocked, displayName}) must increment ChatContact
+    /// state exactly once, not once per field.  Before update_contact_fully,
+    /// Phase 2 made two separate store calls each bumping state independently;
+    /// a concurrent get between the two bumps would see intermediate state.
+    #[tokio::test]
+    async fn test_contact_set_two_field_patch_bumps_state_once() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let store = state.store().unwrap();
+        store.upsert_chat_contact(&pub_id).await.unwrap();
+        let state_before = store.state_token("ChatContact").await.unwrap();
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { pub_id.clone(): { "blocked": true, "displayName": "Alice" } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["updated"]
+                .as_object()
+                .unwrap()
+                .contains_key(pub_id.as_str()),
+            "two-field patch must succeed: {result}"
+        );
+
+        let state_after = store.state_token("ChatContact").await.unwrap();
+        // State token is a stringified integer; parse both and compare.
+        let before_n: i64 = state_before.parse().unwrap_or(0);
+        let after_n: i64 = state_after.parse().unwrap_or(0);
+        assert_eq!(
+            after_n - before_n,
+            1,
+            "two-field patch must bump ChatContact state exactly once, not twice (before={state_before}, after={state_after})"
         );
     }
 

@@ -62,11 +62,43 @@ pub struct SpaceMemberRow {
     pub joined_at: String,
 }
 
+/// The set of valid roles a space member can hold.
+///
+/// This is the single source of truth for role values stored in SQLite and
+/// returned in JMAP responses.  Using an enum (instead of an unchecked `&str`)
+/// ensures that only validated roles reach the database — the compiler flags
+/// any new call site that passes an arbitrary string.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpaceRole {
+    Admin,
+    Moderator,
+    Member,
+}
+
+impl SpaceRole {
+    /// Parse a role string.  Returns `None` for unrecognised values.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "admin" => Some(Self::Admin),
+            "moderator" => Some(Self::Moderator),
+            "member" => Some(Self::Member),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Admin => "admin",
+            Self::Moderator => "moderator",
+            Self::Member => "member",
+        }
+    }
+}
+
 /// A single member patch operation for use with [`Store::update_space_fully`].
 pub enum SpaceMemberOp<'a> {
-    /// Add a member or update their role.  `role` must be one of the values
-    /// in `VALID_ROLES` (see `jmap.rs`); the store does not validate this.
-    Upsert { contact_id: &'a str, role: &'a str },
+    /// Add a member or update their role.
+    Upsert { contact_id: &'a str, role: SpaceRole },
     /// Remove a member from the space.
     Remove { contact_id: &'a str },
 }
@@ -529,16 +561,14 @@ impl Store {
     /// Add or re-add a member with a specific role.
     /// If already a member, updates the role.
     ///
-    /// **Precondition**: `role` must be one of `"admin"`, `"moderator"`, or
-    /// `"member"`. The store accepts any string value — callers must validate
-    /// before calling this function. An unrecognised role would be stored
-    /// verbatim and returned in JMAP responses, breaking clients that treat
-    /// the role field as an enum.
+    /// Add a member to a space or update their role.
+    ///
+    /// Accepts a [`SpaceRole`] so that only validated roles reach the database.
     pub async fn upsert_space_member_with_role(
         &self,
         space_id: &str,
         contact_id: &str,
-        role: &str,
+        role: SpaceRole,
     ) -> Result<()> {
         sqlx::query(
             "INSERT INTO space_member (space_id, contact_id, role)
@@ -547,7 +577,7 @@ impl Store {
         )
         .bind(space_id)
         .bind(contact_id)
-        .bind(role)
+        .bind(role.as_str())
         .execute(&self.pool)
         .await?;
         self.bump_state_seq("SpaceMember").await?;
@@ -596,11 +626,15 @@ impl Store {
     /// Returns `Ok(false)` if no space with `space_id` exists — always,
     /// regardless of whether the patch contains name/description or only
     /// member ops.  The transaction is rolled back before returning.
+    ///
+    /// `description` uses a double-`Option` to distinguish three states:
+    /// - `None` — not present in the patch; leave the column unchanged.
+    /// - `Some(None)` — explicitly set to `null`; clears the column to SQL NULL.
+    /// - `Some(Some(s))` — set the column to the string `s`.
     pub async fn update_space_fully<'a>(
         &self,
         space_id: &str,
         name: Option<&str>,
-        // None = leave unchanged; Some(None) = clear to NULL; Some(Some(s)) = set to s.
         description: Option<Option<&str>>,
         member_ops: &[SpaceMemberOp<'a>],
     ) -> Result<bool> {
@@ -662,7 +696,7 @@ impl Store {
                     )
                     .bind(space_id)
                     .bind(*contact_id)
-                    .bind(*role)
+                    .bind(role.as_str())
                     .execute(&mut *tx)
                     .await?;
                     members_changed = true;
@@ -811,7 +845,7 @@ impl Store {
                 return Ok(None);
             }
         }
-        self.upsert_space_member_with_role(&space_id, user_pub_id, "member")
+        self.upsert_space_member_with_role(&space_id, user_pub_id, SpaceRole::Member)
             .await?;
         Ok(Some(space_id))
     }
@@ -1101,6 +1135,78 @@ impl Store {
             self.bump_state_seq("ChatContact").await?;
         }
         Ok(rows > 0)
+    }
+
+    /// Apply contact field updates atomically in a single SQLite transaction.
+    ///
+    /// Returns `Ok(true)` if the contact exists and all writes succeeded.
+    /// Returns `Ok(false)` if no contact with `pub_id` exists.  The
+    /// transaction is rolled back before returning in that case.
+    ///
+    /// `display_name`: `None` = not in patch (leave unchanged);
+    /// `Some(None)` = set to NULL (clear); `Some(Some(s))` = set to `s`.
+    ///
+    /// Callers must ensure at least one of `blocked` or `display_name` is
+    /// `Some`; calling with both `None` is a no-op (existence is checked and
+    /// `ChatContact` state is bumped, but no field changes).
+    pub async fn update_contact_fully(
+        &self,
+        pub_id: &str,
+        blocked: Option<bool>,
+        display_name: Option<Option<&str>>,
+    ) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
+
+        // Verify existence before writing.  Unlike individual store methods
+        // that infer existence from rows_affected, an explicit check here
+        // ensures we return notFound without partial writes if the contact
+        // disappears between Phase 1 and Phase 2 (currently impossible since
+        // contacts are permanent, but correct to guard regardless).
+        let exists: Option<(String,)> =
+            sqlx::query_as("SELECT id FROM chat_contact WHERE id = ?")
+                .bind(pub_id)
+                .fetch_optional(&mut *tx)
+                .await?;
+        if exists.is_none() {
+            return Ok(false);
+        }
+
+        if let Some(b) = blocked {
+            sqlx::query(
+                "UPDATE chat_contact SET blocked = ?, last_seen_at = last_seen_at WHERE id = ?",
+            )
+            .bind(i64::from(b))
+            .bind(pub_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+        match display_name {
+            None => {}
+            Some(None) => {
+                sqlx::query("UPDATE chat_contact SET display_name = NULL WHERE id = ?")
+                    .bind(pub_id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+            Some(Some(s)) => {
+                sqlx::query("UPDATE chat_contact SET display_name = ? WHERE id = ?")
+                    .bind(s)
+                    .bind(pub_id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
+
+        // Single state bump for the entire patch, regardless of how many
+        // fields were updated.  This prevents concurrent observers from seeing
+        // intermediate state between field writes.
+        sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+            .bind("ChatContact")
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
+        Ok(true)
     }
 
     // ── Chat read/query ───────────────────────────────────────────────────────
