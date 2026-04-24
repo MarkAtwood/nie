@@ -658,7 +658,7 @@ impl Store {
         // Verify existence before any write.  Without this, a member-only or
         // empty patch on a nonexistent space would create orphaned space_member
         // rows and return Ok(true), violating RFC 8620 §7.1 (notFound required).
-        let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM space WHERE id = ?")
+        let exists: Option<(i32,)> = sqlx::query_as("SELECT 1 FROM space WHERE id = ?")
             .bind(space_id)
             .fetch_optional(&mut *tx)
             .await?;

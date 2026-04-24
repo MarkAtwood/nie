@@ -1095,6 +1095,15 @@ fn validate_member_patch(path: &str, value: &Value) -> Result<(), Value> {
         }));
     }
     if !value.is_null() {
+        // A non-null member patch value must be an object.  Without this check,
+        // a scalar value (e.g. 42) passes validation because value.get("role")
+        // returns None on non-objects, silently defaulting to SpaceRole::Member.
+        if !value.is_object() {
+            return Err(serde_json::json!({
+                "type": "invalidArguments",
+                "description": "member patch value must be null (to remove) or an object"
+            }));
+        }
         match value.get("role") {
             None => {} // absent → default (member); validated at parse time in Phase 2
             // Present but not a string (e.g. {"role": 42}) — reject explicitly
@@ -1155,10 +1164,27 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                     continue;
                 }
             };
-            let description = props
-                .get("description")
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            // description is optional: absent or null → no description.
+            // A non-null, non-string value is invalid — reject rather than
+            // silently dropping it (inconsistent with the update path which
+            // rejects wrong-type description with invalidProperties).
+            let description = match props.get("description") {
+                None | Some(Value::Null) => None,
+                Some(v) => match v.as_str() {
+                    Some(s) => Some(s.to_string()),
+                    None => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "invalidProperties",
+                                "properties": ["description"],
+                                "description": "description must be a string or null"
+                            }),
+                        );
+                        continue;
+                    }
+                },
+            };
             let id = crate::store::Store::new_id();
             match store
                 .create_space_full(&id, &name, description.as_deref(), &account_id)
@@ -2547,6 +2573,41 @@ mod tests {
         );
     }
 
+    /// Space/set create with a non-string description must return notCreated
+    /// with invalidProperties, not silently create the space with no description.
+    #[tokio::test]
+    async fn test_space_set_create_wrong_type_description_rejected() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "create": { "s1": { "name": "Valid Name", "description": 42 } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notCreated"]["s1"].is_object(),
+            "wrong-type description must be in notCreated: {result}"
+        );
+        assert_eq!(
+            result["notCreated"]["s1"]["type"], "invalidProperties",
+            "error type must be invalidProperties"
+        );
+        assert!(
+            result["created"].as_object().unwrap().is_empty(),
+            "created must be empty when description type is invalid"
+        );
+    }
+
     /// SpaceInvite/set create + Space/join roundtrip.
     #[tokio::test]
     async fn test_space_invite_create_and_join() {
@@ -2802,8 +2863,11 @@ mod tests {
         let MethodResponse(method, result, _) = &resp.method_responses[0];
         assert_eq!(method, "Message/set");
         assert!(
-            result["updated"][&msg_id].is_null(),
-            "updated entry must be null on success"
+            result["updated"]
+                .as_object()
+                .unwrap()
+                .contains_key(msg_id.as_str()),
+            "updated entry must appear in updated map"
         );
 
         // Verify reaction stored
@@ -3101,8 +3165,11 @@ mod tests {
             add_result["notUpdated"]
         );
         assert!(
-            add_result["updated"][&space_id].is_null(),
-            "add member must appear in updated"
+            add_result["updated"]
+                .as_object()
+                .unwrap()
+                .contains_key(space_id.as_str()),
+            "add member must appear in updated map"
         );
 
         // Verify member present with correct role via Space/get.
@@ -3911,6 +3978,63 @@ mod tests {
         assert!(
             members.is_empty(),
             "no orphaned space_member rows must exist after notFound: {members:?}"
+        );
+    }
+
+    // ── nie-ms2c.0: non-object non-null member patch value ───────────────────
+
+    /// Space/set with {"members/abc": 42} must return notUpdated with
+    /// invalidArguments, not silently add the member with the "member" role.
+    /// Before the fix, validate_member_patch only checked value.is_null(); a
+    /// scalar value passed because value.get("role") returns None on non-objects,
+    /// defaulting to SpaceRole::Member.
+    #[tokio::test]
+    async fn test_space_set_member_scalar_value_rejected() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "S").await;
+        let contact_id = "b".repeat(64);
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): { format!("members/{contact_id}"): 42 }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "scalar member value must be in notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][&space_id]["type"], "invalidArguments",
+            "error type must be invalidArguments"
+        );
+        assert!(
+            result["updated"].as_object().unwrap().is_empty(),
+            "updated must be empty"
+        );
+
+        // Verify contact_id was NOT added to the space (creator is still a member).
+        let members = state
+            .store()
+            .unwrap()
+            .get_space_members(&space_id)
+            .await
+            .unwrap();
+        assert!(
+            members.iter().all(|m| m.contact_id != contact_id),
+            "contact_id must not be added after rejected patch: {members:?}"
         );
     }
 
