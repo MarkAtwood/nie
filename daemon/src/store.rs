@@ -348,14 +348,19 @@ impl Store {
         Ok(())
     }
 
-    pub async fn set_contact_display_name(&self, pub_id: &str, name: &str) -> Result<()> {
-        sqlx::query("UPDATE chat_contact SET display_name = ? WHERE id = ?")
+    /// Set displayName to `name`.  Returns `Ok(true)` if found and updated,
+    /// `Ok(false)` if no contact with that id exists.
+    pub async fn set_contact_display_name(&self, pub_id: &str, name: &str) -> Result<bool> {
+        let rows = sqlx::query("UPDATE chat_contact SET display_name = ? WHERE id = ?")
             .bind(name)
             .bind(pub_id)
             .execute(&self.pool)
-            .await?;
-        self.bump_state_seq("ChatContact").await?;
-        Ok(())
+            .await?
+            .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("ChatContact").await?;
+        }
+        Ok(rows > 0)
     }
 
     /// Clear displayName (set to NULL).  Returns Ok(true) if found, Ok(false) if not found.

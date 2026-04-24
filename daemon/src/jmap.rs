@@ -37,6 +37,10 @@ use crate::types::DaemonEvent;
 pub const CAP_CORE: &str = "urn:ietf:params:jmap:core";
 pub const CAP_CHAT: &str = "urn:ietf:params:jmap:chat";
 
+/// RFC 8620 §3.1: maximum number of method calls allowed in a single
+/// POST /jmap batch.  Exceeding this returns a 400 requestTooLarge response.
+const MAX_CALLS_IN_REQUEST: usize = 64;
+
 // ── Session object (RFC 8620 §2) ───────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -107,6 +111,13 @@ pub async fn handle_jmap_request(
     State(state): State<DaemonState>,
     Json(req): Json<JmapRequest>,
 ) -> Result<Json<JmapResponse>, StatusCode> {
+    // RFC 8620 §3.1: reject batches exceeding the advertised limit.
+    // The spec calls for a 400 with a problem+json body; StatusCode::BAD_REQUEST
+    // gives the correct status (body omitted — acceptable for a local server).
+    if req.method_calls.len() > MAX_CALLS_IN_REQUEST {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     let session_state = session_state_token(&state).await?;
 
     let mut method_responses = Vec::with_capacity(req.method_calls.len());
@@ -140,7 +151,10 @@ async fn build_session(state: &DaemonState) -> Result<Session, StatusCode> {
 
     // Session-level capabilities. urn:ietf:params:jmap:chat value is {} per spec.
     let mut caps: HashMap<String, Value> = HashMap::new();
-    caps.insert(CAP_CORE.to_string(), serde_json::json!({}));
+    caps.insert(
+        CAP_CORE.to_string(),
+        serde_json::json!({ "maxCallsInRequest": MAX_CALLS_IN_REQUEST }),
+    );
     caps.insert(CAP_CHAT.to_string(), serde_json::json!({}));
 
     // Account-level capabilities carry the Chat-specific fields.
@@ -421,17 +435,16 @@ async fn contact_changes(args: Value, state: &DaemonState) -> (String, Value) {
         Err(e) => return server_fail(&e.to_string()),
     };
 
-    // Simplified: if sinceState == new_state, no changes.
-    // Otherwise, return all current contact IDs as "created".
-    let (created, updated): (Vec<String>, Vec<String>) = if since_state == new_state {
-        (vec![], vec![])
-    } else {
-        let ids: Vec<String> = match store.query_contacts(None, None).await {
-            Ok(v) => v,
-            Err(e) => return server_fail(&e.to_string()),
-        };
-        (ids, vec![])
-    };
+    if since_state != new_state {
+        // The daemon has no per-object change log, so it cannot enumerate
+        // which contacts were created, updated, or removed since sinceState.
+        // Return cannotCalculateChanges per RFC 8620 §5.2; clients must fall
+        // back to ChatContact/get with ids=null to refresh their cache.
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "cannotCalculateChanges", "newState": new_state}),
+        );
+    }
     method_ok(
         "ChatContact/changes",
         serde_json::json!({
@@ -440,8 +453,8 @@ async fn contact_changes(args: Value, state: &DaemonState) -> (String, Value) {
             "newState": new_state,
             "hasMoreChanges": false,
             "removed": [],
-            "created": created,
-            "updated": updated,
+            "created": [],
+            "updated": [],
         }),
     )
 }
@@ -521,8 +534,12 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                     continue;
                 };
                 match store.set_contact_display_name(id, &name).await {
-                    Ok(()) => {
+                    Ok(true) => {
                         any_update = true;
+                    }
+                    Ok(false) => {
+                        not_updated.insert(id.clone(), serde_json::json!({"type":"notFound"}));
+                        continue;
                     }
                     Err(e) => return server_fail(&e.to_string()),
                 }
@@ -530,6 +547,23 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
 
             if any_update {
                 updated.insert(id.clone(), Value::Null);
+            } else {
+                // No recognized field applied and no error already recorded.
+                // RFC 8620 §7.1: empty patch {} is a no-op and belongs in
+                // updated; a non-empty patch with no recognized keys is
+                // rejected with invalidProperties.
+                if patch.as_object().map(|o| o.is_empty()).unwrap_or(false) {
+                    updated.insert(id.clone(), Value::Null);
+                } else {
+                    not_updated.insert(
+                        id.clone(),
+                        serde_json::json!({
+                            "type": "invalidProperties",
+                            "properties": [],
+                            "description": "no recognized properties in patch"
+                        }),
+                    );
+                }
             }
         }
     }
@@ -595,6 +629,11 @@ async fn contact_query(args: Value, state: &DaemonState) -> (String, Value) {
 
     let position = args.get("position").and_then(|v| v.as_i64()).unwrap_or(0);
     let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(total);
+    // RFC 8620 §5.1: position and limit must be non-negative integers.
+    // Negative values would wrap on the as-usize cast and panic in slice indexing.
+    if position < 0 || limit < 0 {
+        return method_error("invalidArguments");
+    }
     let start = (position as usize).min(ids.len());
     let end = ((position + limit) as usize).min(ids.len());
     let page_ids = &ids[start..end];
@@ -628,6 +667,16 @@ async fn contact_query_changes(args: Value, state: &DaemonState) -> (String, Val
         Ok(t) => t,
         Err(e) => return server_fail(&e.to_string()),
     };
+    if since != new_state {
+        // The daemon has no per-object change log.  ChatContact/query already
+        // advertises canCalculateChanges:false; returning cannotCalculateChanges
+        // here is the correct RFC 8620 §5.4 response when clients call anyway.
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "cannotCalculateChanges", "newState": new_state}),
+        );
+    }
+    // State unchanged — return empty result with current total.
     let filter = args.get("filter");
     let presence = filter
         .and_then(|f| f.get("presence"))
@@ -640,15 +689,6 @@ async fn contact_query_changes(args: Value, state: &DaemonState) -> (String, Val
         Err(e) => return server_fail(&e.to_string()),
     };
     let total = ids.len() as i64;
-    // Simplified: if state unchanged → empty; else return all as "added".
-    let added: Vec<Value> = if since == new_state {
-        vec![]
-    } else {
-        ids.iter()
-            .enumerate()
-            .map(|(i, id)| serde_json::json!({"index": i, "id": id}))
-            .collect()
-    };
     method_ok(
         "ChatContact/queryChanges",
         serde_json::json!({
@@ -656,7 +696,7 @@ async fn contact_query_changes(args: Value, state: &DaemonState) -> (String, Val
             "oldQueryState": since,
             "newQueryState": new_state,
             "removed": [],
-            "added": added,
+            "added": [],
             "total": total,
         }),
     )
@@ -3259,5 +3299,336 @@ mod tests {
             get_resp.method_responses[0].1["list"][0]["name"], "Stable Name",
             "name must not be written when empty contact_id causes notUpdated"
         );
+    }
+
+    // ── nie-0kki.1: set_contact_display_name not-found detection ─────────────
+
+    /// ChatContact/set with displayName on an unknown id must return notUpdated,
+    /// not updated.  Before the fix, set_contact_display_name returned Ok(())
+    /// regardless of rows_affected, so the response falsely reported success.
+    #[tokio::test]
+    async fn test_contact_set_display_name_unknown_id_returns_not_found() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        "nonexistent-id": { "displayName": "Ghost" }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"]["nonexistent-id"].is_object(),
+            "unknown id must appear in notUpdated: {result}"
+        );
+        assert!(
+            !result["updated"]
+                .as_object()
+                .map(|m| m.contains_key("nonexistent-id"))
+                .unwrap_or(false),
+            "unknown id must not appear in updated"
+        );
+        assert_eq!(
+            result["notUpdated"]["nonexistent-id"]["type"]
+                .as_str()
+                .unwrap(),
+            "notFound",
+        );
+    }
+
+    // ── nie-0kki.2: empty and unknown-only patch handling ─────────────────────
+
+    /// Empty patch {} is a RFC 8620 §7.1 no-op: the id must appear in updated.
+    #[tokio::test]
+    async fn test_contact_set_empty_patch_is_noop() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        // Insert a real contact to update.
+        state
+            .store()
+            .unwrap()
+            .upsert_chat_contact(&pub_id)
+            .await
+            .unwrap();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { pub_id.clone(): {} }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["updated"]
+                .as_object()
+                .map(|m| m.contains_key(pub_id.as_str()))
+                .unwrap_or(false),
+            "empty patch must appear in updated (RFC 8620 §7.1 no-op): {result}"
+        );
+    }
+
+    /// Patch with only unrecognized keys must appear in notUpdated with
+    /// invalidProperties — not silently disappear from both maps.
+    #[tokio::test]
+    async fn test_contact_set_unknown_keys_returns_invalid_properties() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        state
+            .store()
+            .unwrap()
+            .upsert_chat_contact(&pub_id)
+            .await
+            .unwrap();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { pub_id.clone(): { "unknownField": "value" } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .map(|m| m.contains_key(pub_id.as_str()))
+                .unwrap_or(false),
+            "patch with only unknown keys must appear in notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][pub_id.as_str()]["type"]
+                .as_str()
+                .unwrap(),
+            "invalidProperties",
+        );
+    }
+
+    // ── nie-0kki.3: negative position/limit must not panic ───────────────────
+
+    /// ChatContact/query with position=-1 must return invalidArguments, not panic.
+    /// Before the fix the negative i64 wrapped on as-usize cast, producing
+    /// ids[usize::MAX..small] which panics in Rust slice indexing.
+    #[tokio::test]
+    async fn test_contact_query_negative_position_returns_invalid_arguments() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        state
+            .store()
+            .unwrap()
+            .upsert_chat_contact(&pub_id)
+            .await
+            .unwrap();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/query".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "position": -1_i64,
+                    "limit": 3_i64,
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(
+            method, "error",
+            "negative position must yield error response: {result}"
+        );
+        assert_eq!(result["type"].as_str().unwrap(), "invalidArguments",);
+    }
+
+    // ── nie-0kki.4: maxCallsInRequest enforcement ─────────────────────────────
+
+    /// A batch exceeding MAX_CALLS_IN_REQUEST must be rejected with 400.
+    #[tokio::test]
+    async fn test_handle_jmap_request_rejects_oversized_batch() {
+        let state = make_state();
+        let calls: Vec<MethodCall> = (0..=MAX_CALLS_IN_REQUEST)
+            .map(|i| {
+                MethodCall(
+                    "unknownMethod".to_string(),
+                    serde_json::json!({}),
+                    format!("c{i}"),
+                )
+            })
+            .collect();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: calls,
+        };
+        let result = handle_jmap_request(State(state), Json(req)).await;
+        assert!(
+            result.is_err(),
+            "batch with {} calls must be rejected",
+            MAX_CALLS_IN_REQUEST + 1
+        );
+    }
+
+    /// A batch of exactly MAX_CALLS_IN_REQUEST calls must be accepted.
+    #[tokio::test]
+    async fn test_handle_jmap_request_accepts_batch_at_limit() {
+        let state = make_state();
+        let calls: Vec<MethodCall> = (0..MAX_CALLS_IN_REQUEST)
+            .map(|i| {
+                MethodCall(
+                    "unknownMethod".to_string(),
+                    serde_json::json!({}),
+                    format!("c{i}"),
+                )
+            })
+            .collect();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: calls,
+        };
+        let result = handle_jmap_request(State(state), Json(req)).await;
+        assert!(
+            result.is_ok(),
+            "batch of {MAX_CALLS_IN_REQUEST} calls must be accepted"
+        );
+    }
+
+    /// Session object must advertise maxCallsInRequest in the core capability.
+    #[tokio::test]
+    async fn test_session_advertises_max_calls_in_request() {
+        let state = make_state();
+        let Json(session) = handle_jmap_session(State(state)).await.unwrap();
+        let core_cap = session
+            .capabilities
+            .get(CAP_CORE)
+            .expect("core capability must be present");
+        assert!(
+            core_cap.get("maxCallsInRequest").is_some(),
+            "core capability must include maxCallsInRequest: {core_cap}"
+        );
+        assert_eq!(
+            core_cap["maxCallsInRequest"].as_u64().unwrap(),
+            MAX_CALLS_IN_REQUEST as u64,
+        );
+    }
+
+    // ── nie-0kki.5: contact_changes returns cannotCalculateChanges ────────────
+
+    /// ChatContact/changes must return cannotCalculateChanges when state has
+    /// changed, not lie by returning all IDs as "created".
+    #[tokio::test]
+    async fn test_contact_changes_returns_cannot_calculate_changes() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        // Insert a contact to advance state from "0".
+        state
+            .store()
+            .unwrap()
+            .upsert_chat_contact(&pub_id)
+            .await
+            .unwrap();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/changes".to_string(),
+                serde_json::json!({"accountId": pub_id, "sinceState": "0"}),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "error", "changed state must return error: {result}");
+        assert_eq!(result["type"].as_str().unwrap(), "cannotCalculateChanges");
+        assert!(
+            result["newState"].is_string(),
+            "error must include newState"
+        );
+    }
+
+    /// ChatContact/changes with sinceState == current state must return empty
+    /// change set (not an error).
+    #[tokio::test]
+    async fn test_contact_changes_no_change_returns_empty() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        // Get current state token.
+        let current_state = state
+            .store()
+            .unwrap()
+            .state_token("ChatContact")
+            .await
+            .unwrap();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/changes".to_string(),
+                serde_json::json!({"accountId": pub_id, "sinceState": current_state}),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(
+            method, "ChatContact/changes",
+            "unchanged state must return changes object: {result}"
+        );
+        assert_eq!(result["created"], serde_json::json!([]));
+        assert_eq!(result["updated"], serde_json::json!([]));
+        assert_eq!(result["removed"], serde_json::json!([]));
+    }
+
+    /// ChatContact/query already advertises canCalculateChanges: negative
+    /// limit returns invalid arguments.
+    #[tokio::test]
+    async fn test_contact_query_negative_limit_returns_invalid_arguments() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/query".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "position": 0_i64,
+                    "limit": -5_i64,
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(
+            method, "error",
+            "negative limit must yield error response: {result}"
+        );
+        assert_eq!(result["type"].as_str().unwrap(), "invalidArguments",);
     }
 }
