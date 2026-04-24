@@ -1160,18 +1160,24 @@ impl Store {
     /// `Some(None)` = set to NULL (clear); `Some(Some(s))` = set to `s`.
     ///
     /// Callers must provide at least one of `blocked` or `display_name` as
-    /// `Some`; calling with both `None` returns `Err` immediately.
+    /// `Some`.  Calling with both `None` panics (programmer error — the
+    /// caller is responsible for the empty-patch check before calling this).
     pub async fn update_contact_fully(
         &self,
         pub_id: &str,
         blocked: Option<bool>,
         display_name: Option<Option<&str>>,
     ) -> Result<bool> {
+        // Panic rather than Err: both-None is a programmer error, not a
+        // runtime condition.  The caller (contact_set Phase 2b) always
+        // guards against empty patches before calling this function, so
+        // this branch is unreachable from correct call sites.  Panicking
+        // keeps the message out of JMAP serverFail response bodies.
         if blocked.is_none() && display_name.is_none() {
-            return Err(anyhow::anyhow!(
-                "update_contact_fully: both blocked and display_name are None; \
-                 call with at least one Some field"
-            ));
+            panic!(
+                "update_contact_fully: programmer error — \
+                 both blocked and display_name are None"
+            );
         }
         let mut tx = self.pool.begin().await?;
 
@@ -1180,7 +1186,7 @@ impl Store {
         // ensures we return notFound without partial writes if the contact
         // disappears between Phase 1 and Phase 2 (currently impossible since
         // contacts are permanent, but correct to guard regardless).
-        let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM chat_contact WHERE id = ?")
+        let exists: Option<(i32,)> = sqlx::query_as("SELECT 1 FROM chat_contact WHERE id = ?")
             .bind(pub_id)
             .fetch_optional(&mut *tx)
             .await?;
@@ -1585,25 +1591,29 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn update_contact_fully_both_none_returns_err() {
+    #[should_panic(expected = "programmer error")]
+    async fn update_contact_fully_both_none_panics() {
         let store = Store::new("sqlite::memory:").await.unwrap();
-        let result = store.update_contact_fully("anyid", None, None).await;
-        assert!(
-            result.is_err(),
-            "expected Err when both blocked and display_name are None"
-        );
+        // Both None is a programmer error; the function must panic.
+        store.update_contact_fully("anyid", None, None).await.unwrap();
     }
 
     #[test]
     fn space_role_all_is_complete() {
         // Regression guard: all() must cover every SpaceRole variant.
-        // The exhaustive match below fails to compile if a new variant is added
-        // without updating this test; the len assert then catches a stale all().
-        let count = [SpaceRole::Admin, SpaceRole::Moderator, SpaceRole::Member].len();
+        //
+        // The closure below contains an exhaustive match — the compiler
+        // rejects it if a new SpaceRole variant is added without updating
+        // the match arms.  When adding a variant: (1) add a match arm here,
+        // (2) increment the count in the assert, (3) update all().
+        // The assert then catches a stale all() independently.
+        let _ = |r: SpaceRole| match r {
+            SpaceRole::Admin | SpaceRole::Moderator | SpaceRole::Member => (),
+        };
         assert_eq!(
             SpaceRole::all().len(),
-            count,
-            "SpaceRole::all() is missing at least one variant — update all() to match"
+            3, // must equal the number of arms in the match above
+            "SpaceRole::all() is missing at least one variant — update all() and the count above"
         );
     }
 }
