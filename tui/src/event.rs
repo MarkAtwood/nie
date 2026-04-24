@@ -529,6 +529,11 @@ pub async fn handle_relay_event(
             // Stub — add-member response correlation is a future issue.
             tracing::debug!("relay response id={}", resp.id);
         }
+        ClientEvent::Disconnected => {
+            tracing::error!("relay disconnected");
+            state.connection = ConnectionState::Offline;
+            state.push_message(ChatLine::System("[!] relay connection closed".to_string()));
+        }
     }
     Ok(())
 }
@@ -1125,7 +1130,17 @@ async fn handle_slash(
             ));
         }
         "cat" if !rest.is_empty() => {
-            let path = std::path::Path::new(rest.trim());
+            let raw_path = rest.trim();
+            // Reject absolute paths and any path component that is "..".
+            // This prevents reading files outside the working directory.
+            let path = std::path::Path::new(raw_path);
+            let has_dotdot = path.components().any(|c| c == std::path::Component::ParentDir);
+            if path.is_absolute() || has_dotdot {
+                state.push_message(ChatLine::System(
+                    "[!] /cat only accepts relative paths without '..' components".to_string(),
+                ));
+                return Ok(());
+            }
             match std::fs::read(path) {
                 Ok(bytes) => {
                     let truncated = if bytes.len() > 4096 {

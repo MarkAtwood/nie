@@ -391,37 +391,37 @@ impl CompactBlockScanner {
             self.scan_tx(block.height, block.time, tx).await?;
         }
 
-        // Persist the updated commitment tree snapshot before advancing the tip.
-        // If this write fails the tip is not advanced, so the next scan will
-        // re-process this block and rebuild the tree to the same state.
+        // Serialize the updated commitment tree.
         let mut tree_bytes = Vec::new();
         write_commitment_tree(&self.tree, &mut tree_bytes)
             .map_err(|e| anyhow::anyhow!("tree serialize failed: {e}"))?;
-        self.store.save_tree_state(&tree_bytes).await?;
 
-        // Persist all updated witnesses for this block height.
-        let block_height = i64::try_from(block.height).map_err(|_| {
+        // Convert block height once for SQLite (i64).
+        let block_height_i64 = i64::try_from(block.height).map_err(|_| {
             anyhow::anyhow!(
                 "block height {} exceeds i64::MAX; cannot store in SQLite",
                 block.height
             )
         })?;
+
+        // Serialize all witnesses.
+        let mut witness_rows: Vec<(i64, i64, Vec<u8>)> = Vec::new();
         for (note_id, witness) in &self.witnesses {
             let mut wbytes = Vec::new();
             write_incremental_witness(witness, &mut wbytes)
                 .map_err(|e| anyhow::anyhow!("witness serialize failed for note {note_id}: {e}"))?;
-            self.store
-                .upsert_witness(*note_id, block_height, &wbytes)
-                .await
-                .map_err(|e| {
-                    anyhow::anyhow!(
-                        "scanner: upsert_witness failed for note {note_id} at height {block_height}: {e}"
-                    )
-                })?;
+            witness_rows.push((*note_id, block_height_i64, wbytes));
         }
 
-        // Advance tip after the full block is committed.
-        self.store.set_scan_tip(block.height).await?;
+        // Persist tree_state, all witnesses, and the new scan tip atomically.
+        // A crash between any two of these writes would leave the DB inconsistent
+        // (tip advanced but witnesses missing, or witnesses written but tip not).
+        // save_block_state wraps all three in a single SQLite transaction.
+        self.store
+            .save_block_state(&tree_bytes, &witness_rows, block_height_i64)
+            .await
+            .map_err(|e| anyhow::anyhow!("scanner: save_block_state failed: {e}"))?;
+
         Ok(())
     }
 

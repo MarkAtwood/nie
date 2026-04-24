@@ -1717,6 +1717,11 @@ pub async fn chat(
                         }
                     }
 
+                    ClientEvent::Disconnected => {
+                        eprintln!("\nDisconnected from relay.");
+                        break;
+                    }
+
                     ClientEvent::Message(other) => info!("relay: {other:?}"),
                 }
             }

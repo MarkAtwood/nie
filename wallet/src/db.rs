@@ -1021,6 +1021,63 @@ impl WalletStore {
         Ok(())
     }
 
+    /// Atomically persist all per-block scanner state in a single transaction.
+    ///
+    /// Writes the commitment tree snapshot, all updated Merkle witnesses, and the
+    /// new scan tip inside one SQLite transaction.  Either all three writes commit
+    /// or none do, so a crash between writes cannot leave the DB in a state where
+    /// `scan_state.tip_height` is N but some witnesses are missing.
+    ///
+    /// `witnesses` is a slice of `(note_id, block_height, serialized_witness)` tuples.
+    pub async fn save_block_state(
+        &self,
+        tree_data: &[u8],
+        witnesses: &[(i64, i64, Vec<u8>)],
+        tip_height: i64,
+    ) -> Result<()> {
+        let mut txn = self.pool.begin().await?;
+
+        let tree_rows = sqlx::query("UPDATE scan_state SET tree_state = ? WHERE id = 1")
+            .bind(tree_data)
+            .execute(&mut *txn)
+            .await?;
+        if tree_rows.rows_affected() != 1 {
+            return Err(anyhow::anyhow!(
+                "save_block_state: scan_state row missing while saving tree (rows_affected={})",
+                tree_rows.rows_affected()
+            ));
+        }
+
+        for (note_id, block_height, witness_data) in witnesses {
+            sqlx::query(
+                "INSERT INTO witnesses (note_id, block_height, witness_data)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT(note_id) DO UPDATE SET
+                     block_height = excluded.block_height,
+                     witness_data = excluded.witness_data",
+            )
+            .bind(note_id)
+            .bind(block_height)
+            .bind(witness_data.as_slice())
+            .execute(&mut *txn)
+            .await?;
+        }
+
+        let tip_rows = sqlx::query("UPDATE scan_state SET tip_height = ? WHERE id = 1")
+            .bind(tip_height)
+            .execute(&mut *txn)
+            .await?;
+        if tip_rows.rows_affected() != 1 {
+            return Err(anyhow::anyhow!(
+                "save_block_state: scan_state row missing while saving tip (rows_affected={})",
+                tip_rows.rows_affected()
+            ));
+        }
+
+        txn.commit().await?;
+        Ok(())
+    }
+
     /// Persist a serialized `CommitmentTree` snapshot.
     ///
     /// `tree_data` is the output of `write_commitment_tree()`.  Overwrites any

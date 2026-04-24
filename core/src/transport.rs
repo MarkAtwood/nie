@@ -47,16 +47,30 @@ pub enum ClientEvent {
     /// flows initiated after the auth handshake (e.g. GetKeyPackage).
     Response(JsonRpcResponse),
     /// Connection lost; will retry after `delay_secs` seconds.
+    /// Only emitted by [`connect_with_retry`].
     Reconnecting { delay_secs: u64 },
-    /// Successfully reconnected.
+    /// Successfully reconnected after a [`Reconnecting`] gap.
+    /// Only emitted by [`connect_with_retry`].
     Reconnected,
+    /// Connection closed cleanly or due to an error. No reconnect will occur.
+    ///
+    /// Only emitted by [`connect`] (single-attempt). After this event,
+    /// `rx.recv()` returns `None`. Callers that loop on `Some(_)` must
+    /// handle this event explicitly to detect relay disconnection.
+    Disconnected,
 }
 
 /// A live, authenticated relay connection (single-attempt).
 pub struct RelayConn {
     /// Send JSON-RPC requests to the relay.
     pub tx: mpsc::Sender<JsonRpcRequest>,
-    /// Receive JSON-RPC notifications and responses from the relay.
+    /// Receive notifications and responses from the relay.
+    ///
+    /// Delivers [`ClientEvent::Message`] and [`ClientEvent::Response`] while
+    /// connected, then a single [`ClientEvent::Disconnected`] when the relay
+    /// closes the connection or a read error occurs. After `Disconnected`,
+    /// `recv()` returns `None`. Callers must handle `Disconnected` explicitly
+    /// to detect disconnection — do not rely on `None` alone.
     pub rx: mpsc::Receiver<ClientEvent>,
 }
 
@@ -118,10 +132,12 @@ pub async fn connect(
                 }
                 Ok(Message::Close(_)) => {
                     info!("relay closed connection");
+                    let _ = in_tx.send(ClientEvent::Disconnected).await;
                     break;
                 }
                 Err(e) => {
                     error!("ws read error: {e}");
+                    let _ = in_tx.send(ClientEvent::Disconnected).await;
                     break;
                 }
                 _ => {} // ping/pong/binary: ignore
@@ -382,12 +398,13 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
 
         let pub_key_bytes: [u8; 32] = identity.verifying_key().to_bytes();
         let diff = params.difficulty;
-        // Reject impossibly high difficulty before spawning the mining task.
-        // SHA-256 has 256 bits of output; difficulty > 60 would require more
-        // than 2^60 hashes and would never terminate in practice.
+        // Reject difficulty above the relay's own cap before spawning the mining task.
+        // A rogue relay sending diff > MAX_DIFFICULTY could force the client to mine
+        // for an astronomically long time; reject it immediately.
+        let max = crate::pow::MAX_DIFFICULTY;
         anyhow::ensure!(
-            diff <= 60,
-            "relay requested impossible PoW difficulty: {diff} (max 60)"
+            diff <= max,
+            "relay requested PoW difficulty {diff} above maximum {max}; rejecting"
         );
         // Fail explicitly if the system clock is broken.  unwrap_or_default()
         // would silently produce ts_floor=0, which the relay rejects as stale
@@ -615,9 +632,14 @@ fn parse_incoming(text: &str) -> Option<ClientEvent> {
                 }
             }
         }
-        Ok(_) => {
-            // Neither notification nor response — discard.
-            warn!("unrecognized JSON-RPC frame (no id, no method)");
+        Ok(v) => {
+            // id is null (or absent) and no method field.
+            // JSON-RPC 2.0 §5 permits id:null on error responses for parse errors.
+            if let Some(err) = v.get("error") {
+                error!("JSON-RPC error with null id from relay: {err}");
+            } else {
+                warn!("unrecognized JSON-RPC frame (no id, no method)");
+            }
             None
         }
         Err(e) => {

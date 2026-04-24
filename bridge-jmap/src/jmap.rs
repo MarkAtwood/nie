@@ -1,7 +1,7 @@
 //! JMAP (RFC 8620 / RFC 8621) client types and HTTP implementation.
 //!
 //! Implements a minimal subset of JMAP for Mail:
-//! - `Email/query`  — list email IDs in a mailbox since a given state
+//! - `Email/query`  — full-scan list of email IDs in a mailbox (no delta; seen_ids dedup prevents replay)
 //! - `Email/get`    — fetch email headers and plain text body
 //! - `Email/set`    — create a new email in a mailbox
 
@@ -173,7 +173,11 @@ impl JmapClient {
         Ok(method_responses)
     }
 
-    /// Query email IDs in a mailbox, optionally filtered since a given query state.
+    /// Query email IDs in a mailbox using a full scan (always returns up to 50 most-recent IDs).
+    ///
+    /// The `since_state` parameter is accepted for API compatibility but is **not used** —
+    /// this always issues a full `Email/query` rather than an incremental `Email/queryChanges`.
+    /// Replay is prevented by the bridge's `seen_ids` deduplication set.
     ///
     /// Returns `(ids, new_query_state)`.
     pub async fn email_query(

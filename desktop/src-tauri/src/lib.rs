@@ -94,6 +94,10 @@ async fn connect_relay(
                     tracing::info!("relay reconnecting in {delay_secs}s");
                     let _ = app.emit("nie://status", format!("Reconnecting in {delay_secs}s…"));
                 }
+                ClientEvent::Disconnected => {
+                    tracing::error!("relay disconnected");
+                    break;
+                }
                 _ => {}
             }
         }

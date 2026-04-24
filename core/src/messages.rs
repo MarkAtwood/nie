@@ -40,7 +40,12 @@ pub enum ClearMessage {
     /// Receiver uses transfer_id to correlate subsequent FileChunk messages.
     FileHeader {
         transfer_id: Uuid,
-        /// Original filename (basename only — no path components).
+        /// Original filename — basename only, no path separators or `..` components.
+        ///
+        /// Enforced at deserialization: names containing `/`, `\`, or equal to
+        /// `..` are rejected with a parse error before the message reaches any
+        /// receiver.  Callers do NOT need to call `safe_name()` on this field.
+        #[serde(deserialize_with = "deserialize_file_name")]
         name: String,
         /// Total file size in bytes.
         size_bytes: u64,
@@ -132,6 +137,34 @@ where
             other
         ))),
     }
+}
+
+/// Deserialize `FileHeader.name`, rejecting path-traversal names.
+///
+/// Rejected: names containing `/` or `\`, names that are `..`, and empty names.
+/// A hostile peer cannot use a crafted `FileHeader` to write outside the
+/// download directory — the name is rejected at the protocol boundary before
+/// any receiver sees it.
+fn deserialize_file_name<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.is_empty() {
+        return Err(serde::de::Error::custom("file name must not be empty"));
+    }
+    if s.contains('/') || s.contains('\\') {
+        return Err(serde::de::Error::custom(format!(
+            "file name contains path separator: {:?}",
+            s
+        )));
+    }
+    if s == ".." {
+        return Err(serde::de::Error::custom(
+            "file name \"..\" is not allowed",
+        ));
+    }
+    Ok(s)
 }
 
 /// Deserialize `action` for `PeerGroupUpdate`, rejecting unknown variants.
@@ -471,6 +504,40 @@ mod tests {
         assert_eq!(name, "photo.jpg");
         assert_eq!(size_bytes, 123456);
         assert_eq!(total_chunks, 3);
+    }
+
+    /// Path traversal names are rejected at deserialization, not sanitized.
+    ///
+    /// A hostile peer cannot use a crafted FileHeader to escape the download
+    /// directory.  The oracle is the protocol invariant: basename only.
+    #[test]
+    fn file_header_rejects_path_traversal_names() {
+        use uuid::Uuid;
+        let tid = Uuid::new_v4();
+
+        let cases = [
+            "../evil.sh",
+            "../../etc/passwd",
+            "/etc/passwd",
+            "subdir/evil.sh",
+            "sub\\evil.sh",
+            "..",
+            "",
+        ];
+
+        for bad_name in cases {
+            let json = format!(
+                r#"{{"type":"file_header","transfer_id":"{tid}","name":{name},"size_bytes":1,"sha256_hex":"{sha}","total_chunks":1,"mime_type":"text/plain"}}"#,
+                name = serde_json::to_string(bad_name).unwrap(),
+                sha = "a".repeat(64),
+            );
+            let result: Result<ClearMessage, _> = serde_json::from_str(&json);
+            assert!(
+                result.is_err(),
+                "name {:?} should be rejected but was accepted",
+                bad_name
+            );
+        }
     }
 
     #[test]

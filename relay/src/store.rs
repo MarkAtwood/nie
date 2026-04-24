@@ -483,11 +483,12 @@ impl Store {
     /// holds 1000 messages.  This prevents a flood of whispers from growing the
     /// `offline_messages` table without bound.
     pub async fn enqueue(&self, to_pub_id: &str, payload_json: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM offline_messages WHERE to_pub_id = ?1",
         )
         .bind(to_pub_id)
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *tx)
         .await?;
         if count >= 1000 {
             tracing::warn!(
@@ -502,8 +503,9 @@ impl Store {
         )
         .bind(to_pub_id)
         .bind(payload_json)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -877,6 +879,38 @@ impl Store {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    /// Atomically check the member count cap and add `pub_id` to `group_id`.
+    ///
+    /// The COUNT and INSERT run inside a single `BEGIN IMMEDIATE` transaction,
+    /// eliminating the TOCTOU where two concurrent GROUP_ADD callers both read
+    /// count < cap and then both insert, exceeding the limit.
+    ///
+    /// Returns `Ok(true)` if the member was added (or was already a member),
+    /// `Ok(false)` if the group already has `cap` or more members.
+    pub async fn add_group_member_capped(
+        &self,
+        group_id: &str,
+        pub_id: &str,
+        cap: u64,
+    ) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+                .bind(group_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        if count as u64 >= cap {
+            return Ok(false);
+        }
+        sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
+            .bind(group_id)
+            .bind(pub_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(true)
     }
 
     /// Remove `pub_id` from `group_id`. No-op if the membership does not exist.

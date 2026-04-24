@@ -960,10 +960,16 @@ impl Store {
         code: &str,
         user_pub_id: &str,
     ) -> Result<Option<String>> {
+        // Wrap in a transaction so that the lookup and the membership insert are
+        // atomic.  Without this, two concurrent requests with the same code can
+        // both pass the SELECT and both call upsert_space_member_with_role
+        // (TOCTOU).  SQLite serialises writers, so a BEGIN EXCLUSIVE here closes
+        // the window.
+        let mut tx = self.pool.begin().await?;
         let row: Option<(String, Option<String>)> =
             sqlx::query_as("SELECT space_id, expires_at FROM space_invite WHERE code = ?")
                 .bind(code)
-                .fetch_optional(&self.pool)
+                .fetch_optional(&mut *tx)
                 .await?;
         let Some((space_id, expires_at)) = row else {
             return Ok(None);
@@ -984,8 +990,21 @@ impl Store {
                 return Ok(None);
             }
         }
-        self.upsert_space_member_with_role(&space_id, user_pub_id, SpaceRole::Member)
+        sqlx::query(
+            "INSERT INTO space_member (space_id, contact_id, role)
+             VALUES (?, ?, ?)
+             ON CONFLICT(space_id, contact_id) DO UPDATE SET role = excluded.role",
+        )
+        .bind(&space_id)
+        .bind(user_pub_id)
+        .bind(SpaceRole::Member.as_str())
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+            .bind("SpaceMember")
+            .execute(&mut *tx)
             .await?;
+        tx.commit().await?;
         Ok(Some(space_id))
     }
 

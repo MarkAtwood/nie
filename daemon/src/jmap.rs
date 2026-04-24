@@ -207,8 +207,16 @@ async fn session_state_token(state: &DaemonState) -> Result<String, StatusCode> 
     };
     // Build a composite token from all tracked types.  If any type changes,
     // the concatenation changes — simple, no hashing needed for a local server.
-    let mut parts = Vec::with_capacity(4);
-    for type_name in &["ChatContact", "Chat", "Message", "Space"] {
+    let mut parts = Vec::with_capacity(7);
+    for type_name in &[
+        "ChatContact",
+        "Chat",
+        "Message",
+        "Space",
+        "SpaceMember",
+        "SpaceInvite",
+        "Category",
+    ] {
         let tok = store
             .state_token(type_name)
             .await
@@ -804,15 +812,16 @@ async fn chat_changes(args: Value, state: &DaemonState) -> (String, Value) {
         Ok(t) => t,
         Err(e) => return db_error(e),
     };
-    let (created, updated): (Vec<String>, Vec<String>) = if since_state == new_state {
-        (vec![], vec![])
-    } else {
-        let ids = match store.get_chats(None).await {
-            Ok((list, _)) => list.iter().map(|c| c.id.clone()).collect::<Vec<String>>(),
-            Err(e) => return db_error(e),
-        };
-        (ids, vec![])
-    };
+    if since_state != new_state {
+        // The daemon has no per-object change log, so it cannot enumerate
+        // which chats were created, updated, or removed since sinceState.
+        // Return cannotCalculateChanges per RFC 8620 §5.2; clients must fall
+        // back to Chat/get with ids=null to refresh their cache.
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "cannotCalculateChanges", "newState": new_state}),
+        );
+    }
     method_ok(
         "Chat/changes",
         serde_json::json!({
@@ -821,8 +830,8 @@ async fn chat_changes(args: Value, state: &DaemonState) -> (String, Value) {
             "newState": new_state,
             "hasMoreChanges": false,
             "removed": [],
-            "created": created,
-            "updated": updated,
+            "created": [],
+            "updated": [],
         }),
     )
 }
@@ -1873,6 +1882,27 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
     // ── update ──────────────────────────────────────────────────────────────
     if let Some(Value::Object(updates)) = args.get("update") {
         for (msg_id, patch) in updates {
+            // Pre-validate: the message must exist and belong to this account
+            // before we apply any patch fields (RFC 8620 §5.3).
+            match store.get_messages(&[msg_id.as_str()]).await {
+                Err(e) => return db_error(e),
+                Ok((rows, _)) => {
+                    if rows.is_empty() {
+                        not_updated
+                            .insert(msg_id.clone(), serde_json::json!({"type": "notFound"}));
+                        continue;
+                    }
+                    // Ownership check: only the sender may mutate their message.
+                    let sender = &rows[0].sender_id;
+                    if sender != state.my_pub_id() {
+                        not_updated.insert(
+                            msg_id.clone(),
+                            serde_json::json!({"type": "notFound"}),
+                        );
+                        continue;
+                    }
+                }
+            }
             if let Some(Value::Object(patch_map)) = Some(patch) {
                 let mut update_err: Option<Value> = None;
                 for (path, value) in patch_map {

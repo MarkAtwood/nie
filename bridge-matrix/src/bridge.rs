@@ -1,6 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 
 use anyhow::Result;
+use subtle::ConstantTimeEq;
 use nie_core::messages::ClearMessage;
 use nie_core::protocol::{BroadcastParams, DeliverParams, JsonRpcRequest};
 use nie_core::transport::{next_request_id, ClientEvent};
@@ -95,7 +96,12 @@ async fn as_transaction(
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "));
-    if bearer != Some(state.hs_token.as_str()) {
+    let authed = bearer.is_some_and(|token| {
+        let expected = state.hs_token.as_bytes();
+        let provided = token.as_bytes();
+        expected.len() == provided.len() && bool::from(expected.ct_eq(provided))
+    });
+    if !authed {
         return axum::http::StatusCode::FORBIDDEN;
     }
     for event in txn.events {
@@ -172,7 +178,7 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
         };
         let app = axum::Router::new()
             .route("/transactions/{txn_id}", axum::routing::put(as_transaction))
-            .layer(axum::extract::DefaultBodyLimit::max(1 * 1024 * 1024))
+            .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Matrix AS server listening on :{listen_port}");

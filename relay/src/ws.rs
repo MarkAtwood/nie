@@ -1387,12 +1387,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                             }
                         }
 
-                        // Enforce group size cap before adding the new member.
-                        // O(N) offline writes per GROUP_SEND make unbounded groups
-                        // a DoS vector against the relay's SQLite store.
+                        // Enforce group size cap and add the new member atomically.
+                        // COUNT + INSERT run inside a single transaction so two concurrent
+                        // GROUP_ADD callers cannot both read count < cap and both insert,
+                        // exceeding the limit.
                         const MAX_GROUP_MEMBERS: u64 = 100;
-                        match state.inner.store.member_count(&params.group_id).await {
-                            Ok(n) if n >= MAX_GROUP_MEMBERS => {
+                        match state
+                            .inner
+                            .store
+                            .add_group_member_capped(
+                                &params.group_id,
+                                &params.member_pub_id,
+                                MAX_GROUP_MEMBERS,
+                            )
+                            .await
+                        {
+                            Ok(false) => {
                                 send_client_error(
                                     &client_tx,
                                     req.id,
@@ -1402,9 +1412,9 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .await;
                                 continue;
                             }
-                            Ok(_) => {}
+                            Ok(true) => {}
                             Err(e) => {
-                                error!("member_count failed: {e}");
+                                error!("add_group_member_capped failed: {e}");
                                 send_client_error(
                                     &client_tx,
                                     req.id,
@@ -1414,24 +1424,6 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .await;
                                 continue;
                             }
-                        }
-
-                        // Add member (idempotent).
-                        if let Err(e) = state
-                            .inner
-                            .store
-                            .add_group_member(&params.group_id, &params.member_pub_id)
-                            .await
-                        {
-                            error!("add_group_member failed: {e}");
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INTERNAL_ERROR,
-                                "internal error",
-                            )
-                            .await;
-                            continue;
                         }
 
                         // Notify new member: GROUP_DELIVER with group name as payload.
@@ -1793,6 +1785,16 @@ async fn handle(socket: WebSocket, state: AppState) {
                         // Cap duration_days to the operator-configured maximum.
                         // A u32 with no upper bound could request multi-millennium
                         // subscriptions that overflow chrono::Duration::days().
+                        if params.duration_days == 0 {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "duration_days must be at least 1",
+                            )
+                            .await;
+                            continue;
+                        }
                         let max_days = state.inner.subscription_days;
                         if params.duration_days as u64 > max_days {
                             send_client_error(

@@ -97,6 +97,10 @@ async fn relay_event_loop(
                 // Responses to our requests — not used in daemon v0.
                 tracing::trace!("relay response received");
             }
+            ClientEvent::Disconnected => {
+                tracing::warn!("relay connection closed");
+                break;
+            }
         }
     }
 }

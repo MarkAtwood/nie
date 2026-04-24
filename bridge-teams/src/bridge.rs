@@ -200,6 +200,10 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                     ClientEvent::Reconnecting { delay_secs } => {
                         tracing::info!("relay reconnecting in {delay_secs}s");
                     }
+                    ClientEvent::Disconnected => {
+                        tracing::error!("relay disconnected");
+                        break;
+                    }
                     _ => {}
                 }
             }

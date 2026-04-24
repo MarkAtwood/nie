@@ -200,6 +200,9 @@ async fn handle_relay_event(
             // Request ID tracking not done in Phase 4f
             tracing::trace!("relay response received (ignored in Phase 4f)");
         }
+        ClientEvent::Disconnected => {
+            tracing::error!("relay disconnected");
+        }
     }
 }
 
@@ -295,7 +298,8 @@ async fn run_self_test(
                 }
                 Some(ClientEvent::Reconnecting { .. })
                 | Some(ClientEvent::Reconnected)
-                | Some(ClientEvent::Response(_)) => {}
+                | Some(ClientEvent::Response(_))
+                | Some(ClientEvent::Disconnected) => {}
                 None => anyhow::bail!("relay connection closed before self-test completed"),
             }
         }

@@ -124,6 +124,7 @@ pub async fn client_connect(
                 ClientEvent::Reconnected => Some(NieEvent::Reconnected),
                 ClientEvent::Response(_) => None,
                 ClientEvent::Message(notif) => map_notification(notif),
+                ClientEvent::Disconnected => None,
             };
             if let Some(ev) = nie_event {
                 if event_tx.send(ev).await.is_err() {

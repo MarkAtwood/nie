@@ -363,6 +363,18 @@ impl MlsClient {
     /// same epoch derive the same secret key (and therefore the same public key).
     /// The keypair rotates automatically on every epoch change (add/remove commit).
     ///
+    /// # Security model (accepted limitation)
+    ///
+    /// The shared secret means any group member can decrypt sealed-broadcast
+    /// messages addressed to the room key — including those sent by other members.
+    /// This is intentional: `sealed_broadcast` hides sender identity **from the relay**
+    /// only, not from other group members. Any group member can identify any other
+    /// member's messages by attempting HPKE decryption.
+    ///
+    /// This is **not** per-user sealed sender (where only the intended recipient
+    /// can decrypt). For per-user sealed sender, each recipient needs their own
+    /// individual HPKE keypair derived outside this shared-key mechanism.
+    ///
     /// Returns `Err` if no group is active.
     pub fn room_hpke_keypair(&self) -> Result<([u8; 32], [u8; 32])> {
         let group = self

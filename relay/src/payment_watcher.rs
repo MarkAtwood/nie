@@ -19,7 +19,6 @@
 
 use std::time::Duration;
 
-use chrono::Utc;
 use nie_core::protocol::{rpc_methods, JsonRpcNotification, SubscriptionActiveParams};
 use nie_relay::state::AppState;
 use nie_relay::store::InvoiceRow;
@@ -298,8 +297,13 @@ fn reconstruct_address(note: &nie_wallet::db::Note, network_type: NetworkType) -
 
 /// Activate a subscription: write to DB, delete invoice, notify client.
 async fn activate_subscription(state: &AppState, invoice: &InvoiceRow) -> anyhow::Result<()> {
-    let subscription_days = state.inner.subscription_days;
-    let expires_at = Utc::now() + chrono::Duration::days(subscription_days as i64);
+    // Use the invoice's own expires_at (set at creation time and shown to the user)
+    // rather than recomputing from the current runtime subscription_days.
+    // If the operator changes SUBSCRIPTION_DAYS after the invoice was created,
+    // the subscriber still gets the duration they were promised.
+    let expires_at = chrono::NaiveDateTime::parse_from_str(&invoice.expires_at, "%Y-%m-%d %H:%M:%S")
+        .map_err(|e| anyhow::anyhow!("invoice expires_at parse error ({:?}): {e}", invoice.expires_at))?
+        .and_utc();
 
     // 1. Write subscription and delete invoice atomically so a crash between
     //    the two operations cannot trigger a double-activation or silent loss.
