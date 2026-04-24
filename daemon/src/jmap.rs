@@ -954,15 +954,16 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
         Ok(t) => t,
         Err(e) => return server_fail(&e.to_string()),
     };
-    let (created, updated): (Vec<String>, Vec<String>) = if since == new_state {
-        (vec![], vec![])
-    } else {
-        let ids = match store.query_spaces().await {
-            Ok(v) => v,
-            Err(e) => return server_fail(&e.to_string()),
-        };
-        (ids, vec![])
-    };
+    if since != new_state {
+        // The daemon has no per-object change log, so it cannot enumerate
+        // which spaces were created, updated, or destroyed since sinceState.
+        // Return cannotCalculateChanges per RFC 8620 §5.2; clients must fall
+        // back to Space/get with ids=null to refresh their cache.
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "cannotCalculateChanges", "newState": new_state}),
+        );
+    }
     method_ok(
         "Space/changes",
         serde_json::json!({
@@ -970,8 +971,8 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
             "oldState": since,
             "newState": new_state,
             "hasMoreChanges": false,
-            "created": created,
-            "updated": updated,
+            "created": [],
+            "updated": [],
             "destroyed": [],
         }),
     )
@@ -985,11 +986,71 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
 const VALID_ROLES: &[&str] = &["admin", "moderator", "member"];
 
 /// Returns true for patch paths handled as simple space properties (name,
-/// description) by `update_space_fully` rather than as member patch ops.
-/// Both the Phase 1 validation loop and the Phase 2 collection skip these
-/// paths.  Update this function when adding new simple Space properties.
+/// description) rather than as member patch ops.
+///
+/// When adding a new simple Space property, update both this function and
+/// `parse_simple_space_prop` (add a variant to `SimplePropPatch`).  Phase 2
+/// in `space_set` then gets a compile-time exhaustiveness check for free.
 fn is_simple_space_prop(path: &str) -> bool {
     matches!(path, "name" | "description")
+}
+
+/// A validated, parsed simple-space-property update ready to pass to Phase 2.
+///
+/// Adding a new simple Space property requires adding a variant here AND an arm
+/// in `parse_simple_space_prop`.  The Phase 2 match in `space_set` is exhaustive,
+/// so the compiler will flag any missing arm at build time.
+enum SimplePropPatch<'a> {
+    Name(&'a str),
+    /// `None` = null value → clears the description field.
+    Description(Option<&'a str>),
+}
+
+/// Parse and type-check a simple space property value in Phase 1.
+///
+/// Returns a typed `SimplePropPatch` on success so Phase 2 can apply it
+/// without re-parsing the raw JSON.  Returns `Err(json_error)` on wrong type.
+/// The `_ =>` arm catches any path added to `is_simple_space_prop` without a
+/// corresponding variant, making the omission a visible error rather than a
+/// silent drop.
+fn parse_simple_space_prop<'a>(path: &str, value: &'a Value) -> Result<SimplePropPatch<'a>, Value> {
+    match path {
+        "name" => {
+            // name must be a non-null string.
+            let s = value.as_str().ok_or_else(|| {
+                serde_json::json!({
+                    "type": "invalidProperties",
+                    "properties": ["name"],
+                    "description": "name must be a string"
+                })
+            })?;
+            Ok(SimplePropPatch::Name(s))
+        }
+        "description" => {
+            // description may be null (to clear it) or a string.
+            if value.is_null() {
+                Ok(SimplePropPatch::Description(None))
+            } else {
+                let s = value.as_str().ok_or_else(|| {
+                    serde_json::json!({
+                        "type": "invalidProperties",
+                        "properties": ["description"],
+                        "description": "description must be a string or null"
+                    })
+                })?;
+                Ok(SimplePropPatch::Description(Some(s)))
+            }
+        }
+        _ => {
+            // A path that passes is_simple_space_prop but has no arm here means
+            // someone added to is_simple_space_prop without adding a variant.
+            // Return invalidPatch so the omission is immediately visible.
+            Err(serde_json::json!({
+                "type": "invalidPatch",
+                "description": format!("unrecognized patch path: {path}")
+            }))
+        }
+    }
 }
 
 /// Validate a member patch path and value without touching the store.
@@ -1098,59 +1159,56 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
         for (space_id, patch) in updates {
             if let Value::Object(patch_map) = patch {
                 let mut update_err: Option<Value> = None;
-                // Phase 1 (validation, no writes): check every member patch
-                // path and value before touching the store.  This ensures
-                // RFC 8620 §7.1 atomicity for input errors: if the patch
-                // contains {"name":"Foo","members/x":{"role":"bad"}}, neither
-                // the name write nor the member write should happen and
-                // notUpdated must be returned without any side effect.
+                let mut simple_ops: Vec<SimplePropPatch<'_>> = Vec::new();
+                let mut member_ops: Vec<SpaceMemberOp<'_>> = Vec::new();
+                // Phase 1 (validate + collect, no writes): parse every patch
+                // path and value into typed ops before touching the store.
+                // This ensures RFC 8620 §7.1 atomicity for input errors: a bad
+                // role or wrong-type name rejects the whole patch with no writes.
+                // `simple_ops` and `member_ops` are consumed by Phase 2.
                 for (path, value) in patch_map.iter() {
                     if is_simple_space_prop(path) {
+                        match parse_simple_space_prop(path, value) {
+                            Ok(op) => simple_ops.push(op),
+                            Err(e) => {
+                                update_err = Some(e);
+                                break;
+                            }
+                        }
                         continue;
                     }
+                    // validate_member_patch guarantees "members/" prefix and
+                    // non-empty contact_id, so the strip_prefix below is safe.
                     if let Err(e) = validate_member_patch(path, value) {
                         update_err = Some(e);
                         break;
                     }
+                    let contact_id = path.strip_prefix("members/").unwrap();
+                    let op = if value.is_null() {
+                        SpaceMemberOp::Remove { contact_id }
+                    } else {
+                        let role = value
+                            .get("role")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("member");
+                        SpaceMemberOp::Upsert { contact_id, role }
+                    };
+                    member_ops.push(op);
                 }
                 // Phase 2 (writes): all patches passed validation; apply atomically.
                 // update_space_fully wraps prop updates and member ops in one
                 // SQLite transaction — if any store write fails, the whole update
-                // is rolled back, satisfying RFC 8620 §7.1 for both input errors
-                // (caught in Phase 1) and server errors (caught in Phase 2).
+                // is rolled back, satisfying RFC 8620 §7.1 for server errors too.
                 //
-                // Extraction is driven by the same is_simple_space_prop gate as
-                // Phase 1 — both are updated in lockstep when new simple props
-                // are added (add a new match arm here and a new variant there).
+                // The match on SimplePropPatch is exhaustive: adding a new simple
+                // prop requires a new variant, and the compiler flags missing arms.
                 if update_err.is_none() {
                     let mut new_name: Option<&str> = None;
                     let mut new_desc: Option<&str> = None;
-                    // Phase 1 verified every non-simple path starts with
-                    // "members/" and has a non-empty contact_id, so the
-                    // unwrap() on strip_prefix below is safe.
-                    let mut member_ops: Vec<SpaceMemberOp<'_>> = Vec::new();
-                    for (path, value) in patch_map.iter() {
-                        if is_simple_space_prop(path) {
-                            match path.as_str() {
-                                "name" => new_name = value.as_str(),
-                                "description" => {
-                                    new_desc =
-                                        if value.is_null() { None } else { value.as_str() };
-                                }
-                                _ => {} // add new arms here when extending simple props
-                            }
-                        } else {
-                            let contact_id = path.strip_prefix("members/").unwrap();
-                            let op = if value.is_null() {
-                                SpaceMemberOp::Remove { contact_id }
-                            } else {
-                                let role = value
-                                    .get("role")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("member");
-                                SpaceMemberOp::Upsert { contact_id, role }
-                            };
-                            member_ops.push(op);
+                    for op in &simple_ops {
+                        match op {
+                            SimplePropPatch::Name(n) => new_name = Some(n),
+                            SimplePropPatch::Description(d) => new_desc = *d,
                         }
                     }
                     match store
@@ -3834,6 +3892,236 @@ mod tests {
                 .map(|m| m.contains_key(nonexistent_id))
                 .unwrap_or(false),
             "nonexistent contact must not appear in updated"
+        );
+    }
+
+    // ── nie-3c7e.1: Space/changes cannotCalculateChanges ─────────────────────
+
+    /// Space/changes with sinceState != current state must return
+    /// cannotCalculateChanges, not a lying created[] list of all current spaces.
+    #[tokio::test]
+    async fn test_space_changes_returns_cannot_calculate_changes() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        // Create a space to advance state from "0".
+        create_test_space(&state, "Space A").await;
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/changes".to_string(),
+                serde_json::json!({"accountId": pub_id, "sinceState": "0"}),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "error", "changed state must return error: {result}");
+        assert_eq!(
+            result["type"].as_str().unwrap(),
+            "cannotCalculateChanges",
+            "error type must be cannotCalculateChanges"
+        );
+        assert!(
+            result["newState"].is_string(),
+            "error must include newState"
+        );
+    }
+
+    /// Space/changes with sinceState == current state must return empty change
+    /// set (not an error).
+    #[tokio::test]
+    async fn test_space_changes_no_change_returns_empty() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let current_state = state.store().unwrap().state_token("Space").await.unwrap();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/changes".to_string(),
+                serde_json::json!({"accountId": pub_id, "sinceState": current_state}),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(
+            method, "Space/changes",
+            "unchanged state must return changes object: {result}"
+        );
+        assert_eq!(result["created"], serde_json::json!([]));
+        assert_eq!(result["updated"], serde_json::json!([]));
+        assert_eq!(result["destroyed"], serde_json::json!([]));
+    }
+
+    // ── nie-3c7e.2: space_set silently drops name/description on wrong type ──
+
+    /// Space/set with {"name": 42} must return notUpdated with invalidProperties,
+    /// not silently drop the write and return updated.
+    #[tokio::test]
+    async fn test_space_set_name_wrong_type_returns_invalid_properties() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "Original").await;
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { space_id.clone(): { "name": 42 } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "wrong-type name must be in notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][&space_id]["type"], "invalidProperties",
+            "error type must be invalidProperties"
+        );
+        assert!(
+            result["updated"].as_object().unwrap().is_empty(),
+            "updated must be empty when name has wrong type"
+        );
+
+        // Verify the name was NOT changed (atomicity: no partial write).
+        let get_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/get".to_string(),
+                serde_json::json!({ "accountId": pub_id, "ids": [space_id.clone()] }),
+                "c2".to_string(),
+            )],
+        };
+        let Json(get_resp) = handle_jmap_request(State(state.clone()), Json(get_req))
+            .await
+            .unwrap();
+        assert_eq!(
+            get_resp.method_responses[0].1["list"][0]["name"], "Original",
+            "name must not change when wrong type is rejected"
+        );
+    }
+
+    /// Space/set with {"description": []} must return notUpdated with
+    /// invalidProperties.  null is valid (clears description); an array is not.
+    #[tokio::test]
+    async fn test_space_set_description_wrong_type_returns_invalid_properties() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "Stable").await;
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { space_id.clone(): { "description": [] } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "wrong-type description must be in notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][&space_id]["type"], "invalidProperties",
+            "error type must be invalidProperties"
+        );
+    }
+
+    /// Atomicity: combined {"name": "New", "description": []} patch must not
+    /// write name even though name alone would be valid.
+    #[tokio::test]
+    async fn test_space_set_valid_name_wrong_description_rejects_whole_patch() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "Immutable").await;
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): { "name": "Changed", "description": false }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "mixed patch with invalid description must be in notUpdated: {result}"
+        );
+
+        // Verify name was NOT written.
+        let get_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/get".to_string(),
+                serde_json::json!({ "accountId": pub_id, "ids": [space_id.clone()] }),
+                "c2".to_string(),
+            )],
+        };
+        let Json(get_resp) = handle_jmap_request(State(state.clone()), Json(get_req))
+            .await
+            .unwrap();
+        assert_eq!(
+            get_resp.method_responses[0].1["list"][0]["name"], "Immutable",
+            "name must not be written when description type is invalid"
+        );
+    }
+
+    /// description: null is valid — it clears the description field.
+    #[tokio::test]
+    async fn test_space_set_description_null_is_valid() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "HasDesc").await;
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { space_id.clone(): { "description": null } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["updated"]
+                .as_object()
+                .unwrap()
+                .contains_key(&space_id),
+            "description: null must be accepted (clears description): {result}"
         );
     }
 }
