@@ -553,7 +553,17 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // updated; a non-empty patch with no recognized keys is
                 // rejected with invalidProperties.
                 if patch.as_object().map(|o| o.is_empty()).unwrap_or(false) {
-                    updated.insert(id.clone(), Value::Null);
+                    // RFC 8620 §7.1: empty patch is a no-op, but only if the
+                    // object exists; a nonexistent id must return notFound.
+                    let (_, not_found) = match store.get_contacts(Some(&[id.as_str()])).await {
+                        Ok(r) => r,
+                        Err(e) => return server_fail(&e.to_string()),
+                    };
+                    if not_found.is_empty() {
+                        updated.insert(id.clone(), Value::Null);
+                    } else {
+                        not_updated.insert(id.clone(), serde_json::json!({"type": "notFound"}));
+                    }
                 } else {
                     not_updated.insert(
                         id.clone(),
@@ -1086,7 +1096,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     // ── update (patch) ────────────────────────────────────────────────────
     if let Some(Value::Object(updates)) = args.get("update") {
         for (space_id, patch) in updates {
-            if let Some(Value::Object(patch_map)) = Some(patch) {
+            if let Value::Object(patch_map) = patch {
                 let mut update_err: Option<Value> = None;
                 // Phase 1 (validation, no writes): check every member patch
                 // path and value before touching the store.  This ensures
@@ -1094,7 +1104,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // contains {"name":"Foo","members/x":{"role":"bad"}}, neither
                 // the name write nor the member write should happen and
                 // notUpdated must be returned without any side effect.
-                for (path, value) in patch_map {
+                for (path, value) in patch_map.iter() {
                     if is_simple_space_prop(path) {
                         continue;
                     }
@@ -1108,22 +1118,30 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // SQLite transaction — if any store write fails, the whole update
                 // is rolled back, satisfying RFC 8620 §7.1 for both input errors
                 // (caught in Phase 1) and server errors (caught in Phase 2).
+                //
+                // Extraction is driven by the same is_simple_space_prop gate as
+                // Phase 1 — both are updated in lockstep when new simple props
+                // are added (add a new match arm here and a new variant there).
                 if update_err.is_none() {
-                    let new_name = patch_map.get("name").and_then(|v| v.as_str());
-                    let new_desc = patch_map
-                        .get("description")
-                        .map(|v| if v.is_null() { None } else { v.as_str() })
-                        .unwrap_or(None);
-                    // Collect member ops from the validated patch map.  Phase 1
-                    // already verified every non-simple path starts with
+                    let mut new_name: Option<&str> = None;
+                    let mut new_desc: Option<&str> = None;
+                    // Phase 1 verified every non-simple path starts with
                     // "members/" and has a non-empty contact_id, so the
-                    // unwrap() on strip_prefix here is safe.
-                    let member_ops: Vec<SpaceMemberOp<'_>> = patch_map
-                        .iter()
-                        .filter(|(path, _)| !is_simple_space_prop(path))
-                        .map(|(path, value)| {
+                    // unwrap() on strip_prefix below is safe.
+                    let mut member_ops: Vec<SpaceMemberOp<'_>> = Vec::new();
+                    for (path, value) in patch_map.iter() {
+                        if is_simple_space_prop(path) {
+                            match path.as_str() {
+                                "name" => new_name = value.as_str(),
+                                "description" => {
+                                    new_desc =
+                                        if value.is_null() { None } else { value.as_str() };
+                                }
+                                _ => {} // add new arms here when extending simple props
+                            }
+                        } else {
                             let contact_id = path.strip_prefix("members/").unwrap();
-                            if value.is_null() {
+                            let op = if value.is_null() {
                                 SpaceMemberOp::Remove { contact_id }
                             } else {
                                 let role = value
@@ -1131,9 +1149,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("member");
                                 SpaceMemberOp::Upsert { contact_id, role }
-                            }
-                        })
-                        .collect();
+                            };
+                            member_ops.push(op);
+                        }
+                    }
                     match store
                         .update_space_fully(space_id, new_name, new_desc, &member_ops)
                         .await
@@ -3681,5 +3700,140 @@ mod tests {
                 "ids must be an array, got: {result}"
             );
         }
+    }
+
+    // ── nie-ms2c.1: member-only Space/set patch on nonexistent space ──────────
+
+    /// A members/* patch on a nonexistent space_id must return notFound, not
+    /// updated.  Before the fix, update_space_fully skipped the existence check
+    /// when name=None && description=None, inserted an orphaned space_member
+    /// row, and returned Ok(true).
+    #[tokio::test]
+    async fn test_space_set_member_only_patch_on_nonexistent_space_returns_not_found() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let fake_space_id = "nonexistent-space-id";
+        let contact_id = "b".repeat(64);
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        fake_space_id: { format!("members/{contact_id}"): { "role": "member" } }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][fake_space_id].is_object(),
+            "member-only patch on nonexistent space must be notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][fake_space_id]["type"], "notFound",
+            "error type must be notFound"
+        );
+        assert!(
+            result["updated"].as_object().unwrap().is_empty(),
+            "updated must be empty"
+        );
+
+        // Verify no orphaned space_member row was created.
+        let members = state
+            .store()
+            .unwrap()
+            .get_space_members(fake_space_id)
+            .await
+            .unwrap();
+        assert!(
+            members.is_empty(),
+            "no orphaned space_member rows must exist after notFound: {members:?}"
+        );
+    }
+
+    // ── nie-ms2c.2: empty Space/set patch {} on nonexistent space ────────────
+
+    /// An empty patch {} on a nonexistent space_id must return notFound, not
+    /// updated.  Before the fix, update_space_fully returned Ok(true) without
+    /// any writes or existence check.
+    #[tokio::test]
+    async fn test_space_set_empty_patch_on_nonexistent_space_returns_not_found() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let fake_space_id = "nonexistent-space-id-2";
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { fake_space_id: {} }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][fake_space_id].is_object(),
+            "empty patch on nonexistent space must be notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][fake_space_id]["type"], "notFound",
+            "error type must be notFound"
+        );
+    }
+
+    // ── nie-ms2c.3: empty ChatContact/set patch {} on nonexistent contact ─────
+
+    /// An empty patch {} on a nonexistent contact id must return notFound, not
+    /// updated.  Before the fix, the empty-patch branch in contact_set called
+    /// updated.insert without checking whether the contact exists.
+    #[tokio::test]
+    async fn test_contact_set_empty_patch_on_nonexistent_contact_returns_not_found() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let nonexistent_id = "nonexistent-contact-id";
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { nonexistent_id: {} }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][nonexistent_id].is_object(),
+            "empty patch on nonexistent contact must be notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][nonexistent_id]["type"], "notFound",
+            "error type must be notFound"
+        );
+        assert!(
+            !result["updated"]
+                .as_object()
+                .map(|m| m.contains_key(nonexistent_id))
+                .unwrap_or(false),
+            "nonexistent contact must not appear in updated"
+        );
     }
 }

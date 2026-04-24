@@ -593,11 +593,9 @@ impl Store {
     /// in a single SQLite transaction.
     ///
     /// Returns `Ok(true)` if the space exists and all writes succeeded.
-    /// Returns `Ok(false)` if no space with `space_id` exists; in that
-    /// case the transaction is rolled back before returning (no partial write).
-    /// When `name` and `description` are both `None`, only member operations
-    /// are applied (the space existence is not verified in that case, matching
-    /// existing behaviour where member-only patches skip the existence check).
+    /// Returns `Ok(false)` if no space with `space_id` exists — always,
+    /// regardless of whether the patch contains name/description or only
+    /// member ops.  The transaction is rolled back before returning.
     pub async fn update_space_fully<'a>(
         &self,
         space_id: &str,
@@ -609,34 +607,44 @@ impl Store {
         let mut space_changed = false;
         let mut members_changed = false;
 
+        // Verify existence before any write.  Without this, a member-only or
+        // empty patch on a nonexistent space would create orphaned space_member
+        // rows and return Ok(true), violating RFC 8620 §7.1 (notFound required).
+        let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM space WHERE id = ?")
+            .bind(space_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+        if exists.is_none() {
+            // Transaction is rolled back on drop; no partial writes.
+            return Ok(false);
+        }
+
         if name.is_some() || description.is_some() {
-            let rows = match (name, description) {
+            // Space confirmed to exist above; UPDATE always affects 1 row.
+            match (name, description) {
                 (Some(n), Some(d)) => {
                     sqlx::query("UPDATE space SET name = ?, description = ? WHERE id = ?")
                         .bind(n)
                         .bind(d)
                         .bind(space_id)
                         .execute(&mut *tx)
-                        .await?
-                        .rows_affected()
+                        .await?;
                 }
-                (Some(n), None) => sqlx::query("UPDATE space SET name = ? WHERE id = ?")
-                    .bind(n)
-                    .bind(space_id)
-                    .execute(&mut *tx)
-                    .await?
-                    .rows_affected(),
-                (None, Some(d)) => sqlx::query("UPDATE space SET description = ? WHERE id = ?")
-                    .bind(d)
-                    .bind(space_id)
-                    .execute(&mut *tx)
-                    .await?
-                    .rows_affected(),
+                (Some(n), None) => {
+                    sqlx::query("UPDATE space SET name = ? WHERE id = ?")
+                        .bind(n)
+                        .bind(space_id)
+                        .execute(&mut *tx)
+                        .await?;
+                }
+                (None, Some(d)) => {
+                    sqlx::query("UPDATE space SET description = ? WHERE id = ?")
+                        .bind(d)
+                        .bind(space_id)
+                        .execute(&mut *tx)
+                        .await?;
+                }
                 (None, None) => unreachable!(),
-            };
-            if rows == 0 {
-                // Space not found; transaction is rolled back on drop.
-                return Ok(false);
             }
             space_changed = true;
         }
