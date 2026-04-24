@@ -573,7 +573,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 continue;
             }
 
-            // ── Phase 2 (writes, only if Phase 1 passed) ─────────────────────
+            // ── Phase 2a: empty patch — existence check only ──────────────────
             if ops.is_empty() {
                 // Phase 1 passed with no ops: patch was {} (empty object).
                 // RFC 8620 §7.1: empty patch is a no-op if the object exists.
@@ -589,7 +589,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 continue;
             }
 
-            // ── Phase 2 (writes, only if Phase 1 passed) ─────────────────────
+            // ── Phase 2b: apply ops atomically ───────────────────────────────
             // Extract typed values from ops and call update_contact_fully,
             // which wraps all writes in a single SQLite transaction.  This
             // ensures a multi-field patch ({blocked, displayName}) is visible
@@ -1131,7 +1131,7 @@ fn validate_member_patch(path: &str, value: &Value) -> Result<(), Value> {
                         "type": "invalidArguments",
                         "description": format!(
                             "role must be one of: {}",
-                            ["admin", "moderator", "member"].join(", ")
+                            SpaceRole::all().iter().map(|r| r.as_str()).collect::<Vec<_>>().join(", ")
                         )
                     }));
                 }

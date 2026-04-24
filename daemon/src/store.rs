@@ -93,6 +93,16 @@ impl SpaceRole {
             Self::Member => "member",
         }
     }
+
+    /// All valid role values, in definition order.
+    ///
+    /// Use this to build error messages or enumerate choices rather than
+    /// writing a separate hardcoded list.  A new variant added here is
+    /// automatically included in both validation (`parse`) and any error
+    /// text that calls this function.
+    pub fn all() -> &'static [Self] {
+        &[Self::Admin, Self::Moderator, Self::Member]
+    }
 }
 
 /// A single member patch operation for use with [`Store::update_space_fully`].
@@ -1173,7 +1183,7 @@ impl Store {
 
         if let Some(b) = blocked {
             sqlx::query(
-                "UPDATE chat_contact SET blocked = ?, last_seen_at = last_seen_at WHERE id = ?",
+                "UPDATE chat_contact SET blocked = ? WHERE id = ?",
             )
             .bind(i64::from(b))
             .bind(pub_id)
