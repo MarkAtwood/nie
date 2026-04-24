@@ -88,7 +88,9 @@ class NieForegroundService : Service() {
                 "nie relay",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Keeps the nie relay connection alive"
+                // Shown in Settings > App > Notifications so users understand
+                // why this notification exists and why it may use battery.
+                description = "Keeps the relay WebSocket alive when the app is backgrounded. Uses a wake lock to prevent Doze mode from closing the connection."
                 setShowBadge(false)
             }
             getSystemService(NotificationManager::class.java)
@@ -104,8 +106,10 @@ class NieForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("nie")
-            .setContentText("nie is running")
+            .setContentTitle("nie relay active")
+            // Explains the battery use visible in Android's battery breakdown.
+            // "nie is running" gave users no reason for the CPU wake lock.
+            .setContentText("Keeping relay connected · tap to open")
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

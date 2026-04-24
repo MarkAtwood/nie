@@ -562,6 +562,11 @@ impl Store {
 
     /// Add or re-add a member with a specific role.
     /// If already a member, updates the role.
+    ///
+    /// **Precondition**: `role` must be one of `"admin"`, `"moderator"`, or
+    /// `"member"`. The store accepts any string — callers are responsible for
+    /// validation before calling this function. See `apply_member_patch` in
+    /// `jmap.rs` for the canonical validation site.
     pub async fn upsert_space_member_with_role(
         &self,
         space_id: &str,

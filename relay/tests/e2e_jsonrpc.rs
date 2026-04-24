@@ -18,7 +18,8 @@ use nie_core::{
         rpc_errors, rpc_methods, BroadcastParams, DeliverParams, GroupAddParams, GroupCreateParams,
         GroupCreateResult, GroupDeliverParams, GroupSendParams, GroupSendResult,
         JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, PublishKeyPackageParams,
-        SetNicknameParams, SubscribeInvoiceResult, SubscribeRequestParams,
+        SetNicknameParams, SubscribeInvoiceResult, SubscribeRequestParams, TypingNotifyParams,
+        TypingParams,
     },
     transport::{self, next_request_id, ClientEvent},
 };
@@ -969,4 +970,85 @@ async fn publish_key_package_rejects_malformed_device_id() {
         "malformed device_id must yield INVALID_REQUEST (-32600), got: {}",
         error.code
     );
+}
+
+// Oracle: relay spec — when a client disconnects while typing=true, the relay
+// must synthesise a typing_notify {typing:false} so peers don't see a phantom
+// "is typing…" indicator that never resolves.
+#[tokio::test]
+async fn typing_phantom_cleared_on_disconnect() {
+    let relay_url = spawn_relay().await;
+
+    let alice = Identity::generate();
+    let bob = Identity::generate();
+
+    let alice_conn = transport::connect(&relay_url, &alice, false, None)
+        .await
+        .expect("alice connect");
+    let bob_conn = transport::connect(&relay_url, &bob, false, None)
+        .await
+        .expect("bob connect");
+
+    // Move rx out before using tx, matching the pattern in other tests.
+    let mut alice_rx = alice_conn.rx;
+    let mut bob_rx = bob_conn.rx;
+
+    // Wait until both have a DirectoryList confirming they are fully registered.
+    wait_for_directory_list(&mut alice_rx).await;
+    wait_for_directory_list(&mut bob_rx).await;
+
+    // Alice sends typing=true without a corresponding typing=false.
+    let req = JsonRpcRequest::new(
+        next_request_id(),
+        rpc_methods::TYPING,
+        TypingParams { typing: true },
+    )
+    .expect("TypingParams must serialize");
+    alice_conn.tx.send(req).await.expect("alice send typing");
+
+    // Bob receives typing_notify {typing:true}. Record alice's pub_id from the
+    // notification so we can verify the synthesis comes from the same peer.
+    let alice_pub_id = loop {
+        match tokio::time::timeout(Duration::from_secs(5), bob_rx.recv()).await {
+            Ok(Some(ClientEvent::Message(notif))) if notif.method == rpc_methods::TYPING_NOTIFY => {
+                let p: TypingNotifyParams =
+                    serde_json::from_value(notif.params.expect("typing_notify must have params"))
+                        .expect("TypingNotifyParams deserialize");
+                assert!(p.typing, "first typing_notify must be typing=true");
+                break p.from;
+            }
+            Ok(Some(_)) => {} // other events (UserJoined, auth response, etc.)
+            Ok(None) => panic!("bob channel closed before typing=true notification"),
+            Err(_) => panic!("timed out waiting for typing=true notification"),
+        }
+    };
+
+    // Drop alice's connection without sending typing=false.
+    // Dropping the tx sender causes the transport write task to see a closed
+    // channel and send a clean WebSocket Close frame, which triggers the relay's
+    // disconnect cleanup (including the typing synthesis).
+    // alice_conn.rx was already moved to alice_rx, so only .tx remains.
+    drop(alice_conn.tx);
+    drop(alice_rx);
+
+    // The relay must synthesise typing_notify {typing:false} for Alice and
+    // broadcast it to remaining peers. Bob must receive it.
+    loop {
+        match tokio::time::timeout(Duration::from_secs(5), bob_rx.recv()).await {
+            Ok(Some(ClientEvent::Message(notif))) if notif.method == rpc_methods::TYPING_NOTIFY => {
+                let p: TypingNotifyParams =
+                    serde_json::from_value(notif.params.expect("typing_notify must have params"))
+                        .expect("TypingNotifyParams deserialize");
+                assert_eq!(
+                    p.from, alice_pub_id,
+                    "synthesised typing=false must come from alice"
+                );
+                assert!(!p.typing, "synthesised typing_notify must be typing=false");
+                return;
+            }
+            Ok(Some(_)) => {} // UserLeft and other events — skip
+            Ok(None) => panic!("bob channel closed before typing=false synthesis"),
+            Err(_) => panic!("timed out waiting for relay-synthesised typing=false"),
+        }
+    }
 }

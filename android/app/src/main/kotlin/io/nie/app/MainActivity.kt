@@ -13,7 +13,10 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
 
     // Held while waiting for onRequestPermissionsResult to fire so we can
-    // return the grant outcome to the Dart caller instead of fire-and-forgetting.
+    // unblock the Dart caller after the permission dialog is dismissed.
+    // The grant outcome is not returned — the Dart side calls startService
+    // regardless of whether POST_NOTIFICATIONS was granted or denied, so
+    // result.success(null) is correct: the channel contract is void → void.
     private var pendingPermissionResult: MethodChannel.Result? = null
 
     override fun onRequestPermissionsResult(
@@ -23,9 +26,7 @@ class MainActivity : FlutterActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQUEST_CODE_POST_NOTIFICATIONS) {
-            val granted = grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED
-            pendingPermissionResult?.success(granted)
+            pendingPermissionResult?.success(null)
             pendingPermissionResult = null
         }
     }
@@ -45,10 +46,11 @@ class MainActivity : FlutterActivity() {
                                     this, Manifest.permission.POST_NOTIFICATIONS
                                 ) == PackageManager.PERMISSION_GRANTED
                             ) {
-                                // Already granted — no dialog needed.
-                                result.success(true)
+                                // Already granted — unblock Dart immediately.
+                                result.success(null)
                             } else {
-                                // Store result; onRequestPermissionsResult will complete it.
+                                // Store result; onRequestPermissionsResult will unblock Dart
+                                // after the dialog is dismissed, regardless of grant outcome.
                                 pendingPermissionResult = result
                                 ActivityCompat.requestPermissions(
                                     this,
@@ -58,7 +60,7 @@ class MainActivity : FlutterActivity() {
                             }
                         } else {
                             // Pre-API 33: POST_NOTIFICATIONS not required.
-                            result.success(true)
+                            result.success(null)
                         }
                     }
                     "startService" -> {

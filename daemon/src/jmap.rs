@@ -1051,8 +1051,15 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                     }
                 }
                 // Member patch paths: "members/<contact_id>"
+                // Skip "name" and "description" — already consumed by update_space_props
+                // above. Without this skip they would fall through to apply_member_patch,
+                // which rejects any path not starting with "members/" as invalidPatch,
+                // causing the update to fail even though the property write succeeded.
                 if update_err.is_none() {
                     for (path, value) in patch_map {
+                        if path == "name" || path == "description" {
+                            continue;
+                        }
                         if let Err(e) = apply_member_patch(store, space_id, path, value).await {
                             update_err = Some(e);
                             break;
@@ -2684,6 +2691,286 @@ mod tests {
         assert!(
             found.is_empty(),
             "expired message must be hard-deleted by reaper"
+        );
+    }
+
+    // Regression: name/description patch paths must not reach apply_member_patch.
+    // Before the fix, patch_map was iterated in full — "name" and "description"
+    // would return invalidPatch even though update_space_props already wrote them.
+    #[tokio::test]
+    async fn test_space_set_update_name_succeeds() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "Original Name").await;
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): { "name": "Updated Name" }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "Space/set");
+        assert!(
+            result["notUpdated"].as_object().unwrap().is_empty(),
+            "name update must succeed, got notUpdated: {}",
+            result["notUpdated"]
+        );
+        assert!(
+            result["updated"][&space_id].is_null(),
+            "updated space must appear in updated"
+        );
+
+        // Verify the name was actually persisted.
+        let get_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/get".to_string(),
+                serde_json::json!({ "accountId": pub_id, "ids": [space_id.clone()] }),
+                "c2".to_string(),
+            )],
+        };
+        let Json(get_resp) = handle_jmap_request(State(state.clone()), Json(get_req))
+            .await
+            .unwrap();
+        assert_eq!(
+            get_resp.method_responses[0].1["list"][0]["name"], "Updated Name",
+            "name must be persisted after update"
+        );
+    }
+
+    // ── apply_member_patch tests ──────────────────────────────────────────────
+    //
+    // Oracle: RFC 8620 §5.3 (patch semantics) and the role enum defined in
+    // apply_member_patch. These tests exercise apply_member_patch via the
+    // Space/set update path, which is the only caller, so the full request
+    // stack is the correct locus.
+
+    /// Helper: create a space via Space/set and return its server-assigned id.
+    async fn create_test_space(state: &DaemonState, name: &str) -> String {
+        let pub_id = "a".repeat(64);
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "create": { "s1": { "name": name } }
+                }),
+                "c0".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        resp.method_responses[0].1["created"]["s1"]["id"]
+            .as_str()
+            .expect("created space must have id")
+            .to_string()
+    }
+
+    #[tokio::test]
+    async fn test_space_member_patch_invalid_role_yields_invalid_arguments() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "Role Test Space").await;
+        let contact_id = "b".repeat(64);
+
+        // Patch with an unrecognised role value.
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): {
+                            format!("members/{contact_id}"): { "role": "superadmin" }
+                        }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "Space/set");
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "invalid role must appear in notUpdated, got: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][&space_id]["type"], "invalidArguments",
+            "invalid role must yield invalidArguments, got: {}",
+            result["notUpdated"][&space_id]
+        );
+        // Space must not appear in updated.
+        assert!(
+            result["updated"].as_object().unwrap().is_empty(),
+            "invalid role must not appear in updated"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_space_member_patch_unknown_path_yields_invalid_patch() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "Path Test Space").await;
+
+        // Patch with a path that does not start with "members/".
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): {
+                            "settings/theme": "dark"
+                        }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "Space/set");
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "unknown patch path must appear in notUpdated, got: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][&space_id]["type"], "invalidPatch",
+            "unknown patch path must yield invalidPatch, got: {}",
+            result["notUpdated"][&space_id]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_space_member_patch_add_and_remove_roundtrip() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let contact_id = "b".repeat(64);
+        let space_id = create_test_space(&state, "Member Roundtrip Space").await;
+
+        // Add contact_id as moderator.
+        let add_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): {
+                            format!("members/{contact_id}"): { "role": "moderator" }
+                        }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(add_resp) = handle_jmap_request(State(state.clone()), Json(add_req))
+            .await
+            .unwrap();
+        let MethodResponse(_, add_result, _) = &add_resp.method_responses[0];
+        assert!(
+            add_result["notUpdated"].as_object().unwrap().is_empty(),
+            "add member must succeed, got notUpdated: {}",
+            add_result["notUpdated"]
+        );
+        assert!(
+            add_result["updated"][&space_id].is_null(),
+            "add member must appear in updated"
+        );
+
+        // Verify member present with correct role via Space/get.
+        let get_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/get".to_string(),
+                serde_json::json!({ "accountId": pub_id, "ids": [space_id.clone()] }),
+                "c2".to_string(),
+            )],
+        };
+        let Json(get_resp) = handle_jmap_request(State(state.clone()), Json(get_req))
+            .await
+            .unwrap();
+        let members = get_resp.method_responses[0].1["list"][0]["memberList"]
+            .as_array()
+            .expect("memberList must be array");
+        let added = members
+            .iter()
+            .find(|m| m["contactId"] == contact_id.as_str());
+        assert!(added.is_some(), "added member must appear in memberList");
+        assert_eq!(
+            added.unwrap()["role"],
+            "moderator",
+            "member role must be moderator"
+        );
+
+        // Remove contact_id via null value.
+        let remove_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): {
+                            format!("members/{contact_id}"): serde_json::Value::Null
+                        }
+                    }
+                }),
+                "c3".to_string(),
+            )],
+        };
+        let Json(remove_resp) = handle_jmap_request(State(state.clone()), Json(remove_req))
+            .await
+            .unwrap();
+        let MethodResponse(_, remove_result, _) = &remove_resp.method_responses[0];
+        assert!(
+            remove_result["notUpdated"].as_object().unwrap().is_empty(),
+            "remove member must succeed, got notUpdated: {}",
+            remove_result["notUpdated"]
+        );
+
+        // Verify member is gone.
+        let Json(get_resp2) = handle_jmap_request(
+            State(state.clone()),
+            Json(JmapRequest {
+                using: vec![CAP_CHAT.to_string()],
+                method_calls: vec![MethodCall(
+                    "Space/get".to_string(),
+                    serde_json::json!({ "accountId": pub_id, "ids": [space_id.clone()] }),
+                    "c4".to_string(),
+                )],
+            }),
+        )
+        .await
+        .unwrap();
+        let members2 = get_resp2.method_responses[0].1["list"][0]["memberList"]
+            .as_array()
+            .expect("memberList must be array");
+        assert!(
+            members2
+                .iter()
+                .all(|m| m["contactId"] != contact_id.as_str()),
+            "removed member must not appear in memberList"
         );
     }
 }
