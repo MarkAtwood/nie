@@ -382,6 +382,13 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
 
         let pub_key_bytes: [u8; 32] = identity.verifying_key().to_bytes();
         let diff = params.difficulty;
+        // Reject impossibly high difficulty before spawning the mining task.
+        // SHA-256 has 256 bits of output; difficulty > 60 would require more
+        // than 2^60 hashes and would never terminate in practice.
+        anyhow::ensure!(
+            diff <= 60,
+            "relay requested impossible PoW difficulty: {diff} (max 60)"
+        );
         // Fail explicitly if the system clock is broken.  unwrap_or_default()
         // would silently produce ts_floor=0, which the relay rejects as stale
         // with a cryptic POW_STALE error that gives no hint about the real cause.
