@@ -97,9 +97,9 @@ impl SpaceRole {
     /// All valid role values, in definition order.
     ///
     /// Use this to build error messages or enumerate choices rather than
-    /// writing a separate hardcoded list.  A new variant added here is
-    /// automatically included in both validation (`parse`) and any error
-    /// text that calls this function.
+    /// writing a separate hardcoded list.  When adding a new `SpaceRole`
+    /// variant, update `parse`, `as_str`, **and** this function — the compiler
+    /// enforces the first two via exhaustive match but cannot enforce `all()`.
     pub fn all() -> &'static [Self] {
         &[Self::Admin, Self::Moderator, Self::Member]
     }
@@ -1159,24 +1159,20 @@ impl Store {
     /// `display_name`: `None` = not in patch (leave unchanged);
     /// `Some(None)` = set to NULL (clear); `Some(Some(s))` = set to `s`.
     ///
-    /// Callers must ensure at least one of `blocked` or `display_name` is
-    /// `Some`; calling with both `None` is a no-op (existence is checked and
-    /// `ChatContact` state is bumped, but no field changes).
+    /// Callers must provide at least one of `blocked` or `display_name` as
+    /// `Some`; calling with both `None` returns `Err` immediately.
     pub async fn update_contact_fully(
         &self,
         pub_id: &str,
         blocked: Option<bool>,
         display_name: Option<Option<&str>>,
     ) -> Result<bool> {
-        // Calling with both None writes nothing but still bumps ChatContact state —
-        // a spurious bump with no field change.  The current caller (contact_set
-        // Phase 2b) cannot trigger this because it guards ops.is_empty() before
-        // calling, but future callers might not.  Catch it in tests.
-        debug_assert!(
-            blocked.is_some() || display_name.is_some(),
-            "update_contact_fully: precondition violated — both blocked and \
-             display_name are None; call with at least one Some field"
-        );
+        if blocked.is_none() && display_name.is_none() {
+            return Err(anyhow::anyhow!(
+                "update_contact_fully: both blocked and display_name are None; \
+                 call with at least one Some field"
+            ));
+        }
         let mut tx = self.pool.begin().await?;
 
         // Verify existence before writing.  Unlike individual store methods
@@ -1581,5 +1577,33 @@ impl Store {
                 .fetch_optional(&self.pool)
                 .await?,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn update_contact_fully_both_none_returns_err() {
+        let store = Store::new("sqlite::memory:").await.unwrap();
+        let result = store.update_contact_fully("anyid", None, None).await;
+        assert!(
+            result.is_err(),
+            "expected Err when both blocked and display_name are None"
+        );
+    }
+
+    #[test]
+    fn space_role_all_is_complete() {
+        // Regression guard: all() must cover every SpaceRole variant.
+        // The exhaustive match below fails to compile if a new variant is added
+        // without updating this test; the len assert then catches a stale all().
+        let count = [SpaceRole::Admin, SpaceRole::Moderator, SpaceRole::Member].len();
+        assert_eq!(
+            SpaceRole::all().len(),
+            count,
+            "SpaceRole::all() is missing at least one variant — update all() to match"
+        );
     }
 }

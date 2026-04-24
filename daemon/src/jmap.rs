@@ -290,6 +290,13 @@ fn method_error(error_type: &str) -> (String, Value) {
     )
 }
 
+fn invalid_args(description: &str) -> (String, Value) {
+    (
+        "error".to_string(),
+        serde_json::json!({ "type": "invalidArguments", "description": description }),
+    )
+}
+
 fn server_fail(msg: &str) -> (String, Value) {
     tracing::warn!("JMAP serverFail: {msg}");
     (
@@ -661,16 +668,10 @@ async fn contact_query(args: Value, state: &DaemonState) -> (String, Value) {
     // i64 values (e.g. position=i64::MAX-1, limit=2) overflow i64 before the
     // .min() clamp can save them; saturating_add clamps to i64::MAX instead.
     if position < 0 {
-        return (
-            "error".to_string(),
-            serde_json::json!({"type": "invalidArguments", "description": "position must be non-negative"}),
-        );
+        return invalid_args("position must be non-negative");
     }
     if limit < 0 {
-        return (
-            "error".to_string(),
-            serde_json::json!({"type": "invalidArguments", "description": "limit must be non-negative"}),
-        );
+        return invalid_args("limit must be non-negative");
     }
     let start = (position as usize).min(ids.len());
     let end = (position.saturating_add(limit) as usize).min(ids.len());
