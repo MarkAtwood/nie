@@ -500,7 +500,20 @@ async fn dispatch_peer_group_update(
     let Some(store) = state.store() else { return };
     match action.as_str() {
         "add" | "update" => {
-            let role = role.as_deref().and_then(SpaceRole::parse).unwrap_or(SpaceRole::Member);
+            let parsed = role.as_deref().and_then(SpaceRole::parse);
+            // Warn when the relay sends a role string we don't recognise.  The
+            // coercion to Member is intentional (keeps the DB valid), but without
+            // this log the mismatch is invisible — the relay's view of the member
+            // role would silently differ from what we store.
+            if role.is_some() && parsed.is_none() {
+                tracing::warn!(
+                    role = ?role,
+                    space_id = %space_id,
+                    contact_id = %contact_id,
+                    "peer_group_update: unrecognised role from relay, defaulting to member"
+                );
+            }
+            let role = parsed.unwrap_or(SpaceRole::Member);
             if let Err(e) = store
                 .upsert_space_member_with_role(&space_id, &contact_id, role)
                 .await

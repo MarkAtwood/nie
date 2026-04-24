@@ -459,18 +459,6 @@ async fn contact_changes(args: Value, state: &DaemonState) -> (String, Value) {
     )
 }
 
-/// A validated, parsed contact patch operation for use in Phase 2 of `contact_set`.
-///
-/// Collecting all ops in Phase 1 before any store write ensures RFC 8620 §7.1
-/// atomicity for input errors: a bad `displayName` type rejects the whole patch
-/// even if `blocked` was individually valid and would otherwise have been written.
-enum ContactPatchOp {
-    SetBlocked(bool),
-    ClearDisplayName,
-    /// Display name already canonicalized by `canonicalize_display_name`.
-    SetDisplayName(String),
-}
-
 async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
     let account_id = match validate_account_id(&args, state) {
         Ok(id) => id,
@@ -506,12 +494,13 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 continue;
             }
 
-            let mut ops: Vec<ContactPatchOp> = Vec::new();
+            let mut blocked: Option<bool> = None;
+            let mut display_name: Option<Option<String>> = None;
             let mut phase1_err: Option<Value> = None;
 
             if let Some(blocked_val) = patch.get("blocked") {
                 match blocked_val.as_bool() {
-                    Some(b) => ops.push(ContactPatchOp::SetBlocked(b)),
+                    Some(b) => blocked = Some(b),
                     None => {
                         phase1_err = Some(serde_json::json!({
                             "type": "invalidProperties",
@@ -523,10 +512,10 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
             if phase1_err.is_none() {
                 if let Some(name_val) = patch.get("displayName") {
                     if name_val.is_null() {
-                        ops.push(ContactPatchOp::ClearDisplayName);
+                        display_name = Some(None);
                     } else if let Some(s) = name_val.as_str() {
                         match canonicalize_display_name(s) {
-                            Ok(n) => ops.push(ContactPatchOp::SetDisplayName(n)),
+                            Ok(n) => display_name = Some(Some(n)),
                             Err(msg) => {
                                 phase1_err = Some(serde_json::json!({
                                     "type": "invalidProperties",
@@ -547,17 +536,13 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
             // invalidProperties for unknown properties; also ensures mixed patches
             // ({blocked:true, unknownField:"x"}) don't silently drop the unknown key.
             if phase1_err.is_none() {
+                // patch.is_object() was checked and would have continued if false.
                 let unknown: Vec<&str> = patch
                     .as_object()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|(k, _)| {
-                        if matches!(k.as_str(), "blocked" | "displayName") {
-                            None
-                        } else {
-                            Some(k.as_str())
-                        }
-                    })
+                    .unwrap()
+                    .keys()
+                    .filter(|k| !matches!(k.as_str(), "blocked" | "displayName"))
+                    .map(String::as_str)
                     .collect();
                 if !unknown.is_empty() {
                     phase1_err = Some(serde_json::json!({
@@ -574,8 +559,8 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
             }
 
             // ── Phase 2a: empty patch — existence check only ──────────────────
-            if ops.is_empty() {
-                // Phase 1 passed with no ops: patch was {} (empty object).
+            if blocked.is_none() && display_name.is_none() {
+                // Phase 1 passed with no fields set: patch was {} (empty object).
                 // RFC 8620 §7.1: empty patch is a no-op if the object exists.
                 let (_, not_found) = match store.get_contacts(Some(&[id.as_str()])).await {
                     Ok(r) => r,
@@ -589,27 +574,13 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 continue;
             }
 
-            // ── Phase 2b: apply ops atomically ───────────────────────────────
-            // Extract typed values from ops and call update_contact_fully,
-            // which wraps all writes in a single SQLite transaction.  This
-            // ensures a multi-field patch ({blocked, displayName}) is visible
+            // ── Phase 2b: apply fields atomically ────────────────────────────
+            // update_contact_fully wraps all writes in a single SQLite transaction.
+            // This ensures a multi-field patch ({blocked, displayName}) is visible
             // atomically — no concurrent reader sees an intermediate state —
             // and emits a single ChatContact state-token bump.
-            let mut blocked: Option<bool> = None;
-            let mut display_name: Option<Option<String>> = None;
-            for op in ops {
-                match op {
-                    ContactPatchOp::SetBlocked(b) => blocked = Some(b),
-                    ContactPatchOp::ClearDisplayName => display_name = Some(None),
-                    ContactPatchOp::SetDisplayName(n) => display_name = Some(Some(n)),
-                }
-            }
             match store
-                .update_contact_fully(
-                    id,
-                    blocked,
-                    display_name.as_ref().map(|o| o.as_deref()),
-                )
+                .update_contact_fully(id, blocked, display_name.as_ref().map(|o| o.as_deref()))
                 .await
             {
                 Ok(true) => {
@@ -3615,7 +3586,10 @@ mod tests {
         );
         assert_eq!(result["type"].as_str().unwrap(), "invalidArguments");
         assert!(
-            result["description"].as_str().map(|s| s.contains("position")).unwrap_or(false),
+            result["description"]
+                .as_str()
+                .map(|s| s.contains("position"))
+                .unwrap_or(false),
             "error description must name 'position': {result}"
         );
     }
@@ -3787,7 +3761,10 @@ mod tests {
         );
         assert_eq!(result["type"].as_str().unwrap(), "invalidArguments");
         assert!(
-            result["description"].as_str().map(|s| s.contains("limit")).unwrap_or(false),
+            result["description"]
+                .as_str()
+                .map(|s| s.contains("limit"))
+                .unwrap_or(false),
             "error description must name 'limit': {result}"
         );
     }

@@ -108,7 +108,10 @@ impl SpaceRole {
 /// A single member patch operation for use with [`Store::update_space_fully`].
 pub enum SpaceMemberOp<'a> {
     /// Add a member or update their role.
-    Upsert { contact_id: &'a str, role: SpaceRole },
+    Upsert {
+        contact_id: &'a str,
+        role: SpaceRole,
+    },
     /// Remove a member from the space.
     Remove { contact_id: &'a str },
 }
@@ -1165,6 +1168,15 @@ impl Store {
         blocked: Option<bool>,
         display_name: Option<Option<&str>>,
     ) -> Result<bool> {
+        // Calling with both None writes nothing but still bumps ChatContact state —
+        // a spurious bump with no field change.  The current caller (contact_set
+        // Phase 2b) cannot trigger this because it guards ops.is_empty() before
+        // calling, but future callers might not.  Catch it in tests.
+        debug_assert!(
+            blocked.is_some() || display_name.is_some(),
+            "update_contact_fully: precondition violated — both blocked and \
+             display_name are None; call with at least one Some field"
+        );
         let mut tx = self.pool.begin().await?;
 
         // Verify existence before writing.  Unlike individual store methods
@@ -1172,23 +1184,20 @@ impl Store {
         // ensures we return notFound without partial writes if the contact
         // disappears between Phase 1 and Phase 2 (currently impossible since
         // contacts are permanent, but correct to guard regardless).
-        let exists: Option<(String,)> =
-            sqlx::query_as("SELECT id FROM chat_contact WHERE id = ?")
-                .bind(pub_id)
-                .fetch_optional(&mut *tx)
-                .await?;
+        let exists: Option<(String,)> = sqlx::query_as("SELECT id FROM chat_contact WHERE id = ?")
+            .bind(pub_id)
+            .fetch_optional(&mut *tx)
+            .await?;
         if exists.is_none() {
             return Ok(false);
         }
 
         if let Some(b) = blocked {
-            sqlx::query(
-                "UPDATE chat_contact SET blocked = ? WHERE id = ?",
-            )
-            .bind(i64::from(b))
-            .bind(pub_id)
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query("UPDATE chat_contact SET blocked = ? WHERE id = ?")
+                .bind(i64::from(b))
+                .bind(pub_id)
+                .execute(&mut *tx)
+                .await?;
         }
         match display_name {
             None => {}
