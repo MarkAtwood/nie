@@ -12,6 +12,24 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
+    // Held while waiting for onRequestPermissionsResult to fire so we can
+    // return the grant outcome to the Dart caller instead of fire-and-forgetting.
+    private var pendingPermissionResult: MethodChannel.Result? = null
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_CODE_POST_NOTIFICATIONS) {
+            val granted = grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            pendingPermissionResult?.success(granted)
+            pendingPermissionResult = null
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.nie/background")
@@ -19,22 +37,29 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "requestNotificationPermission" -> {
                         // On Android 13+ (API 33) POST_NOTIFICATIONS is a runtime permission.
-                        // Request it here, before starting the foreground service, so the
-                        // system dialog appears with app context rather than out of nowhere.
-                        // Fire-and-forget: service starts regardless of grant/deny.
+                        // Block until the user answers the dialog so startService is only
+                        // called after the permission state is resolved, avoiding a race
+                        // where startForeground() runs before POST_NOTIFICATIONS is granted.
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             if (ContextCompat.checkSelfPermission(
                                     this, Manifest.permission.POST_NOTIFICATIONS
-                                ) != PackageManager.PERMISSION_GRANTED
+                                ) == PackageManager.PERMISSION_GRANTED
                             ) {
+                                // Already granted — no dialog needed.
+                                result.success(true)
+                            } else {
+                                // Store result; onRequestPermissionsResult will complete it.
+                                pendingPermissionResult = result
                                 ActivityCompat.requestPermissions(
                                     this,
                                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                                     REQUEST_CODE_POST_NOTIFICATIONS
                                 )
                             }
+                        } else {
+                            // Pre-API 33: POST_NOTIFICATIONS not required.
+                            result.success(true)
                         }
-                        result.success(null)
                     }
                     "startService" -> {
                         val intent = Intent(this, NieForegroundService::class.java)

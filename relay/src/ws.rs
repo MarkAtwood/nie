@@ -539,6 +539,11 @@ async fn handle(socket: WebSocket, state: AppState) {
     // so other devices' packages are unaffected.
     let mut connection_device_id: Option<String> = None;
 
+    // Track whether this connection has an active typing indicator outstanding.
+    // If the client disconnects while typing=true, we synthesise a typing=false
+    // so peers don't see a phantom "is typing…" that never resolves.
+    let mut connection_is_typing = false;
+
     // Main read loop
     while let Some(frame) = stream.next().await {
         match frame {
@@ -1734,6 +1739,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .unwrap(),
                         )
                         .unwrap();
+                        connection_is_typing = params.typing;
                         state.broadcast(Some(&pub_id.0), notif).await;
                         let ok = serde_json::to_string(
                             &JsonRpcResponse::success(req.id, OkResult { ok: true }).unwrap(),
@@ -1770,6 +1776,24 @@ async fn handle(socket: WebSocket, state: AppState) {
 
     info!("disconnected: {pub_id}");
     state.disconnect(&pub_id, conn_seq);
+
+    // If this connection had an outstanding typing indicator, synthesise a
+    // typing_notify {typing:false} so peers don't see a phantom "is typing…"
+    // that never resolves after an abrupt disconnect.
+    if connection_is_typing {
+        let stop_notif = serde_json::to_string(
+            &JsonRpcNotification::new(
+                rpc_methods::TYPING_NOTIFY,
+                TypingNotifyParams {
+                    from: pub_id.0.clone(),
+                    typing: false,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        state.broadcast(Some(&pub_id.0), stop_notif).await;
+    }
 
     // Remove stale key package for this device so the store stays current.
     // Only this device's package is removed; other devices' packages are unaffected.

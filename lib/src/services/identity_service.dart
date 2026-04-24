@@ -90,9 +90,11 @@ class IdentityService extends ChangeNotifier {
       if (value == null) throw ArgumentError('Invalid hex character at position ${i * 2}');
       return value;
     });
-    await _initFromSeed(bytes);
+    // Persist before updating in-memory state. If setString throws, the old
+    // identity stays intact in both storage and memory — no torn state.
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_seedKey, base64.encode(bytes));
+    await _initFromSeed(bytes);
     notifyListeners();
   }
 }

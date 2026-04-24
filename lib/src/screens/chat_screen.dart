@@ -19,6 +19,14 @@ class _ChatScreenState extends State<ChatScreen> {
   final _scrollController = ScrollController();
   final _relayUrlController = TextEditingController();
 
+  @override
+  void dispose() {
+    _inputController.dispose();
+    _scrollController.dispose();
+    _relayUrlController.dispose();
+    super.dispose();
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {

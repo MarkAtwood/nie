@@ -28,7 +28,7 @@ use unicode_normalization::UnicodeNormalization;
 use ulid::Ulid;
 
 use crate::state::DaemonState;
-use crate::store::{ChatContactRow, ChatRow, MessageRow};
+use crate::store::{ChatContactRow, ChatRow, MessageRow, Store};
 use crate::token::validate_token_header;
 use crate::types::DaemonEvent;
 
@@ -924,6 +924,49 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
     )
 }
 
+/// Apply a single member patch path ("members/<contact_id>") to a space.
+///
+/// Returns `Ok(())` if the patch was applied (or the path is not a member
+/// path), or `Err(json_error)` with a JMAP error value if validation or the
+/// store call fails.  The caller breaks out of the patch loop on `Err`.
+async fn apply_member_patch(
+    store: &Store,
+    space_id: &str,
+    path: &str,
+    value: &Value,
+) -> Result<(), Value> {
+    let Some(contact_id) = path.strip_prefix("members/") else {
+        return Ok(());
+    };
+    if value.is_null() {
+        // Null value = remove the member from the space.
+        store
+            .remove_space_member(space_id, contact_id)
+            .await
+            .map_err(|e| serde_json::json!({"type":"serverFail","description":e.to_string()}))?;
+    } else {
+        // Non-null value = add/update member with optional role.
+        let role = value
+            .get("role")
+            .and_then(|v| v.as_str())
+            .unwrap_or("member");
+        // Reject unrecognised roles before persisting — an arbitrary string
+        // would be stored verbatim and returned in JMAP responses, breaking
+        // clients that validate the role enum.
+        if !matches!(role, "admin" | "moderator" | "member") {
+            return Err(serde_json::json!({
+                "type": "invalidArguments",
+                "description": "role must be one of: admin, moderator, member"
+            }));
+        }
+        store
+            .upsert_space_member_with_role(space_id, contact_id, role)
+            .await
+            .map_err(|e| serde_json::json!({"type":"serverFail","description":e.to_string()}))?;
+    }
+    Ok(())
+}
+
 async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     let account_id = match validate_account_id(&args, state) {
         Ok(id) => id,
@@ -1006,33 +1049,9 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // Member patch paths: "members/<contact_id>"
                 if update_err.is_none() {
                     for (path, value) in patch_map {
-                        if let Some(contact_id) = path.strip_prefix("members/") {
-                            if value.is_null() {
-                                // Remove member
-                                if let Err(e) =
-                                    store.remove_space_member(space_id, contact_id).await
-                                {
-                                    update_err = Some(
-                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                                    );
-                                    break;
-                                }
-                            } else {
-                                // Add/update member with optional role
-                                let role = value
-                                    .get("role")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("member");
-                                if let Err(e) = store
-                                    .upsert_space_member_with_role(space_id, contact_id, role)
-                                    .await
-                                {
-                                    update_err = Some(
-                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                                    );
-                                    break;
-                                }
-                            }
+                        if let Err(e) = apply_member_patch(store, space_id, path, value).await {
+                            update_err = Some(e);
+                            break;
                         }
                     }
                 }
@@ -1176,10 +1195,10 @@ async fn space_join(args: Value, state: &DaemonState) -> (String, Value) {
     };
     match store.use_space_invite_code(&code, &account_id).await {
         Ok(Some(space_id)) => method_ok("Space/join", serde_json::json!({ "spaceId": space_id })),
-        Ok(None) => method_ok(
-            "error",
+        Ok(None) => (
+            "error".to_string(),
             serde_json::json!({
-                "type": "invalidArguments",
+                "type": "notFound",
                 "description": "invite code not found or expired"
             }),
         ),

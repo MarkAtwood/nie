@@ -5,7 +5,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Keep WebSocket alive when app is backgrounded -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- connectedDevice is the correct type for a persistent remote connection (API 34+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <!-- Keep CPU alive in Doze mode so the WebSocket doesn't silently die -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Foreground service notification (required on Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -37,7 +40,7 @@
 
         <service
             android:name=".NieForegroundService"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="connectedDevice"
             android:exported="false" />
     </application>
 </manifest>

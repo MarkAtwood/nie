@@ -26,6 +26,13 @@ class _SetupScreenState extends State<SetupScreen> {
     _loadPrefs();
   }
 
+  @override
+  void dispose() {
+    _relayController.dispose();
+    _seedHexController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadPrefs() async {
     final ids = context.read<IdentityService>();
     final url = await ids.getRelayUrl();

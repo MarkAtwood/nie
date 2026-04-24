@@ -115,6 +115,11 @@ class RelayService extends ChangeNotifier {
   Future<void> _doConnect() async {
     await _sub?.cancel();
     _sub = null;
+    // Close any previous channel before replacing it. If the last connect attempt
+    // only partially succeeded (e.g. _channel.ready threw), we'd otherwise leak
+    // the underlying WebSocket handle on every subsequent reconnect.
+    await _channel?.sink.close();
+    _channel = null;
     try {
       _channel = WebSocketChannel.connect(Uri.parse(_relayUrl!));
       await _channel!.ready;
@@ -125,6 +130,8 @@ class RelayService extends ChangeNotifier {
         cancelOnError: false,
       );
     } catch (e) {
+      await _channel?.sink.close();
+      _channel = null;
       _error = e.toString();
       notifyListeners();
       _scheduleReconnect();
@@ -204,6 +211,12 @@ class RelayService extends ChangeNotifier {
       if (errCode == -32001) {
         _authFailed = true;
         _reconnecting = false;
+        // Cancel all typing timers and clear ephemeral state so a subsequent
+        // reconnect with a different identity doesn't show stale indicators.
+        for (final t in _typingTimers.values) t.cancel();
+        _typingTimers.clear();
+        _typingUsers.clear();
+        _onlineUsers.clear();
         // Auth permanently rejected — stop the foreground service so the
         // notification doesn't keep showing "Relay connected" while disconnected.
         BackgroundService.stop();
