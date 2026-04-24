@@ -689,8 +689,17 @@ async fn contact_query(args: Value, state: &DaemonState) -> (String, Value) {
     // Saturating addition prevents a second panic class: two large-but-valid
     // i64 values (e.g. position=i64::MAX-1, limit=2) overflow i64 before the
     // .min() clamp can save them; saturating_add clamps to i64::MAX instead.
-    if position < 0 || limit < 0 {
-        return method_error("invalidArguments");
+    if position < 0 {
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "invalidArguments", "description": "position must be non-negative"}),
+        );
+    }
+    if limit < 0 {
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "invalidArguments", "description": "limit must be non-negative"}),
+        );
     }
     let start = (position as usize).min(ids.len());
     let end = (position.saturating_add(limit) as usize).min(ids.len());
@@ -3604,7 +3613,11 @@ mod tests {
             method, "error",
             "negative position must yield error response: {result}"
         );
-        assert_eq!(result["type"].as_str().unwrap(), "invalidArguments",);
+        assert_eq!(result["type"].as_str().unwrap(), "invalidArguments");
+        assert!(
+            result["description"].as_str().map(|s| s.contains("position")).unwrap_or(false),
+            "error description must name 'position': {result}"
+        );
     }
 
     // ── nie-0kki.4: maxCallsInRequest enforcement ─────────────────────────────
@@ -3772,7 +3785,11 @@ mod tests {
             method, "error",
             "negative limit must yield error response: {result}"
         );
-        assert_eq!(result["type"].as_str().unwrap(), "invalidArguments",);
+        assert_eq!(result["type"].as_str().unwrap(), "invalidArguments");
+        assert!(
+            result["description"].as_str().map(|s| s.contains("limit")).unwrap_or(false),
+            "error description must name 'limit': {result}"
+        );
     }
 
     // Regression: Space/set with a non-Object patch value (e.g. a string)
