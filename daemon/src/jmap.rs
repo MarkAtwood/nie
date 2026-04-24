@@ -942,17 +942,31 @@ const VALID_ROLES: &[&str] = &["admin", "moderator", "member"];
 /// Returns `Ok(())` for a recognised path with a valid value, or
 /// `Err(json_error)` for an unrecognised path or an invalid role.
 fn validate_member_patch(path: &str, value: &Value) -> Result<(), Value> {
-    let Some(_) = path.strip_prefix("members/") else {
+    let Some(member_id) = path.strip_prefix("members/") else {
         return Err(serde_json::json!({
             "type": "invalidPatch",
             "description": format!("unrecognized patch path: {path}")
         }));
     };
+    // "members/" with no contact id is not a valid patch path.
+    if member_id.is_empty() {
+        return Err(serde_json::json!({
+            "type": "invalidPatch",
+            "description": "members/ patch path requires a non-empty contact id"
+        }));
+    }
     if !value.is_null() {
-        let role = value
-            .get("role")
-            .and_then(|v| v.as_str())
-            .unwrap_or("member");
+        let role = match value.get("role") {
+            None => "member",
+            // Present but not a string (e.g. {"role": 42}) — reject explicitly
+            // rather than silently coercing to the default.
+            Some(v) => v.as_str().ok_or_else(|| {
+                serde_json::json!({
+                    "type": "invalidArguments",
+                    "description": "role must be a string"
+                })
+            })?,
+        };
         if !VALID_ROLES.contains(&role) {
             return Err(serde_json::json!({
                 "type": "invalidArguments",
@@ -984,6 +998,14 @@ async fn apply_member_patch(
             "description": format!("unrecognized patch path: {path}")
         }));
     };
+    // Defence-in-depth: validate_member_patch should have caught this, but
+    // an empty contact_id must never reach the store.
+    if contact_id.is_empty() {
+        return Err(serde_json::json!({
+            "type": "invalidPatch",
+            "description": "members/ patch path requires a non-empty contact id"
+        }));
+    }
     if value.is_null() {
         // Null value = remove the member from the space.
         store
@@ -992,13 +1014,15 @@ async fn apply_member_patch(
             .map_err(|e| serde_json::json!({"type":"serverFail","description":e.to_string()}))?;
     } else {
         // Non-null value = add/update member with optional role.
-        let role = value
-            .get("role")
-            .and_then(|v| v.as_str())
-            .unwrap_or("member");
-        // Defence-in-depth: callers should have run validate_member_patch
-        // first, but reject an unrecognised role here too so an arbitrary
-        // string can never reach the store.
+        // Defence-in-depth: validate_member_patch should have caught both a
+        // non-string role and an unrecognised role value, but check here too
+        // so neither can reach the store.
+        let role = match value.get("role") {
+            None => "member",
+            Some(v) => v.as_str().ok_or_else(|| {
+                serde_json::json!({"type":"invalidArguments","description":"role must be a string"})
+            })?,
+        };
         if !VALID_ROLES.contains(&role) {
             return Err(serde_json::json!({
                 "type": "invalidArguments",
@@ -1080,7 +1104,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // the name write nor the member write should happen and
                 // notUpdated must be returned without any side effect.
                 for (path, value) in patch_map {
-                    if path == "name" || path == "description" {
+                    if matches!(path.as_str(), "name" | "description") {
                         continue;
                     }
                     if let Err(e) = validate_member_patch(path, value) {
@@ -1089,6 +1113,18 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                     }
                 }
                 // Phase 2 (writes): only if all patches passed validation.
+                //
+                // Atomicity note: Phase 1 above guarantees that *input* errors
+                // (bad paths, invalid roles) are caught before any write
+                // occurs.  However, if update_space_props succeeds and a
+                // subsequent apply_member_patch returns a store (server) error,
+                // the name/description change will already be committed and
+                // notUpdated will still be returned — a partial write.  Fixing
+                // this fully requires wrapping both calls in a single SQLite
+                // transaction, which in turn requires a combined store method
+                // that accepts both the prop and member changes together.
+                // Server errors are rare in practice, so this is left as a
+                // known limitation rather than a larger refactor.
                 if update_err.is_none() {
                     let new_name = patch_map.get("name").and_then(|v| v.as_str());
                     let new_desc = patch_map
@@ -1112,7 +1148,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 }
                 if update_err.is_none() {
                     for (path, value) in patch_map {
-                        if path == "name" || path == "description" {
+                        if matches!(path.as_str(), "name" | "description") {
                             continue;
                         }
                         if let Err(e) = apply_member_patch(store, space_id, path, value).await {
@@ -3097,6 +3133,131 @@ mod tests {
         assert_eq!(
             get_resp.method_responses[0].1["list"][0]["name"], "Original Name",
             "name must not be written when notUpdated is returned"
+        );
+    }
+
+    // Non-string role values (e.g. {"role": 42}) must be rejected with
+    // invalidArguments rather than silently coercing to "member".
+    #[tokio::test]
+    async fn test_space_set_non_string_role_rejected() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let contact_id = "b".repeat(64);
+        let space_id = create_test_space(&state, "Name").await;
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): {
+                            format!("members/{contact_id}"): { "role": 42 }
+                        }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "non-string role must be in notUpdated, got: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][&space_id]["type"], "invalidArguments",
+            "error type must be invalidArguments for non-string role"
+        );
+    }
+
+    // Regression: "members/" (trailing slash, empty contact id) must be rejected
+    // as invalidPatch.  Before the fix, strip_prefix returned Some("") and the
+    // empty string was discarded via `let Some(_) = ...`, so the path passed
+    // validation and an empty-id row reached the store.
+    //
+    // Also verifies atomicity: a combined {"name":"New","members/":...} patch
+    // must not write the name when the empty-id path is rejected in Phase 1.
+    #[tokio::test]
+    async fn test_space_set_empty_contact_id_rejected() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        let space_id = create_test_space(&state, "Stable Name").await;
+
+        // Standalone "members/" patch must be invalidPatch.
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): {
+                            "members/": { "role": "member" }
+                        }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][&space_id].is_object(),
+            "empty contact_id must be in notUpdated, got: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][&space_id]["type"], "invalidPatch",
+            "error type must be invalidPatch"
+        );
+
+        // Combined patch: valid name + empty-id member path.
+        // Phase 1 must reject the empty id before the name is written.
+        let req2 = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        space_id.clone(): {
+                            "name": "Should Not Apply",
+                            "members/": { "role": "member" }
+                        }
+                    }
+                }),
+                "c2".to_string(),
+            )],
+        };
+        let Json(resp2) = handle_jmap_request(State(state.clone()), Json(req2))
+            .await
+            .unwrap();
+        let MethodResponse(_, result2, _) = &resp2.method_responses[0];
+        assert!(
+            result2["notUpdated"][&space_id].is_object(),
+            "combined patch with empty contact_id must be notUpdated"
+        );
+
+        // Atomicity check: name must not have been written.
+        let get_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/get".to_string(),
+                serde_json::json!({ "accountId": pub_id, "ids": [space_id.clone()] }),
+                "c3".to_string(),
+            )],
+        };
+        let Json(get_resp) = handle_jmap_request(State(state.clone()), Json(get_req))
+            .await
+            .unwrap();
+        assert_eq!(
+            get_resp.method_responses[0].1["list"][0]["name"], "Stable Name",
+            "name must not be written when empty contact_id causes notUpdated"
         );
     }
 }
