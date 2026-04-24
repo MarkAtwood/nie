@@ -1538,9 +1538,34 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                     continue;
                 }
             };
+            // Require the caller to be a member of the space.  Without this
+            // check, any authenticated user can create invite codes for spaces
+            // they do not belong to, granting others unauthorized membership.
+            match store.get_space_member_role(&space_id, &account_id).await {
+                Ok(None) => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({
+                            "type": "forbidden",
+                            "description": "you must be a member of the space to create an invite"
+                        }),
+                    );
+                    continue;
+                }
+                Err(e) => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                    );
+                    continue;
+                }
+                Ok(Some(_)) => {} // caller is a member, proceed
+            }
             let id = crate::store::Store::new_id();
-            // Generate a short random invite code (8 chars of ULID entropy)
-            let code = Ulid::new().to_string()[..8].to_uppercase();
+            // Use chars [10..18] of the ULID — the random suffix (80-bit
+            // random encoded in Crockford Base32).  [..8] would be pure
+            // timestamp: zero random bits and trivially enumerable.
+            let code = Ulid::new().to_string()[10..18].to_uppercase();
             match store
                 .create_space_invite(&id, &code, &space_id, &account_id)
                 .await
@@ -1798,49 +1823,82 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 let mut update_err: Option<Value> = None;
                 for (path, value) in patch_map {
                     if let Some(reaction_id) = path.strip_prefix("reactions/") {
-                        let res = if value.is_null() {
-                            store.remove_message_reaction(msg_id, reaction_id).await
-                        } else {
-                            let emoji = value.get("emoji").and_then(|v| v.as_str()).unwrap_or("?");
-                            let sent_at = value
-                                .get("sentAt")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or_default();
-                            store
-                                .set_message_reaction(msg_id, reaction_id, emoji, sent_at)
-                                .await
-                        };
-                        match res {
-                            Ok(false) => {
-                                update_err = Some(serde_json::json!({"type":"notFound"}));
-                                break;
-                            }
-                            Err(e) => {
-                                update_err = Some(
-                                    serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                                );
-                                break;
-                            }
-                            Ok(true) => {}
-                        }
-                    } else if path == "body" {
-                        if let Some(new_body) = value.as_str() {
-                            match store.edit_message_body(msg_id, new_body).await {
+                        if value.is_null() {
+                            match store.remove_message_reaction(msg_id, reaction_id).await {
                                 Ok(false) => {
                                     update_err = Some(serde_json::json!({"type":"notFound"}));
                                     break;
                                 }
                                 Err(e) => {
-                                    update_err = Some(
-                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                                    );
+                                    update_err = Some(serde_json::json!({
+                                        "type": "serverFail",
+                                        "description": e.to_string()
+                                    }));
                                     break;
                                 }
                                 Ok(true) => {}
                             }
+                        } else if value.is_object() {
+                            let emoji = value.get("emoji").and_then(|v| v.as_str()).unwrap_or("?");
+                            let sent_at = value
+                                .get("sentAt")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or_default();
+                            match store
+                                .set_message_reaction(msg_id, reaction_id, emoji, sent_at)
+                                .await
+                            {
+                                Ok(false) => {
+                                    update_err = Some(serde_json::json!({"type":"notFound"}));
+                                    break;
+                                }
+                                Err(e) => {
+                                    update_err = Some(serde_json::json!({
+                                        "type": "serverFail",
+                                        "description": e.to_string()
+                                    }));
+                                    break;
+                                }
+                                Ok(true) => {}
+                            }
+                        } else {
+                            // Reaction value must be null (remove) or an object (set).
+                            update_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "reaction value must be null (to remove) or an object"
+                            }));
+                            break;
+                        }
+                    } else if path == "body" {
+                        match value.as_str() {
+                            None => {
+                                update_err = Some(serde_json::json!({
+                                    "type": "invalidArguments",
+                                    "description": "body must be a string"
+                                }));
+                                break;
+                            }
+                            Some(new_body) => {
+                                match store.edit_message_body(msg_id, new_body).await {
+                                    Ok(false) => {
+                                        update_err = Some(serde_json::json!({"type":"notFound"}));
+                                        break;
+                                    }
+                                    Err(e) => {
+                                        update_err = Some(
+                                            serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                        );
+                                        break;
+                                    }
+                                    Ok(true) => {}
+                                }
+                            }
                         }
                     } else if path == "deletedAt" {
-                        if value.is_string() || value.is_null() {
+                        // null is rejected: setting deletedAt to null would
+                        // semantically mean "un-delete", which is not implemented.
+                        // Accepting null silently and soft-deleting is backwards.
+                        if value.is_string() {
                             match store.soft_delete_message(msg_id, false).await {
                                 Ok(false) => {
                                     update_err = Some(serde_json::json!({"type":"notFound"}));
@@ -1854,14 +1912,29 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                 }
                                 Ok(true) => {}
                             }
+                        } else {
+                            update_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "deletedAt must be a string timestamp"
+                            }));
+                            break;
                         }
                     } else if path == "readAt" {
-                        if let Some(ts) = value.as_str() {
-                            if let Err(e) = store.read_message(msg_id, ts).await {
-                                update_err = Some(
-                                    serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                                );
+                        match value.as_str() {
+                            None => {
+                                update_err = Some(serde_json::json!({
+                                    "type": "invalidArguments",
+                                    "description": "readAt must be a string"
+                                }));
                                 break;
+                            }
+                            Some(ts) => {
+                                if let Err(e) = store.read_message(msg_id, ts).await {
+                                    update_err = Some(
+                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
+                                    );
+                                    break;
+                                }
                             }
                         }
                     }
@@ -1872,6 +1945,17 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 } else {
                     updated.insert(msg_id.clone(), serde_json::json!(null));
                 }
+            } else {
+                // Patch must be a JSON object — null, array, or scalar values
+                // are rejected so the client gets deterministic feedback instead
+                // of silent disappearance from both updated and notUpdated.
+                not_updated.insert(
+                    msg_id.clone(),
+                    serde_json::json!({
+                        "type": "invalidArguments",
+                        "description": "patch must be a JSON object"
+                    }),
+                );
             }
         }
     }
@@ -1935,8 +2019,8 @@ async fn message_query(args: Value, state: &DaemonState) -> (String, Value) {
     {
         Some(id) => id.to_string(),
         None => {
-            return method_ok(
-                "error",
+            return (
+                "error".to_string(),
                 serde_json::json!({
                     "type": "unsupportedFilter",
                     "description": "chatId filter is required"
@@ -1990,8 +2074,8 @@ async fn message_query_changes(args: Value, state: &DaemonState) -> (String, Val
     {
         Some(id) => id.to_string(),
         None => {
-            return method_ok(
-                "error",
+            return (
+                "error".to_string(),
                 serde_json::json!({"type":"unsupportedFilter","description":"chatId filter is required"}),
             )
         }
@@ -2713,6 +2797,54 @@ mod tests {
             result["notUpdated"]["fake-id"]["type"], "forbidden",
             "update must be forbidden: {result}"
         );
+    }
+
+    #[tokio::test]
+    async fn test_space_invite_non_member_cannot_create() {
+        // A user who is not a member of the space must not be able to create
+        // an invite for it.  Before this fix, the invite was created silently,
+        // allowing the non-member to grant arbitrary users access to the space.
+        let state = make_store_state().await;
+        let owner = "a".repeat(64);
+        let outsider = "b".repeat(64);
+
+        // Create a space as the owner
+        let space_id = create_test_space(&state, "Private Space").await;
+
+        // The outsider tries to create an invite for the same space
+        let outsider_state = DaemonState::new(
+            outsider.clone(),
+            "token-outsider".to_string(),
+            None,
+            "mainnet".to_string(),
+            None,
+            state.store().map(|s| s.clone()),
+        );
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "SpaceInvite/set".to_string(),
+                serde_json::json!({
+                    "accountId": outsider,
+                    "create": { "i1": { "spaceId": space_id } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(outsider_state), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notCreated"]["i1"]["type"] == "forbidden",
+            "non-member must not be able to create invite: {result}"
+        );
+        assert!(
+            result["created"].as_object().unwrap().is_empty(),
+            "created map must be empty when invite is rejected"
+        );
+        // Ensure the owner's space is unaffected
+        let _ = owner; // silence unused warning
     }
 
     /// Space/query returns space IDs.
@@ -4500,6 +4632,274 @@ mod tests {
             get_resp.method_responses[0].1["list"][0]["description"].is_null(),
             "description must be null after null patch: {:?}",
             get_resp.method_responses[0].1["list"][0]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_message_set_update_non_object_patch_rejected() {
+        let state = make_store_state().await;
+        let channel_id = state.default_channel_id().unwrap().to_string();
+        let store = state.store().unwrap();
+        let msg_id = store
+            .insert_message(&channel_id, &"a".repeat(64), "hi", "2026-04-24T00:00:00Z")
+            .await
+            .unwrap();
+
+        // Sending a scalar (42) as the patch value must land in notUpdated, not
+        // silently disappear from both updated and notUpdated.
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Message/set".to_string(),
+                serde_json::json!({
+                    "accountId": "a".repeat(64),
+                    "update": { msg_id.clone(): 42 }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["updated"].as_object().unwrap().is_empty(),
+            "scalar patch must not appear in updated"
+        );
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .unwrap()
+                .contains_key(msg_id.as_str()),
+            "scalar patch must appear in notUpdated with invalidArguments"
+        );
+        assert_eq!(
+            result["notUpdated"][msg_id.as_str()]["type"],
+            "invalidArguments"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_message_set_update_body_wrong_type_rejected() {
+        let state = make_store_state().await;
+        let channel_id = state.default_channel_id().unwrap().to_string();
+        let store = state.store().unwrap();
+        let msg_id = store
+            .insert_message(
+                &channel_id,
+                &"a".repeat(64),
+                "original",
+                "2026-04-24T00:00:00Z",
+            )
+            .await
+            .unwrap();
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Message/set".to_string(),
+                serde_json::json!({
+                    "accountId": "a".repeat(64),
+                    "update": { msg_id.clone(): { "body": 99 } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .unwrap()
+                .contains_key(msg_id.as_str()),
+            "non-string body must be rejected with invalidArguments"
+        );
+        assert_eq!(
+            result["notUpdated"][msg_id.as_str()]["type"],
+            "invalidArguments"
+        );
+        // Body must be unchanged
+        let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
+        assert_eq!(msgs[0].body, "original");
+    }
+
+    #[tokio::test]
+    async fn test_message_set_update_deleted_at_wrong_type_rejected() {
+        let state = make_store_state().await;
+        let channel_id = state.default_channel_id().unwrap().to_string();
+        let store = state.store().unwrap();
+        let msg_id = store
+            .insert_message(&channel_id, &"a".repeat(64), "text", "2026-04-24T00:00:00Z")
+            .await
+            .unwrap();
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Message/set".to_string(),
+                serde_json::json!({
+                    "accountId": "a".repeat(64),
+                    "update": { msg_id.clone(): { "deletedAt": true } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .unwrap()
+                .contains_key(msg_id.as_str()),
+            "boolean deletedAt must be rejected with invalidArguments"
+        );
+        assert_eq!(
+            result["notUpdated"][msg_id.as_str()]["type"],
+            "invalidArguments"
+        );
+        // Message must not be soft-deleted
+        let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
+        assert!(
+            msgs[0].deleted_at.is_none(),
+            "message must not be soft-deleted when deletedAt type is wrong"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_message_set_update_deleted_at_null_rejected() {
+        // null would semantically mean "un-delete" which is not implemented.
+        // Before this fix, null silently triggered a soft-delete (backwards).
+        let state = make_store_state().await;
+        let channel_id = state.default_channel_id().unwrap().to_string();
+        let store = state.store().unwrap();
+        let msg_id = store
+            .insert_message(&channel_id, &"a".repeat(64), "text", "2026-04-24T00:00:00Z")
+            .await
+            .unwrap();
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Message/set".to_string(),
+                serde_json::json!({
+                    "accountId": "a".repeat(64),
+                    "update": { msg_id.clone(): { "deletedAt": null } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .unwrap()
+                .contains_key(msg_id.as_str()),
+            "null deletedAt must be rejected (un-delete not implemented)"
+        );
+        assert_eq!(
+            result["notUpdated"][msg_id.as_str()]["type"],
+            "invalidArguments"
+        );
+        // Crucially: message must NOT have been soft-deleted
+        let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
+        assert!(
+            msgs[0].deleted_at.is_none(),
+            "null deletedAt must not soft-delete the message"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_message_set_update_reaction_non_object_rejected() {
+        // A scalar reaction value (not null and not an object) must be rejected.
+        // Before this fix, it would silently create a reaction with emoji="?".
+        let state = make_store_state().await;
+        let channel_id = state.default_channel_id().unwrap().to_string();
+        let store = state.store().unwrap();
+        let msg_id = store
+            .insert_message(&channel_id, &"a".repeat(64), "hi", "2026-04-24T00:00:00Z")
+            .await
+            .unwrap();
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Message/set".to_string(),
+                serde_json::json!({
+                    "accountId": "a".repeat(64),
+                    "update": {
+                        msg_id.clone(): { "reactions/r1": "not_an_object" }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .unwrap()
+                .contains_key(msg_id.as_str()),
+            "scalar reaction value must be rejected with invalidArguments"
+        );
+        assert_eq!(
+            result["notUpdated"][msg_id.as_str()]["type"],
+            "invalidArguments"
+        );
+        // No reaction must have been stored
+        let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
+        let reactions: serde_json::Value =
+            serde_json::from_str(&msgs[0].reactions).unwrap_or(serde_json::json!({}));
+        assert!(
+            reactions.as_object().map(|m| m.is_empty()).unwrap_or(true),
+            "no reaction must be stored when value type is wrong"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_message_set_update_read_at_wrong_type_rejected() {
+        let state = make_store_state().await;
+        let channel_id = state.default_channel_id().unwrap().to_string();
+        let store = state.store().unwrap();
+        let msg_id = store
+            .insert_message(&channel_id, &"a".repeat(64), "text", "2026-04-24T00:00:00Z")
+            .await
+            .unwrap();
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Message/set".to_string(),
+                serde_json::json!({
+                    "accountId": "a".repeat(64),
+                    "update": { msg_id.clone(): { "readAt": 123 } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .unwrap()
+                .contains_key(msg_id.as_str()),
+            "non-string readAt must be rejected with invalidArguments"
+        );
+        assert_eq!(
+            result["notUpdated"][msg_id.as_str()]["type"],
+            "invalidArguments"
         );
     }
 }

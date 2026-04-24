@@ -618,6 +618,22 @@ impl Store {
         Ok(rows > 0)
     }
 
+    /// Return the role of `contact_id` in `space_id`, or `None` if they are
+    /// not a member.  Used to gate operations that require membership.
+    pub async fn get_space_member_role(
+        &self,
+        space_id: &str,
+        contact_id: &str,
+    ) -> Result<Option<SpaceRole>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT role FROM space_member WHERE space_id = ? AND contact_id = ?")
+                .bind(space_id)
+                .bind(contact_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.and_then(|(r,)| SpaceRole::parse(&r)))
+    }
+
     /// Remove a member from a space.  Returns `true` if a row was deleted.
     pub async fn remove_space_member(&self, space_id: &str, contact_id: &str) -> Result<bool> {
         let rows = sqlx::query("DELETE FROM space_member WHERE space_id = ? AND contact_id = ?")
@@ -1595,7 +1611,10 @@ mod tests {
     async fn update_contact_fully_both_none_panics() {
         let store = Store::new("sqlite::memory:").await.unwrap();
         // Both None is a programmer error; the function must panic.
-        store.update_contact_fully("anyid", None, None).await.unwrap();
+        store
+            .update_contact_fully("anyid", None, None)
+            .await
+            .unwrap();
     }
 
     #[test]
