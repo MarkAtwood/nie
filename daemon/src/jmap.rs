@@ -459,6 +459,18 @@ async fn contact_changes(args: Value, state: &DaemonState) -> (String, Value) {
     )
 }
 
+/// A validated, parsed contact patch operation for use in Phase 2 of `contact_set`.
+///
+/// Collecting all ops in Phase 1 before any store write ensures RFC 8620 §7.1
+/// atomicity for input errors: a bad `displayName` type rejects the whole patch
+/// even if `blocked` was individually valid and would otherwise have been written.
+enum ContactPatchOp {
+    SetBlocked(bool),
+    ClearDisplayName,
+    /// Display name already canonicalized by `canonicalize_display_name`.
+    SetDisplayName(String),
+}
+
 async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
     let account_id = match validate_account_id(&args, state) {
         Ok(id) => id,
@@ -477,103 +489,144 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     if let Some(Value::Object(updates)) = args.get("update") {
         for (id, patch) in updates {
-            let mut any_update = false;
+            // ── Phase 1 (validate + collect, no writes) ───────────────────────
+            // All validation happens before any store write.  This ensures RFC
+            // 8620 §7.1 atomicity for input errors: a bad displayName type or
+            // an unrecognized key rejects the whole patch with no side effects.
 
-            // blocked field
+            // A non-Object patch is structurally invalid.
+            if !patch.is_object() {
+                not_updated.insert(
+                    id.clone(),
+                    serde_json::json!({
+                        "type": "invalidArguments",
+                        "description": "patch must be a JSON object"
+                    }),
+                );
+                continue;
+            }
+
+            let mut ops: Vec<ContactPatchOp> = Vec::new();
+            let mut phase1_err: Option<Value> = None;
+
             if let Some(blocked_val) = patch.get("blocked") {
-                if let Some(blocked) = blocked_val.as_bool() {
-                    match store.set_contact_blocked(id, blocked).await {
-                        Ok(true) => {
-                            any_update = true;
-                        }
-                        Ok(false) => {
-                            not_updated.insert(id.clone(), serde_json::json!({"type":"notFound"}));
-                            continue;
-                        }
-                        Err(e) => return server_fail(&e.to_string()),
+                match blocked_val.as_bool() {
+                    Some(b) => ops.push(ContactPatchOp::SetBlocked(b)),
+                    None => {
+                        phase1_err = Some(serde_json::json!({
+                            "type": "invalidProperties",
+                            "properties": ["blocked"]
+                        }));
                     }
-                } else {
-                    not_updated.insert(
-                        id.clone(),
-                        serde_json::json!({"type":"invalidProperties","properties":["blocked"]}),
-                    );
-                    continue;
+                }
+            }
+            if phase1_err.is_none() {
+                if let Some(name_val) = patch.get("displayName") {
+                    if name_val.is_null() {
+                        ops.push(ContactPatchOp::ClearDisplayName);
+                    } else if let Some(s) = name_val.as_str() {
+                        match canonicalize_display_name(s) {
+                            Ok(n) => ops.push(ContactPatchOp::SetDisplayName(n)),
+                            Err(msg) => {
+                                phase1_err = Some(serde_json::json!({
+                                    "type": "invalidProperties",
+                                    "properties": ["displayName"],
+                                    "description": msg
+                                }));
+                            }
+                        }
+                    } else {
+                        phase1_err = Some(serde_json::json!({
+                            "type": "invalidProperties",
+                            "properties": ["displayName"]
+                        }));
+                    }
+                }
+            }
+            // Reject any unrecognized patch keys.  RFC 8620 §7.1 SHOULD return
+            // invalidProperties for unknown properties; also ensures mixed patches
+            // ({blocked:true, unknownField:"x"}) don't silently drop the unknown key.
+            if phase1_err.is_none() {
+                let unknown: Vec<&str> = patch
+                    .as_object()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|(k, _)| {
+                        if matches!(k.as_str(), "blocked" | "displayName") {
+                            None
+                        } else {
+                            Some(k.as_str())
+                        }
+                    })
+                    .collect();
+                if !unknown.is_empty() {
+                    phase1_err = Some(serde_json::json!({
+                        "type": "invalidProperties",
+                        "properties": unknown,
+                        "description": "unrecognized patch properties"
+                    }));
                 }
             }
 
-            // displayName field
-            if let Some(name_val) = patch.get("displayName") {
-                let name = if name_val.is_null() {
-                    // null clears the display name
-                    match store.clear_contact_display_name(id).await {
+            if let Some(err) = phase1_err {
+                not_updated.insert(id.clone(), err);
+                continue;
+            }
+
+            // ── Phase 2 (writes, only if Phase 1 passed) ─────────────────────
+            if ops.is_empty() {
+                // Phase 1 passed with no ops: patch was {} (empty object).
+                // RFC 8620 §7.1: empty patch is a no-op if the object exists.
+                let (_, not_found) = match store.get_contacts(Some(&[id.as_str()])).await {
+                    Ok(r) => r,
+                    Err(e) => return server_fail(&e.to_string()),
+                };
+                if not_found.is_empty() {
+                    updated.insert(id.clone(), Value::Null);
+                } else {
+                    not_updated.insert(id.clone(), serde_json::json!({"type": "notFound"}));
+                }
+                continue;
+            }
+
+            let mut update_err: Option<Value> = None;
+            for op in ops {
+                match op {
+                    ContactPatchOp::SetBlocked(b) => match store.set_contact_blocked(id, b).await {
                         Ok(true) => {}
                         Ok(false) => {
-                            not_updated.insert(id.clone(), serde_json::json!({"type":"notFound"}));
-                            continue;
+                            update_err = Some(serde_json::json!({"type": "notFound"}));
+                            break;
                         }
                         Err(e) => return server_fail(&e.to_string()),
-                    }
-                    updated.insert(id.clone(), Value::Null);
-                    continue;
-                } else if let Some(s) = name_val.as_str() {
-                    match canonicalize_display_name(s) {
-                        Ok(n) => n,
-                        Err(msg) => {
-                            not_updated.insert(
-                                id.clone(),
-                                serde_json::json!({"type":"invalidProperties","properties":["displayName"],"description":msg}),
-                            );
-                            continue;
+                    },
+                    ContactPatchOp::ClearDisplayName => {
+                        match store.clear_contact_display_name(id).await {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                update_err = Some(serde_json::json!({"type": "notFound"}));
+                                break;
+                            }
+                            Err(e) => return server_fail(&e.to_string()),
                         }
                     }
-                } else {
-                    not_updated.insert(
-                        id.clone(),
-                        serde_json::json!({"type":"invalidProperties","properties":["displayName"]}),
-                    );
-                    continue;
-                };
-                match store.set_contact_display_name(id, &name).await {
-                    Ok(true) => {
-                        any_update = true;
+                    ContactPatchOp::SetDisplayName(n) => {
+                        match store.set_contact_display_name(id, &n).await {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                update_err = Some(serde_json::json!({"type": "notFound"}));
+                                break;
+                            }
+                            Err(e) => return server_fail(&e.to_string()),
+                        }
                     }
-                    Ok(false) => {
-                        not_updated.insert(id.clone(), serde_json::json!({"type":"notFound"}));
-                        continue;
-                    }
-                    Err(e) => return server_fail(&e.to_string()),
                 }
             }
 
-            if any_update {
-                updated.insert(id.clone(), Value::Null);
+            if let Some(err) = update_err {
+                not_updated.insert(id.clone(), err);
             } else {
-                // No recognized field applied and no error already recorded.
-                // RFC 8620 §7.1: empty patch {} is a no-op and belongs in
-                // updated; a non-empty patch with no recognized keys is
-                // rejected with invalidProperties.
-                if patch.as_object().map(|o| o.is_empty()).unwrap_or(false) {
-                    // RFC 8620 §7.1: empty patch is a no-op, but only if the
-                    // object exists; a nonexistent id must return notFound.
-                    let (_, not_found) = match store.get_contacts(Some(&[id.as_str()])).await {
-                        Ok(r) => r,
-                        Err(e) => return server_fail(&e.to_string()),
-                    };
-                    if not_found.is_empty() {
-                        updated.insert(id.clone(), Value::Null);
-                    } else {
-                        not_updated.insert(id.clone(), serde_json::json!({"type": "notFound"}));
-                    }
-                } else {
-                    not_updated.insert(
-                        id.clone(),
-                        serde_json::json!({
-                            "type": "invalidProperties",
-                            "properties": [],
-                            "description": "no recognized properties in patch"
-                        }),
-                    );
-                }
+                updated.insert(id.clone(), Value::Null);
             }
         }
     }
@@ -985,71 +1038,66 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
 /// documents the same invariant.
 const VALID_ROLES: &[&str] = &["admin", "moderator", "member"];
 
-/// Returns true for patch paths handled as simple space properties (name,
-/// description) rather than as member patch ops.
-///
-/// When adding a new simple Space property, update both this function and
-/// `parse_simple_space_prop` (add a variant to `SimplePropPatch`).  Phase 2
-/// in `space_set` then gets a compile-time exhaustiveness check for free.
-fn is_simple_space_prop(path: &str) -> bool {
-    matches!(path, "name" | "description")
-}
-
 /// A validated, parsed simple-space-property update ready to pass to Phase 2.
 ///
-/// Adding a new simple Space property requires adding a variant here AND an arm
-/// in `parse_simple_space_prop`.  The Phase 2 match in `space_set` is exhaustive,
-/// so the compiler will flag any missing arm at build time.
+/// Adding a new simple Space property requires:
+///   1. Adding a variant here.
+///   2. Adding an arm to `try_parse_simple_space_prop`.
+///
+/// The Phase 2 `match op {}` in `space_set` is exhaustive, so the compiler
+/// flags a missing arm at build time.  The `try_parse_simple_space_prop` match
+/// is also exhaustive — no separate routing predicate needed.
 enum SimplePropPatch<'a> {
     Name(&'a str),
     /// `None` = null value → clears the description field.
     Description(Option<&'a str>),
 }
 
-/// Parse and type-check a simple space property value in Phase 1.
+/// Try to parse a patch path as a simple space property.
 ///
-/// Returns a typed `SimplePropPatch` on success so Phase 2 can apply it
-/// without re-parsing the raw JSON.  Returns `Err(json_error)` on wrong type.
-/// The `_ =>` arm catches any path added to `is_simple_space_prop` without a
-/// corresponding variant, making the omission a visible error rather than a
-/// silent drop.
-fn parse_simple_space_prop<'a>(path: &str, value: &'a Value) -> Result<SimplePropPatch<'a>, Value> {
+/// Returns `None` if the path is not a simple space property (caller should
+/// try member-patch parsing instead).  Returns `Some(Ok(op))` on success or
+/// `Some(Err(json_error))` if the path is recognised but the value has the
+/// wrong type.
+///
+/// When adding a new simple Space property, add a variant to `SimplePropPatch`
+/// and a match arm here.  The `_` arm below is unreachable by construction —
+/// it exists to ensure the match stays exhaustive as new arms are added.
+fn try_parse_simple_space_prop<'a>(
+    path: &str,
+    value: &'a Value,
+) -> Option<Result<SimplePropPatch<'a>, Value>> {
     match path {
         "name" => {
             // name must be a non-null string.
-            let s = value.as_str().ok_or_else(|| {
+            let result = value.as_str().map(SimplePropPatch::Name).ok_or_else(|| {
                 serde_json::json!({
                     "type": "invalidProperties",
                     "properties": ["name"],
                     "description": "name must be a string"
                 })
-            })?;
-            Ok(SimplePropPatch::Name(s))
+            });
+            Some(result)
         }
         "description" => {
             // description may be null (to clear it) or a string.
             if value.is_null() {
-                Ok(SimplePropPatch::Description(None))
+                Some(Ok(SimplePropPatch::Description(None)))
             } else {
-                let s = value.as_str().ok_or_else(|| {
-                    serde_json::json!({
-                        "type": "invalidProperties",
-                        "properties": ["description"],
-                        "description": "description must be a string or null"
-                    })
-                })?;
-                Ok(SimplePropPatch::Description(Some(s)))
+                let result = value
+                    .as_str()
+                    .map(|s| SimplePropPatch::Description(Some(s)))
+                    .ok_or_else(|| {
+                        serde_json::json!({
+                            "type": "invalidProperties",
+                            "properties": ["description"],
+                            "description": "description must be a string or null"
+                        })
+                    });
+                Some(result)
             }
         }
-        _ => {
-            // A path that passes is_simple_space_prop but has no arm here means
-            // someone added to is_simple_space_prop without adding a variant.
-            // Return invalidPatch so the omission is immediately visible.
-            Err(serde_json::json!({
-                "type": "invalidPatch",
-                "description": format!("unrecognized patch path: {path}")
-            }))
-        }
+        _ => None, // not a simple space property; caller tries member-patch next
     }
 }
 
@@ -1167,15 +1215,16 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // role or wrong-type name rejects the whole patch with no writes.
                 // `simple_ops` and `member_ops` are consumed by Phase 2.
                 for (path, value) in patch_map.iter() {
-                    if is_simple_space_prop(path) {
-                        match parse_simple_space_prop(path, value) {
-                            Ok(op) => simple_ops.push(op),
-                            Err(e) => {
-                                update_err = Some(e);
-                                break;
-                            }
+                    match try_parse_simple_space_prop(path, value) {
+                        Some(Ok(op)) => {
+                            simple_ops.push(op);
+                            continue;
                         }
-                        continue;
+                        Some(Err(e)) => {
+                            update_err = Some(e);
+                            break;
+                        }
+                        None => {} // not a simple prop; fall through to member-patch
                     }
                     // validate_member_patch guarantees "members/" prefix and
                     // non-empty contact_id, so the strip_prefix below is safe.
@@ -2869,7 +2918,7 @@ mod tests {
     }
 
     // Regression: name/description patch paths must be handled as simple props
-    // and not treated as unknown member-patch paths.  Before is_simple_space_prop
+    // and not treated as unknown member-patch paths.  Before try_parse_simple_space_prop
     // was introduced, they fell through to member-patch validation and returned
     // invalidPatch.
     #[tokio::test]
@@ -3468,6 +3517,61 @@ mod tests {
         );
     }
 
+    /// Mixed patch with one recognized and one unrecognized key must appear in
+    /// notUpdated with invalidProperties.  Before the fix, the recognized write
+    /// (blocked) would succeed and the id would appear in updated, silently
+    /// dropping the unknown key.
+    #[tokio::test]
+    async fn test_contact_set_mixed_known_unknown_keys_returns_invalid_properties() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        state
+            .store()
+            .unwrap()
+            .upsert_chat_contact(&pub_id)
+            .await
+            .unwrap();
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": { pub_id.clone(): { "blocked": true, "unknownField": "x" } }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"]
+                .as_object()
+                .map(|m| m.contains_key(pub_id.as_str()))
+                .unwrap_or(false),
+            "mixed known+unknown keys must appear in notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][pub_id.as_str()]["type"]
+                .as_str()
+                .unwrap(),
+            "invalidProperties",
+        );
+        // Verify blocked was NOT written (the patch must be rejected atomically).
+        let (rows, _) = state
+            .store()
+            .unwrap()
+            .get_contacts(Some(&[pub_id.as_str()]))
+            .await
+            .unwrap();
+        assert!(
+            !rows[0].blocked,
+            "blocked must remain false — unknown key must reject the whole patch"
+        );
+    }
+
     // ── nie-0kki.3: negative position/limit must not panic ───────────────────
 
     /// ChatContact/query with position=-1 must return invalidArguments, not panic.
@@ -3894,6 +3998,72 @@ mod tests {
                 .map(|m| m.contains_key(nonexistent_id))
                 .unwrap_or(false),
             "nonexistent contact must not appear in updated"
+        );
+    }
+
+    // ── nie-uf6a.1: contact_set atomicity ────────────────────────────────────
+
+    /// Regression: PATCH {"blocked":true, "displayName":42} must be fully
+    /// rejected — blocked must NOT be written even though it is individually
+    /// valid.  Before Phase 1 validation was added, set_contact_blocked wrote
+    /// blocked=true and then displayName:42 failed the type check, producing
+    /// notUpdated while the blocked change had already been persisted (RFC 8620
+    /// §7.1 atomicity violation).
+    #[tokio::test]
+    async fn test_contact_set_blocked_and_bad_displayname_type_is_atomic() {
+        let state = make_store_state().await;
+        let pub_id = "a".repeat(64);
+        state
+            .store()
+            .unwrap()
+            .upsert_chat_contact(&pub_id)
+            .await
+            .unwrap();
+
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "ChatContact/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "update": {
+                        pub_id.clone(): { "blocked": true, "displayName": 42 }
+                    }
+                }),
+                "c1".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        assert!(
+            result["notUpdated"][pub_id.as_str()].is_object(),
+            "bad displayName type must land in notUpdated: {result}"
+        );
+        assert_eq!(
+            result["notUpdated"][pub_id.as_str()]["type"],
+            "invalidProperties",
+            "error type must be invalidProperties"
+        );
+        assert!(
+            result["updated"]
+                .as_object()
+                .map(|m| m.is_empty())
+                .unwrap_or(true),
+            "updated must be empty — blocked must not have been written"
+        );
+
+        // Verify blocked was NOT written to the DB (the whole patch must be atomic).
+        let (rows, _) = state
+            .store()
+            .unwrap()
+            .get_contacts(Some(&[pub_id.as_str()]))
+            .await
+            .unwrap();
+        assert!(
+            !rows[0].blocked,
+            "blocked must remain false after atomicity violation was prevented"
         );
     }
 

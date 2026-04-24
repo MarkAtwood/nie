@@ -684,22 +684,16 @@ impl Store {
         }
 
         if space_changed {
-            sqlx::query(
-                "INSERT INTO state_version (type_name, seq) VALUES (?, 1)
-                 ON CONFLICT(type_name) DO UPDATE SET seq = seq + 1",
-            )
-            .bind("Space")
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+                .bind("Space")
+                .execute(&mut *tx)
+                .await?;
         }
         if members_changed {
-            sqlx::query(
-                "INSERT INTO state_version (type_name, seq) VALUES (?, 1)
-                 ON CONFLICT(type_name) DO UPDATE SET seq = seq + 1",
-            )
-            .bind("SpaceMember")
-            .execute(&mut *tx)
-            .await?;
+            sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+                .bind("SpaceMember")
+                .execute(&mut *tx)
+                .await?;
         }
 
         tx.commit().await?;
@@ -950,6 +944,15 @@ impl Store {
 
     // ── State tokens ─────────────────────────────────────────────────────
 
+    /// SQL that atomically inserts or increments a state_version counter.
+    ///
+    /// Used by `bump_state_seq` (pool-level writes) and by `update_space_fully`
+    /// (transaction-level writes).  If the `state_version` schema ever changes,
+    /// update this constant — both callers get the change automatically.
+    const BUMP_STATE_SEQ_SQL: &'static str =
+        "INSERT INTO state_version (type_name, seq) VALUES (?, 1)
+         ON CONFLICT(type_name) DO UPDATE SET seq = seq + 1";
+
     pub async fn state_token(&self, type_name: &str) -> Result<String> {
         let seq: i64 = sqlx::query_scalar("SELECT seq FROM state_version WHERE type_name = ?")
             .bind(type_name)
@@ -960,13 +963,10 @@ impl Store {
     }
 
     async fn bump_state_seq(&self, type_name: &str) -> Result<()> {
-        sqlx::query(
-            "INSERT INTO state_version (type_name, seq) VALUES (?, 1)
-             ON CONFLICT(type_name) DO UPDATE SET seq = seq + 1",
-        )
-        .bind(type_name)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+            .bind(type_name)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
