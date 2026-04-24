@@ -19,6 +19,23 @@ class MainActivity : FlutterActivity() {
     // result.success(null) is correct: the channel contract is void → void.
     private var pendingPermissionResult: MethodChannel.Result? = null
 
+    override fun onDestroy() {
+        // If the Activity is destroyed (rotation, system kill) while the
+        // POST_NOTIFICATIONS dialog is showing, the Dart caller of
+        // invokeMethod('requestNotificationPermission') would hang forever
+        // because onRequestPermissionsResult never fires.  Sending an error
+        // here unblocks it; BackgroundService._requestNotificationPermission
+        // catches PlatformException and swallows it, so the foreground
+        // service simply does not start for this session rather than hanging.
+        pendingPermissionResult?.error(
+            "ACTIVITY_DESTROYED",
+            "Activity destroyed before permission dialog was dismissed",
+            null,
+        )
+        pendingPermissionResult = null
+        super.onDestroy()
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
