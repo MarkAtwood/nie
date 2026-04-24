@@ -600,7 +600,8 @@ impl Store {
         &self,
         space_id: &str,
         name: Option<&str>,
-        description: Option<&str>,
+        // None = leave unchanged; Some(None) = clear to NULL; Some(Some(s)) = set to s.
+        description: Option<Option<&str>>,
         member_ops: &[SpaceMemberOp<'a>],
     ) -> Result<bool> {
         let mut tx = self.pool.begin().await?;
@@ -621,6 +622,8 @@ impl Store {
 
         if name.is_some() || description.is_some() {
             // Space confirmed to exist above; UPDATE always affects 1 row.
+            // description is Option<Option<&str>>: Some(None)=clear, Some(Some(s))=set.
+            // sqlx binds Option<&str> as SQL NULL when None, or the value when Some.
             match (name, description) {
                 (Some(n), Some(d)) => {
                     sqlx::query("UPDATE space SET name = ?, description = ? WHERE id = ?")

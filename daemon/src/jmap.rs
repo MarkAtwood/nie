@@ -1204,11 +1204,13 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // prop requires a new variant, and the compiler flags missing arms.
                 if update_err.is_none() {
                     let mut new_name: Option<&str> = None;
-                    let mut new_desc: Option<&str> = None;
+                    // None = description not in patch; Some(inner) = patch present,
+                    // where inner=None clears the field and inner=Some(s) sets it.
+                    let mut new_desc: Option<Option<&str>> = None;
                     for op in &simple_ops {
                         match op {
                             SimplePropPatch::Name(n) => new_name = Some(n),
-                            SimplePropPatch::Description(d) => new_desc = *d,
+                            SimplePropPatch::Description(d) => new_desc = Some(*d),
                         }
                     }
                     match store
@@ -4094,14 +4096,37 @@ mod tests {
         );
     }
 
-    /// description: null is valid — it clears the description field.
+    /// description: null clears the description field.  The oracle is a
+    /// follow-up Space/get that verifies the DB value is actually null —
+    /// not just that the set response reports success.
     #[tokio::test]
-    async fn test_space_set_description_null_is_valid() {
+    async fn test_space_set_description_null_clears_description() {
         let state = make_store_state().await;
         let pub_id = "a".repeat(64);
-        let space_id = create_test_space(&state, "HasDesc").await;
 
-        let req = JmapRequest {
+        // Create a space that starts with a non-null description so the clear
+        // is a real write, not a vacuous no-op.
+        let create_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/set".to_string(),
+                serde_json::json!({
+                    "accountId": pub_id,
+                    "create": { "s1": { "name": "HasDesc", "description": "will be cleared" } }
+                }),
+                "c0".to_string(),
+            )],
+        };
+        let Json(create_resp) = handle_jmap_request(State(state.clone()), Json(create_req))
+            .await
+            .unwrap();
+        let space_id = create_resp.method_responses[0].1["created"]["s1"]["id"]
+            .as_str()
+            .expect("created space must have id")
+            .to_string();
+
+        // Patch description to null.
+        let patch_req = JmapRequest {
             using: vec![CAP_CHAT.to_string()],
             method_calls: vec![MethodCall(
                 "Space/set".to_string(),
@@ -4112,16 +4137,35 @@ mod tests {
                 "c1".to_string(),
             )],
         };
-        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+        let Json(patch_resp) = handle_jmap_request(State(state.clone()), Json(patch_req))
             .await
             .unwrap();
-        let MethodResponse(_, result, _) = &resp.method_responses[0];
+        let MethodResponse(_, result, _) = &patch_resp.method_responses[0];
         assert!(
             result["updated"]
                 .as_object()
                 .unwrap()
                 .contains_key(&space_id),
-            "description: null must be accepted (clears description): {result}"
+            "description: null must be accepted: {result}"
+        );
+
+        // Verify the description is actually null in the DB, not just that the
+        // set response claimed success.
+        let get_req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Space/get".to_string(),
+                serde_json::json!({ "accountId": pub_id, "ids": [space_id.clone()] }),
+                "c2".to_string(),
+            )],
+        };
+        let Json(get_resp) = handle_jmap_request(State(state.clone()), Json(get_req))
+            .await
+            .unwrap();
+        assert!(
+            get_resp.method_responses[0].1["list"][0]["description"].is_null(),
+            "description must be null after null patch: {:?}",
+            get_resp.method_responses[0].1["list"][0]
         );
     }
 }
