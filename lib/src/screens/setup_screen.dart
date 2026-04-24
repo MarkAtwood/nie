@@ -85,6 +85,9 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Future<void> _restore() async {
+    // Clear previous input so the dialog always opens with an empty field.
+    // Without this, a cancelled restore leaves old hex text visible on reopen.
+    _seedHexController.clear();
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(

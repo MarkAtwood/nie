@@ -1,4 +1,4 @@
-package com.example.nie
+package io.nie.app
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -16,8 +16,8 @@ class NieForegroundService : Service() {
     companion object {
         const val CHANNEL_ID = "nie_relay_channel"
         const val NOTIFICATION_ID = 1
-        const val ACTION_START = "com.example.nie.START"
-        const val ACTION_STOP = "com.example.nie.STOP"
+        const val ACTION_START = "io.nie.app.START"
+        const val ACTION_STOP = "io.nie.app.STOP"
     }
 
     private var wakeLock: PowerManager.WakeLock? = null
@@ -42,7 +42,10 @@ class NieForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> {
+            // null intent: OS restarted the service after killing it (START_STICKY).
+            // START_STICKY delivers null, not the last intent, so we must handle it
+            // explicitly to avoid running as an unprovisioned background service.
+            ACTION_START, null -> {
                 // startForeground() throws SecurityException on Android 14+ if the
                 // FOREGROUND_SERVICE_CONNECTED_DEVICE permission is missing, and on
                 // Android 13+ if POST_NOTIFICATIONS was denied. Catch it so the app
@@ -66,7 +69,7 @@ class NieForegroundService : Service() {
             }
         }
         // START_STICKY: if the OS kills this service under memory pressure it will
-        // restart it with ACTION_START so the relay notification comes back.
+        // restart onStartCommand with a null intent (not ACTION_START), handled above.
         return START_STICKY
     }
 
@@ -96,7 +99,7 @@ class NieForegroundService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("nie")
-            .setContentText("Relay connected")
+            .setContentText("nie is running")
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)

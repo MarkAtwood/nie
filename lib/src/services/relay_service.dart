@@ -66,6 +66,12 @@ List<int>? _unpad(List<int> padded) {
 // ---- RelayService --------------------------------------------------------
 
 class RelayService extends ChangeNotifier {
+  final BackgroundService _bgService;
+
+  /// [bgService] is injectable for testing; defaults to a real platform implementation.
+  RelayService({BackgroundService? bgService})
+      : _bgService = bgService ?? BackgroundService();
+
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _sub;
   String? _pubId;
@@ -82,7 +88,8 @@ class RelayService extends ChangeNotifier {
 
   final List<ChatMessage> _messages = [];
   final List<UserEntry> _onlineUsers = [];
-  final Set<String> _typingUsers = {};
+  // _typingTimers is the single source of truth for who is currently typing.
+  // The set of typing users is exactly _typingTimers.keys; no parallel Set needed.
   final Map<String, Timer> _typingTimers = {};
 
   bool get connected => _connected;
@@ -92,7 +99,7 @@ class RelayService extends ChangeNotifier {
 
   List<ChatMessage> get messages => List.unmodifiable(_messages);
   List<UserEntry> get onlineUsers => List.unmodifiable(_onlineUsers);
-  Set<String> get typingUsers => Set.unmodifiable(_typingUsers);
+  Set<String> get typingUsers => Set.unmodifiable(_typingTimers.keys);
 
   // ---- Connect / disconnect ----------------------------------------------
 
@@ -104,6 +111,10 @@ class RelayService extends ChangeNotifier {
     _relayUrl = relayUrl;
     _error = null;
     _authFailed = false;
+    // Clear stale typing state so a reconnect doesn't show indicators from
+    // the previous session (peers may have stopped typing while we were gone).
+    for (final t in _typingTimers.values) t.cancel();
+    _typingTimers.clear();
 
     final pub = await keyPair.extractPublicKey();
     final hash = crypto.sha256.convert(pub.bytes);
@@ -149,7 +160,10 @@ class RelayService extends ChangeNotifier {
     _channel = null;
     _connected = false;
     _reconnecting = false;
-    BackgroundService.stop();
+    // Cancel pending typing timers so they don't fire after teardown.
+    for (final t in _typingTimers.values) t.cancel();
+    _typingTimers.clear();
+    _bgService.stop();
     notifyListeners();
   }
 
@@ -199,7 +213,7 @@ class RelayService extends ChangeNotifier {
         _reconnecting = false;
         _reconnectDelaySecs = 2;
         notifyListeners();
-        BackgroundService.start();
+        _bgService.start();
       }
     } else if (msg.containsKey('error')) {
       final errMap = msg['error'];
@@ -215,11 +229,10 @@ class RelayService extends ChangeNotifier {
         // reconnect with a different identity doesn't show stale indicators.
         for (final t in _typingTimers.values) t.cancel();
         _typingTimers.clear();
-        _typingUsers.clear();
-        _onlineUsers.clear();
+            _onlineUsers.clear();
         // Auth permanently rejected — stop the foreground service so the
         // notification doesn't keep showing "Relay connected" while disconnected.
-        BackgroundService.stop();
+        _bgService.stop();
         _sub?.cancel();
         _channel?.sink.close();
       }
@@ -317,15 +330,13 @@ class RelayService extends ChangeNotifier {
   void _setTyping(String pubId, bool typing) {
     _typingTimers[pubId]?.cancel();
     if (typing) {
-      _typingUsers.add(pubId);
       // Auto-dismiss after 4 s in case the peer's "stop typing" is lost.
+      // Presence in _typingTimers is what makes pubId appear in typingUsers.
       _typingTimers[pubId] = Timer(const Duration(seconds: 4), () {
-        _typingUsers.remove(pubId);
         _typingTimers.remove(pubId);
         notifyListeners();
       });
     } else {
-      _typingUsers.remove(pubId);
       _typingTimers.remove(pubId);
     }
     notifyListeners();

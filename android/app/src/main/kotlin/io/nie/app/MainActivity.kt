@@ -1,4 +1,4 @@
-package com.example.nie
+package io.nie.app
 
 import android.Manifest
 import android.content.Intent
@@ -32,7 +32,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.example.nie/background")
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "io.nie.app/background")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "requestNotificationPermission" -> {
