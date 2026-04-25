@@ -15,6 +15,13 @@ pub fn load_identity(keyfile_path: &str, no_passphrase: bool) -> Result<Identity
     if !std::path::Path::new(keyfile_path).exists() {
         bail!("no keyfile at {keyfile_path}. Run `nie init` first.");
     }
+    let meta = std::fs::metadata(keyfile_path)?;
+    if meta.len() > 1024 * 1024 {
+        anyhow::bail!(
+            "keyfile too large: {} bytes (expected < 1 MiB)",
+            meta.len()
+        );
+    }
     let ciphertext = std::fs::read(keyfile_path)?;
 
     let passphrase: Zeroizing<String> = if no_passphrase {
@@ -25,8 +32,7 @@ pub fn load_identity(keyfile_path: &str, no_passphrase: bool) -> Result<Identity
     };
 
     let seed = decrypt_keyfile(&ciphertext, &passphrase)?;
-    let identity = Identity::from_secret_bytes(&seed);
-    identity
+    Identity::from_secret_bytes(&seed)
 }
 
 /// Encrypt the 64-byte keyfile payload (Ed25519_seed || X25519_seed) with a

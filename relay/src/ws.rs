@@ -1203,6 +1203,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Validate recipient pub_id: must be exactly 64 lowercase hex chars.
                         if params.to.len() != 64
                             || !params
@@ -1449,37 +1463,6 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
-
-                        // Caller must be a member.
-                        match state
-                            .inner
-                            .store
-                            .is_group_member(&params.group_id, &pub_id.0)
-                            .await
-                        {
-                            Ok(true) => {}
-                            Ok(false) => {
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::NOT_A_MEMBER,
-                                    "not a member",
-                                )
-                                .await;
-                                continue;
-                            }
-                            Err(e) => {
-                                error!("is_group_member failed: {e}");
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INTERNAL_ERROR,
-                                    "internal error",
-                                )
-                                .await;
-                                continue;
-                            }
-                        }
 
                         // Enforce group size cap and add the new member atomically.
                         // COUNT + INSERT run inside a single transaction so two concurrent
@@ -1895,34 +1878,10 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
-                        // Allocate a fresh Sapling payment address using the relay
-                        // store's diversifier counter (the same two-step advance as
-                        // alloc_fresh_address in nie-wallet, inlined here because the
-                        // relay's Store is not a WalletStore).
-                        let address_str = match alloc_subscription_address(
-                            &merchant.dfvk,
-                            &state.inner.store,
-                            &merchant.network,
-                            &state.inner.subscription_alloc_lock,
-                        )
-                        .await
-                        {
-                            Ok(a) => a,
-                            Err(e) => {
-                                error!("alloc_subscription_address failed: {e}");
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INTERNAL_ERROR,
-                                    "internal error",
-                                )
-                                .await;
-                                continue;
-                            }
-                        };
-                        // Cap duration_days to the operator-configured maximum.
-                        // A u32 with no upper bound could request multi-millennium
-                        // subscriptions that overflow chrono::Duration::days().
+                        // Validate duration_days BEFORE allocating a diversifier index.
+                        // Allocating first and then rejecting burns diversifier indices
+                        // with no invoice created — a client sending duration_days: 0
+                        // repeatedly would exhaust the counter.
                         if params.duration_days == 0 {
                             send_client_error(
                                 &client_tx,
@@ -1933,6 +1892,9 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // Cap duration_days to the operator-configured maximum.
+                        // A u32 with no upper bound could request multi-millennium
+                        // subscriptions that overflow chrono::Duration::days().
                         let max_days = state.inner.subscription_days;
                         if params.duration_days as u64 > max_days {
                             send_client_error(
@@ -1958,6 +1920,31 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // Allocate a fresh Sapling payment address using the relay
+                        // store's diversifier counter (the same two-step advance as
+                        // alloc_fresh_address in nie-wallet, inlined here because the
+                        // relay's Store is not a WalletStore).
+                        let address_str = match alloc_subscription_address(
+                            &merchant.dfvk,
+                            &state.inner.store,
+                            &merchant.network,
+                            &state.inner.subscription_alloc_lock,
+                        )
+                        .await
+                        {
+                            Ok(a) => a,
+                            Err(e) => {
+                                error!("alloc_subscription_address failed: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
+                        };
                         let days = params.duration_days as i64;
                         let expires_at = (chrono::Utc::now() + chrono::Duration::days(days))
                             .format("%Y-%m-%d %H:%M:%S")

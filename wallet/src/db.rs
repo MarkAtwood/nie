@@ -529,23 +529,38 @@ impl WalletStore {
     /// Sessions without an address are excluded: they have not yet generated a
     /// receiving address and cannot be matched against incoming transactions.
     pub async fn sessions_to_watch(&self) -> Result<Vec<PaymentSession>> {
-        // These states represent "payee awaiting on-chain confirmation".
-        // If a new PaymentState for in-flight confirmation is added to the enum,
-        // it must also be added to this filter or sessions will be silently dropped
-        // from the watcher on restart.
-        sqlx::query_as::<_, SessionRow>(
+        // Fetch all payee sessions with an address and filter in Rust using an
+        // exhaustive match on PaymentState.  This ensures the compiler flags any
+        // new variant that is added to the enum without a conscious decision about
+        // whether it needs watching — the build will fail rather than silently
+        // dropping sessions from the watcher on restart.
+        let rows = sqlx::query_as::<_, SessionRow>(
             "SELECT session_id, peer_pub_id, role, state, chain,
                     amount_zatoshi, tx_hash, address, created_at, updated_at
              FROM payment_sessions
-             WHERE role   = 'payee'
-               AND state IN ('address_provided', 'sent')
+             WHERE role    = 'payee'
                AND address IS NOT NULL",
         )
         .fetch_all(&self.pool)
-        .await?
-        .into_iter()
-        .map(session_from_row)
-        .collect()
+        .await?;
+
+        let sessions = rows
+            .into_iter()
+            .map(session_from_row)
+            .collect::<Result<Vec<_>>>()?;
+
+        let watchable = sessions
+            .into_iter()
+            .filter(|s| match s.state {
+                PaymentState::AddressProvided | PaymentState::Sent => true,
+                PaymentState::Requested
+                | PaymentState::Confirmed
+                | PaymentState::Failed
+                | PaymentState::Expired => false,
+            })
+            .collect();
+
+        Ok(watchable)
     }
 
     // ---- notes ----

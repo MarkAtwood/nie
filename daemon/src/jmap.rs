@@ -200,29 +200,27 @@ async fn build_session(state: &DaemonState) -> Result<Session, StatusCode> {
 }
 
 /// Aggregate state token: concatenate per-type tokens to detect any change.
+///
+/// All 7 reads execute inside a single SQLite read transaction (nie-zvzr) so
+/// the composite token reflects a consistent snapshot even if a concurrent
+/// writer commits between reads.
 async fn session_state_token(state: &DaemonState) -> Result<String, StatusCode> {
     let Some(store) = state.store() else {
         // No store → stable token.
         return Ok("0".to_string());
     };
-    // Build a composite token from all tracked types.  If any type changes,
-    // the concatenation changes — simple, no hashing needed for a local server.
-    let mut parts = Vec::with_capacity(7);
-    for type_name in &[
-        "ChatContact",
-        "Chat",
-        "Message",
-        "Space",
-        "SpaceMember",
-        "SpaceInvite",
-        "Category",
-    ] {
-        let tok = store
-            .state_token(type_name)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        parts.push(tok);
-    }
+    let parts = store
+        .state_token_snapshot(&[
+            "ChatContact",
+            "Chat",
+            "Message",
+            "Space",
+            "SpaceMember",
+            "SpaceInvite",
+            "Category",
+        ])
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(parts.join(":"))
 }
 

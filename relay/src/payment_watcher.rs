@@ -324,9 +324,16 @@ async fn activate_subscription(state: &AppState, invoice: &InvoiceRow) -> anyhow
     // rather than recomputing from the current runtime subscription_days.
     // If the operator changes SUBSCRIPTION_DAYS after the invoice was created,
     // the subscriber still gets the duration they were promised.
-    let expires_at = chrono::NaiveDateTime::parse_from_str(&invoice.expires_at, "%Y-%m-%d %H:%M:%S")
+    let parsed_expires_at = chrono::NaiveDateTime::parse_from_str(&invoice.expires_at, "%Y-%m-%d %H:%M:%S")
         .map_err(|e| anyhow::anyhow!("invoice expires_at parse error ({:?}): {e}", invoice.expires_at))?
         .and_utc();
+    // If the invoice expired before the confirmed payment arrived, grant a
+    // fresh subscription from now rather than activating an already-past expiry.
+    // The subscriber paid; they must receive what they paid for.
+    let expires_at = parsed_expires_at.max(
+        chrono::Utc::now()
+            + chrono::Duration::days(state.inner.subscription_days as i64),
+    );
 
     // 1. Write subscription and delete invoice atomically so a crash between
     //    the two operations cannot trigger a double-activation or silent loss.

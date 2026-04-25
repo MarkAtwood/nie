@@ -543,12 +543,18 @@ impl Store {
     }
 
     pub async fn create_space(&self, id: &str, name: &str) -> Result<()> {
-        sqlx::query("INSERT OR IGNORE INTO space (id, name) VALUES (?, ?)")
+        let rows = sqlx::query("INSERT OR IGNORE INTO space (id, name) VALUES (?, ?)")
             .bind(id)
             .bind(name)
             .execute(&self.pool)
-            .await?;
-        self.bump_state_seq("Space").await?;
+            .await?
+            .rows_affected();
+        // Only bump when a new row was actually inserted (nie-dyok).
+        // INSERT OR IGNORE is a no-op when the space already exists, so
+        // rows_affected == 0 means the state has not changed.
+        if rows > 0 {
+            self.bump_state_seq("Space").await?;
+        }
         Ok(())
     }
 
@@ -973,52 +979,62 @@ impl Store {
         code: &str,
         user_pub_id: &str,
     ) -> Result<Option<String>> {
-        // Wrap in a transaction so that the lookup and the membership insert are
-        // atomic.  Without this, two concurrent requests with the same code can
-        // both pass the SELECT and both call upsert_space_member_with_role
-        // (TOCTOU).  SQLite serialises writers, so a BEGIN EXCLUSIVE here closes
-        // the window.
-        let mut tx = self.pool.begin().await?;
-        let row: Option<(String, Option<String>)> =
-            sqlx::query_as("SELECT space_id, expires_at FROM space_invite WHERE code = ?")
-                .bind(code)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let Some((space_id, expires_at)) = row else {
-            return Ok(None);
-        };
-        // Reject expired invites. Parse both sides as DateTime to avoid fragile
-        // lexicographic string comparison (which breaks if formats diverge).
-        if let Some(exp) = &expires_at {
-            let now = chrono::Utc::now();
-            // Accept RFC 3339 (with T/offset) and the common "%Y-%m-%d %H:%M:%S" variant.
-            let expired = chrono::DateTime::parse_from_rfc3339(exp)
-                .map(|t| t <= now)
-                .or_else(|_| {
-                    chrono::NaiveDateTime::parse_from_str(exp, "%Y-%m-%d %H:%M:%S")
-                        .map(|t| t <= now.naive_utc())
-                })
-                .unwrap_or(true); // treat unparseable expiry as expired
-            if expired {
+        // Use a raw connection with BEGIN IMMEDIATE so the write lock is
+        // acquired at transaction start (nie-jtbr).  pool.begin() issues
+        // BEGIN DEFERRED; issuing BEGIN IMMEDIATE on top creates a nested
+        // transaction error, so we acquire the connection manually.
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+
+        let result: Result<Option<String>> = async {
+            let row: Option<(String, Option<String>)> =
+                sqlx::query_as("SELECT space_id, expires_at FROM space_invite WHERE code = ?")
+                    .bind(code)
+                    .fetch_optional(&mut *conn)
+                    .await?;
+            let Some((space_id, expires_at)) = row else {
                 return Ok(None);
+            };
+            // Reject expired invites.
+            if let Some(exp) = &expires_at {
+                let now = chrono::Utc::now();
+                let expired = chrono::DateTime::parse_from_rfc3339(exp)
+                    .map(|t| t <= now)
+                    .or_else(|_| {
+                        chrono::NaiveDateTime::parse_from_str(exp, "%Y-%m-%d %H:%M:%S")
+                            .map(|t| t <= now.naive_utc())
+                    })
+                    .unwrap_or(true);
+                if expired {
+                    return Ok(None);
+                }
             }
-        }
-        sqlx::query(
-            "INSERT INTO space_member (space_id, contact_id, role)
-             VALUES (?, ?, ?)
-             ON CONFLICT(space_id, contact_id) DO UPDATE SET role = excluded.role",
-        )
-        .bind(&space_id)
-        .bind(user_pub_id)
-        .bind(SpaceRole::Member.as_str())
-        .execute(&mut *tx)
-        .await?;
-        sqlx::query(Self::BUMP_STATE_SEQ_SQL)
-            .bind("SpaceMember")
-            .execute(&mut *tx)
+            sqlx::query(
+                "INSERT INTO space_member (space_id, contact_id, role)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT(space_id, contact_id) DO UPDATE SET role = excluded.role",
+            )
+            .bind(&space_id)
+            .bind(user_pub_id)
+            .bind(SpaceRole::Member.as_str())
+            .execute(&mut *conn)
             .await?;
-        tx.commit().await?;
-        Ok(Some(space_id))
+            sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+                .bind("SpaceMember")
+                .execute(&mut *conn)
+                .await?;
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+            Ok(Some(space_id))
+        }
+        .await;
+
+        // Rollback on any error or early Ok(None) — COMMIT was only issued on
+        // Ok(Some(_)), so this is safe to call unconditionally on other paths.
+        if !matches!(&result, Ok(Some(_))) {
+            let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
+        }
+
+        result
     }
 
     // ── Category ──────────────────────────────────────────────────────────────
@@ -1169,6 +1185,26 @@ impl Store {
             .await?
             .unwrap_or(1);
         Ok(seq.to_string())
+    }
+
+    /// Read the state tokens for `type_names` in a single read-only transaction
+    /// (nie-zvzr).  All reads see the same SQLite snapshot so the returned
+    /// tokens are mutually consistent even if a concurrent writer commits
+    /// between individual reads.
+    pub async fn state_token_snapshot(&self, type_names: &[&str]) -> Result<Vec<String>> {
+        let mut tx = self.pool.begin().await?;
+        let mut tokens = Vec::with_capacity(type_names.len());
+        for &type_name in type_names {
+            let seq: i64 =
+                sqlx::query_scalar("SELECT seq FROM state_version WHERE type_name = ?")
+                    .bind(type_name)
+                    .fetch_optional(&mut *tx)
+                    .await?
+                    .unwrap_or(1);
+            tokens.push(seq.to_string());
+        }
+        tx.commit().await?;
+        Ok(tokens)
     }
 
     async fn bump_state_seq(&self, type_name: &str) -> Result<()> {

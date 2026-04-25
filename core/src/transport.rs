@@ -581,26 +581,34 @@ fn relay_socket_addr(relay_url: &str) -> Result<String> {
 }
 
 /// Read the next text frame from the stream, skipping ping/pong frames.
-/// Returns an error if the connection closes before a text frame arrives.
+/// Returns an error if the connection closes before a text frame arrives,
+/// or if 30 seconds elapse without a text frame (guards against ping floods).
 async fn recv_text_frame(stream: &mut WsStream, context: &str) -> Result<String> {
-    loop {
-        match stream.next().await {
-            Some(Ok(Message::Text(t))) => return Ok(t.to_string()),
-            Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
-                // Ignore ping/pong frames and keep waiting.
-                continue;
+    tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        async {
+            loop {
+                match stream.next().await {
+                    Some(Ok(Message::Text(t))) => return Ok(t.to_string()),
+                    Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
+                        // Ignore ping/pong frames and keep waiting.
+                        continue;
+                    }
+                    Some(Ok(other)) => {
+                        anyhow::bail!("expected text frame for {context}, got: {other:?}");
+                    }
+                    Some(Err(e)) => {
+                        return Err(e).with_context(|| format!("reading {context} frame"));
+                    }
+                    None => {
+                        anyhow::bail!("relay closed connection before {context}");
+                    }
+                }
             }
-            Some(Ok(other)) => {
-                anyhow::bail!("expected text frame for {context}, got: {other:?}");
-            }
-            Some(Err(e)) => {
-                return Err(e).with_context(|| format!("reading {context} frame"));
-            }
-            None => {
-                anyhow::bail!("relay closed connection before {context}");
-            }
-        }
-    }
+        },
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("timeout waiting for relay response ({context})"))?
 }
 
 /// Parse an incoming text frame as either a JSON-RPC notification or response.

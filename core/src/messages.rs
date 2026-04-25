@@ -64,7 +64,10 @@ pub enum ClearMessage {
         transfer_id: Uuid,
         /// 0-based chunk sequence number.
         seq: u32,
-        #[serde_as(as = "serde_with::base64::Base64")]
+        #[serde(
+            serialize_with = "serialize_chunk_data",
+            deserialize_with = "deserialize_chunk_data"
+        )]
         data: Vec<u8>,
     },
 
@@ -122,6 +125,36 @@ pub enum ClearMessage {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         role: Option<String>,
     },
+}
+
+/// Serialize `FileChunk.data` as standard base64.
+fn serialize_chunk_data<S>(data: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use base64::engine::general_purpose::STANDARD as B64;
+    use base64::Engine;
+    serializer.serialize_str(&B64.encode(data))
+}
+
+/// Deserialize `FileChunk.data` from base64, rejecting payloads larger than 10 MiB.
+///
+/// A hostile MLS peer cannot force the receiver to allocate an unbounded `Vec<u8>`
+/// before any application-layer check runs.
+fn deserialize_chunk_data<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use base64::engine::general_purpose::STANDARD as B64;
+    use base64::Engine;
+    let s = String::deserialize(deserializer)?;
+    let v = B64
+        .decode(s.as_bytes())
+        .map_err(|e| serde::de::Error::custom(format!("chunk data: invalid base64: {e}")))?;
+    if v.len() > 10 * 1024 * 1024 {
+        return Err(serde::de::Error::custom("chunk data too large"));
+    }
+    Ok(v)
 }
 
 /// Deserialize `receipt_type`, rejecting any value that is not a known variant.

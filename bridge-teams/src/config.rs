@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use serde::Deserialize;
 use std::path::Path;
 
@@ -48,6 +49,9 @@ impl BridgeConfig {
         if self.teams_security_token.is_empty() {
             bail!("teams_security_token must not be empty");
         }
+        B64.decode(&self.teams_security_token).map_err(|e| {
+            anyhow::anyhow!("teams_security_token is not valid base64: {e}")
+        })?;
         if !self.teams_incoming_webhook_url.starts_with("https://") {
             bail!("teams_incoming_webhook_url must start with https://");
         }

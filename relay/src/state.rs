@@ -202,6 +202,11 @@ impl AppState {
     ///
     /// Never holds the DashMap lock across an await point.
     pub async fn broadcast_to_group(&self, members: &[String], exclude: Option<&str>, msg: String) {
+        // O(1) membership test: convert the member list to a HashSet once before
+        // iterating over all connected clients.  Without this, `contains` is O(M)
+        // per client, giving O(N*M) total work at 10K clients and 100 members.
+        let members_set: std::collections::HashSet<&str> =
+            members.iter().map(String::as_str).collect();
         // Collect live channels without holding the lock across awaits.
         let channels: Vec<(String, ClientTx)> = self
             .inner
@@ -209,7 +214,7 @@ impl AppState {
             .iter()
             .flat_map(|entry| {
                 let pub_id = entry.key().clone();
-                if members.contains(&pub_id) && exclude.is_none_or(|ex| pub_id != ex) {
+                if members_set.contains(pub_id.as_str()) && exclude.is_none_or(|ex| pub_id != ex) {
                     entry
                         .value()
                         .iter()

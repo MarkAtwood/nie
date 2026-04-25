@@ -22,7 +22,7 @@ use bip39::{Language, Mnemonic};
 ///
 /// Never implement `Debug` — spending_key is key material that must never appear in
 /// tracing output.  See CLAUDE.md §Key material handling.
-#[derive(Clone)]
+#[derive(zeroize::ZeroizeOnDrop)]
 pub struct WalletMasterKey {
     /// ZIP-32 master spending key (I[0..32])
     spending_key: [u8; 32],

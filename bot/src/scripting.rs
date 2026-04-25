@@ -47,21 +47,27 @@ pub async fn run_hook(cmd_str: &str, env_vars: &[(&str, &str)]) -> Result<HookRe
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    let child = cmd
+    let mut child = cmd
         .spawn()
         .map_err(|e| BotError::Config(format!("failed to spawn hook {:?}: {e}", &argv[0])))?;
 
-    // Step 3: Wait with hard timeout
-    let result = timeout(
+    // Step 3: Wait with hard timeout.
+    // We use wait() (&mut self) rather than wait_with_output() (self) so that
+    // child remains accessible for kill() if the timeout fires.
+    let stdout_handle = child.stdout.take();
+    let stderr_handle = child.stderr.take();
+
+    let wait_result = timeout(
         Duration::from_secs(HOOK_TIMEOUT_SECS),
-        child.wait_with_output(),
+        child.wait(),
     )
     .await;
 
-    let output = match result {
-        Ok(Ok(out)) => out,
+    let status = match wait_result {
+        Ok(Ok(s)) => s,
         Ok(Err(e)) => return Err(e.into()),
         Err(_elapsed) => {
+            let _ = child.kill().await;
             return Err(BotError::ScriptTimeout {
                 path: argv[0].clone(),
                 secs: HOOK_TIMEOUT_SECS,
@@ -70,12 +76,21 @@ pub async fn run_hook(cmd_str: &str, env_vars: &[(&str, &str)]) -> Result<HookRe
         }
     };
 
+    // Collect stdout and stderr from the pipe handles now that the process has exited.
+    use tokio::io::AsyncReadExt;
+    let mut raw_stdout = Vec::new();
+    if let Some(mut h) = stdout_handle {
+        let _ = h.read_to_end(&mut raw_stdout).await;
+    }
+    let mut raw_stderr = Vec::new();
+    if let Some(mut h) = stderr_handle {
+        let _ = h.read_to_end(&mut raw_stderr).await;
+    }
+
     // Step 4: Cap stdout and stderr
-    let raw_stdout = &output.stdout[..output.stdout.len().min(HOOK_STDOUT_MAX_BYTES)];
-    let stdout = String::from_utf8_lossy(raw_stdout).into_owned();
-    let raw_stderr = &output.stderr[..output.stderr.len().min(HOOK_STDERR_MAX_BYTES)];
-    let stderr = String::from_utf8_lossy(raw_stderr).into_owned();
-    let exit_code = output.status.code().unwrap_or(-1);
+    let stdout = String::from_utf8_lossy(&raw_stdout[..raw_stdout.len().min(HOOK_STDOUT_MAX_BYTES)]).into_owned();
+    let stderr = String::from_utf8_lossy(&raw_stderr[..raw_stderr.len().min(HOOK_STDERR_MAX_BYTES)]).into_owned();
+    let exit_code = status.code().unwrap_or(-1);
 
     Ok(HookResult {
         exit_code,
