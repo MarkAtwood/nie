@@ -1078,25 +1078,6 @@ impl WalletStore {
         Ok(())
     }
 
-    /// Persist a serialized `CommitmentTree` snapshot.
-    ///
-    /// `tree_data` is the output of `write_commitment_tree()`.  Overwrites any
-    /// previously stored snapshot.  Called by the scanner after each block is
-    /// processed so that restarts do not require replaying the full chain.
-    pub async fn save_tree_state(&self, tree_data: &[u8]) -> Result<()> {
-        let result = sqlx::query("UPDATE scan_state SET tree_state = ? WHERE id = 1")
-            .bind(tree_data)
-            .execute(&self.pool)
-            .await?;
-        if result.rows_affected() != 1 {
-            return Err(anyhow::anyhow!(
-                "save_tree_state: scan_state row missing (rows_affected={})",
-                result.rows_affected()
-            ));
-        }
-        Ok(())
-    }
-
     /// Load the most recently persisted `CommitmentTree` snapshot, if any.
     ///
     /// Returns `None` for a fresh wallet (no snapshot stored yet).  The scanner

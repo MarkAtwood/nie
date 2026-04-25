@@ -182,13 +182,20 @@ async fn main() -> Result<()> {
             token::require_token,
         ));
 
+    // Routes that accept ?token= for browser clients (WebSocket and EventSource APIs
+    // cannot set Authorization headers). The token is stripped from the request URI
+    // by a middleware layer so it cannot appear in access logs if a TraceLayer is
+    // added in the future.
+    let browser_auth_routes = Router::new()
+        .route("/ws/events", get(ws_events::handle_ws_events))
+        .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
+        .route_layer(axum::middleware::from_fn(redact_token_query_param));
+
     let app = Router::new()
         .route("/", get(web::handle_index))
         .route("/index.html", get(web::handle_index))
         .route("/health", get(|| async { "ok" }))
-        .route("/ws/events", get(ws_events::handle_ws_events))
-        // EventSource: auth done inline (browser EventSource can't set headers)
-        .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
+        .merge(browser_auth_routes)
         .merge(api_router)
         .layer(cors)
         .with_state(daemon_state.clone());
@@ -248,6 +255,54 @@ async fn main() -> Result<()> {
     axum::serve(listener, app).await?;
     pid::release_pid_file(&pid_path);
     Ok(())
+}
+
+/// Middleware that strips `?token=<value>` from the request URI before the
+/// request reaches any logging layer. This prevents bearer tokens passed as
+/// query parameters (required by browser WebSocket and EventSource APIs, which
+/// cannot set Authorization headers) from appearing in access logs.
+async fn redact_token_query_param(
+    mut req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let uri = req.uri().clone();
+    if let Some(query) = uri.query() {
+        if query.contains("token=") {
+            // Rebuild the query string with the token value replaced.
+            let redacted: String = query
+                .split('&')
+                .map(|param| {
+                    if param == "token"
+                        || param.starts_with("token=")
+                        || param.starts_with("token =")
+                    {
+                        "token=REDACTED"
+                    } else {
+                        param
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("&");
+            let mut parts = uri.into_parts();
+            let new_pq = if redacted.is_empty() {
+                parts.path_and_query.as_ref().map(|pq| pq.path().to_string())
+            } else {
+                parts
+                    .path_and_query
+                    .as_ref()
+                    .map(|pq| format!("{}?{}", pq.path(), redacted))
+            };
+            if let Some(pq_str) = new_pq {
+                if let Ok(pq) = pq_str.parse::<axum::http::uri::PathAndQuery>() {
+                    parts.path_and_query = Some(pq);
+                    if let Ok(new_uri) = axum::http::Uri::from_parts(parts) {
+                        *req.uri_mut() = new_uri;
+                    }
+                }
+            }
+        }
+    }
+    next.run(req).await
 }
 
 fn data_dir() -> Result<PathBuf> {

@@ -753,6 +753,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "subtle",
  "tempfile",
  "tokio",
  "toml 0.8.23",
@@ -4578,6 +4579,7 @@ dependencies = [
  "tracing",
  "uuid",
  "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]

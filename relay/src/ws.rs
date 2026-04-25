@@ -1806,6 +1806,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // SAFETY: chrono::Duration::days() panics above i64::MAX/86400
+                        // (~106 million days). Guard here so a misconfigured
+                        // SUBSCRIPTION_DAYS cannot cause a panic at runtime.
+                        const CHRONO_MAX_DAYS: u32 = (i64::MAX / 86400) as u32;
+                        if params.duration_days > CHRONO_MAX_DAYS {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "duration_days exceeds maximum representable duration",
+                            )
+                            .await;
+                            continue;
+                        }
                         let days = params.duration_days as i64;
                         let expires_at = (chrono::Utc::now() + chrono::Duration::days(days))
                             .format("%Y-%m-%d %H:%M:%S")

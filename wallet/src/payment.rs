@@ -197,6 +197,14 @@ pub async fn send_payment<C: WalletClient>(
     // leaving a gap.  Advance the DB counter past the actual index so that
     // a future call cannot allocate the same address again (ZIP-316 §Fresh
     // subaddress per payment).  Mirrors the pattern in `alloc_fresh_address`.
+    //
+    // Accepted limitation (nie-kef6.8): this counter advance is permanent.
+    // If `build_shielded_tx` below fails (InsufficientFunds, AnchorMismatch,
+    // etc.), the allocated diversifier index is consumed but no address is
+    // used — unused diversifiers are not recycled.  Rolling back the counter
+    // is not safe because a concurrent `send_payment` or `alloc_fresh_address`
+    // call may have already taken the next index.  With 2^88 available indices
+    // exhaustion is impossible in practice; the gap is an accepted limitation.
     let change_di_start = store
         .next_diversifier(PAYMENT_ACCOUNT)
         .await

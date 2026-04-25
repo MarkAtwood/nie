@@ -159,10 +159,11 @@ where
             s
         )));
     }
-    if s == ".." {
-        return Err(serde::de::Error::custom(
-            "file name \"..\" is not allowed",
-        ));
+    if s == ".." || s == "." {
+        return Err(serde::de::Error::custom(format!(
+            "file name {:?} is not allowed",
+            s
+        )));
     }
     Ok(s)
 }
@@ -522,6 +523,7 @@ mod tests {
             "subdir/evil.sh",
             "sub\\evil.sh",
             "..",
+            ".",
             "",
         ];
 

@@ -70,10 +70,18 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
-    let rate_limit_per_min: u32 = std::env::var("RATE_LIMIT_MSG_PER_MIN")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(120);
+    let rate_limit_per_min: u32 = match std::env::var("RATE_LIMIT_MSG_PER_MIN") {
+        Err(_) => 120,
+        Ok(v) => match v.parse() {
+            Ok(n) => n,
+            Err(_) => {
+                tracing::warn!(
+                    "RATE_LIMIT_MSG_PER_MIN={v:?} is not a valid integer; using default 120"
+                );
+                120
+            }
+        },
+    };
     tracing::info!(rate_limit_per_min, "rate limit configured");
 
     let state = AppState::new(
@@ -200,13 +208,25 @@ fn load_merchant_wallet() -> Option<MerchantWallet> {
         Ok(v) => v,
     };
 
-    let network_str = std::env::var("MERCHANT_NETWORK")
-        .unwrap_or_else(|_| "testnet".to_string())
-        .to_lowercase();
-    let network = if network_str == "mainnet" {
-        ZcashNetwork::Mainnet
-    } else {
-        ZcashNetwork::Testnet
+    let network = match std::env::var("MERCHANT_NETWORK") {
+        Err(_) => {
+            tracing::warn!(
+                "MERCHANT_NETWORK not set, defaulting to testnet \
+                 — set MERCHANT_NETWORK=mainnet for production"
+            );
+            ZcashNetwork::Testnet
+        }
+        Ok(v) => match v.to_lowercase().as_str() {
+            "mainnet" => ZcashNetwork::Mainnet,
+            "testnet" => ZcashNetwork::Testnet,
+            _ => {
+                tracing::error!(
+                    "MERCHANT_NETWORK={v:?} is not recognized (expected mainnet or testnet); \
+                     refusing to start with an unknown network"
+                );
+                return None;
+            }
+        },
     };
 
     let bytes: [u8; 128] = match decode_hex_128(&hex) {

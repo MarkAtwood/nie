@@ -120,6 +120,11 @@ impl JmapClient {
             .get("apiUrl")
             .and_then(|v| v.as_str())
             .ok_or_else(|| anyhow!("JMAP session missing apiUrl"))?;
+        if !api_url.starts_with("https://") {
+            return Err(anyhow!(
+                "JMAP session returned non-https apiUrl; refusing to use it"
+            ));
+        }
         self.api_url = Some(api_url.to_string());
         Ok(())
     }

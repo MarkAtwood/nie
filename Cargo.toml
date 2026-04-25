@@ -44,6 +44,7 @@ hpke = { version = "0.12", features = ["alloc", "x25519"] }
 rand = "0.8"
 base64 = "0.22"
 sha2 = "0.10"
+zeroize = { version = "1", features = ["derive"] }
 
 # Crypto / wallet (ZIP-32 Sapling key derivation)
 bip39 = "2"

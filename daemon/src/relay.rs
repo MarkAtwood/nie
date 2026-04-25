@@ -467,6 +467,18 @@ async fn dispatch_peer_receipt(
     receipt_type: String,
     _at: String,
 ) {
+    // Validate receipt_type before writing: only these three values are legal.
+    // An MLS-authenticated peer can supply any string; reject anything outside
+    // the known set to prevent corruption of the delivery_state column.
+    let valid = matches!(receipt_type.as_str(), "sent" | "delivered" | "read");
+    if !valid {
+        tracing::warn!(
+            "peer_receipt: ignoring unknown receipt_type {:?} for message {}",
+            receipt_type,
+            message_id,
+        );
+        return;
+    }
     if let Some(store) = state.store() {
         if let Err(e) = store
             .update_message_delivery_state(&message_id, &receipt_type)

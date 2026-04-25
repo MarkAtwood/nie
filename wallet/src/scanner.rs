@@ -575,6 +575,15 @@ pub fn spawn_scanner(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut s = scanner;
+        // Restore the Sapling commitment tree and per-note witnesses from the
+        // DB before entering the scan loop.  Without this, every wallet restart
+        // begins with an empty tree: witnesses built for newly-discovered notes
+        // are rooted in that empty tree and are therefore invalid — the notes
+        // become permanently unspendable.
+        if let Err(e) = s.load_state().await {
+            warn!("scanner: load_state failed ({e}); refusing to scan with empty tree — restart required");
+            return;
+        }
         loop {
             match s.scan_to_tip().await {
                 Ok(n) if n > 0 => debug!("scanner: processed {n} new blocks"),

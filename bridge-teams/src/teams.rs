@@ -19,6 +19,7 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
+use subtle::ConstantTimeEq;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -95,21 +96,14 @@ pub fn verify_teams_signature(security_token: &str, body: &[u8], auth_header: &s
     let computed = format!("HMAC {}", B64.encode(mac.finalize().into_bytes()));
 
     // Constant-time comparison.
-    if !constant_time_eq(computed.as_bytes(), auth_header.as_bytes()) {
+    let computed_bytes = computed.as_bytes();
+    let header_bytes = auth_header.as_bytes();
+    if computed_bytes.len() != header_bytes.len()
+        || !bool::from(computed_bytes.ct_eq(header_bytes))
+    {
         return Err(anyhow!("Teams signature mismatch"));
     }
     Ok(())
-}
-
-/// Constant-time equality check to prevent timing side-channels.
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    a.iter()
-        .zip(b.iter())
-        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
-        == 0
 }
 
 // ---- Teams incoming webhook client ----

@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use age::secrecy::Secret;
 use age::{Decryptor, Encryptor};
 use anyhow::{bail, Result};
+use zeroize::Zeroizing;
 
 use crate::identity::Identity;
 
@@ -57,12 +58,17 @@ pub fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> 
     let mut reader = pass_decryptor
         .decrypt(&Secret::new(passphrase.to_owned()), None)
         .map_err(|_| anyhow::anyhow!("wrong passphrase or corrupt keyfile"))?;
-    let mut plaintext = vec![];
+    let mut plaintext: Zeroizing<Vec<u8>> = Zeroizing::new(vec![]);
     reader.read_to_end(&mut plaintext)?;
     let len = plaintext.len();
-    plaintext
-        .try_into()
-        .map_err(|_| anyhow::anyhow!("keyfile corrupt: expected 64 bytes, got {len}"))
+    if len != 64 {
+        return Err(anyhow::anyhow!(
+            "keyfile corrupt: expected 64 bytes, got {len}"
+        ));
+    }
+    let mut seed = [0u8; 64];
+    seed.copy_from_slice(&plaintext);
+    Ok(seed)
 }
 
 #[cfg(test)]
