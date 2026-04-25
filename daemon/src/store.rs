@@ -488,15 +488,18 @@ impl Store {
     }
 
     pub async fn set_contact_presence(&self, pub_id: &str, presence: &str) -> Result<()> {
-        sqlx::query(
+        let rows = sqlx::query(
             "UPDATE chat_contact SET presence = ?, last_seen_at = datetime('now')
              WHERE id = ?",
         )
         .bind(presence)
         .bind(pub_id)
         .execute(&self.pool)
-        .await?;
-        self.bump_state_seq("ChatContact").await?;
+        .await?
+        .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("ChatContact").await?;
+        }
         Ok(())
     }
 
@@ -632,6 +635,15 @@ impl Store {
     }
 
     /// Permanently delete a space row.  Returns `true` if a row was deleted.
+    /// Return `true` if a space with this id exists.
+    pub async fn space_exists(&self, id: &str) -> Result<bool> {
+        let row: Option<(i32,)> = sqlx::query_as("SELECT 1 FROM space WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row.is_some())
+    }
+
     pub async fn delete_space(&self, id: &str) -> Result<bool> {
         let rows = sqlx::query("DELETE FROM space WHERE id = ?")
             .bind(id)

@@ -1237,6 +1237,45 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Object(updates)) = args.get("update") {
         for (space_id, patch) in updates {
             if let Value::Object(patch_map) = patch {
+                // Check existence first so non-existent space IDs return
+                // notFound (RFC 8620 §7.1) rather than leaking forbidden.
+                match store.space_exists(space_id).await {
+                    Ok(false) => {
+                        not_updated.insert(
+                            space_id.clone(),
+                            serde_json::json!({"type": "notFound"}),
+                        );
+                        continue;
+                    }
+                    Err(e) => {
+                        not_updated.insert(
+                            space_id.clone(),
+                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
+                        );
+                        continue;
+                    }
+                    Ok(true) => {}
+                }
+                // Require the caller to be an admin of the space.  Without
+                // this check, any authenticated user can rename or modify
+                // membership of spaces they do not own.
+                match store.get_space_member_role(space_id, &account_id).await {
+                    Ok(Some(crate::store::SpaceRole::Admin)) => {} // allowed
+                    Ok(_) => {
+                        not_updated.insert(
+                            space_id.clone(),
+                            serde_json::json!({"type": "forbidden"}),
+                        );
+                        continue;
+                    }
+                    Err(e) => {
+                        not_updated.insert(
+                            space_id.clone(),
+                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
+                        );
+                        continue;
+                    }
+                }
                 let mut update_err: Option<Value> = None;
                 let mut simple_ops: Vec<SimplePropPatch<'_>> = Vec::new();
                 let mut member_ops: Vec<SpaceMemberOp<'_>> = Vec::new();
@@ -1337,6 +1376,40 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Array(ids)) = args.get("destroy") {
         for id_val in ids {
             if let Some(id) = id_val.as_str() {
+                // Check existence first so non-existent IDs return notFound
+                // (RFC 8620 §7.1) rather than leaking forbidden.
+                match store.space_exists(id).await {
+                    Ok(false) => {
+                        not_destroyed
+                            .insert(id.to_string(), serde_json::json!({"type": "notFound"}));
+                        continue;
+                    }
+                    Err(e) => {
+                        not_destroyed.insert(
+                            id.to_string(),
+                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
+                        );
+                        continue;
+                    }
+                    Ok(true) => {}
+                }
+                // Require the caller to be an admin of the space before
+                // allowing deletion.
+                match store.get_space_member_role(id, &account_id).await {
+                    Ok(Some(crate::store::SpaceRole::Admin)) => {} // allowed
+                    Ok(_) => {
+                        not_destroyed
+                            .insert(id.to_string(), serde_json::json!({"type": "forbidden"}));
+                        continue;
+                    }
+                    Err(e) => {
+                        not_destroyed.insert(
+                            id.to_string(),
+                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
+                        );
+                        continue;
+                    }
+                }
                 match store.delete_space(id).await {
                     Ok(true) => destroyed.push(Value::String(id.to_string())),
                     Ok(false) => {
@@ -1669,30 +1742,52 @@ async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
     let Some(store) = state.store() else {
         return server_fail("store not initialized");
     };
-    let ids: Vec<String> = match args.get("ids") {
-        Some(Value::Array(arr)) => arr
-            .iter()
-            .filter_map(|v| v.as_str().map(String::from))
-            .collect(),
+    // RFC 8620 §5.1: ids=null means "return all objects".
+    let ids_opt: Option<Vec<String>> = match args.get("ids") {
+        None | Some(Value::Null) => None,
+        Some(Value::Array(arr)) => Some(
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect(),
+        ),
         _ => return method_error("invalidArguments"),
     };
-    let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
     let state_tok = match store.state_token("Message").await {
         Ok(t) => t,
         Err(e) => return db_error(e),
     };
-    match store.get_messages(&id_strs).await {
-        Ok((list, not_found)) => method_ok(
-            "Message/get",
-            serde_json::json!({
-                "accountId": account_id,
-                "state": state_tok,
-                "list": list.iter().map(message_to_json).collect::<Vec<_>>(),
-                "notFound": not_found,
-            }),
-        ),
-        Err(e) => db_error(e),
-    }
+    const MAX_GET_ALL: i64 = 256;
+    let (list, not_found) = if let Some(ref ids) = ids_opt {
+        let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+        match store.get_messages(&id_strs).await {
+            Ok(r) => r,
+            Err(e) => return db_error(e),
+        }
+    } else {
+        // ids=null: return all messages (capped)
+        let Some(channel_id) = state.default_channel_id() else {
+            return server_fail("no default channel");
+        };
+        match store.query_messages(channel_id, 0, MAX_GET_ALL).await {
+            Ok(ids) => {
+                let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+                match store.get_messages(&id_strs).await {
+                    Ok(r) => r,
+                    Err(e) => return db_error(e),
+                }
+            }
+            Err(e) => return db_error(e),
+        }
+    };
+    method_ok(
+        "Message/get",
+        serde_json::json!({
+            "accountId": account_id,
+            "state": state_tok,
+            "list": list.iter().map(message_to_json).collect::<Vec<_>>(),
+            "notFound": not_found,
+        }),
+    )
 }
 
 async fn message_changes(args: Value, state: &DaemonState) -> (String, Value) {

@@ -5,6 +5,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use zeroize::Zeroize;
 
 /// A user's complete identity: an Ed25519 signing keypair and an X25519 HPKE keypair.
 /// Nothing else. No email, no phone, no name.
@@ -53,14 +54,16 @@ impl Identity {
     /// Callers must not panic on this — a corrupt or adversarial keyfile file
     /// must produce a recoverable error, not a process abort.
     pub fn from_secret_bytes(bytes: &[u8; 64]) -> Result<Self> {
-        let ed_seed: [u8; 32] = bytes[0..32].try_into().unwrap(); // infallible: slice is exactly 32
-        let hpke_seed_bytes: [u8; 32] = bytes[32..64].try_into().unwrap(); // infallible: slice is exactly 32
+        let mut ed_seed: [u8; 32] = bytes[0..32].try_into().unwrap(); // infallible: slice is exactly 32
+        let mut hpke_seed_bytes: [u8; 32] = bytes[32..64].try_into().unwrap(); // infallible: slice is exactly 32
         anyhow::ensure!(
             ed_seed != hpke_seed_bytes,
             "keyfile corrupt: Ed25519 and HPKE seeds must not be equal"
         );
         let signing_key = SigningKey::from_bytes(&ed_seed);
         let hpke_secret = x25519_dalek::StaticSecret::from(hpke_seed_bytes);
+        ed_seed.zeroize();
+        hpke_seed_bytes.zeroize();
         Ok(Self {
             signing_key,
             hpke_secret,

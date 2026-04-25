@@ -13,6 +13,8 @@ use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
+use zeroize::Zeroize;
+
 use nie_core::hpke as nie_hpke;
 use nie_core::identity::{Identity, PubId};
 use nie_core::messages::{
@@ -128,7 +130,7 @@ pub async fn init(keyfile: &str, no_passphrase: bool) -> Result<()> {
         bail!("keyfile already exists at {keyfile}. Delete it to start fresh.");
     }
     let id = Identity::generate();
-    let seed = id.to_secret_bytes_64();
+    let mut seed = id.to_secret_bytes_64();
 
     let passphrase = if no_passphrase {
         eprintln!("WARNING: --no-passphrase set. Identity key will NOT be encrypted.");
@@ -141,6 +143,7 @@ pub async fn init(keyfile: &str, no_passphrase: bool) -> Result<()> {
     };
 
     let encrypted = encrypt_keyfile(&seed, &passphrase)?;
+    seed.zeroize();
     write_secret_file(keyfile, &encrypted)?;
 
     println!("identity created");
@@ -3969,10 +3972,12 @@ pub async fn wallet_init(
     let identity_key_path = data_dir.join("identity.key");
     if identity_key_path.exists() && no_passphrase {
         let id_ciphertext = std::fs::read(&identity_key_path)?;
-        if let Ok(id_seed) = decrypt_keyfile(&id_ciphertext, "") {
+        if let Ok(mut id_seed) = decrypt_keyfile(&id_ciphertext, "") {
             // Compare only the Ed25519 portion (first 32 bytes of the 64-byte keyfile).
+            let ok = id_seed[0..32] != *master.spending_key_bytes();
+            id_seed.zeroize();
             anyhow::ensure!(
-                id_seed[0..32] != *master.spending_key_bytes(),
+                ok,
                 "key separation violation: wallet spending key matches identity key \
                  (catastrophic RNG failure — do not use this wallet)"
             );

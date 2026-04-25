@@ -50,6 +50,7 @@ pub fn format_for_nie(slack_user: &str, text: &str) -> String {
 #[derive(Clone)]
 struct SlackState {
     signing_secret: String,
+    slack_channel_id: String,
     tx: tokio::sync::mpsc::Sender<String>,
 }
 
@@ -89,6 +90,14 @@ async fn slack_events(
     // Handle message events.
     if envelope.event_type == "event_callback" {
         if let Some(inner) = envelope.event {
+            // Filter: only forward messages from the configured channel.
+            if inner.channel.as_deref() != Some(state.slack_channel_id.as_str()) {
+                tracing::debug!(
+                    channel = ?inner.channel,
+                    "Slack event from unconfigured channel; skipped"
+                );
+                return Ok(Json(serde_json::json!({})));
+            }
             if let Some(text) = inner.text_body() {
                 let user = inner.user.as_deref().unwrap_or("unknown");
                 let nie_text = format_for_nie(user, text);
@@ -160,6 +169,7 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
     {
         let state = SlackState {
             signing_secret: config.slack_signing_secret.clone(),
+            slack_channel_id: config.slack_channel_id.clone(),
             tx: slack_tx,
         };
         let app = axum::Router::new()

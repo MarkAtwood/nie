@@ -240,6 +240,24 @@ async fn scan_block(
                 }
             };
 
+            // Warn if the invoice has already expired — payment arrived late but
+            // we still activate rather than silently drop the confirmed payment.
+            {
+                use chrono::Utc;
+                if let Ok(exp) = chrono::NaiveDateTime::parse_from_str(
+                    &invoice.expires_at,
+                    "%Y-%m-%d %H:%M:%S",
+                ) {
+                    if exp.and_utc() < Utc::now() {
+                        tracing::warn!(
+                            invoice_id = invoice.invoice_id,
+                            address = address_str,
+                            "payment_watcher: activating payment for expired invoice"
+                        );
+                    }
+                }
+            }
+
             // Check that the received amount meets the invoice minimum.
             let value_zatoshi = note.value_zatoshi;
             if value_zatoshi < invoice.amount_zatoshi {

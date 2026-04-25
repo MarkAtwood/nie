@@ -9,14 +9,11 @@ pub struct AsTransaction {
 }
 
 /// One Matrix room event from the homeserver.
-///
-/// `room_id` is intentionally absent: the bridge always routes to the single
-/// configured room and does not need to inspect the event's room.
-/// Unknown fields from the homeserver (including room_id) are ignored by serde.
 #[derive(Debug, Deserialize)]
 pub struct MatrixEvent {
     #[serde(rename = "type")]
     pub event_type: String,
+    pub room_id: String,
     pub sender: String,
     pub content: serde_json::Value,
     pub event_id: String,
@@ -105,6 +102,7 @@ mod tests {
     fn text_body_accepts_mtext() {
         let event = MatrixEvent {
             event_type: "m.room.message".to_string(),
+            room_id: "!abc:example.com".to_string(),
             sender: "@alice:example.com".to_string(),
             content: json!({"msgtype": "m.text", "body": "hello"}),
             event_id: "$xyz".to_string(),
@@ -116,6 +114,7 @@ mod tests {
     fn text_body_rejects_non_message() {
         let event = MatrixEvent {
             event_type: "m.room.member".to_string(),
+            room_id: "!abc:example.com".to_string(),
             sender: "@alice:example.com".to_string(),
             content: json!({"membership": "join"}),
             event_id: "$xyz".to_string(),
@@ -127,6 +126,7 @@ mod tests {
     fn text_body_rejects_mimage() {
         let event = MatrixEvent {
             event_type: "m.room.message".to_string(),
+            room_id: "!abc:example.com".to_string(),
             sender: "@alice:example.com".to_string(),
             content: json!({"msgtype": "m.image", "body": "photo.jpg", "url": "mxc://abc"}),
             event_id: "$xyz".to_string(),

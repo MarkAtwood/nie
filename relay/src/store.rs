@@ -741,12 +741,18 @@ impl Store {
         .transpose()
     }
 
-    /// Fetch an unexpired invoice by its payment address, or None.
+    /// Fetch an invoice by its payment address, or None.
+    ///
+    /// Does NOT filter on `expires_at`: the payment watcher must be able to
+    /// activate a subscription even when a confirmed payment arrives after the
+    /// invoice's nominal expiry (Zcash confirmation latency).  The watcher
+    /// validates the amount independently; finding an expired-but-unpurged
+    /// invoice is strictly better than silently dropping a confirmed payment.
     pub async fn get_invoice_by_address(&self, address: &str) -> Result<Option<InvoiceRow>> {
         let row: Option<(String, String, String, i64, String)> = sqlx::query_as(
             "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at \
              FROM subscription_invoices \
-             WHERE address = ?1 AND expires_at > datetime('now')",
+             WHERE address = ?1",
         )
         .bind(address)
         .fetch_optional(&self.pool)
@@ -791,7 +797,12 @@ impl Store {
         let mut tx = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO subscriptions (pub_id, expires_at) VALUES (?, ?)
-             ON CONFLICT(pub_id) DO UPDATE SET expires_at = excluded.expires_at",
+             ON CONFLICT(pub_id) DO UPDATE SET
+                 expires_at = CASE
+                     WHEN excluded.expires_at > subscriptions.expires_at
+                     THEN excluded.expires_at
+                     ELSE subscriptions.expires_at
+                 END",
         )
         .bind(pub_id)
         .bind(&expires_str)
@@ -1376,7 +1387,8 @@ mod tests {
         assert!(got.is_none(), "expired invoice must not be returned");
     }
 
-    /// get_invoice_by_address finds an active invoice; expired one is hidden.
+    /// get_invoice_by_address finds an invoice by address (active or expired);
+    /// unknown address returns None.
     #[tokio::test]
     async fn invoice_get_by_address() {
         let (store, _f) = make_store().await;

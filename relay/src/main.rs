@@ -21,6 +21,12 @@ async fn main() -> anyhow::Result<()> {
     let keepalive_secs: u64 = match std::env::var("KEEPALIVE_SECS") {
         Err(_) => 30,
         Ok(v) => match v.parse() {
+            Ok(0u64) => {
+                anyhow::bail!(
+                    "KEEPALIVE_SECS=0 would panic the write task (tokio interval requires non-zero period); \
+                     set a value >= 1 or unset the variable to use the default (30)"
+                );
+            }
             Ok(n) => n,
             // Warn rather than silently using the default — a misconfigured value
             // (e.g. "five") is an operator error that should surface at startup.

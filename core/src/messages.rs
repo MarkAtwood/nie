@@ -155,6 +155,12 @@ where
     if s.is_empty() {
         return Err(serde::de::Error::custom("file name must not be empty"));
     }
+    if s.contains('\x00') {
+        return Err(serde::de::Error::custom(format!(
+            "file name contains null byte: {:?}",
+            s
+        )));
+    }
     if s.contains('/') || s.contains('\\') {
         return Err(serde::de::Error::custom(format!(
             "file name contains path separator: {:?}",
@@ -192,7 +198,7 @@ where
             "sha256_hex contains non-hex characters",
         ));
     }
-    Ok(s)
+    Ok(s.to_lowercase())
 }
 
 /// Deserialize `FileHeader.total_chunks`, rejecting 0 and values above 1024.
@@ -575,6 +581,7 @@ mod tests {
             "..",
             ".",
             "",
+            "evil\x00.txt",
         ];
 
         for bad_name in cases {

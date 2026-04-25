@@ -78,6 +78,7 @@ pub fn is_bot_sender(event: &MatrixEvent, bot_localpart: &str, homeserver: &str)
 #[derive(Clone)]
 struct AsState {
     hs_token: String,
+    room_id: String,
     tx: tokio::sync::mpsc::Sender<MatrixEvent>,
 }
 
@@ -105,6 +106,14 @@ async fn as_transaction(
         return axum::http::StatusCode::FORBIDDEN;
     }
     for event in txn.events {
+        // Filter: only forward events from the configured room.
+        if event.room_id != state.room_id {
+            tracing::debug!(
+                room_id = %event.room_id,
+                "Matrix event from unconfigured room; skipped"
+            );
+            continue;
+        }
         // Non-blocking: drop the event if the buffer is full rather than
         // back-pressuring the homeserver.
         let _ = state.tx.try_send(event);
@@ -174,6 +183,7 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
     {
         let state = AsState {
             hs_token: config.hs_token.clone(),
+            room_id: room_id.clone(),
             tx: matrix_tx,
         };
         let app = axum::Router::new()
@@ -254,6 +264,7 @@ mod tests {
     fn make_event(sender: &str) -> MatrixEvent {
         crate::matrix::MatrixEvent {
             event_type: "m.room.message".to_string(),
+            room_id: "!test:example.com".to_string(),
             sender: sender.to_string(),
             content: json!({"msgtype": "m.text", "body": "hi"}),
             event_id: "$xyz".to_string(),
