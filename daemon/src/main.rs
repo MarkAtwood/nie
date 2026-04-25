@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
             format!("http://127.0.0.1:{port}").parse::<HeaderValue>()?,
         ])
         .allow_methods([Method::GET, Method::POST])
-        .allow_headers(tower_http::cors::Any);
+        .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE]);
 
     // Load identity from keyfile to get pub_id.  Default location mirrors nie-cli.
     let keyfile_path = std::env::var("KEYFILE")

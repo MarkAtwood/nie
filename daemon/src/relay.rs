@@ -215,7 +215,29 @@ async fn dispatch_notification(
                     message_id,
                     for_all,
                 }) => {
-                    dispatch_peer_retract(state, message_id, for_all).await;
+                    let authorized = if let Some(store) = state.store() {
+                        match store.message_sender_id(&message_id).await {
+                            Ok(Some(stored_sender)) => stored_sender == sender_pub_id,
+                            Ok(None) => false,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "peer_retract: message_sender_id failed: {e}"
+                                );
+                                false
+                            }
+                        }
+                    } else {
+                        true
+                    };
+                    if authorized {
+                        dispatch_peer_retract(state, message_id, for_all).await;
+                    } else {
+                        tracing::warn!(
+                            "peer_retract: sender {} does not own message {}",
+                            sender_pub_id,
+                            message_id,
+                        );
+                    }
                 }
                 Ok(ClearMessage::PeerGroupUpdate {
                     space_id,

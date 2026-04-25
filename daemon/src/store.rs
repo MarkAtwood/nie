@@ -567,22 +567,28 @@ impl Store {
         creator_pub_id: &str,
     ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        sqlx::query("INSERT OR IGNORE INTO space (id, name, description) VALUES (?, ?, ?)")
+        let space_rows = sqlx::query("INSERT OR IGNORE INTO space (id, name, description) VALUES (?, ?, ?)")
             .bind(id)
             .bind(name)
             .bind(description)
             .execute(&mut *tx)
-            .await?;
-        sqlx::query(
+            .await?
+            .rows_affected();
+        let member_rows = sqlx::query(
             "INSERT OR IGNORE INTO space_member (space_id, contact_id, role) VALUES (?, ?, 'admin')",
         )
         .bind(id)
         .bind(creator_pub_id)
         .execute(&mut *tx)
-        .await?;
+        .await?
+        .rows_affected();
         tx.commit().await?;
-        self.bump_state_seq("Space").await?;
-        self.bump_state_seq("SpaceMember").await?;
+        if space_rows > 0 {
+            self.bump_state_seq("Space").await?;
+        }
+        if member_rows > 0 {
+            self.bump_state_seq("SpaceMember").await?;
+        }
         Ok(())
     }
 
@@ -1086,27 +1092,33 @@ impl Store {
     }
 
     pub async fn create_channel(&self, id: &str, name: &str, space_id: &str) -> Result<()> {
-        sqlx::query(
+        let rows = sqlx::query(
             "INSERT OR IGNORE INTO chat (id, kind, name, space_id) VALUES (?, 'channel', ?, ?)",
         )
         .bind(id)
         .bind(name)
         .bind(space_id)
         .execute(&self.pool)
-        .await?;
-        self.bump_state_seq("Chat").await?;
+        .await?
+        .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("Chat").await?;
+        }
         Ok(())
     }
 
     // ── SpaceMember ──────────────────────────────────────────────────────
 
     pub async fn upsert_space_member(&self, space_id: &str, contact_id: &str) -> Result<()> {
-        sqlx::query("INSERT OR IGNORE INTO space_member (space_id, contact_id) VALUES (?, ?)")
+        let rows = sqlx::query("INSERT OR IGNORE INTO space_member (space_id, contact_id) VALUES (?, ?)")
             .bind(space_id)
             .bind(contact_id)
             .execute(&self.pool)
-            .await?;
-        self.bump_state_seq("SpaceMember").await?;
+            .await?
+            .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("SpaceMember").await?;
+        }
         Ok(())
     }
 
@@ -1548,6 +1560,16 @@ impl Store {
     }
 
     // ── Message mutations ─────────────────────────────────────────────────────
+
+    /// Return the `sender_id` of a message, or `None` if the message does not exist.
+    pub async fn message_sender_id(&self, msg_id: &str) -> Result<Option<String>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT sender_id FROM message WHERE id = ?")
+                .bind(msg_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(s,)| s))
+    }
 
     /// Soft-delete a message by setting `deleted_at`.
     /// `for_all`: if true, also sets `deleted_for_all = 1` (visible to peers).

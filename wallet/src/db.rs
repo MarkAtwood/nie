@@ -330,10 +330,10 @@ impl WalletStore {
             //                              PaymentAddress::from_bytes expects [d(11) | pk_d(32)].
             // note_pk_d        (32 bytes) — recipient public key pk_d (Jubjub point, compressed)
             // note_rseed       (32 bytes) — commitment randomness (Rseed or old rcm)
-            // note_rseed_after_zip212 (INTEGER) — 1 if note_rseed is the post-ZIP-212 Rseed,
-            //                                     0 if it is the pre-ZIP-212 rcm field.
-            //                                     DEFAULT 1 biases new notes toward the current
-            //                                     format; old-format notes must set this explicitly.
+            // note_rseed_after_zip212 (INTEGER, nullable) — 1 if note_rseed is the post-ZIP-212
+            //                                     Rseed, 0 if it is the pre-ZIP-212 rcm field.
+            //                                     NULL means the note has not yet been decrypted
+            //                                     and classified; spendable_notes() excludes NULLs.
             //
             // All four ALTER TABLEs and the PRAGMA run inside a single SQLite transaction.
             // SQLite DDL is transactional: a failure or process-kill mid-migration rolls
@@ -345,7 +345,7 @@ impl WalletStore {
                 "ALTER TABLE notes ADD COLUMN note_diversifier BLOB",
                 "ALTER TABLE notes ADD COLUMN note_pk_d BLOB",
                 "ALTER TABLE notes ADD COLUMN note_rseed BLOB",
-                "ALTER TABLE notes ADD COLUMN note_rseed_after_zip212 INTEGER NOT NULL DEFAULT 1",
+                "ALTER TABLE notes ADD COLUMN note_rseed_after_zip212 INTEGER",
             ] {
                 sqlx::query(col).execute(&mut *txn).await?;
             }
@@ -598,9 +598,8 @@ impl WalletStore {
             )
         })?;
         // Use two different INSERT queries depending on whether plaintext columns are
-        // populated.  `note_rseed_after_zip212` has a NOT NULL DEFAULT 1 constraint:
-        // binding NULL for it would violate the constraint.  When plaintext fields are
-        // absent, omit them from the INSERT and let the DEFAULT apply.
+        // populated.  When plaintext fields are absent, omit them from the INSERT so
+        // note_rseed_after_zip212 stays NULL (meaning unclassified).
         let id = if let (Some(diversifier), Some(pk_d), Some(rseed), Some(after_zip212)) = (
             &note.note_diversifier,
             &note.note_pk_d,
@@ -713,7 +712,7 @@ impl WalletStore {
             note_diversifier: Vec<u8>,
             note_pk_d: Vec<u8>,
             note_rseed: Vec<u8>,
-            note_rseed_after_zip212: i64,
+            note_rseed_after_zip212: Option<i64>,
             block_height: i64,
             witness_data: Vec<u8>,
         }
@@ -731,9 +730,10 @@ impl WalletStore {
              FROM notes n
              JOIN witnesses w ON n.note_id = w.note_id
              WHERE n.spent = 0
-               AND n.note_diversifier IS NOT NULL
-               AND n.note_pk_d        IS NOT NULL
-               AND n.note_rseed       IS NOT NULL",
+               AND n.note_diversifier          IS NOT NULL
+               AND n.note_pk_d                IS NOT NULL
+               AND n.note_rseed               IS NOT NULL
+               AND n.note_rseed_after_zip212   IS NOT NULL",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -751,7 +751,7 @@ impl WalletStore {
                     note_diversifier: r.note_diversifier,
                     note_pk_d: r.note_pk_d,
                     note_rseed: r.note_rseed,
-                    rseed_after_zip212: r.note_rseed_after_zip212 != 0,
+                    rseed_after_zip212: r.note_rseed_after_zip212.unwrap_or(0) != 0,
                     block_height: u64::try_from(r.block_height).map_err(|_| {
                         anyhow::anyhow!(
                             "note {} has negative block_height {} in DB — data corruption",

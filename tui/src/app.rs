@@ -106,7 +106,7 @@ pub struct AppState {
     pub mls_client: MlsClient,
     /// Own X25519 HPKE identity secret (for sealed messages when MLS inactive)
     /// KEY MATERIAL — never log, never debug-print
-    pub hpke_identity_secret: [u8; 32],
+    pub hpke_identity_secret: Zeroizing<[u8; 32]>,
     /// Own X25519 HPKE identity public key (safe to publish)
     pub hpke_identity_pub: [u8; 32],
     /// MLS-derived room HPKE secret (when MLS active)
@@ -151,7 +151,7 @@ impl AppState {
             connection: ConnectionState::Connecting,
             mls_active: false,
             mls_client,
-            hpke_identity_secret,
+            hpke_identity_secret: Zeroizing::new(hpke_identity_secret),
             hpke_identity_pub,
             room_hpke_secret: None,
             payment_overlays: VecDeque::new(),

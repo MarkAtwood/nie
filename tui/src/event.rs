@@ -368,7 +368,7 @@ pub async fn handle_relay_event(
                                 }
                             }
                         } else {
-                            &state.hpke_identity_secret
+                            &*state.hpke_identity_secret
                         };
                         match nie_core::hpke::unseal_message(active_secret, &p.sealed) {
                             Ok(pt) => pt,
