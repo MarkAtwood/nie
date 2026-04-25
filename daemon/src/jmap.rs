@@ -1890,6 +1890,13 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                     continue;
                 }
             };
+            if body.len() > 65536 {
+                not_created.insert(
+                    client_id.clone(),
+                    serde_json::json!({"type":"invalidProperties","properties":["body"],"description":"body exceeds 65536 bytes"}),
+                );
+                continue;
+            }
 
             // Optional fields
             let reply_to = props
@@ -1972,7 +1979,15 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
 
             // Encrypt and send via relay if MLS client available.
             if let Some(mls) = state.mls_client().await {
-                let clear = ClearMessage::Chat { text: body };
+                let clear = ClearMessage::PeerDeliver {
+                    message_id: msg_id.clone(),
+                    chat_id: chat_id.clone(),
+                    body: body.clone(),
+                    body_type: "text/plain".to_string(),
+                    sent_at: now.clone(),
+                    reply_to: reply_to.clone(),
+                    thread_root_id: thread_root_id.clone(),
+                };
                 let payload_bytes = serde_json::to_vec(&clear).unwrap();
                 let encrypted = mls.lock().await.encrypt(&payload_bytes);
                 match encrypted {

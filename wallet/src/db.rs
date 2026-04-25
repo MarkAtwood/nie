@@ -1168,8 +1168,8 @@ impl WalletStore {
 
         let row: Row = sqlx::query_as(
             "SELECT
-               SUM(CASE WHEN block_height <= ? THEN value_zatoshi ELSE 0 END) AS confirmed,
-               SUM(CASE WHEN block_height  > ? THEN value_zatoshi ELSE 0 END) AS pending
+               SUM(CASE WHEN block_height > 0 AND block_height <= ? THEN value_zatoshi ELSE 0 END) AS confirmed,
+               SUM(CASE WHEN block_height = 0 OR block_height  > ? THEN value_zatoshi ELSE 0 END) AS pending
              FROM notes
              WHERE spent = 0",
         )

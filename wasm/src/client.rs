@@ -248,7 +248,9 @@ impl NieRelayClient {
                     JsValue::NULL
                 }
             };
-            let _ = js_cb.call1(&JsValue::NULL, &event_jsval);
+            if let Err(err) = js_cb.call1(&JsValue::NULL, &event_jsval) {
+                web_sys::console::error_1(&err);
+            }
         });
 
         self.transport.set_notify_callback(notify_cb);

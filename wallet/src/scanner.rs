@@ -602,13 +602,39 @@ pub fn spawn_scanner(
             warn!("scanner: load_state failed ({e}); refusing to scan with empty tree — restart required");
             return;
         }
+        // Exponential backoff state for error recovery.
+        // On success the backoff resets; on error it doubles (capped at 60 s).
+        let mut backoff = Duration::from_secs(5);
+        const MAX_BACKOFF: Duration = Duration::from_secs(60);
+
         loop {
             match s.scan_to_tip().await {
-                Ok(n) if n > 0 => debug!("scanner: processed {n} new blocks"),
-                Ok(_) => {}
-                Err(e) => warn!("scanner: scan error (will retry): {e}"),
+                Ok(n) if n > 0 => {
+                    debug!("scanner: processed {n} new blocks");
+                    backoff = Duration::from_secs(5); // reset on success
+                    tokio::time::sleep(poll_interval).await;
+                }
+                Ok(_) => {
+                    tokio::time::sleep(poll_interval).await;
+                }
+                Err(e) => {
+                    warn!("scanner: scan error (will retry after {backoff:?}): {e}");
+                    tokio::time::sleep(backoff).await;
+                    // Double backoff, cap at MAX_BACKOFF.
+                    backoff = (backoff * 2).min(MAX_BACKOFF);
+                    // Reconnect: drop the broken client and open a fresh connection.
+                    let url = s.client.url.clone();
+                    match LightwalletdClient::connect(&url).await {
+                        Ok(new_client) => {
+                            s.client = new_client;
+                            debug!("scanner: reconnected to {url}");
+                        }
+                        Err(ce) => {
+                            warn!("scanner: reconnect to {url} failed ({ce}); will retry");
+                        }
+                    }
+                }
             }
-            tokio::time::sleep(poll_interval).await;
         }
     })
 }

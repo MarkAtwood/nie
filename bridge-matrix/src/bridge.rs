@@ -1,4 +1,5 @@
 use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use subtle::ConstantTimeEq;
@@ -22,6 +23,55 @@ impl SentIds {
         Self {
             deque: VecDeque::with_capacity(MAX_SENT_IDS),
             set: HashSet::new(),
+        }
+    }
+
+    /// Load from a JSON file produced by [`persist_to_file`].
+    ///
+    /// Returns an empty `SentIds` if the file does not exist.
+    /// Logs a warning and returns empty on any parse error rather than failing startup.
+    pub fn load_from_file(path: &Path) -> Self {
+        match std::fs::read(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Self::new(),
+            Err(e) => {
+                tracing::warn!("cannot read sent_ids file {}: {e}; starting empty", path.display());
+                Self::new()
+            }
+            Ok(bytes) => {
+                let ids: Vec<String> = match serde_json::from_slice(&bytes) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!("cannot parse sent_ids file {}: {e}; starting empty", path.display());
+                        return Self::new();
+                    }
+                };
+                let mut s = Self::new();
+                for id in ids.into_iter().take(MAX_SENT_IDS) {
+                    s.set.insert(id.clone());
+                    s.deque.push_back(id);
+                }
+                s
+            }
+        }
+    }
+
+    /// Persist the current ring buffer to `path` atomically via a rename.
+    pub fn persist_to_file(&self, path: &Path) {
+        let ids: Vec<&str> = self.deque.iter().map(String::as_str).collect();
+        let json = match serde_json::to_vec(&ids) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("cannot serialize sent_ids: {e}");
+                return;
+            }
+        };
+        let tmp = path.with_extension("json.tmp");
+        if let Err(e) = std::fs::write(&tmp, &json) {
+            tracing::warn!("cannot write sent_ids tmp {}: {e}", tmp.display());
+            return;
+        }
+        if let Err(e) = std::fs::rename(&tmp, path) {
+            tracing::warn!("cannot rename sent_ids tmp to {}: {e}", path.display());
         }
     }
 
@@ -174,7 +224,13 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
     let matrix = crate::matrix::MatrixClient::new(&homeserver, &config.as_token);
 
     // Echo-loop prevention: track event_ids of messages we sent to nie.
-    let mut sent_ids = SentIds::new();
+    // Persisted alongside the keyfile so dedup survives restarts.
+    let sent_ids_path: PathBuf = {
+        let kf = Path::new(&config.keyfile);
+        let dir = kf.parent().unwrap_or_else(|| Path::new("."));
+        dir.join("sent_ids.json")
+    };
+    let mut sent_ids = SentIds::load_from_file(&sent_ids_path);
 
     // Channel: axum handler → bridge loop.
     let (matrix_tx, mut matrix_rx) = tokio::sync::mpsc::channel::<MatrixEvent>(64);
@@ -249,6 +305,7 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
                     anyhow::bail!("nie relay send channel closed");
                 }
                 sent_ids.insert(event.event_id.clone());
+                sent_ids.persist_to_file(&sent_ids_path);
             }
         }
     }

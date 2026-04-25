@@ -7,6 +7,7 @@ use nie_core::protocol::{
     rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcRequest,
     KeyPackageReadyParams, PublishHpkeKeyParams, PublishKeyPackageParams, SealedBroadcastParams,
     SealedDeliverParams, UserJoinedParams, UserLeftParams, UserNicknameParams, WhisperDeliverParams,
+    WhisperParams,
 };
 use nie_core::transport::{next_request_id, ClientEvent, RelayConnRetry};
 use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
@@ -1167,9 +1168,10 @@ async fn handle_slash(
             // SECURITY: shlex split prevents shell injection — do NOT change to sh -c
             match shlex::split(rest) {
                 Some(argv) if !argv.is_empty() => {
-                    match std::process::Command::new(&argv[0])
+                    match tokio::process::Command::new(&argv[0])
                         .args(&argv[1..])
                         .output()
+                        .await
                     {
                         Ok(output) => {
                             let raw = String::from_utf8_lossy(&output.stdout);
@@ -1217,7 +1219,7 @@ async fn handle_slash(
                 ));
                 return Ok(());
             }
-            match std::fs::read(path) {
+            match tokio::fs::read(path).await {
                 Ok(bytes) => {
                     let truncated = if bytes.len() > 4096 {
                         &bytes[..4096]
@@ -1423,8 +1425,8 @@ async fn handle_slash(
             })
             // serde_json::to_vec on a derived Serialize cannot fail
             .expect("ClearMessage serialization cannot fail");
-            let params = BroadcastParams { payload };
-            let req = JsonRpcRequest::new(next_request_id(), rpc_methods::BROADCAST, &params)
+            let params = WhisperParams { to: peer_pub_id.clone(), payload };
+            let req = JsonRpcRequest::new(next_request_id(), rpc_methods::WHISPER, &params)
                 .map_err(anyhow::Error::from)?;
             if tx.send(req).await.is_err() {
                 tracing::warn!("relay channel closed during /pay");

@@ -68,10 +68,11 @@ pub fn save_identity_to_file(path: String, secret_b64: String) -> Result<()> {
 /// Returns `Err` if the file exists but is malformed.
 pub fn load_identity_from_file(path: String) -> Result<Option<String>> {
     let p = Path::new(&path);
-    if !p.exists() {
-        return Ok(None);
-    }
-    let bytes = fs::read(p).map_err(|e| anyhow!("read identity file {path:?}: {e}"))?;
+    let bytes = match fs::read(p) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(anyhow!("read identity file {path:?}: {e}")),
+    };
     if bytes.len() != 64 {
         return Err(anyhow!(
             "identity file at {path:?} is {len} bytes, expected 64",

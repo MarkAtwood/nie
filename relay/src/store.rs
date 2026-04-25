@@ -916,6 +916,22 @@ impl Store {
         Ok(())
     }
 
+    /// Count pending (non-expired) invoices for `pub_id`.
+    ///
+    /// Used by the SUBSCRIBE_REQUEST handler to cap the number of outstanding
+    /// invoices per user, preventing unbounded growth of the subscription_invoices
+    /// table from repeated subscription requests (nie-qgag.4).
+    pub async fn count_pending_invoices(&self, pub_id: &str) -> Result<u64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM subscription_invoices \
+             WHERE pub_id = ?1 AND expires_at > datetime('now')",
+        )
+        .bind(pub_id)
+        .fetch_one(&self.pool)
+        .await?;
+        u64::try_from(count).context("count_pending_invoices overflow")
+    }
+
     /// Delete all invoices whose `expires_at` is in the past. Returns the
     /// number of rows deleted.
     pub async fn purge_expired_invoices(&self) -> Result<u64> {

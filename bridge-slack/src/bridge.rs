@@ -101,9 +101,11 @@ async fn slack_events(
             if let Some(text) = inner.text_body() {
                 let user = inner.user.as_deref().unwrap_or("unknown");
                 let nie_text = format_for_nie(user, text);
-                // Back-pressure: drop the message rather than block the HTTP handler.
-                if state.tx.try_send(nie_text).is_err() {
-                    tracing::warn!("Slack→nie channel full; message dropped");
+                // Return 200 only after the message is in the channel.
+                // If send fails (channel closed), return 500 so Slack retries.
+                if state.tx.send(nie_text).await.is_err() {
+                    tracing::warn!("Slack→nie channel closed; returning 500 for retry");
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
                 }
             }
         }

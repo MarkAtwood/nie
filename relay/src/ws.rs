@@ -153,11 +153,15 @@ async fn handle(socket: WebSocket, state: AppState) {
         return;
     }
 
-    // Receive the Authenticate request
-    let text = match stream.next().await {
-        Some(Ok(Message::Text(t))) => t,
-        Some(Ok(Message::Close(_))) | None => return,
-        _ => {
+    // Receive the Authenticate request.
+    // SECURITY (nie-43zd.2): apply a 30-second timeout so an attacker who opens
+    // many connections and never responds cannot hold tokio tasks + OS sockets
+    // indefinitely.
+    let text = match tokio::time::timeout(Duration::from_secs(30), stream.next()).await {
+        Ok(Some(Ok(Message::Text(t)))) => t,
+        Ok(Some(Ok(Message::Close(_)))) | Ok(None) => return,
+        Err(_timeout) => return, // timed out — close the connection silently
+        Ok(_) => {
             send_error_response(
                 &mut sink,
                 0,
@@ -521,7 +525,15 @@ async fn handle(socket: WebSocket, state: AppState) {
                             // Update the subscription flag before sending so the
                             // read loop can use the flag on the very next message
                             // without waiting for the socket round-trip.
-                            if json.contains(r#""method":"subscription_active""#) {
+                            // SECURITY (nie-qgag.5): parse the JSON properly rather
+                            // than a substring check — a payload embedding the literal
+                            // string "method":"subscription_active" would otherwise
+                            // grant send permission to an unsubscribed user.
+                            if serde_json::from_str::<serde_json::Value>(&json)
+                                .ok()
+                                .and_then(|v| v.get("method").and_then(|m| m.as_str()).map(|s| s == "subscription_active"))
+                                .unwrap_or(false)
+                            {
                                 subscribed_flag_write.store(true, Ordering::Relaxed);
                             }
                             // Delivery jitter: uniform 0–50 ms per-message random delay
@@ -833,6 +845,21 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 req.id,
                                 rpc_errors::RATE_LIMITED,
                                 "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // SECURITY (nie-qgag.3): reject oversized key packages before
+                        // writing to the DB.  An MLS key package is typically a few
+                        // hundred bytes; 8 KiB is generous.  Without this check a
+                        // single 1 MiB WS frame persists as a ~750 KiB BLOB.
+                        const MAX_KEY_PACKAGE_BYTES: usize = 8192;
+                        if params.data.len() > MAX_KEY_PACKAGE_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "key package too large",
                             )
                             .await;
                             continue;
@@ -1978,6 +2005,35 @@ async fn handle(socket: WebSocket, state: AppState) {
                             )
                             .await;
                             continue;
+                        }
+                        // SECURITY (nie-qgag.4): cap outstanding (non-expired) invoices
+                        // per user to 5.  Without this, a user can create ~7200 rows/hour
+                        // at the existing rate limit, growing the subscription_invoices
+                        // table without bound.
+                        const MAX_PENDING_INVOICES: u64 = 5;
+                        match state.inner.store.count_pending_invoices(&pub_id.0).await {
+                            Ok(n) if n >= MAX_PENDING_INVOICES => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RATE_LIMITED,
+                                    "too many pending invoices; pay or wait for existing ones to expire",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Ok(_) => {}
+                            Err(e) => {
+                                error!("count_pending_invoices for {pub_id}: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
                         }
                         // Allocate a fresh Sapling payment address using the relay
                         // store's diversifier counter (the same two-step advance as

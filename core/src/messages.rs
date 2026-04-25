@@ -58,6 +58,7 @@ pub enum ClearMessage {
         #[serde(deserialize_with = "deserialize_total_chunks")]
         total_chunks: u32,
         /// MIME type string (e.g. "image/jpeg", "application/octet-stream").
+        #[serde(deserialize_with = "deserialize_bounded_mime_type")]
         mime_type: String,
     },
     /// One chunk of a chunked file transfer.
@@ -349,6 +350,24 @@ where
     if s.len() > 128 {
         return Err(serde::de::Error::custom(format!(
             "ID field too long: {} bytes (max 128)",
+            s.len()
+        )));
+    }
+    Ok(s)
+}
+
+/// Deserialize `FileHeader.mime_type`, rejecting values longer than 255 bytes.
+///
+/// MIME types are at most 255 characters per spec (RFC 4288 §4.2).
+/// A hostile peer cannot force unbounded allocation via an oversized mime_type string.
+fn deserialize_bounded_mime_type<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 255 {
+        return Err(serde::de::Error::custom(format!(
+            "mime_type too long: {} bytes (max 255)",
             s.len()
         )));
     }
