@@ -472,7 +472,7 @@ async fn testnet_shielded_payment_end_to_end() {
     // Step 3: scan Bob's wallet for the incoming note.
     // Bob's IVK is derived from his DFVK (not directly from the spending key).
     // The IVK bytes are key material; they must not be logged.
-    let bob_ivk_bytes: [u8; 32] = bob_sk.to_dfvk().ivk_bytes();
+    let bob_ivk_bytes = bob_sk.to_dfvk().ivk_bytes();
     let bob_decryptor = SaplingIvkDecryptor::new(&bob_ivk_bytes)
         .expect("Bob IVK must be a valid jubjub::Fr scalar");
 

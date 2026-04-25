@@ -73,7 +73,8 @@ impl OrchardSpendingKey {
     /// Get the raw 32-byte spending key.
     ///
     /// Never log this value.
-    pub fn to_bytes(&self) -> &[u8; 32] {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn to_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 

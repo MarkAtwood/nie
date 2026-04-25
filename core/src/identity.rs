@@ -33,7 +33,7 @@ impl Identity {
     pub fn generate() -> Self {
         let signing_key = SigningKey::generate(&mut OsRng);
         // Generate separate entropy for HPKE key (key separation invariant).
-        let hpke_seed: [u8; 32] = rand::random();
+        let mut hpke_seed: [u8; 32] = rand::random();
         // Astronomically unlikely, but the invariant requires it.
         debug_assert_ne!(
             &hpke_seed,
@@ -41,6 +41,7 @@ impl Identity {
             "Ed25519 and HPKE seeds must differ"
         );
         let hpke_secret = x25519_dalek::StaticSecret::from(hpke_seed);
+        hpke_seed.zeroize();
         Self {
             signing_key,
             hpke_secret,

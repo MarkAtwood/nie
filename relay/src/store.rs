@@ -1035,10 +1035,6 @@ impl Store {
                 .fetch_one(&mut *tx)
                 .await?;
         if remaining == 0 {
-            sqlx::query("DELETE FROM group_members WHERE group_id = ?1")
-                .bind(group_id)
-                .execute(&mut *tx)
-                .await?;
             sqlx::query("DELETE FROM groups WHERE group_id = ?1")
                 .bind(group_id)
                 .execute(&mut *tx)

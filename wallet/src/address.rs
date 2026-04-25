@@ -194,8 +194,8 @@ impl SaplingDiversifiableFvk {
     ///
     /// The IVK is key material — do not log, print, or store the return value.
     /// See CLAUDE.md §Wallet Security.
-    pub fn ivk_bytes(&self) -> [u8; 32] {
-        self.0.to_ivk(Scope::External).0.to_repr()
+    pub fn ivk_bytes(&self) -> zeroize::Zeroizing<[u8; 32]> {
+        zeroize::Zeroizing::new(self.0.to_ivk(Scope::External).0.to_repr())
     }
 }
 

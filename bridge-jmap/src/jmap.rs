@@ -113,9 +113,17 @@ impl JmapClient {
             let body = resp.text().await.unwrap_or_default();
             return Err(anyhow!("JMAP session error {status}: {body}"));
         }
-        let session: Value = resp
-            .json()
+        let session_bytes = resp
+            .bytes()
             .await
+            .map_err(|e| anyhow!("JMAP session read error: {e}"))?;
+        if session_bytes.len() > 16 * 1024 * 1024 {
+            return Err(anyhow!(
+                "JMAP session response too large: {} bytes",
+                session_bytes.len()
+            ));
+        }
+        let session: Value = serde_json::from_slice(&session_bytes)
             .map_err(|e| anyhow!("JMAP session parse error: {e}"))?;
         let api_url_str = session
             .get("apiUrl")
@@ -165,12 +173,25 @@ impl JmapClient {
             .map_err(|e| anyhow!("JMAP request error: {e}"))?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let err_body = resp.text().await.unwrap_or_default();
+            let err_bytes = resp
+                .bytes()
+                .await
+                .unwrap_or_default();
+            let err_body = if err_bytes.len() > 64 * 1024 {
+                format!("(error body too large: {} bytes)", err_bytes.len())
+            } else {
+                String::from_utf8_lossy(&err_bytes).into_owned()
+            };
             return Err(anyhow!("JMAP API error {status}: {err_body}"));
         }
-        let response: Value = resp
-            .json()
+        let bytes = resp
+            .bytes()
             .await
+            .map_err(|e| anyhow!("JMAP response read error: {e}"))?;
+        if bytes.len() > 16 * 1024 * 1024 {
+            return Err(anyhow!("JMAP response too large: {} bytes", bytes.len()));
+        }
+        let response: Value = serde_json::from_slice(&bytes)
             .map_err(|e| anyhow!("JMAP response parse error: {e}"))?;
         let method_responses = response
             .get("methodResponses")

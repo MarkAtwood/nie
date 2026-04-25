@@ -151,6 +151,10 @@ impl WalletStore {
             .await?;
 
         if version < 1 {
+            // Wrapped in a transaction so a crash between CREATE TABLE and the
+            // PRAGMA user_version update leaves user_version < 1 and retries
+            // cleanly on the next open (CREATE TABLE IF NOT EXISTS is idempotent).
+            let mut txn = pool.begin().await?;
             sqlx::query(
                 "CREATE TABLE IF NOT EXISTS payment_sessions (
                     session_id      TEXT PRIMARY KEY,
@@ -165,16 +169,21 @@ impl WalletStore {
                     updated_at      INTEGER NOT NULL
                 )",
             )
-            .execute(&pool)
+            .execute(&mut *txn)
             .await?;
             // PRAGMA user_version does not accept parameterized binding — the
             // integer literal must be inlined.  This is safe: it is a constant.
             sqlx::query("PRAGMA user_version = 1")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
+            txn.commit().await?;
         }
 
         if version < 2 {
+            // Wrapped in a transaction so a crash between any CREATE TABLE and the
+            // PRAGMA user_version update leaves user_version < 2 and retries
+            // cleanly on the next open (CREATE TABLE IF NOT EXISTS is idempotent).
+            let mut txn = pool.begin().await?;
             // notes: received Sapling/Orchard outputs, one row per output.
             // memo is stored as a raw BLOB (up to 512 bytes, ZIP-302).
             sqlx::query(
@@ -190,7 +199,7 @@ impl WalletStore {
                     UNIQUE(txid, output_index)
                 )",
             )
-            .execute(&pool)
+            .execute(&mut *txn)
             .await?;
 
             // witnesses: latest incremental Merkle witness per note.
@@ -206,7 +215,7 @@ impl WalletStore {
                     witness_data BLOB    NOT NULL
                 )",
             )
-            .execute(&pool)
+            .execute(&mut *txn)
             .await?;
 
             // transactions: confirmed wallet transactions (both directions).
@@ -222,15 +231,19 @@ impl WalletStore {
                     created_at     INTEGER NOT NULL
                 )",
             )
-            .execute(&pool)
+            .execute(&mut *txn)
             .await?;
 
             sqlx::query("PRAGMA user_version = 2")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
+            txn.commit().await?;
         }
 
         if version < 3 {
+            // Wrapped in a transaction so a crash between CREATE TABLE, INSERT,
+            // and PRAGMA user_version leaves user_version < 3 and retries cleanly.
+            let mut txn = pool.begin().await?;
             // scan_state: single-row table tracking the last fully-scanned
             // block height.  id is always 1; the CHECK constraint enforces
             // the single-row invariant so UPDATE does not need a WHERE clause
@@ -241,15 +254,16 @@ impl WalletStore {
                     tip_height INTEGER NOT NULL DEFAULT 0
                 )",
             )
-            .execute(&pool)
+            .execute(&mut *txn)
             .await?;
             // Seed the row so scan_tip() can always use fetch_one.
             sqlx::query("INSERT OR IGNORE INTO scan_state (id, tip_height) VALUES (1, 0)")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
             sqlx::query("PRAGMA user_version = 3")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
+            txn.commit().await?;
         }
 
         if version < 4 {
@@ -273,6 +287,10 @@ impl WalletStore {
         }
 
         if version < 5 {
+            // Wrapped in a transaction so a crash between CREATE TABLE and the
+            // PRAGMA user_version update leaves user_version < 5 and retries
+            // cleanly on the next open (CREATE TABLE IF NOT EXISTS is idempotent).
+            let mut txn = pool.begin().await?;
             // accounts: one row per ZIP-32 account (usually just account 0).
             //
             // diversifier_index is stored as TEXT (decimal u128), not INTEGER.
@@ -292,11 +310,12 @@ impl WalletStore {
                     diversifier_index TEXT    NOT NULL DEFAULT '0'
                 )",
             )
-            .execute(&pool)
+            .execute(&mut *txn)
             .await?;
             sqlx::query("PRAGMA user_version = 5")
-                .execute(&pool)
+                .execute(&mut *txn)
                 .await?;
+            txn.commit().await?;
         }
 
         if version < 6 {

@@ -170,7 +170,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    if let Some(merchant) = load_merchant_wallet() {
+    if let Some(merchant) = load_merchant_wallet()? {
         tracing::info!("merchant wallet loaded, network={:?}", merchant.network);
         state.set_merchant(merchant);
 
@@ -210,13 +210,14 @@ async fn main() -> anyhow::Result<()> {
 /// Load the merchant DFVK from environment variables.
 ///
 /// Reads `MERCHANT_DFVK` (256 hex chars = 128 bytes) and `MERCHANT_NETWORK`
-/// ("mainnet" or "testnet", defaulting to "testnet").  Returns `None` if
+/// ("mainnet" or "testnet", defaulting to "testnet").  Returns `Ok(None)` if
 /// `MERCHANT_DFVK` is absent — the relay starts without payment gating.
+/// Returns `Err` if any present value is invalid, aborting startup.
 ///
 /// The DFVK bytes are never logged; only the network is logged on success.
-fn load_merchant_wallet() -> Option<MerchantWallet> {
+fn load_merchant_wallet() -> anyhow::Result<Option<MerchantWallet>> {
     let hex = match std::env::var("MERCHANT_DFVK") {
-        Err(_) => return None,
+        Err(_) => return Ok(None),
         Ok(v) => v,
     };
 
@@ -232,11 +233,10 @@ fn load_merchant_wallet() -> Option<MerchantWallet> {
             "mainnet" => ZcashNetwork::Mainnet,
             "testnet" => ZcashNetwork::Testnet,
             _ => {
-                tracing::error!(
+                anyhow::bail!(
                     "MERCHANT_NETWORK={v:?} is not recognized (expected mainnet or testnet); \
                      refusing to start with an unknown network"
                 );
-                return None;
             }
         },
     };
@@ -244,20 +244,18 @@ fn load_merchant_wallet() -> Option<MerchantWallet> {
     let bytes: [u8; 128] = match decode_hex_128(&hex) {
         Ok(b) => b,
         Err(e) => {
-            tracing::error!("MERCHANT_DFVK invalid: {e}");
-            return None;
+            anyhow::bail!("MERCHANT_DFVK invalid: {e}");
         }
     };
 
     let dfvk = match SaplingDiversifiableFvk::from_bytes(&bytes) {
         Some(k) => k,
         None => {
-            tracing::error!("MERCHANT_DFVK bytes do not form a valid Sapling DFVK");
-            return None;
+            anyhow::bail!("MERCHANT_DFVK bytes do not form a valid Sapling DFVK");
         }
     };
 
-    Some(MerchantWallet { dfvk, network })
+    Ok(Some(MerchantWallet { dfvk, network }))
 }
 
 /// Decode a 256-character lowercase hex string into exactly 128 bytes.

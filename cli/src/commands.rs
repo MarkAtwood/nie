@@ -466,7 +466,7 @@ pub async fn chat(
         // is used exclusively; otherwise the network defaults are used.
         let lwd_endpoints = resolve_lwd_endpoints(lightwalletd_url.as_deref(), fvks.network);
         Some(spawn_block_watcher(
-            fvks.sapling.ivk_bytes(),
+            *fvks.sapling.ivk_bytes(),
             watch_registry.clone(),
             conf_tx,
             lwd_endpoints,

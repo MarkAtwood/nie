@@ -100,8 +100,6 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
 
     // Track seen email IDs to avoid reprocessing on each poll (bounded at 1000).
     let seen_ids: Arc<Mutex<SeenIds>> = Arc::new(Mutex::new(SeenIds::new()));
-    // Track the last JMAP query state for incremental polling.
-    let query_state: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 
     // Channel: JMAP poll → nie broadcast.
     let (jmap_tx, mut jmap_rx) = tokio::sync::mpsc::channel::<String>(64);
@@ -110,7 +108,6 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
     {
         let jmap = Arc::clone(&jmap);
         let seen_ids = Arc::clone(&seen_ids);
-        let query_state = Arc::clone(&query_state);
         let account_id = account_id.clone();
         let mailbox_id = mailbox_id.clone();
         let mailbox_name = mailbox_name.clone();
@@ -120,12 +117,8 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
             loop {
                 ticker.tick().await;
 
-                let since = query_state
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .clone();
-                let (ids, new_state) = match jmap
-                    .email_query(&account_id, &mailbox_id, since.as_deref())
+                let (ids, _) = match jmap
+                    .email_query(&account_id, &mailbox_id, None)
                     .await
                 {
                     Ok(v) => v,
@@ -190,7 +183,6 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                     }
                 }
 
-                *query_state.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_state);
             }
         });
     }

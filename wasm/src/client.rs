@@ -122,6 +122,7 @@ impl NieRelayClient {
     /// Replaces any previously registered callback.
     pub fn set_event_callback(&mut self, js_cb: Function) {
         let online_users = Rc::clone(&self.online_users);
+        let own_pub_id = self.identity.pub_id().0.clone();
 
         // Transport now delivers the already-parsed Value — no second JSON parse.
         let notify_cb = Box::new(move |v: Value| {
@@ -133,6 +134,9 @@ impl NieRelayClient {
             let event: Value = match method {
                 "deliver" => {
                     let from = v["params"]["from"].as_str().unwrap_or("").to_string();
+                    if from == own_pub_id {
+                        return; // skip own broadcast echo
+                    }
                     let payload_b64 = v["params"]["payload"].as_str().unwrap_or("");
                     let text = decode_payload_text(payload_b64);
                     serde_json::json!({

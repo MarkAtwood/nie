@@ -27,6 +27,7 @@ use openmls_rust_crypto::OpenMlsRustCrypto;
 use sha2::{Digest, Sha256};
 use tls_codec::{DeserializeBytes, Serialize as TlsSerialize};
 use x25519_dalek;
+use zeroize::Zeroize;
 
 /// Fixed group ID for the single broadcast room.
 const GROUP_ID: &[u8] = b"nie-room";
@@ -386,13 +387,14 @@ impl MlsClient {
             .get(GROUP_ID)
             .ok_or_else(|| anyhow::anyhow!("no group"))?;
 
-        let secret_bytes: [u8; 32] = group
+        let mut secret_bytes: [u8; 32] = group
             .export_secret(self.provider.crypto(), "nie-room-hpke-key", b"", 32)
             .map_err(|e| anyhow::anyhow!("export_secret failed: {e:?}"))?
             .try_into()
             .map_err(|_| anyhow::anyhow!("export_secret returned wrong length"))?;
 
         let secret = x25519_dalek::StaticSecret::from(secret_bytes);
+        secret_bytes.zeroize();
         let public = x25519_dalek::PublicKey::from(&secret);
         Ok((zeroize::Zeroizing::new(secret.to_bytes()), public.to_bytes()))
     }

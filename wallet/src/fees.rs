@@ -87,9 +87,9 @@ pub enum CoinSelectError {
         shortfall: u64,
     },
 
-    /// `target + fee` overflows u64 — the caller passed an invalid combination.
-    #[error("amount overflow: target {target} + fee {fee} overflows u64")]
-    AmountOverflow { target: u64, fee: u64 },
+    /// Running sum overflowed u64 while accumulating note values.
+    #[error("amount overflow: running_sum {running_sum} + note_value {note_value} overflows u64")]
+    AmountOverflow { running_sum: u64, note_value: u64 },
 }
 
 /// Select the minimum set of notes needed to fund a payment of `target_zatoshi`
@@ -122,8 +122,8 @@ pub fn select_notes(
     let total_needed = target_zatoshi
         .checked_add(fee)
         .ok_or(CoinSelectError::AmountOverflow {
-            target: target_zatoshi,
-            fee,
+            running_sum: target_zatoshi,
+            note_value: fee,
         })?;
 
     // Sort oldest-first (lowest block_height) — FIFO minimises witness depth.
@@ -144,8 +144,8 @@ pub fn select_notes(
         sum = sum
             .checked_add(note.value_zatoshi)
             .ok_or(CoinSelectError::AmountOverflow {
-                target: sum,
-                fee: note.value_zatoshi,
+                running_sum: sum,
+                note_value: note.value_zatoshi,
             })?;
         if sum >= total_needed {
             break;

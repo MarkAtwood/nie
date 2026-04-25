@@ -1045,13 +1045,16 @@ impl Store {
 
     /// Create a category in a space.
     pub async fn create_category(&self, id: &str, space_id: &str, name: &str) -> Result<()> {
-        sqlx::query("INSERT OR IGNORE INTO category (id, space_id, name) VALUES (?, ?, ?)")
+        let rows = sqlx::query("INSERT OR IGNORE INTO category (id, space_id, name) VALUES (?, ?, ?)")
             .bind(id)
             .bind(space_id)
             .bind(name)
             .execute(&self.pool)
-            .await?;
-        self.bump_state_seq("Category").await?;
+            .await?
+            .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("Category").await?;
+        }
         Ok(())
     }
 
@@ -1571,10 +1574,11 @@ impl Store {
         emoji: &str,
         sent_at: &str,
     ) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
         let existing: Option<String> =
             sqlx::query_scalar("SELECT reactions FROM message WHERE id = ?")
                 .bind(msg_id)
-                .fetch_optional(&self.pool)
+                .fetch_optional(&mut *tx)
                 .await?;
         let Some(json_str) = existing else {
             return Ok(false);
@@ -1589,19 +1593,24 @@ impl Store {
         sqlx::query("UPDATE message SET reactions = ? WHERE id = ?")
             .bind(&new_json)
             .bind(msg_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
-        self.bump_state_seq("Message").await?;
+        sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+            .bind("Message")
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
         Ok(true)
     }
 
     /// Remove a reaction from a message.
     /// Returns `true` if the message was found (even if the reaction_id wasn't present).
     pub async fn remove_message_reaction(&self, msg_id: &str, reaction_id: &str) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
         let existing: Option<String> =
             sqlx::query_scalar("SELECT reactions FROM message WHERE id = ?")
                 .bind(msg_id)
-                .fetch_optional(&self.pool)
+                .fetch_optional(&mut *tx)
                 .await?;
         let Some(json_str) = existing else {
             return Ok(false);
@@ -1615,19 +1624,24 @@ impl Store {
         sqlx::query("UPDATE message SET reactions = ? WHERE id = ?")
             .bind(&new_json)
             .bind(msg_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
-        self.bump_state_seq("Message").await?;
+        sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+            .bind("Message")
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
         Ok(true)
     }
 
     /// Edit a message body.  Saves the previous body to `edit_history`.
     /// Returns `true` if the message was found.
     pub async fn edit_message_body(&self, msg_id: &str, new_body: &str) -> Result<bool> {
+        let mut tx = self.pool.begin().await?;
         let row: Option<(String, String, String)> =
             sqlx::query_as("SELECT body, sent_at, edit_history FROM message WHERE id = ?")
                 .bind(msg_id)
-                .fetch_optional(&self.pool)
+                .fetch_optional(&mut *tx)
                 .await?;
         let Some((old_body, sent_at, history_json)) = row else {
             return Ok(false);
@@ -1644,9 +1658,13 @@ impl Store {
             .bind(new_body)
             .bind(&new_history)
             .bind(msg_id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
-        self.bump_state_seq("Message").await?;
+        sqlx::query(Self::BUMP_STATE_SEQ_SQL)
+            .bind("Message")
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
         Ok(true)
     }
 

@@ -2191,6 +2191,30 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Array(ids)) = args.get("destroy") {
         for id_val in ids {
             if let Some(id) = id_val.as_str() {
+                // Fetch the message first to check existence and ownership.
+                match store.get_messages(&[id]).await {
+                    Err(e) => {
+                        not_destroyed.insert(
+                            id.to_string(),
+                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
+                        );
+                        continue;
+                    }
+                    Ok((rows, _)) => {
+                        if rows.is_empty() {
+                            not_destroyed
+                                .insert(id.to_string(), serde_json::json!({"type":"notFound"}));
+                            continue;
+                        }
+                        if rows[0].sender_id != account_id {
+                            not_destroyed.insert(
+                                id.to_string(),
+                                serde_json::json!({"type":"forbidden","description":"not the message sender"}),
+                            );
+                            continue;
+                        }
+                    }
+                }
                 match store.hard_delete_message(id).await {
                     Ok(true) => destroyed.push(Value::String(id.to_string())),
                     Ok(false) => {

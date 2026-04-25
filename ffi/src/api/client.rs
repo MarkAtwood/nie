@@ -115,6 +115,7 @@ pub async fn client_connect(
     // Bridge: translate ClientEvent → NieEvent and deliver to the event channel.
     let (event_tx, event_rx) = mpsc::channel::<NieEvent>(256);
     let mut transport_rx = conn.rx;
+    let own_pub_id_for_task = pub_id.clone();
     tokio::spawn(async move {
         while let Some(event) = transport_rx.recv().await {
             let nie_event = match event {
@@ -123,7 +124,7 @@ pub async fn client_connect(
                 }
                 ClientEvent::Reconnected => Some(NieEvent::Reconnected),
                 ClientEvent::Response(_) => None,
-                ClientEvent::Message(notif) => map_notification(notif),
+                ClientEvent::Message(notif) => map_notification(notif, &own_pub_id_for_task),
                 ClientEvent::Disconnected => None,
             };
             if let Some(ev) = nie_event {
@@ -238,11 +239,17 @@ fn decode_payload_text(payload: &[u8]) -> String {
     String::from_utf8(plaintext).unwrap_or_else(|_| "(binary payload)".to_string())
 }
 
-fn map_notification(notif: nie_core::protocol::JsonRpcNotification) -> Option<NieEvent> {
+fn map_notification(
+    notif: nie_core::protocol::JsonRpcNotification,
+    own_pub_id: &str,
+) -> Option<NieEvent> {
     let params = notif.params.unwrap_or(serde_json::Value::Null);
     match notif.method.as_str() {
         rpc_methods::DELIVER => {
             let p: DeliverParams = serde_json::from_value(params).ok()?;
+            if p.from == own_pub_id {
+                return None; // skip own broadcast echo
+            }
             Some(NieEvent::MessageReceived {
                 from: p.from,
                 text: decode_payload_text(&p.payload),

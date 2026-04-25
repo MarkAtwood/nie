@@ -1120,6 +1120,32 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // Verify the recipient is a known enrolled user to prevent
+                        // phantom-recipient flooding of the offline_messages table.
+                        match state.inner.store.user_exists(&params.to).await {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "recipient not found",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("user_exists failed for whisper: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {
@@ -1192,6 +1218,32 @@ async fn handle(socket: WebSocket, state: AppState) {
                             )
                             .await;
                             continue;
+                        }
+                        // Verify the recipient is a known enrolled user to prevent
+                        // phantom-recipient flooding of the offline_messages table.
+                        match state.inner.store.user_exists(&params.to).await {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "recipient not found",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("user_exists failed for sealed_whisper: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
                         }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
@@ -1314,6 +1366,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
 
                         // Validate member_pub_id is exactly 64 lowercase hex chars.
                         if params.member_pub_id.len() != 64
@@ -1575,6 +1641,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         match state.inner.store.get_group(&params.group_id).await {
                             Ok(Some(_)) => {}
                             Ok(None) => {
@@ -1929,7 +2009,26 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
-                        // DESIGN.md: TYPING is explicitly excluded from rate limiting.
+                        // TYPING is rate-limited even though it does not count toward
+                        // message throughput quotas (DESIGN.md: excluded from message
+                        // rate limit).  Without a rate limit, a single client sending
+                        // TYPING at wire speed forces O(N) mpsc pushes per frame across
+                        // all connected clients.  Using the same token bucket as other
+                        // handlers bounds the amplification factor.
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         // SECURITY: `from` is relay-set from authenticated pub_id.
                         // serde_json::to_string on a derived Serialize cannot fail
                         let notif = serde_json::to_string(

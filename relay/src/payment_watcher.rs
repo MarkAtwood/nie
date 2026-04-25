@@ -167,6 +167,11 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                     }
                 };
 
+                if block.height == 0 {
+                    warn!("payment_watcher: received CompactBlock with height=0; skipping to avoid scan-height reset");
+                    continue;
+                }
+
                 scan_block(&block, &decryptor, network_type, &state).await;
 
                 last_scanned_height = block.height;

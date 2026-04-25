@@ -242,7 +242,18 @@ fn ensure_param_file(
         );
     }
 
-    std::fs::write(path, &data)?;
+    // Write to a temp path then rename for atomicity: a crash mid-write
+    // leaves the .tmp file, not a partial params file.  On error, clean up
+    // the temp file before propagating.
+    let tmp_path = path.with_extension("params.tmp");
+    if let Err(e) = std::fs::write(&tmp_path, &data) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(e.into());
+    }
+    if let Err(e) = std::fs::rename(&tmp_path, path) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(e.into());
+    }
     tracing::info!("{name}: downloaded and verified ({} bytes)", data.len());
     Ok(())
 }
