@@ -85,6 +85,11 @@ pub struct JmapClient {
     http: reqwest::Client,
     /// JMAP API URL (populated after session fetch).
     api_url: Option<String>,
+    /// Server-advertised maximum number of objects per Email/get request.
+    ///
+    /// Sourced from `capabilities["urn:ietf:params:jmap:core"]["maxObjectsInGet"]`
+    /// during `init_session`. Defaults to 50 if the server does not advertise a limit.
+    max_objects_in_get: usize,
 }
 
 impl JmapClient {
@@ -94,6 +99,7 @@ impl JmapClient {
             bearer_token: bearer_token.to_string(),
             http: reqwest::Client::new(),
             api_url: None,
+            max_objects_in_get: 50,
         }
     }
 
@@ -145,6 +151,18 @@ impl JmapClient {
             ));
         }
         self.api_url = Some(api_url_str.to_string());
+
+        // Read maxObjectsInGet from core capabilities; fall back to 50 if absent or zero.
+        if let Some(limit) = session
+            .get("capabilities")
+            .and_then(|c| c.get("urn:ietf:params:jmap:core"))
+            .and_then(|c| c.get("maxObjectsInGet"))
+            .and_then(|v| v.as_u64())
+            .filter(|&n| n > 0)
+        {
+            self.max_objects_in_get = limit as usize;
+        }
+
         Ok(())
     }
 
@@ -210,11 +228,14 @@ impl JmapClient {
         Ok(method_responses)
     }
 
-    /// Query email IDs in a mailbox using a full scan (always returns up to 50 most-recent IDs).
+    /// Query email IDs in a mailbox using a full scan, paginating until all IDs are collected.
     ///
     /// The `since_state` parameter is accepted for API compatibility but is **not used** —
     /// this always issues a full `Email/query` rather than an incremental `Email/queryChanges`.
     /// Replay is prevented by the bridge's `seen_ids` deduplication set.
+    ///
+    /// Uses `position`-based pagination (RFC 8621 §5.5) when the server's `total` field
+    /// indicates more results exist than were returned in the first response.
     ///
     /// Returns `(ids, new_query_state)`.
     pub async fn email_query(
@@ -230,80 +251,114 @@ impl JmapClient {
         // deduplication in the bridge prevents message replay.
         let _ = since_state;
 
-        let args = json!({
-            "accountId": account_id,
-            "filter": filter,
-            "sort": [{"property": "receivedAt", "isAscending": false}],
-            "limit": 50
-        });
-        let calls = vec![("Email/query".to_string(), args, "c1".to_string())];
-        let responses = self.request(calls).await?;
+        const PAGE_SIZE: u64 = 50;
+        let mut all_ids: Vec<String> = Vec::new();
+        let mut position: u64 = 0;
+        let mut query_state = String::new();
 
-        let resp_args = responses
-            .into_iter()
-            .find(|(m, _, _)| m == "Email/query")
-            .map(|(_, args, _)| args)
-            .ok_or_else(|| anyhow!("Email/query response not found"))?;
+        loop {
+            let args = json!({
+                "accountId": account_id,
+                "filter": filter,
+                "sort": [{"property": "receivedAt", "isAscending": false}],
+                "limit": PAGE_SIZE,
+                "position": position
+            });
+            let calls = vec![("Email/query".to_string(), args, "c1".to_string())];
+            let responses = self.request(calls).await?;
 
-        let ids: Vec<String> = resp_args
-            .get("ids")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(str::to_string))
-                    .collect()
-            })
-            .unwrap_or_default();
+            let resp_args = responses
+                .into_iter()
+                .find(|(m, _, _)| m == "Email/query")
+                .map(|(_, args, _)| args)
+                .ok_or_else(|| anyhow!("Email/query response not found"))?;
 
-        let query_state = resp_args
-            .get("queryState")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
+            let page_ids: Vec<String> = resp_args
+                .get("ids")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
 
-        Ok((ids, query_state))
+            if query_state.is_empty() {
+                query_state = resp_args
+                    .get("queryState")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+            }
+
+            let page_len = page_ids.len() as u64;
+            all_ids.extend(page_ids);
+            position += page_len;
+
+            // `total` is optional in the JMAP spec; if absent or if we received
+            // fewer IDs than the page size, there are no more pages.
+            let total = resp_args
+                .get("total")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(position);
+
+            if page_len < PAGE_SIZE || position >= total {
+                break;
+            }
+        }
+
+        Ok((all_ids, query_state))
     }
 
     /// Fetch full email objects for the given IDs.
+    ///
+    /// Chunks the ID list into batches of at most `max_objects_in_get` (sourced from
+    /// the server's `capabilities["urn:ietf:params:jmap:core"]["maxObjectsInGet"]`
+    /// during `init_session`, defaulting to 50) and issues one `Email/get` request
+    /// per batch to avoid `requestTooLarge` errors.
     pub async fn email_get(&self, account_id: &str, ids: &[String]) -> Result<Vec<EmailObject>> {
         if ids.is_empty() {
             return Ok(vec![]);
         }
-        let args = json!({
-            "accountId": account_id,
-            "ids": ids,
-            "properties": ["id", "from", "subject", "textBody", "bodyValues"],
-            "fetchTextBodyValues": true,
-            "maxBodyValueBytes": 8192
-        });
-        let calls = vec![("Email/get".to_string(), args, "c1".to_string())];
-        let responses = self.request(calls).await?;
 
-        let resp_args = responses
-            .into_iter()
-            .find(|(m, _, _)| m == "Email/get")
-            .map(|(_, args, _)| args)
-            .ok_or_else(|| anyhow!("Email/get response not found"))?;
+        let mut all_emails: Vec<EmailObject> = Vec::with_capacity(ids.len());
 
-        let list = resp_args
-            .get("list")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| anyhow!("Email/get response missing 'list'"))?;
+        for batch in ids.chunks(self.max_objects_in_get) {
+            let args = json!({
+                "accountId": account_id,
+                "ids": batch,
+                "properties": ["id", "from", "subject", "textBody", "bodyValues"],
+                "fetchTextBodyValues": true,
+                "maxBodyValueBytes": 8192
+            });
+            let calls = vec![("Email/get".to_string(), args, "c1".to_string())];
+            let responses = self.request(calls).await?;
 
-        let emails = list
-            .iter()
-            .filter_map(|v| {
-                serde_json::from_value::<EmailObject>(v.clone())
-                    .map_err(|e| {
+            let resp_args = responses
+                .into_iter()
+                .find(|(m, _, _)| m == "Email/get")
+                .map(|(_, args, _)| args)
+                .ok_or_else(|| anyhow!("Email/get response not found"))?;
+
+            let list = resp_args
+                .get("list")
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| anyhow!("Email/get response missing 'list'"))?;
+
+            for v in list {
+                match serde_json::from_value::<EmailObject>(v.clone()) {
+                    Ok(email) => all_emails.push(email),
+                    Err(e) => {
                         let id = v.get("id").and_then(|i| i.as_str()).unwrap_or("<unknown>");
                         tracing::warn!(
                             "JMAP Email/get: dropping email that failed to deserialize: {e} (id: {id})"
                         );
-                    })
-                    .ok()
-            })
-            .collect();
-        Ok(emails)
+                    }
+                }
+            }
+        }
+
+        Ok(all_emails)
     }
 
     /// Create a new email in the specified mailbox.

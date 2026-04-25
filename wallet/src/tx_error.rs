@@ -82,6 +82,12 @@ pub enum TxBuildError {
     /// be corrupt.
     #[error("note deserialization failed: {0}")]
     NoteDeserialize(String),
+
+    /// The iterative fee-estimation loop failed to converge within the allowed
+    /// number of rounds.  This indicates a non-monotone interaction between note
+    /// selection and the ZIP-317 fee, which should not be possible in practice.
+    #[error("fee convergence failed after {iterations} iterations")]
+    FeeConvergence { iterations: u32 },
 }
 
 #[cfg(test)]
@@ -204,5 +210,6 @@ mod tests {
         let _ = TxBuildError::ParamsNotLoaded(String::new());
         let _ = TxBuildError::WitnessDeserialize(String::new());
         let _ = TxBuildError::NoteDeserialize(String::new());
+        let _ = TxBuildError::FeeConvergence { iterations: 20 };
     }
 }

@@ -34,6 +34,7 @@ pub enum ClearMessage {
     /// for each peer in memory. Field names and values are user-defined; the
     /// only constraint is size (enforced client-side before sending).
     Profile {
+        #[serde(deserialize_with = "deserialize_profile_fields")]
         fields: HashMap<String, String>,
     },
     /// Initiates a chunked file transfer. Sent before the first FileChunk.
@@ -48,6 +49,7 @@ pub enum ClearMessage {
         #[serde(deserialize_with = "deserialize_file_name")]
         name: String,
         /// Total file size in bytes.
+        #[serde(deserialize_with = "deserialize_size_bytes")]
         size_bytes: u64,
         /// Lowercase hex-encoded SHA-256 of the complete file bytes.
         #[serde(deserialize_with = "deserialize_sha256_hex")]
@@ -78,9 +80,12 @@ pub enum ClearMessage {
     /// The `chat_id` is the channel ID in the **receiving** daemon's store.
     PeerDeliver {
         /// Server-assigned message ID (ULID).  Globally unique.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         message_id: String,
         /// Target chat (channel/DM) in the receiving daemon.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         chat_id: String,
+        #[serde(deserialize_with = "deserialize_bounded_body")]
         body: String,
         body_type: String,
         sent_at: String,
@@ -93,9 +98,11 @@ pub enum ClearMessage {
     /// Peer/receipt — delivery or read receipt for a previous `PeerDeliver`.
     PeerReceipt {
         /// The `message_id` from the original `PeerDeliver`.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         message_id: String,
         #[serde(deserialize_with = "deserialize_receipt_type")]
         receipt_type: String,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         at: String,
     },
 
@@ -117,9 +124,11 @@ pub enum ClearMessage {
 
     /// Peer/groupUpdate — space membership change notification.
     PeerGroupUpdate {
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         space_id: String,
         #[serde(deserialize_with = "deserialize_group_action")]
         action: String,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         contact_id: String,
         /// New role (only set for "role_change").
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -274,6 +283,130 @@ where
     }
 }
 
+/// Deserialize `Profile.fields`, rejecting maps with more than 64 entries or
+/// keys/values longer than 1024 bytes each.
+///
+/// A hostile MLS peer cannot force unbounded heap allocation by sending a map
+/// with millions of entries or multi-megabyte strings before any application
+/// check runs.
+fn deserialize_profile_fields<'de, D>(deserializer: D) -> Result<HashMap<String, String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{MapAccess, Visitor};
+    use std::fmt;
+
+    struct ProfileFieldsVisitor;
+
+    impl<'de> Visitor<'de> for ProfileFieldsVisitor {
+        type Value = HashMap<String, String>;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a map of string keys and string values")
+        }
+
+        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where
+            A: MapAccess<'de>,
+        {
+            let mut fields = HashMap::new();
+            while let Some((k, v)) = map.next_entry::<String, String>()? {
+                if fields.len() >= 64 {
+                    return Err(serde::de::Error::custom(
+                        "profile fields: too many entries (max 64)",
+                    ));
+                }
+                if k.len() > 1024 {
+                    return Err(serde::de::Error::custom(format!(
+                        "profile field key too long: {} bytes (max 1024)",
+                        k.len()
+                    )));
+                }
+                if v.len() > 1024 {
+                    return Err(serde::de::Error::custom(format!(
+                        "profile field value too long: {} bytes (max 1024)",
+                        v.len()
+                    )));
+                }
+                fields.insert(k, v);
+            }
+            Ok(fields)
+        }
+    }
+
+    deserializer.deserialize_map(ProfileFieldsVisitor)
+}
+
+/// Deserialize a String field that must not exceed 128 bytes.
+///
+/// Used for ID fields (`message_id`, `chat_id`, `space_id`, `contact_id`, `at`)
+/// where multi-kilobyte values indicate a malformed or hostile message.
+fn deserialize_bounded_id<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 128 {
+        return Err(serde::de::Error::custom(format!(
+            "ID field too long: {} bytes (max 128)",
+            s.len()
+        )));
+    }
+    Ok(s)
+}
+
+/// Deserialize a String body field that must not exceed 64 KiB.
+///
+/// Used for `PeerDeliver.body` where multi-megabyte values indicate a
+/// malformed or hostile message.
+fn deserialize_bounded_body<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 64 * 1024 {
+        return Err(serde::de::Error::custom(format!(
+            "body too long: {} bytes (max 65536)",
+            s.len()
+        )));
+    }
+    Ok(s)
+}
+
+/// Deserialize `FileHeader.size_bytes`, rejecting values above 1 GiB.
+///
+/// A hostile peer sending `size_bytes: u64::MAX` would cause callers that
+/// pre-allocate based on this field to OOM.  Reject at the protocol boundary.
+fn deserialize_size_bytes<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let n = u64::deserialize(deserializer)?;
+    if n > 1_073_741_824 {
+        return Err(serde::de::Error::custom(format!(
+            "size_bytes {n} exceeds maximum of 1 GiB (1073741824)"
+        )));
+    }
+    Ok(n)
+}
+
+/// Deserialize `PaymentAction::Request.amount_zatoshi`, rejecting 0.
+///
+/// A zero-zatoshi payment request is economically nonsensical and indicates
+/// a malformed or hostile message.
+fn deserialize_nonzero_zatoshi<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let n = u64::deserialize(deserializer)?;
+    if n == 0 {
+        return Err(serde::de::Error::custom(
+            "amount_zatoshi must be non-zero",
+        ));
+    }
+    Ok(n)
+}
+
 /// The four steps of P2P payment negotiation, plus an error response.
 /// All variants travel as encrypted payloads — the relay cannot distinguish
 /// payment negotiation from ordinary chat.
@@ -281,7 +414,11 @@ where
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum PaymentAction {
     /// Payer tells payee: "I want to send you X on chain Y."
-    Request { chain: Chain, amount_zatoshi: u64 },
+    Request {
+        chain: Chain,
+        #[serde(deserialize_with = "deserialize_nonzero_zatoshi")]
+        amount_zatoshi: u64,
+    },
     /// Payee provides a fresh receive address.
     Address { chain: Chain, address: String },
     /// Payer confirms broadcast.

@@ -1498,6 +1498,7 @@ impl WalletStore {
             i64::try_from(block_height).map_err(|_| anyhow::anyhow!("block_height overflow"))?;
         // Unique synthetic txid per call: zero-padded decimal index fills 64 hex chars.
         let txid = format!("{idx:0>64}");
+        let mut txn = self.pool.begin().await?;
         let note_id: i64 = sqlx::query_scalar(
             "INSERT INTO notes
                (txid, output_index, value_zatoshi, block_height, created_at,
@@ -1513,9 +1514,21 @@ impl WalletStore {
         .bind(note_pk_d)
         .bind(note_rseed)
         .bind(if rseed_after_zip212 { 1i64 } else { 0i64 })
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *txn)
         .await?;
-        self.upsert_witness(note_id, height, witness_data).await?;
+        sqlx::query(
+            "INSERT INTO witnesses (note_id, block_height, witness_data)
+             VALUES (?, ?, ?)
+             ON CONFLICT(note_id) DO UPDATE SET
+                 block_height = excluded.block_height,
+                 witness_data = excluded.witness_data",
+        )
+        .bind(note_id)
+        .bind(height)
+        .bind(witness_data)
+        .execute(&mut *txn)
+        .await?;
+        txn.commit().await?;
         Ok(note_id)
     }
 }

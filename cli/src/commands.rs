@@ -4022,14 +4022,14 @@ pub async fn wallet_init(
         p
     };
 
-    let encrypted = encrypt_wallet_key(&seed, &passphrase)?;
+    let encrypted = encrypt_wallet_key(&*seed, &passphrase)?;
     write_secret_file(&wallet_key_path, &encrypted)?;
 
     // Paranoid write-verify: immediately decrypt and compare.
     // Detects file-system corruption or age bugs before the mnemonic display is dismissed.
     let recovered = decrypt_wallet_key(&encrypted, &passphrase)?;
     anyhow::ensure!(
-        *recovered == seed,
+        *recovered == *seed,
         "wallet.key write verification failed — file may be corrupt, do not dismiss the mnemonic"
     );
 
@@ -4112,13 +4112,13 @@ pub async fn wallet_restore(
         p
     };
 
-    let encrypted = encrypt_wallet_key(&seed, &passphrase)?;
+    let encrypted = encrypt_wallet_key(&*seed, &passphrase)?;
     write_secret_file(&wallet_key_path, &encrypted)?;
 
     // Paranoid write-verify.
     let recovered = decrypt_wallet_key(&encrypted, &passphrase)?;
     anyhow::ensure!(
-        *recovered == seed,
+        *recovered == *seed,
         "wallet.key write verification failed — file may be corrupt"
     );
 

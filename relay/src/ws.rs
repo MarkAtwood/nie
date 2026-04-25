@@ -1624,8 +1624,15 @@ async fn handle(socket: WebSocket, state: AppState) {
                         {
                             Ok(m) => m,
                             Err(e) => {
-                                warn!("member_counts_for_user DB error for {}: {e}", pub_id.0);
-                                std::collections::HashMap::new()
+                                error!("member_counts_for_user DB error for {}: {e}", pub_id.0);
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
                             }
                         };
                         let mut group_infos: Vec<GroupInfo> = Vec::with_capacity(groups.len());
@@ -1848,6 +1855,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 }
                             };
                         let message_id = Uuid::new_v4().to_string();
+                        let group_id = params.group_id;
                         // SECURITY: `from` is always relay-set from authenticated pub_id,
                         // never taken from client params.
                         // payload is forwarded opaque — relay must never inspect it (invariant #3).
@@ -1857,7 +1865,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 rpc_methods::GROUP_DELIVER,
                                 GroupDeliverParams {
                                     from: pub_id.0.clone(),
-                                    group_id: params.group_id,
+                                    group_id: group_id.clone(),
                                     payload: params.payload,
                                 },
                             )
@@ -1865,8 +1873,16 @@ async fn handle(socket: WebSocket, state: AppState) {
                         )
                         .unwrap();
                         // Fan out to all group members except the sender.
+                        // Pass the group_id so broadcast_to_group can re-check membership
+                        // before offline-enqueuing, preventing delivery to members who
+                        // left between the list_group_members call above and the enqueue.
                         state
-                            .broadcast_to_group(&members, Some(&pub_id.0), deliver_json)
+                            .broadcast_to_group(
+                                &members,
+                                Some(&pub_id.0),
+                                deliver_json,
+                                Some(&group_id),
+                            )
                             .await;
                         // serde_json::to_string on a derived Serialize cannot fail
                         let ok = serde_json::to_string(
@@ -1999,6 +2015,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             address: address_str.clone(),
                             amount_zatoshi: state.inner.subscription_price_zatoshi,
                             expires_at: expires_at.clone(),
+                            subscription_days: Some(params.duration_days as u64),
                         };
                         if let Err(e) = state.inner.store.create_invoice(&invoice).await {
                             error!("create_invoice failed: {e}");

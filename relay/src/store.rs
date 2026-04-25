@@ -22,6 +22,10 @@ pub struct InvoiceRow {
     pub amount_zatoshi: u64,
     /// SQLite-compatible UTC datetime string: `"YYYY-MM-DD HH:MM:SS"`.
     pub expires_at: String,
+    /// Subscription duration promised at invoice-creation time (in days).
+    /// `None` for pre-migration rows; payment watcher falls back to the
+    /// operator setting in that case.
+    pub subscription_days: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -202,6 +206,55 @@ impl Store {
             }
         }
 
+        // Migration v3 → v4: add subscription_days column to subscription_invoices.
+        //
+        // Stores the duration promised at invoice-creation time so that the payment
+        // watcher can grant the originally-promised duration even when the operator's
+        // SUBSCRIPTION_DAYS setting has changed between invoice creation and payment
+        // confirmation (late-payment bug nie-jmmd.2).
+        //
+        // NULL means "unknown" (pre-migration rows); the payment watcher falls back
+        // to the operator setting in that case.
+        {
+            let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await?;
+            if sv < 4 {
+                let mut tx = pool.begin().await?;
+                // Only ALTER if the table already exists (upgrade path).
+                // Fresh installs create the table with the column via the
+                // CREATE TABLE IF NOT EXISTS block below, so the ALTER is skipped.
+                let table_exists: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM sqlite_master \
+                     WHERE type='table' AND name='subscription_invoices'",
+                )
+                .fetch_one(&mut *tx)
+                .await?;
+                if table_exists > 0 {
+                    // ALTER TABLE ADD COLUMN is safe in SQLite when the column has no
+                    // NOT NULL constraint without a default (NULL is the implicit default).
+                    let col_exists: i64 = sqlx::query_scalar(
+                        "SELECT COUNT(*) FROM pragma_table_info('subscription_invoices') \
+                         WHERE name = 'subscription_days'",
+                    )
+                    .fetch_one(&mut *tx)
+                    .await?;
+                    if col_exists == 0 {
+                        sqlx::query(
+                            "ALTER TABLE subscription_invoices \
+                             ADD COLUMN subscription_days INTEGER",
+                        )
+                        .execute(&mut *tx)
+                        .await?;
+                    }
+                }
+                sqlx::query("PRAGMA user_version = 4")
+                    .execute(&mut *tx)
+                    .await?;
+                tx.commit().await?;
+            }
+        }
+
         // Persistent user directory: every pub_id that has ever authenticated.
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS users (
@@ -277,13 +330,16 @@ impl Store {
         // Subscription invoices: pending payment requests for subscription renewals.
         // invoice_id is caller-supplied (e.g. UUID). address is UNIQUE: one active
         // invoice per Zcash subaddress. expires_at uses YYYY-MM-DD HH:MM:SS UTC.
+        // subscription_days stores the duration promised at creation time so late
+        // payments honour the originally-quoted duration (nie-jmmd.2).
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS subscription_invoices (
-                invoice_id      TEXT PRIMARY KEY,
-                pub_id          TEXT NOT NULL,
-                address         TEXT NOT NULL UNIQUE,
-                amount_zatoshi  INTEGER NOT NULL,
-                expires_at      TEXT NOT NULL
+                invoice_id        TEXT PRIMARY KEY,
+                pub_id            TEXT NOT NULL,
+                address           TEXT NOT NULL UNIQUE,
+                amount_zatoshi    INTEGER NOT NULL,
+                expires_at        TEXT NOT NULL,
+                subscription_days INTEGER
             )",
         )
         .execute(&pool)
@@ -499,31 +555,44 @@ impl Store {
     /// Silently drops the message (returning `Ok`) if the recipient's queue already
     /// holds 1000 messages.  This prevents a flood of whispers from growing the
     /// `offline_messages` table without bound.
+    ///
+    /// Uses `BEGIN IMMEDIATE` so the read-then-write COUNT + INSERT sequence holds
+    /// a write lock from the start, preventing two concurrent callers from both
+    /// reading count < 1000 and both inserting, which would bypass the flood cap.
     pub async fn enqueue(&self, to_pub_id: &str, payload_json: &str) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM offline_messages WHERE to_pub_id = ?1",
-        )
-        .bind(to_pub_id)
-        .fetch_one(&mut *tx)
-        .await?;
-        if count >= 1000 {
-            tracing::warn!(
-                to_pub_id,
-                "offline queue full (1000 messages), dropping message"
-            );
-            return Ok(());
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<()> = async {
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM offline_messages WHERE to_pub_id = ?1",
+            )
+            .bind(to_pub_id)
+            .fetch_one(&mut *conn)
+            .await?;
+            if count >= 1000 {
+                tracing::warn!(
+                    to_pub_id,
+                    "offline queue full (1000 messages), dropping message"
+                );
+                return Ok(());
+            }
+            sqlx::query(
+                "INSERT INTO offline_messages (to_pub_id, payload, expires_at) \
+                 VALUES (?1, ?2, datetime('now', '+72 hours'))",
+            )
+            .bind(to_pub_id)
+            .bind(payload_json)
+            .execute(&mut *conn)
+            .await?;
+            Ok(())
         }
-        sqlx::query(
-            "INSERT INTO offline_messages (to_pub_id, payload, expires_at) \
-             VALUES (?1, ?2, datetime('now', '+72 hours'))",
-        )
-        .bind(to_pub_id)
-        .bind(payload_json)
-        .execute(&mut *tx)
-        .await?;
-        tx.commit().await?;
-        Ok(())
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     /// Drain all queued messages for `pub_id`.
@@ -716,16 +785,22 @@ impl Store {
     /// truncated.
     pub async fn create_invoice(&self, row: &InvoiceRow) -> Result<()> {
         let amount_i64 = i64::try_from(row.amount_zatoshi).context("amount_zatoshi overflow")?;
+        let days_i64: Option<i64> = row
+            .subscription_days
+            .map(i64::try_from)
+            .transpose()
+            .context("subscription_days overflow")?;
         sqlx::query(
             "INSERT OR IGNORE INTO subscription_invoices \
-             (invoice_id, pub_id, address, amount_zatoshi, expires_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+             (invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         )
         .bind(&row.invoice_id)
         .bind(&row.pub_id)
         .bind(&row.address)
         .bind(amount_i64)
         .bind(&row.expires_at)
+        .bind(days_i64)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -733,8 +808,8 @@ impl Store {
 
     /// Fetch the most recent unexpired invoice for `pub_id`, or None.
     pub async fn get_pending_invoice(&self, pub_id: &str) -> Result<Option<InvoiceRow>> {
-        let row: Option<(String, String, String, i64, String)> = sqlx::query_as(
-            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at \
+        let row: Option<(String, String, String, i64, String, Option<i64>)> = sqlx::query_as(
+            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days \
              FROM subscription_invoices \
              WHERE pub_id = ?1 AND expires_at > datetime('now') \
              ORDER BY expires_at DESC \
@@ -744,7 +819,7 @@ impl Store {
         .fetch_optional(&self.pool)
         .await?;
         row.map(
-            |(invoice_id, pub_id, address, amount_zatoshi, expires_at)| {
+            |(invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days)| {
                 Ok(InvoiceRow {
                     invoice_id,
                     pub_id,
@@ -752,6 +827,10 @@ impl Store {
                     amount_zatoshi: u64::try_from(amount_zatoshi)
                         .context("amount_zatoshi negative in DB")?,
                     expires_at,
+                    subscription_days: subscription_days
+                        .map(u64::try_from)
+                        .transpose()
+                        .context("subscription_days negative in DB")?,
                 })
             },
         )
@@ -766,8 +845,8 @@ impl Store {
     /// validates the amount independently; finding an expired-but-unpurged
     /// invoice is strictly better than silently dropping a confirmed payment.
     pub async fn get_invoice_by_address(&self, address: &str) -> Result<Option<InvoiceRow>> {
-        let row: Option<(String, String, String, i64, String)> = sqlx::query_as(
-            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at \
+        let row: Option<(String, String, String, i64, String, Option<i64>)> = sqlx::query_as(
+            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days \
              FROM subscription_invoices \
              WHERE address = ?1",
         )
@@ -775,7 +854,7 @@ impl Store {
         .fetch_optional(&self.pool)
         .await?;
         row.map(
-            |(invoice_id, pub_id, address, amount_zatoshi, expires_at)| {
+            |(invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days)| {
                 Ok(InvoiceRow {
                     invoice_id,
                     pub_id,
@@ -783,6 +862,10 @@ impl Store {
                     amount_zatoshi: u64::try_from(amount_zatoshi)
                         .context("amount_zatoshi negative in DB")?,
                     expires_at,
+                    subscription_days: subscription_days
+                        .map(u64::try_from)
+                        .transpose()
+                        .context("subscription_days negative in DB")?,
                 })
             },
         )
@@ -1352,6 +1435,7 @@ mod tests {
             address: "zs1abc".to_string(),
             amount_zatoshi: 100_000,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
 
@@ -1373,6 +1457,7 @@ mod tests {
             address: "zs1idem".to_string(),
             amount_zatoshi: 50_000,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
         // Second insert with same invoice_id must not fail.
@@ -1394,6 +1479,7 @@ mod tests {
             address: "zs1exp".to_string(),
             amount_zatoshi: 1_000,
             expires_at: past_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
         let got = store.get_pending_invoice("dave").await.unwrap();
@@ -1411,6 +1497,7 @@ mod tests {
             address: "zs1addr".to_string(),
             amount_zatoshi: 200_000,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
 
@@ -1434,6 +1521,7 @@ mod tests {
             address: "zs1del".to_string(),
             amount_zatoshi: 9_999,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
         store.delete_invoice("inv-del").await.unwrap();
@@ -1451,6 +1539,7 @@ mod tests {
             address: "zs1active".to_string(),
             amount_zatoshi: 1_000,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         let expired = InvoiceRow {
             invoice_id: "inv-old".to_string(),
@@ -1459,6 +1548,7 @@ mod tests {
             address: "zs1old".to_string(),
             amount_zatoshi: 1_000,
             expires_at: past_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&active).await.unwrap();
         store.create_invoice(&expired).await.unwrap();
@@ -1492,6 +1582,7 @@ mod tests {
             address: "zs1overflow".to_string(),
             amount_zatoshi: u64::MAX,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         let result = store.create_invoice(&row).await;
         assert!(

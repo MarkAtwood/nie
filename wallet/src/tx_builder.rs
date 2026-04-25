@@ -562,7 +562,8 @@ pub(crate) fn select_with_fee(
     amount_zatoshi: u64,
 ) -> Result<(Vec<SpendableNote>, u64), TxBuildError> {
     let mut fee = zip317_fee(sapling_logical_actions(1, 2));
-    loop {
+    const MAX_ITERATIONS: u32 = 20;
+    for _ in 0..MAX_ITERATIONS {
         let selected = select_notes_spendable(notes, amount_zatoshi, fee)?;
         let n = selected.len() as u64;
         let required_fee = zip317_fee(sapling_logical_actions(n, 2));
@@ -573,6 +574,9 @@ pub(crate) fn select_with_fee(
         // required_fee < fee cannot happen: more inputs only increases the ZIP-317 fee.
         fee = required_fee;
     }
+    Err(TxBuildError::FeeConvergence {
+        iterations: MAX_ITERATIONS,
+    })
 }
 
 /// FIFO (oldest-first) coin selection for `SpendableNote` rows.

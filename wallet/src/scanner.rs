@@ -471,12 +471,10 @@ impl CompactBlockScanner {
             let node = match sapling::Node::from_bytes(cmu_bytes).into_option() {
                 Some(n) => n,
                 None => {
-                    warn!(
-                        height = block_height,
-                        output_index = idx,
-                        "scanner: invalid cmu; skipping output"
-                    );
-                    continue;
+                    return Err(anyhow::anyhow!(
+                        "scanner: invalid cmu at height {block_height} output {idx}; \
+                         cannot skip — would corrupt subsequent witness positions"
+                    ));
                 }
             };
 

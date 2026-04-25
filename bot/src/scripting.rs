@@ -51,11 +51,31 @@ pub async fn run_hook(cmd_str: &str, env_vars: &[(&str, &str)]) -> Result<HookRe
         .spawn()
         .map_err(|e| BotError::Config(format!("failed to spawn hook {:?}: {e}", &argv[0])))?;
 
-    // Step 3: Wait with hard timeout.
-    // We use wait() (&mut self) rather than wait_with_output() (self) so that
-    // child remains accessible for kill() if the timeout fires.
+    // Step 3: Drain stdout and stderr concurrently while waiting for the process.
+    // Reading after wait() risks deadlock: if the child fills the OS pipe buffer
+    // (> ~64 KiB) it blocks on write, but we would be blocked on wait() — neither
+    // side can proceed.  Spawning tasks that drain the pipes concurrently prevents
+    // this.  child.wait() requires &mut child, so we take the handles first and
+    // pass them to the tasks before calling wait().
+    use tokio::io::AsyncReadExt;
+
     let stdout_handle = child.stdout.take();
     let stderr_handle = child.stderr.take();
+
+    let stdout_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        if let Some(mut h) = stdout_handle {
+            let _ = h.read_to_end(&mut buf).await;
+        }
+        buf
+    });
+    let stderr_task = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        if let Some(mut h) = stderr_handle {
+            let _ = h.read_to_end(&mut buf).await;
+        }
+        buf
+    });
 
     let wait_result = timeout(
         Duration::from_secs(HOOK_TIMEOUT_SECS),
@@ -76,20 +96,20 @@ pub async fn run_hook(cmd_str: &str, env_vars: &[(&str, &str)]) -> Result<HookRe
         }
     };
 
-    // Collect stdout and stderr from the pipe handles now that the process has exited.
-    use tokio::io::AsyncReadExt;
-    let mut raw_stdout = Vec::new();
-    if let Some(mut h) = stdout_handle {
-        let _ = h.read_to_end(&mut raw_stdout).await;
-    }
-    let mut raw_stderr = Vec::new();
-    if let Some(mut h) = stderr_handle {
-        let _ = h.read_to_end(&mut raw_stderr).await;
-    }
+    // The drain tasks complete once the child closes its pipe ends (which happens
+    // when the process exits).  wait() above ensures the process has exited.
+    let raw_stdout = stdout_task.await.unwrap_or_default();
+    let raw_stderr = stderr_task.await.unwrap_or_default();
 
     // Step 4: Cap stdout and stderr
-    let stdout = String::from_utf8_lossy(&raw_stdout[..raw_stdout.len().min(HOOK_STDOUT_MAX_BYTES)]).into_owned();
-    let stderr = String::from_utf8_lossy(&raw_stderr[..raw_stderr.len().min(HOOK_STDERR_MAX_BYTES)]).into_owned();
+    let stdout = String::from_utf8_lossy(
+        &raw_stdout[..raw_stdout.len().min(HOOK_STDOUT_MAX_BYTES)],
+    )
+    .into_owned();
+    let stderr = String::from_utf8_lossy(
+        &raw_stderr[..raw_stderr.len().min(HOOK_STDERR_MAX_BYTES)],
+    )
+    .into_owned();
     let exit_code = status.code().unwrap_or(-1);
 
     Ok(HookResult {

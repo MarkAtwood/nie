@@ -198,10 +198,22 @@ impl AppState {
     /// For each member in `members` (excluding `exclude`):
     /// - Attempts live delivery via all of the client's sender channels.
     /// - If ANY channel for a pub_id succeeds, that pub_id is marked delivered.
-    /// - If the client is offline (no channels succeed), enqueues via `store.enqueue()`.
+    /// - If the client is offline (no channels succeed), enqueues via `store.enqueue()`
+    ///   only if the member is still in the group (checked atomically per recipient
+    ///   to prevent delivery after departure when a member leaves between the caller's
+    ///   list-fetch and this enqueue).
+    ///
+    /// `group_id` is used for the departure check.  Pass `None` to skip the check
+    /// (e.g. for non-group fan-outs).
     ///
     /// Never holds the DashMap lock across an await point.
-    pub async fn broadcast_to_group(&self, members: &[String], exclude: Option<&str>, msg: String) {
+    pub async fn broadcast_to_group(
+        &self,
+        members: &[String],
+        exclude: Option<&str>,
+        msg: String,
+        group_id: Option<&str>,
+    ) {
         // O(1) membership test: convert the member list to a HashSet once before
         // iterating over all connected clients.  Without this, `contains` is O(M)
         // per client, giving O(N*M) total work at 10K clients and 100 members.
@@ -234,9 +246,24 @@ impl AppState {
             }
         }
 
-        // Enqueue for offline members.
+        // Enqueue for offline members, with a membership re-check when a group_id
+        // is provided to avoid delivering to members who left after the caller
+        // fetched the member list.
         for member in members {
             if exclude.is_none_or(|ex| member != ex) && !delivered.contains(member) {
+                // Re-verify membership if a group_id was provided.
+                if let Some(gid) = group_id {
+                    match self.inner.store.is_group_member(gid, member).await {
+                        Ok(true) => {}
+                        Ok(false) => continue, // departed between list-fetch and enqueue
+                        Err(e) => {
+                            tracing::warn!(
+                                "broadcast_to_group: is_group_member check failed for {member}: {e}"
+                            );
+                            continue;
+                        }
+                    }
+                }
                 if let Err(e) = self.inner.store.enqueue(member, &msg).await {
                     tracing::warn!("broadcast_to_group: enqueue failed for {member}: {e}");
                 }

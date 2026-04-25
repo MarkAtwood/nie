@@ -5,8 +5,8 @@ use futures::StreamExt;
 use nie_core::messages::ClearMessage;
 use nie_core::protocol::{
     rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcRequest,
-    KeyPackageReadyParams, PublishHpkeKeyParams, PublishKeyPackageParams, SealedDeliverParams,
-    UserJoinedParams, UserLeftParams, UserNicknameParams, WhisperDeliverParams,
+    KeyPackageReadyParams, PublishHpkeKeyParams, PublishKeyPackageParams, SealedBroadcastParams,
+    SealedDeliverParams, UserJoinedParams, UserLeftParams, UserNicknameParams, WhisperDeliverParams,
 };
 use nie_core::transport::{next_request_id, ClientEvent, RelayConnRetry};
 use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
@@ -101,6 +101,7 @@ pub async fn handle_relay_event(
             state.mls_active = false;
             state.online.clear();
             state.room_hpke_secret = None;
+            state.room_hpke_pub = None;
             // Reset MLS client so the reconnected session gets a fresh OpenMLS
             // provider.  Without this, create_group() returns GroupAlreadyExists
             // on reconnect (openmls checks its storage before writing).
@@ -195,6 +196,7 @@ pub async fn handle_relay_event(
                                 match state.mls_client.room_hpke_keypair() {
                                     Ok((room_sk, room_pk)) => {
                                         state.room_hpke_secret = Some(room_sk);
+                                        state.room_hpke_pub = Some(room_pk);
                                         // Publish room HPKE key (overwrites identity key).
                                         let req = JsonRpcRequest::new(
                                             next_request_id(),
@@ -446,6 +448,7 @@ pub async fn handle_relay_event(
                                         match state.mls_client.room_hpke_keypair() {
                                             Ok((room_sk, room_pk)) => {
                                                 state.room_hpke_secret = Some(room_sk);
+                                                state.room_hpke_pub = Some(room_pk);
                                                 let req = JsonRpcRequest::new(
                                                     next_request_id(),
                                                     rpc_methods::PUBLISH_HPKE_KEY,
@@ -952,18 +955,76 @@ async fn send_chat(
     tx: &tokio::sync::mpsc::Sender<JsonRpcRequest>,
     text: &str,
 ) -> Result<()> {
-    // Build plaintext payload (MLS encryption will be added when mls_active)
-    let payload = serde_json::to_vec(&ClearMessage::Chat {
+    // serde_json::to_vec on a derived Serialize cannot fail
+    let plain = serde_json::to_vec(&ClearMessage::Chat {
         text: text.to_string(),
     })
     .expect("ClearMessage::Chat serialization cannot fail");
 
-    let params = BroadcastParams { payload };
-    let req = JsonRpcRequest::new(next_request_id(), rpc_methods::BROADCAST, &params)
+    if state.mls_active {
+        let mls_ciphertext = match state.mls_client.encrypt(&plain) {
+            Ok(ct) => match nie_core::messages::pad(&ct) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!("send_chat: payload padding failed: {e}");
+                    state.push_message(crate::app::ChatLine::System(
+                        "[!] message not sent: payload too large".to_string(),
+                    ));
+                    return Ok(());
+                }
+            },
+            Err(e) => {
+                tracing::warn!("send_chat: MLS encryption failed: {e}");
+                state.push_message(crate::app::ChatLine::System(
+                    "[!] message not sent: MLS encryption failed".to_string(),
+                ));
+                return Ok(());
+            }
+        };
+        match state.room_hpke_pub {
+            Some(pub_key) => {
+                match nie_core::hpke::seal_message(&pub_key, &mls_ciphertext) {
+                    Ok(sealed) => {
+                        let req = JsonRpcRequest::new(
+                            next_request_id(),
+                            rpc_methods::SEALED_BROADCAST,
+                            SealedBroadcastParams { sealed },
+                        )
+                        .map_err(anyhow::Error::from)?;
+                        if tx.send(req).await.is_err() {
+                            tracing::warn!(
+                                "relay send channel closed while sending sealed chat"
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "send_chat: HPKE seal failed, dropping message: {e}"
+                        );
+                    }
+                }
+            }
+            None => {
+                tracing::warn!(
+                    "send_chat: MLS active but room HPKE key not yet available, dropping"
+                );
+                state.push_message(crate::app::ChatLine::System(
+                    "[!] message not sent: sealed channel not ready yet, try again"
+                        .to_string(),
+                ));
+                return Ok(());
+            }
+        }
+    } else {
+        let req = JsonRpcRequest::new(
+            next_request_id(),
+            rpc_methods::BROADCAST,
+            BroadcastParams { payload: plain },
+        )
         .map_err(anyhow::Error::from)?;
-
-    if tx.send(req).await.is_err() {
-        tracing::warn!("relay send channel closed while sending chat");
+        if tx.send(req).await.is_err() {
+            tracing::warn!("relay send channel closed while sending chat");
+        }
     }
 
     // Append own message to local chat log

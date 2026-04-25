@@ -112,6 +112,8 @@ pub struct AppState {
     /// MLS-derived room HPKE secret (when MLS active)
     /// KEY MATERIAL — never log
     pub room_hpke_secret: Option<Zeroizing<[u8; 32]>>,
+    /// MLS-derived room HPKE public key (when MLS active; safe to use for sealing)
+    pub room_hpke_pub: Option<[u8; 32]>,
     /// Timed payment overlay notifications
     pub payment_overlays: VecDeque<PaymentOverlay>,
     /// In-flight payment sessions: session_id → session
@@ -154,6 +156,7 @@ impl AppState {
             hpke_identity_secret: Zeroizing::new(hpke_identity_secret),
             hpke_identity_pub,
             room_hpke_secret: None,
+            room_hpke_pub: None,
             payment_overlays: VecDeque::new(),
             sessions: HashMap::new(),
             own_profile: HashMap::new(),
