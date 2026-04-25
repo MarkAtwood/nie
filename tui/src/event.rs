@@ -421,6 +421,20 @@ pub async fn handle_relay_event(
                         Err(_) => {
                             // Binary payload → treat as MLS Welcome.
                             if !state.mls_active {
+                                // Security: only accept a Welcome from the current MLS admin
+                                // (online[0]).  Any relay-authenticated peer can send a
+                                // whisper; without this check an attacker could whisper a
+                                // crafted Welcome and pull the target into an
+                                // attacker-controlled group.
+                                let admin = state.online.first().map(|u| u.pub_id.as_str());
+                                if admin != Some(p.from.as_str()) {
+                                    tracing::warn!(
+                                        "whisper_deliver: ignoring Welcome from non-admin sender \
+                                         {} (expected {})",
+                                        p.from,
+                                        admin.unwrap_or("<none>")
+                                    );
+                                } else {
                                 match state.mls_client.join_from_welcome(&p.payload) {
                                     Ok(()) => {
                                         state.mls_active = true;
@@ -465,6 +479,7 @@ pub async fn handle_relay_event(
                                         tracing::warn!("join_from_welcome: {e}");
                                     }
                                 }
+                                } // else (sender is admin)
                             }
                         }
                     }

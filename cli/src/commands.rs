@@ -1040,6 +1040,20 @@ pub async fn chat(
                             Err(_) => {
                                 // Binary payload → treat as MLS Welcome (existing behavior).
                                 if !mls_active {
+                                    // Security: only accept a Welcome from the current MLS admin
+                                    // (online[0]).  Any relay-authenticated peer can send a
+                                    // whisper; without this check an attacker could whisper a
+                                    // crafted Welcome and pull the target into an
+                                    // attacker-controlled group.
+                                    let admin = online.first().map(|s| s.as_str());
+                                    if admin != Some(from.as_str()) {
+                                        warn!(
+                                            "whisper_deliver: ignoring Welcome from non-admin sender \
+                                             {} (expected {})",
+                                            from,
+                                            admin.unwrap_or("<none>")
+                                        );
+                                    } else {
                                     match mls.join_from_welcome(&payload) {
                                         Ok(()) => {
                                             mls_active = true;
@@ -1090,6 +1104,7 @@ pub async fn chat(
                                         }
                                         Err(e) => warn!("join_from_welcome: {e}"),
                                     }
+                                    } // else (sender is admin)
                                 }
                             }
                         }
@@ -1589,6 +1604,17 @@ pub async fn chat(
                         } else {
                             // Not yet in MLS group — treat plaintext as a raw MLS Welcome
                             // (same as WhisperDeliver before MLS is active).
+                            // Security: SealedWhisperDeliverParams carries no `from` field
+                            // (the relay strips it).  Require a non-empty online list so we
+                            // at least know a directory has been received before accepting
+                            // any Welcome.  The WhisperDeliver path enforces the stricter
+                            // sender == admin[0] check where the sender is known.
+                            if online.first().is_none() {
+                                warn!(
+                                    "sealed_whisper_deliver: ignoring Welcome before \
+                                     directory is known"
+                                );
+                            } else {
                             match mls.join_from_welcome(&plaintext) {
                                 Ok(()) => {
                                     mls_active = true;
@@ -1633,6 +1659,7 @@ pub async fn chat(
                                 }
                                 Err(e) => warn!("sealed_whisper_deliver join_from_welcome: {e}"),
                             }
+                            } // else (online directory known)
                         }
                     }
 
@@ -3910,7 +3937,7 @@ fn encrypt_wallet_key(key_bytes: &[u8; 64], passphrase: &str) -> Result<Vec<u8>>
 }
 
 /// Decrypt an age-encrypted wallet.key and return the 64-byte ZIP-32 master key.
-fn decrypt_wallet_key(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> {
+fn decrypt_wallet_key(ciphertext: &[u8], passphrase: &str) -> Result<Zeroizing<[u8; 64]>> {
     let decryptor = Decryptor::new(ciphertext)
         .map_err(|e| anyhow::anyhow!("wallet.key corrupt or unrecognized format: {e}"))?;
     let pass_decryptor = match decryptor {
@@ -3920,11 +3947,13 @@ fn decrypt_wallet_key(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> {
     let mut reader = pass_decryptor
         .decrypt(&Secret::new(passphrase.to_owned()), None)
         .map_err(|_| anyhow::anyhow!("wrong passphrase or corrupt wallet.key"))?;
-    let mut plaintext = vec![];
+    let mut plaintext: Zeroizing<Vec<u8>> = Zeroizing::new(vec![]);
     reader.read_to_end(&mut plaintext)?;
-    plaintext
+    let arr: [u8; 64] = plaintext
+        .as_slice()
         .try_into()
-        .map_err(|_| anyhow::anyhow!("wallet.key corrupt: unexpected length after decryption"))
+        .map_err(|_| anyhow::anyhow!("wallet.key corrupt: unexpected length after decryption"))?;
+    Ok(Zeroizing::new(arr))
 }
 
 // ---- Wallet commands ----
@@ -4000,7 +4029,7 @@ pub async fn wallet_init(
     // Detects file-system corruption or age bugs before the mnemonic display is dismissed.
     let recovered = decrypt_wallet_key(&encrypted, &passphrase)?;
     anyhow::ensure!(
-        recovered == seed,
+        *recovered == seed,
         "wallet.key write verification failed — file may be corrupt, do not dismiss the mnemonic"
     );
 
@@ -4089,7 +4118,7 @@ pub async fn wallet_restore(
     // Paranoid write-verify.
     let recovered = decrypt_wallet_key(&encrypted, &passphrase)?;
     anyhow::ensure!(
-        recovered == seed,
+        *recovered == seed,
         "wallet.key write verification failed — file may be corrupt"
     );
 
@@ -4350,7 +4379,7 @@ mod tests {
         let passphrase = "horse-battery-staple-correct";
         let ciphertext = encrypt_wallet_key(&key_bytes, passphrase).expect("encrypt must succeed");
         let recovered = decrypt_wallet_key(&ciphertext, passphrase).expect("decrypt must succeed");
-        assert_eq!(recovered, key_bytes);
+        assert_eq!(*recovered, key_bytes);
     }
 
     #[test]

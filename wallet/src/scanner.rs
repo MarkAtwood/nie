@@ -398,6 +398,12 @@ impl CompactBlockScanner {
     /// The tip is advanced only after all transactions in the block have been
     /// processed so a partial failure is recoverable by re-scanning the block.
     async fn scan_block(&mut self, block: &CompactBlock) -> Result<()> {
+        // Snapshot in-memory state before mutating it.  If save_block_state
+        // fails below we restore from these snapshots so the next invocation
+        // of scan_to_tip replays the same block against a consistent tree.
+        let tree_snapshot = self.tree.clone();
+        let witnesses_snapshot = self.witnesses.clone();
+
         for tx in &block.vtx {
             self.scan_tx(block.height, block.time, tx).await?;
         }
@@ -428,10 +434,18 @@ impl CompactBlockScanner {
         // A crash between any two of these writes would leave the DB inconsistent
         // (tip advanced but witnesses missing, or witnesses written but tip not).
         // save_block_state wraps all three in a single SQLite transaction.
-        self.store
+        if let Err(e) = self
+            .store
             .save_block_state(&tree_bytes, &witness_rows, block_height_i64)
             .await
-            .map_err(|e| anyhow::anyhow!("scanner: save_block_state failed: {e}"))?;
+        {
+            // Restore in-memory state to the pre-block snapshot so the next
+            // scan_to_tip invocation replays this block against a consistent
+            // tree rather than double-counting its commitments.
+            self.tree = tree_snapshot;
+            self.witnesses = witnesses_snapshot;
+            return Err(anyhow::anyhow!("scanner: save_block_state failed: {e}"));
+        }
 
         Ok(())
     }
@@ -469,24 +483,19 @@ impl CompactBlockScanner {
             // Step 2: Update ALL existing witnesses with this commitment before
             // appending to the global tree.  Order matters: witnesses track nodes
             // that appear after their fork point.
-            for (note_id, witness) in self.witnesses.iter_mut() {
+            for (_note_id, witness) in self.witnesses.iter_mut() {
                 if witness.append(node).is_err() {
-                    // The Sapling tree has 2^32 leaves; this should not happen in
-                    // practice for any foreseeable chain size.
-                    warn!(
-                        note_id,
-                        height = block_height,
-                        "scanner: witness tree full; this should not happen"
-                    );
+                    return Err(anyhow::anyhow!(
+                        "Sapling note commitment tree is full"
+                    ));
                 }
             }
 
             // Step 3: Append to global tree.
             if self.tree.append(node).is_err() {
-                warn!(
-                    height = block_height,
-                    "scanner: commitment tree full at this height"
-                );
+                return Err(anyhow::anyhow!(
+                    "Sapling note commitment tree is full"
+                ));
             }
 
             // Step 4: Trial-decrypt.

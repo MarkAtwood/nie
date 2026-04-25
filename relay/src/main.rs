@@ -82,6 +82,14 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
+    if require_subscription && subscription_days == 0 {
+        anyhow::bail!(
+            "SUBSCRIPTION_DAYS=0 with REQUIRE_SUBSCRIPTION=true would prevent any user from \
+             ever subscribing; set SUBSCRIPTION_DAYS to a non-zero value or disable \
+             REQUIRE_SUBSCRIPTION"
+        );
+    }
+
     let rate_limit_per_min: u32 = match std::env::var("RATE_LIMIT_MSG_PER_MIN") {
         Err(_) => 120,
         Ok(v) => match v.parse() {
@@ -106,10 +114,24 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
-    let pow_difficulty: u8 = std::env::var("POW_DIFFICULTY")
-        .ok()
-        .and_then(|v| v.parse::<u8>().ok())
-        .unwrap_or(0); // 0 = disabled; safe default
+    let pow_difficulty: u8 = match std::env::var("POW_DIFFICULTY") {
+        Err(_) => 0,
+        Ok(v) => match v.parse::<u32>() {
+            Ok(n) if n <= u8::MAX as u32 => n as u8,
+            Ok(_) => {
+                tracing::warn!(
+                    "POW_DIFFICULTY={v:?} overflows u8 (max 255); using default 0 (PoW disabled)"
+                );
+                0
+            }
+            Err(_) => {
+                tracing::warn!(
+                    "POW_DIFFICULTY={v:?} is not a valid integer; using default 0 (PoW disabled)"
+                );
+                0
+            }
+        },
+    }; // 0 = disabled; safe default
     anyhow::ensure!(
         pow_difficulty == 0 || pow_difficulty <= nie_core::pow::MAX_DIFFICULTY,
         "POW_DIFFICULTY={pow_difficulty} exceeds MAX_DIFFICULTY ({}); \

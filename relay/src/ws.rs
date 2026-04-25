@@ -1380,6 +1380,18 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to add group members",
+                            )
+                            .await;
+                            continue;
+                        }
                         if !check_rate_limit(
                             &state.inner.rate_limits,
                             &pub_id.0,
@@ -1463,6 +1475,37 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+
+                        // Caller must be a member of the group to add others.
+                        match state
+                            .inner
+                            .store
+                            .is_group_member(&params.group_id, &pub_id.0)
+                            .await
+                        {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::NOT_A_MEMBER,
+                                    "not a member of this group",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("is_group_member for {pub_id}: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
 
                         // Enforce group size cap and add the new member atomically.
                         // COUNT + INSERT run inside a single transaction so two concurrent
