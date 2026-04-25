@@ -200,6 +200,10 @@ impl MlsClient {
             _ => anyhow::bail!("expected Welcome message"),
         };
 
+        if self.groups.contains_key(group_id) {
+            anyhow::bail!("group already exists; ignoring replayed Welcome");
+        }
+
         let staged = StagedWelcome::new_from_welcome(
             &self.provider,
             &group_join_config(),
@@ -921,5 +925,42 @@ mod tests {
         assert!(!alice.group_contains_id(b"alpha", "carol"));
         assert!(alice.group_contains_id(b"beta", "carol"));
         assert!(!alice.group_contains_id(b"beta", "bob"));
+    }
+
+    /// A replayed Welcome must be rejected, not silently overwrite existing group state.
+    ///
+    /// Oracle: group state (epoch, membership) must be unchanged after a replay
+    /// attempt. The check is cross-state: we verify that Bob's epoch after
+    /// join is 1, and that a second join_from_welcome on the same bytes returns Err.
+    ///
+    /// Before the fix, a replayed Welcome would call self.groups.insert(...) and
+    /// silently overwrite the existing state, resetting the epoch and losing all
+    /// subsequent epoch advances.
+    #[test]
+    fn welcome_replay_is_rejected() {
+        let mut alice = MlsClient::new("alice").expect("alice");
+        let mut bob = MlsClient::new("bob").expect("bob");
+
+        alice.create_group().expect("create_group");
+        let bob_kp = bob.key_package_bytes().expect("bob kp");
+        let (_, welcome_bytes) = alice.add_member(&bob_kp).expect("add_member");
+
+        // First join succeeds.
+        bob.join_from_welcome(&welcome_bytes).expect("first join");
+        assert_eq!(bob.epoch(), Some(1), "bob must be at epoch 1 after join");
+
+        // Replaying the same Welcome must be rejected with an error.
+        let replay_result = bob.join_from_welcome(&welcome_bytes);
+        assert!(
+            replay_result.is_err(),
+            "replayed Welcome must return Err, not silently overwrite group state"
+        );
+
+        // Group state must be unchanged: still at epoch 1.
+        assert_eq!(
+            bob.epoch(),
+            Some(1),
+            "epoch must not be reset by a rejected Welcome replay"
+        );
     }
 }

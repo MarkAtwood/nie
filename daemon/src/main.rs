@@ -257,48 +257,40 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-/// Middleware that strips `?token=<value>` from the request URI before the
-/// request reaches any logging layer. This prevents bearer tokens passed as
-/// query parameters (required by browser WebSocket and EventSource APIs, which
-/// cannot set Authorization headers) from appearing in access logs.
+/// Middleware that logs a sanitized request URI (with `?token=` redacted) at
+/// trace level, then passes the original request through unchanged.
+///
+/// Browser WebSocket and EventSource APIs cannot set Authorization headers, so
+/// they must send the bearer token as a query parameter. Mutating the URI here
+/// would break the `Query` extractor in downstream handlers — each handler
+/// reads `?token=` itself and performs its own constant-time comparison.
 async fn redact_token_query_param(
-    mut req: axum::extract::Request,
+    req: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    let uri = req.uri().clone();
-    if let Some(query) = uri.query() {
-        if query.contains("token=") {
-            // Rebuild the query string with the token value replaced.
-            let redacted: String = query
-                .split('&')
-                .map(|param| {
-                    if param == "token"
-                        || param.starts_with("token=")
-                        || param.starts_with("token =")
-                    {
-                        "token=REDACTED"
-                    } else {
-                        param
-                    }
-                })
-                .collect::<Vec<_>>()
-                .join("&");
-            let mut parts = uri.into_parts();
-            let new_pq = if redacted.is_empty() {
-                parts.path_and_query.as_ref().map(|pq| pq.path().to_string())
-            } else {
-                parts
-                    .path_and_query
-                    .as_ref()
-                    .map(|pq| format!("{}?{}", pq.path(), redacted))
-            };
-            if let Some(pq_str) = new_pq {
-                if let Ok(pq) = pq_str.parse::<axum::http::uri::PathAndQuery>() {
-                    parts.path_and_query = Some(pq);
-                    if let Ok(new_uri) = axum::http::Uri::from_parts(parts) {
-                        *req.uri_mut() = new_uri;
-                    }
-                }
+    if tracing::enabled!(tracing::Level::TRACE) {
+        let uri = req.uri();
+        if let Some(query) = uri.query() {
+            if query.contains("token=") {
+                let redacted: String = query
+                    .split('&')
+                    .map(|param| {
+                        if param == "token"
+                            || param.starts_with("token=")
+                            || param.starts_with("token =")
+                        {
+                            "token=REDACTED"
+                        } else {
+                            param
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("&");
+                tracing::trace!(
+                    path = uri.path(),
+                    query = %redacted,
+                    "browser-auth request (token redacted)"
+                );
             }
         }
     }

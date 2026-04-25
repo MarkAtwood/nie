@@ -1744,6 +1744,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        // Rate-limit BEFORE any allocations: prevents flooding the
+                        // diversifier counter and subscription_invoices table.
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         let merchant = match state.merchant() {
                             Some(m) => m,
                             None => {

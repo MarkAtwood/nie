@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use age::secrecy::Secret;
 use age::{Decryptor, Encryptor};
 use anyhow::{bail, Result};
+use zeroize::Zeroize;
 use zeroize::Zeroizing;
 
 use crate::identity::Identity;
@@ -17,15 +18,17 @@ pub fn load_identity(keyfile_path: &str, no_passphrase: bool) -> Result<Identity
     }
     let ciphertext = std::fs::read(keyfile_path)?;
 
-    let passphrase = if no_passphrase {
+    let passphrase: Zeroizing<String> = if no_passphrase {
         eprintln!("WARNING: --no-passphrase set. Loading identity without encryption.");
-        String::new()
+        Zeroizing::new(String::new())
     } else {
-        rpassword::prompt_password("Passphrase: ")?
+        Zeroizing::new(rpassword::prompt_password("Passphrase: ")?)
     };
 
-    let seed = decrypt_keyfile(&ciphertext, &passphrase)?;
-    Identity::from_secret_bytes(&seed)
+    let mut seed = decrypt_keyfile(&ciphertext, &passphrase)?;
+    let identity = Identity::from_secret_bytes(&seed);
+    seed.zeroize();
+    identity
 }
 
 /// Encrypt the 64-byte keyfile payload (Ed25519_seed || X25519_seed) with a
@@ -66,9 +69,9 @@ pub fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> 
             "keyfile corrupt: expected 64 bytes, got {len}"
         ));
     }
-    let mut seed = [0u8; 64];
+    let mut seed = Zeroizing::new([0u8; 64]);
     seed.copy_from_slice(&plaintext);
-    Ok(seed)
+    Ok(*seed)
 }
 
 #[cfg(test)]

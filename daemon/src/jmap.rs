@@ -1904,6 +1904,51 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 }
             }
             if let Some(Value::Object(patch_map)) = Some(patch) {
+                // Phase 1: validate all patch paths and value types before
+                // writing anything to the DB.  This prevents partial-state
+                // where an early field write succeeds but a later field fails
+                // type validation, leaving the message in an inconsistent state.
+                let mut validate_err: Option<Value> = None;
+                for (path, value) in patch_map.iter() {
+                    if let Some(_reaction_id) = path.strip_prefix("reactions/") {
+                        if !value.is_null() && !value.is_object() {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "reaction value must be null (to remove) or an object"
+                            }));
+                            break;
+                        }
+                    } else if path == "body" {
+                        if value.as_str().is_none() {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "body must be a string"
+                            }));
+                            break;
+                        }
+                    } else if path == "deletedAt" {
+                        if !value.is_string() {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "deletedAt must be a string timestamp"
+                            }));
+                            break;
+                        }
+                    } else if path == "readAt" && value.as_str().is_none() {
+                        validate_err = Some(serde_json::json!({
+                            "type": "invalidArguments",
+                            "description": "readAt must be a string"
+                        }));
+                        break;
+                    }
+                    // Unknown patch path: ignore (permissive)
+                }
+                if let Some(err) = validate_err {
+                    not_updated.insert(msg_id.clone(), err);
+                    continue;
+                }
+
+                // Phase 2: all paths validated — apply writes.
                 let mut update_err: Option<Value> = None;
                 for (path, value) in patch_map {
                     if let Some(reaction_id) = path.strip_prefix("reactions/") {
@@ -1923,7 +1968,8 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                 }
                                 Ok(true) => {}
                             }
-                        } else if value.is_object() {
+                        } else {
+                            // value.is_object() — validated above
                             let emoji = value.get("emoji").and_then(|v| v.as_str()).unwrap_or("?");
                             let sent_at = value
                                 .get("sentAt")
@@ -1947,81 +1993,48 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                 }
                                 Ok(true) => {}
                             }
-                        } else {
-                            // Reaction value must be null (remove) or an object (set).
-                            update_err = Some(serde_json::json!({
-                                "type": "invalidArguments",
-                                "description": "reaction value must be null (to remove) or an object"
-                            }));
-                            break;
                         }
                     } else if path == "body" {
-                        match value.as_str() {
-                            None => {
-                                update_err = Some(serde_json::json!({
-                                    "type": "invalidArguments",
-                                    "description": "body must be a string"
-                                }));
+                        // value.as_str() is Some — validated above
+                        let new_body = value.as_str().unwrap();
+                        match store.edit_message_body(msg_id, new_body).await {
+                            Ok(false) => {
+                                update_err = Some(serde_json::json!({"type":"notFound"}));
                                 break;
                             }
-                            Some(new_body) => {
-                                match store.edit_message_body(msg_id, new_body).await {
-                                    Ok(false) => {
-                                        update_err = Some(serde_json::json!({"type":"notFound"}));
-                                        break;
-                                    }
-                                    Err(e) => {
-                                        update_err = Some(
-                                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                                        );
-                                        break;
-                                    }
-                                    Ok(true) => {}
-                                }
+                            Err(e) => {
+                                update_err = Some(
+                                    { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
+                                );
+                                break;
                             }
+                            Ok(true) => {}
                         }
                     } else if path == "deletedAt" {
+                        // value.is_string() — validated above.
                         // null is rejected: setting deletedAt to null would
                         // semantically mean "un-delete", which is not implemented.
-                        // Accepting null silently and soft-deleting is backwards.
-                        if value.is_string() {
-                            match store.soft_delete_message(msg_id, false).await {
-                                Ok(false) => {
-                                    update_err = Some(serde_json::json!({"type":"notFound"}));
-                                    break;
-                                }
-                                Err(e) => {
-                                    update_err = Some(
-                                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                                    );
-                                    break;
-                                }
-                                Ok(true) => {}
-                            }
-                        } else {
-                            update_err = Some(serde_json::json!({
-                                "type": "invalidArguments",
-                                "description": "deletedAt must be a string timestamp"
-                            }));
-                            break;
-                        }
-                    } else if path == "readAt" {
-                        match value.as_str() {
-                            None => {
-                                update_err = Some(serde_json::json!({
-                                    "type": "invalidArguments",
-                                    "description": "readAt must be a string"
-                                }));
+                        match store.soft_delete_message(msg_id, false).await {
+                            Ok(false) => {
+                                update_err = Some(serde_json::json!({"type":"notFound"}));
                                 break;
                             }
-                            Some(ts) => {
-                                if let Err(e) = store.read_message(msg_id, ts).await {
-                                    update_err = Some(
-                                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                                    );
-                                    break;
-                                }
+                            Err(e) => {
+                                update_err = Some(
+                                    { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
+                                );
+                                break;
                             }
+                            Ok(true) => {}
+                        }
+                    } else if path == "readAt" {
+                        // value.as_str() is Some — validated above
+                        let ts = value.as_str().unwrap();
+                        if let Err(e) = store.read_message(msg_id, ts).await {
+                            update_err = Some(
+                                { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
+                            );
+                            break;
                         }
                     }
                     // Unknown patch path: ignore (permissive)

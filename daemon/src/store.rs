@@ -1241,12 +1241,14 @@ impl Store {
         blocked: Option<bool>,
     ) -> Result<Vec<String>> {
         // Build query dynamically based on which filters are present.
+        // Use sequential `?` placeholders: sqlx's SQLite backend binds by
+        // position, not by number, so `?1`/`?2` are not valid here.
         let mut conditions = Vec::new();
         if presence.is_some() {
-            conditions.push("presence = ?1");
+            conditions.push("presence = ?");
         }
         if blocked.is_some() {
-            conditions.push("blocked = ?2");
+            conditions.push("blocked = ?");
         }
         let where_clause = if conditions.is_empty() {
             String::new()

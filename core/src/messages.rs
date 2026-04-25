@@ -50,8 +50,10 @@ pub enum ClearMessage {
         /// Total file size in bytes.
         size_bytes: u64,
         /// Lowercase hex-encoded SHA-256 of the complete file bytes.
+        #[serde(deserialize_with = "deserialize_sha256_hex")]
         sha256_hex: String,
         /// Number of FileChunk messages that follow (0-indexed seq 0..total_chunks).
+        #[serde(deserialize_with = "deserialize_total_chunks")]
         total_chunks: u32,
         /// MIME type string (e.g. "image/jpeg", "application/octet-stream").
         mime_type: String,
@@ -166,6 +168,54 @@ where
         )));
     }
     Ok(s)
+}
+
+/// Deserialize `FileHeader.sha256_hex`, rejecting values that are not 64
+/// lowercase hex characters.
+///
+/// A malicious peer sending a non-hex or wrong-length value would otherwise
+/// cause a panic or confusing error at reassembly time rather than at the
+/// protocol boundary.
+fn deserialize_sha256_hex<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() != 64 {
+        return Err(serde::de::Error::custom(format!(
+            "sha256_hex must be exactly 64 hex characters, got {}",
+            s.len()
+        )));
+    }
+    if !s.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(serde::de::Error::custom(
+            "sha256_hex contains non-hex characters",
+        ));
+    }
+    Ok(s)
+}
+
+/// Deserialize `FileHeader.total_chunks`, rejecting 0 and values above 1024.
+///
+/// A malicious peer sending `total_chunks: u32::MAX` would cause the receiver
+/// to allocate a huge reassembly map before any data arrives.  Reject at the
+/// protocol boundary instead.
+fn deserialize_total_chunks<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let n = u32::deserialize(deserializer)?;
+    if n == 0 {
+        return Err(serde::de::Error::custom(
+            "total_chunks must be at least 1",
+        ));
+    }
+    if n > 1024 {
+        return Err(serde::de::Error::custom(format!(
+            "total_chunks {n} exceeds maximum of 1024"
+        )));
+    }
+    Ok(n)
 }
 
 /// Deserialize `action` for `PeerGroupUpdate`, rejecting unknown variants.
@@ -586,6 +636,78 @@ mod tests {
             got, data,
             "48KB binary data must survive JSON roundtrip via base64"
         );
+    }
+
+    /// sha256_hex must be exactly 64 hex characters; malformed values are rejected.
+    ///
+    /// Oracle: protocol invariant — SHA-256 produces 32 bytes = 64 hex digits.
+    /// Rejection at deserialization prevents deferred failures at reassembly time.
+    #[test]
+    fn file_header_rejects_invalid_sha256_hex() {
+        use uuid::Uuid;
+        let tid = Uuid::new_v4();
+
+        let bad_cases: &[&str] = &[
+            "",              // empty
+            "abc",           // too short
+            &"a".repeat(63), // 63 chars
+            &"a".repeat(65), // 65 chars
+            &"g".repeat(64), // 64 chars but 'g' is not a hex digit
+        ];
+
+        for bad_sha in bad_cases {
+            let json = format!(
+                r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{bad_sha}","total_chunks":1,"mime_type":"text/plain"}}"#,
+            );
+            let result: Result<ClearMessage, _> = serde_json::from_str(&json);
+            assert!(
+                result.is_err(),
+                "sha256_hex {:?} should be rejected but was accepted",
+                bad_sha
+            );
+        }
+
+        // Valid 64-char hex (lowercase) must be accepted.
+        let good = "a".repeat(64);
+        let json = format!(
+            r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{good}","total_chunks":1,"mime_type":"text/plain"}}"#,
+        );
+        assert!(
+            serde_json::from_str::<ClearMessage>(&json).is_ok(),
+            "valid 64-char lowercase hex must be accepted"
+        );
+    }
+
+    /// total_chunks must be in 1..=1024; values outside that range are rejected.
+    ///
+    /// Oracle: protocol invariant — 0 chunks is nonsensical; huge values allow
+    /// a malicious peer to force the receiver to allocate arbitrarily large state.
+    #[test]
+    fn file_header_rejects_invalid_total_chunks() {
+        use uuid::Uuid;
+        let tid = Uuid::new_v4();
+        let sha = "a".repeat(64);
+
+        for bad_n in [0u32, 1025, u32::MAX] {
+            let json = format!(
+                r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{sha}","total_chunks":{bad_n},"mime_type":"text/plain"}}"#,
+            );
+            let result: Result<ClearMessage, _> = serde_json::from_str(&json);
+            assert!(
+                result.is_err(),
+                "total_chunks={bad_n} should be rejected but was accepted"
+            );
+        }
+
+        for good_n in [1u32, 1024] {
+            let json = format!(
+                r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{sha}","total_chunks":{good_n},"mime_type":"text/plain"}}"#,
+            );
+            assert!(
+                serde_json::from_str::<ClearMessage>(&json).is_ok(),
+                "total_chunks={good_n} should be accepted"
+            );
+        }
     }
 }
 

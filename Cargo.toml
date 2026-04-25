@@ -95,6 +95,9 @@ tls_codec = "0.4"
 # Concurrent data structures
 dashmap = "6"
 
+# URL parsing
+url = "2"
+
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1", features = ["v4", "serde"] }

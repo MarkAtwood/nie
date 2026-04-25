@@ -622,8 +622,8 @@ fn parse_incoming(text: &str) -> Option<ClientEvent> {
                 }
             }
         }
-        Ok(v) if v.get("id").is_some() => {
-            // Response: has id.
+        Ok(v) if v.get("id").is_some_and(|id| !id.is_null()) => {
+            // Response: has id (non-null).
             match serde_json::from_value::<JsonRpcResponse>(v) {
                 Ok(resp) => Some(ClientEvent::Response(resp)),
                 Err(e) => {
@@ -763,6 +763,32 @@ mod tests {
         assert!(
             msg.contains("socks5"),
             "error must mention socks5, got: {msg}"
+        );
+    }
+
+    // --- parse_incoming: null-id frames fall through to the null-id handler ---
+
+    #[test]
+    fn parse_incoming_null_id_is_not_treated_as_response() {
+        // JSON-RPC 2.0 §5 allows "id": null on parse-error responses.
+        // Before the fix, v.get("id").is_some() returned true for null, causing
+        // the error to be fed into the Response deserializer (which fails) and
+        // then the error was silently dropped.
+        // After the fix, "id": null falls through to the null-id handler which
+        // logs the error and returns None — the correct behaviour.
+        let null_id_error = r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"parse error"}}"#;
+        let result = parse_incoming(null_id_error);
+        assert!(
+            result.is_none(),
+            "null-id error frame must return None (logged, not parsed as Response)"
+        );
+
+        // A frame with a real integer id must still be parsed as a Response.
+        let real_id_error = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"invalid request"}}"#;
+        let result = parse_incoming(real_id_error);
+        assert!(
+            matches!(result, Some(ClientEvent::Response(_))),
+            "non-null id frame must be parsed as ClientEvent::Response"
         );
     }
 

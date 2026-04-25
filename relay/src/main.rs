@@ -49,6 +49,12 @@ async fn main() -> anyhow::Result<()> {
     let subscription_price_zatoshi: u64 = match std::env::var("SUBSCRIPTION_PRICE_ZATOSHI") {
         Err(_) => 1_000_000,
         Ok(v) => match v.parse() {
+            Ok(0u64) => {
+                anyhow::bail!(
+                    "SUBSCRIPTION_PRICE_ZATOSHI=0 would grant free subscriptions to any payment; \
+                     set a non-zero value or unset the variable to use the default (1000000)"
+                );
+            }
             Ok(n) => n,
             Err(_) => {
                 tracing::warn!(
