@@ -299,7 +299,7 @@ impl JmapClient {
                 "new1": {
                     "mailboxIds": { mailbox_id: true },
                     "subject": subject,
-                    "body": [
+                    "textBody": [
                         {
                             "partId": "body",
                             "type": "text/plain"

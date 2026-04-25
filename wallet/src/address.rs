@@ -21,6 +21,7 @@ use sapling::zip32::{DiversifiableFullViewingKey, ExtendedSpendingKey};
 pub use sapling::PaymentAddress;
 use zcash_address::{ToAddress, ZcashAddress};
 use zip32::{ChildIndex, DiversifierIndex, Scope};
+use zeroize::Zeroizing;
 
 use crate::db::WalletStore;
 
@@ -48,7 +49,10 @@ impl ZcashNetwork {
 /// Wraps the account-level spending key at path m/32'/coin_type'/account'.
 /// Never implements `Debug` — spending key material must not appear in
 /// tracing output.  See CLAUDE.md §Wallet Security.
-pub struct SaplingExtendedSpendingKey(ExtendedSpendingKey);
+///
+/// The key bytes are stored in a `Zeroizing` wrapper and overwritten on drop.
+/// The `ExtendedSpendingKey` is reconstructed from the bytes on each method call.
+pub struct SaplingExtendedSpendingKey(Zeroizing<[u8; 169]>);
 
 /// Sapling diversifiable full viewing key (DFVK).
 ///
@@ -60,6 +64,20 @@ pub struct SaplingExtendedSpendingKey(ExtendedSpendingKey);
 pub struct SaplingDiversifiableFvk(DiversifiableFullViewingKey);
 
 impl SaplingExtendedSpendingKey {
+    /// Construct from a raw `ExtendedSpendingKey`, storing its 169-byte serialization.
+    fn from_extsk(key: ExtendedSpendingKey) -> Self {
+        Self(Zeroizing::new(key.to_bytes()))
+    }
+
+    /// Reconstruct the `ExtendedSpendingKey` from the stored bytes.
+    ///
+    /// The bytes were written by `ExtendedSpendingKey::to_bytes()` in the constructor,
+    /// so this is infallible by construction; the `expect()` is unreachable.
+    fn extsk(&self) -> ExtendedSpendingKey {
+        ExtendedSpendingKey::from_bytes(&*self.0)
+            .expect("SaplingExtendedSpendingKey bytes are always valid ExtendedSpendingKey")
+    }
+
     /// Derive the Sapling account spending key from a BIP-39 seed at the
     /// ZIP-32 path m/32'/coin_type'/account'.
     ///
@@ -76,12 +94,12 @@ impl SaplingExtendedSpendingKey {
                 ChildIndex::hardened(account),
             ],
         );
-        Self(key)
+        Self::from_extsk(key)
     }
 
     /// Compute the diversifiable full viewing key (FVK) from this spending key.
     pub fn to_dfvk(&self) -> SaplingDiversifiableFvk {
-        SaplingDiversifiableFvk(self.0.to_diversifiable_full_viewing_key())
+        SaplingDiversifiableFvk(self.extsk().to_diversifiable_full_viewing_key())
     }
 
     /// Return the default payment address and the diversifier index at which
@@ -89,20 +107,23 @@ impl SaplingExtendedSpendingKey {
     ///
     /// "Default" means the first valid diversifier at index 0 or later.
     pub fn default_address(&self) -> (DiversifierIndex, PaymentAddress) {
-        self.0.default_address()
+        self.extsk().default_address()
     }
 
     /// Returns the Sapling `FullViewingKey` for use with the transaction builder's
     /// `add_sapling_spend`.  This is the non-diversifiable FVK; derive it fresh each
     /// time rather than caching to avoid accidental key material persistence.
     pub(crate) fn full_viewing_key(&self) -> sapling::keys::FullViewingKey {
-        self.0.to_diversifiable_full_viewing_key().fvk().clone()
+        self.extsk().to_diversifiable_full_viewing_key().fvk().clone()
     }
 
-    /// Returns a reference to the inner [`ExtendedSpendingKey`] for passing to
+    /// Returns the inner [`ExtendedSpendingKey`] for passing to
     /// `builder.build(sapling_extsks: &[ExtendedSpendingKey])`.
-    pub(crate) fn inner_extsk(&self) -> &ExtendedSpendingKey {
-        &self.0
+    ///
+    /// Returns a value (not a reference) because the key is reconstructed from
+    /// the stored bytes each time.
+    pub(crate) fn inner_extsk(&self) -> ExtendedSpendingKey {
+        self.extsk()
     }
 
     /// Derive the master key directly from arbitrary seed bytes.
@@ -111,7 +132,7 @@ impl SaplingExtendedSpendingKey {
     /// not the account-level path.  Production code uses [`Self::from_seed`].
     #[cfg(test)]
     pub(crate) fn master(seed: &[u8]) -> Self {
-        Self(ExtendedSpendingKey::master(seed))
+        Self::from_extsk(ExtendedSpendingKey::master(seed))
     }
 }
 

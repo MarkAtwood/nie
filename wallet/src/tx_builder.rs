@@ -433,7 +433,7 @@ pub fn build_shielded_tx(
                 .into(),
         )
     })?;
-    let extsk = sk.inner_extsk().clone();
+    let extsk = sk.inner_extsk();
     let result = builder
         .build(
             &TransparentSigningSet::new(),

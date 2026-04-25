@@ -123,18 +123,22 @@ impl NoteDecryptor for NullDecryptor {
 /// A [`NoteDecryptor`] that trial-decrypts Sapling compact outputs using a
 /// Sapling incoming viewing key (IVK).
 ///
-/// Constructed from the raw 32-byte IVK scalar bytes via [`new`].  Holds the
-/// parsed `SaplingIvk` and prepares a fresh `PreparedIncomingViewingKey` on
-/// each `try_decrypt_sapling` call.
+/// Constructed from the raw 32-byte IVK scalar bytes via [`new`].  Stores the
+/// validated scalar bytes in a `Zeroizing` wrapper and reconstructs a fresh
+/// `SaplingIvk` on each `try_decrypt_sapling` call.
 ///
 /// # Key material
 ///
 /// This struct holds the IVK, which is key material.  It deliberately does
 /// not implement `Debug` — see CLAUDE.md §Wallet Security.
 ///
+/// The IVK bytes are zeroized on drop via `zeroize::Zeroizing`.
+///
 /// [`new`]: SaplingIvkDecryptor::new
 pub struct SaplingIvkDecryptor {
-    ivk: SaplingIvk,
+    /// Raw 32-byte little-endian scalar representation of the Sapling IVK.
+    /// Stored as `Zeroizing` so the bytes are overwritten on drop.
+    ivk_bytes: zeroize::Zeroizing<[u8; 32]>,
 }
 
 impl SaplingIvkDecryptor {
@@ -143,10 +147,11 @@ impl SaplingIvkDecryptor {
     /// `ivk_bytes` must be a canonically-encoded `jubjub::Fr` scalar (little-endian).
     /// Returns `None` if the bytes do not represent a valid scalar (out-of-range).
     pub fn new(ivk_bytes: &[u8; 32]) -> Option<Self> {
+        // Validate that the bytes encode a canonical jubjub::Fr scalar before storing.
         // jubjub::Fr::from_repr returns CtOption<Fr>; into() converts to Option.
         let fr: Option<jubjub::Fr> = jubjub::Fr::from_repr(*ivk_bytes).into();
-        fr.map(|fr| Self {
-            ivk: SaplingIvk(fr),
+        fr.map(|_| Self {
+            ivk_bytes: zeroize::Zeroizing::new(*ivk_bytes),
         })
     }
 }
@@ -198,8 +203,14 @@ impl NoteDecryptor for SaplingIvkDecryptor {
                 .expect("ciphertext length checked to be COMPACT_NOTE_SIZE (52)"),
         };
 
-        // Derive a fresh PreparedIncomingViewingKey from the stored IVK on each call.
-        let prepared_ivk = PreparedIncomingViewingKey::new(&self.ivk);
+        // Reconstruct the SaplingIvk from the stored bytes on each call.
+        // The bytes were validated as a canonical jubjub::Fr in new(), so this
+        // conversion is infallible; the expect() is unreachable by construction.
+        let fr: jubjub::Fr = jubjub::Fr::from_repr(*self.ivk_bytes)
+            .into_option()
+            .expect("ivk_bytes validated as canonical Fr in SaplingIvkDecryptor::new");
+        let ivk = SaplingIvk(fr);
+        let prepared_ivk = PreparedIncomingViewingKey::new(&ivk);
 
         // Trial decryption.  GracePeriod accepts both pre-ZIP-212 (lead byte 0x01)
         // and post-ZIP-212 (lead byte 0x02) note formats, so the scanner works

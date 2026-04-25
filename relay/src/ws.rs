@@ -823,6 +823,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Validate device_id: must be exactly 64 lowercase hex characters
                         if params.device_id.len() != 64
                             || !params
@@ -976,6 +990,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Validate: a Curve25519 / X25519 public key is exactly 32 bytes.
                         if params.public_key.len() != 32 {
                             send_client_error(
@@ -1467,6 +1495,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                     }
 
                     rpc_methods::GROUP_LIST => {
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         let groups = match state.inner.store.list_groups_for_user(&pub_id.0).await {
                             Ok(v) => v,
                             Err(e) => {

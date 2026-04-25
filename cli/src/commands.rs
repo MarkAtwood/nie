@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 use nie_core::hpke as nie_hpke;
 use nie_core::identity::{Identity, PubId};
@@ -340,7 +340,7 @@ pub async fn chat(
     // Sealed sender state.  room_hpke_* is derived from MLS export_secret once
     // the group is active; before that we fall back to identity-level HPKE.
     // Neither field is ever logged — only public keys (room_hpke_pub) are safe to log.
-    let mut room_hpke_secret: Option<[u8; 32]> = None;
+    let mut room_hpke_secret: Option<Zeroizing<[u8; 32]>> = None;
     let mut room_hpke_pub: Option<[u8; 32]> = None;
     let mut nicknames: HashMap<String, String> = HashMap::new();
     let mut ever_connected = false;
@@ -2893,7 +2893,7 @@ fn encrypt_keyfile(seed: &[u8; 64], passphrase: &str) -> Result<Vec<u8>> {
 
 /// Decrypt an age-encrypted keyfile and return the 64-byte payload
 /// (Ed25519_seed || X25519_seed).
-fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> {
+fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<Zeroizing<[u8; 64]>> {
     nie_core::keyfile::decrypt_keyfile(ciphertext, passphrase)
 }
 
@@ -3972,10 +3972,9 @@ pub async fn wallet_init(
     let identity_key_path = data_dir.join("identity.key");
     if identity_key_path.exists() && no_passphrase {
         let id_ciphertext = std::fs::read(&identity_key_path)?;
-        if let Ok(mut id_seed) = decrypt_keyfile(&id_ciphertext, "") {
+        if let Ok(id_seed) = decrypt_keyfile(&id_ciphertext, "") {
             // Compare only the Ed25519 portion (first 32 bytes of the 64-byte keyfile).
             let ok = id_seed[0..32] != *master.spending_key_bytes();
-            id_seed.zeroize();
             anyhow::ensure!(
                 ok,
                 "key separation violation: wallet spending key matches identity key \
@@ -4322,7 +4321,7 @@ mod tests {
 
         let ciphertext = encrypt_keyfile(&seed, passphrase).expect("encrypt must succeed");
         let recovered = decrypt_keyfile(&ciphertext, passphrase).expect("decrypt must succeed");
-        assert_eq!(recovered, seed);
+        assert_eq!(*recovered, seed);
     }
 
     #[test]

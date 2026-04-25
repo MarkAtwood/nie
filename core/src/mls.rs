@@ -380,7 +380,7 @@ impl MlsClient {
     /// individual HPKE keypair derived outside this shared-key mechanism.
     ///
     /// Returns `Err` if no group is active.
-    pub fn room_hpke_keypair(&self) -> Result<([u8; 32], [u8; 32])> {
+    pub fn room_hpke_keypair(&self) -> Result<(zeroize::Zeroizing<[u8; 32]>, [u8; 32])> {
         let group = self
             .groups
             .get(GROUP_ID)
@@ -394,7 +394,7 @@ impl MlsClient {
 
         let secret = x25519_dalek::StaticSecret::from(secret_bytes);
         let public = x25519_dalek::PublicKey::from(&secret);
-        Ok((secret.to_bytes(), public.to_bytes()))
+        Ok((zeroize::Zeroizing::new(secret.to_bytes()), public.to_bytes()))
     }
 }
 

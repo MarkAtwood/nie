@@ -4722,6 +4722,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -4755,6 +4756,7 @@ dependencies = [
  "zcash_primitives",
  "zcash_protocol",
  "zcash_transparent",
+ "zeroize",
  "zip32",
 ]
 

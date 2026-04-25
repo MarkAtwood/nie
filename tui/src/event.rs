@@ -359,7 +359,7 @@ pub async fn handle_relay_event(
                     let plaintext = {
                         let active_secret: &[u8; 32] = if state.mls_active {
                             match state.room_hpke_secret.as_ref() {
-                                Some(sk) => sk,
+                                Some(sk) => &**sk,
                                 None => {
                                     tracing::warn!(
                                         "sealed_deliver while mls_active but no room_hpke_secret"

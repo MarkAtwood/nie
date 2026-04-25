@@ -33,6 +33,7 @@ age.workspace = true
 rpassword.workspace = true
 shlex.workspace = true
 unicode-width = "0.2"
+zeroize.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

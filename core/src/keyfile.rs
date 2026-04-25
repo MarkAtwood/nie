@@ -3,7 +3,6 @@ use std::io::{Read, Write};
 use age::secrecy::Secret;
 use age::{Decryptor, Encryptor};
 use anyhow::{bail, Result};
-use zeroize::Zeroize;
 use zeroize::Zeroizing;
 
 use crate::identity::Identity;
@@ -25,9 +24,8 @@ pub fn load_identity(keyfile_path: &str, no_passphrase: bool) -> Result<Identity
         Zeroizing::new(rpassword::prompt_password("Passphrase: ")?)
     };
 
-    let mut seed = decrypt_keyfile(&ciphertext, &passphrase)?;
+    let seed = decrypt_keyfile(&ciphertext, &passphrase)?;
     let identity = Identity::from_secret_bytes(&seed);
-    seed.zeroize();
     identity
 }
 
@@ -48,7 +46,7 @@ pub fn encrypt_keyfile(seed: &[u8; 64], passphrase: &str) -> Result<Vec<u8>> {
 
 /// Decrypt an age-encrypted keyfile and return the 64-byte payload
 /// (Ed25519_seed || X25519_seed).
-pub fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> {
+pub fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<Zeroizing<[u8; 64]>> {
     if ciphertext.is_empty() {
         bail!("keyfile is empty");
     }
@@ -71,7 +69,7 @@ pub fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> 
     }
     let mut seed = Zeroizing::new([0u8; 64]);
     seed.copy_from_slice(&plaintext);
-    Ok(*seed)
+    Ok(seed)
 }
 
 #[cfg(test)]

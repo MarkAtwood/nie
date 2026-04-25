@@ -1700,15 +1700,23 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
         }
     }
 
-    // ── destroy: not supported ────────────────────────────────────────────
+    // ── destroy: check existence first (RFC 8620 §5.3) ──────────────────
+    // A nonexistent ID must return notFound; a found ID returns forbidden
+    // because SpaceInvite objects are immutable and cannot be deleted.
     if let Some(Value::Array(ids)) = args.get("destroy") {
-        for id_val in ids {
-            if let Some(id) = id_val.as_str() {
-                not_destroyed.insert(
-                    id.to_string(),
-                    serde_json::json!({"type":"forbidden","description":"SpaceInvite objects cannot be destroyed"}),
-                );
-            }
+        let id_strs: Vec<&str> = ids.iter().filter_map(|v| v.as_str()).collect();
+        let (found_rows, not_found_ids) = match store.get_space_invites(Some(&id_strs)).await {
+            Ok(r) => r,
+            Err(e) => return db_error(e),
+        };
+        for id in &not_found_ids {
+            not_destroyed.insert(id.clone(), serde_json::json!({"type":"notFound"}));
+        }
+        for row in &found_rows {
+            not_destroyed.insert(
+                row.id.clone(),
+                serde_json::json!({"type":"forbidden","description":"SpaceInvite objects cannot be destroyed"}),
+            );
         }
     }
 
@@ -1920,6 +1928,28 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
 
+            // Verify the chat exists before inserting (RFC 8620 §5.3: a
+            // reference to a nonexistent object must produce invalidProperties,
+            // not serverFail).
+            match store.get_chats(Some(&[chat_id.as_str()])).await {
+                Err(e) => {
+                    not_created.insert(client_id.clone(), db_error(e).1);
+                    continue;
+                }
+                Ok((_, not_found)) if !not_found.is_empty() => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({
+                            "type": "invalidProperties",
+                            "description": "chatId does not exist",
+                            "properties": ["chatId"]
+                        }),
+                    );
+                    continue;
+                }
+                Ok(_) => {}
+            }
+
             // Store message locally.
             let now = chrono::Utc::now().to_rfc3339();
             let msg_id = match store
@@ -1936,7 +1966,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 .await
             {
                 Ok(id) => id,
-                Err(e) => return db_error(e),
+                Err(e) => {
+                    not_created.insert(client_id.clone(), db_error(e).1);
+                    continue;
+                }
             };
 
             // Encrypt and send via relay if MLS client available.

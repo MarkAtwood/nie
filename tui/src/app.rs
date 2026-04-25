@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use nie_core::messages::PaymentSession;
+use zeroize::Zeroizing;
 use nie_core::mls::MlsClient;
 use nie_wallet::db::WalletStore;
 use std::collections::{HashMap, VecDeque};
@@ -110,7 +111,7 @@ pub struct AppState {
     pub hpke_identity_pub: [u8; 32],
     /// MLS-derived room HPKE secret (when MLS active)
     /// KEY MATERIAL — never log
-    pub room_hpke_secret: Option<[u8; 32]>,
+    pub room_hpke_secret: Option<Zeroizing<[u8; 32]>>,
     /// Timed payment overlay notifications
     pub payment_overlays: VecDeque<PaymentOverlay>,
     /// In-flight payment sessions: session_id → session

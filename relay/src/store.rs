@@ -356,11 +356,28 @@ impl Store {
         if expiry_days == 0 {
             return Ok(0);
         }
+        let mut tx = self.pool.begin().await?;
         let result =
             sqlx::query("DELETE FROM users WHERE last_seen < datetime('now', ? || ' days')")
                 .bind(format!("-{expiry_days}"))
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await?;
+        // Remove group_members rows for users that were just deleted.
+        // The v2 migration adds ON DELETE CASCADE, but we delete explicitly here
+        // so the cleanup is correct regardless of whether FK enforcement is active.
+        sqlx::query(
+            "DELETE FROM group_members WHERE pub_id NOT IN (SELECT pub_id FROM users)",
+        )
+        .execute(&mut *tx)
+        .await?;
+        // Remove groups that have no remaining members.
+        sqlx::query(
+            "DELETE FROM groups WHERE NOT EXISTS \
+             (SELECT 1 FROM group_members WHERE group_members.group_id = groups.group_id)",
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
         Ok(result.rows_affected())
     }
 

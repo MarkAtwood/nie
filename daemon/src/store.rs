@@ -474,16 +474,17 @@ impl Store {
     // ── ChatContact ──────────────────────────────────────────────────────
 
     pub async fn upsert_chat_contact(&self, pub_id: &str) -> Result<()> {
-        sqlx::query(
-            "INSERT INTO chat_contact (id, login)
-             VALUES (?, ?)
-             ON CONFLICT(id) DO UPDATE SET last_seen_at = datetime('now')",
+        let rows = sqlx::query(
+            "INSERT OR IGNORE INTO chat_contact (id, login) VALUES (?, ?)",
         )
         .bind(pub_id)
         .bind(pub_id)
         .execute(&self.pool)
-        .await?;
-        self.bump_state_seq("ChatContact").await?;
+        .await?
+        .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("ChatContact").await?;
+        }
         Ok(())
     }
 
@@ -1651,14 +1652,14 @@ impl Store {
 
     /// Mark a message as read.  If `burn_on_read = 1`, hard-deletes the message
     /// and returns `true`.  Otherwise sets a `read_at` marker and returns `false`.
-    /// Returns `Err` if the message is not found.
+    /// Returns `Ok(false)` if the message is not found (not a database error).
     pub async fn read_message(&self, msg_id: &str, read_at: &str) -> Result<bool> {
         let row: Option<(i64,)> = sqlx::query_as("SELECT burn_on_read FROM message WHERE id = ?")
             .bind(msg_id)
             .fetch_optional(&self.pool)
             .await?;
         let Some((burn,)) = row else {
-            anyhow::bail!("message not found: {msg_id}");
+            return Ok(false);
         };
         if burn != 0 {
             self.hard_delete_message(msg_id).await?;
