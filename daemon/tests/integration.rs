@@ -56,11 +56,15 @@ async fn start_test_daemon() -> TestDaemon {
             token::require_token,
         ));
 
-    let app = Router::new()
-        .route("/health", get(|| async { "ok" }))
+    let browser_auth_routes = Router::new()
         .route("/ws/events", get(ws_events::handle_ws_events))
         .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
+        .route_layer(middleware::from_fn(token::redact_token_query_param));
+
+    let app = Router::new()
+        .route("/health", get(|| async { "ok" }))
         .route("/", get(web::handle_index))
+        .merge(browser_auth_routes)
         .merge(api_router)
         .with_state(state);
 
@@ -396,8 +400,12 @@ async fn test_ws_receives_broadcast_event() {
             token::require_token,
         ));
 
-    let app = Router::new()
+    let browser_auth_routes = Router::new()
         .route("/ws/events", get(ws_events::handle_ws_events))
+        .route_layer(middleware::from_fn(token::redact_token_query_param));
+
+    let app = Router::new()
+        .merge(browser_auth_routes)
         .merge(api_router)
         .with_state(state.clone());
 

@@ -35,10 +35,13 @@ impl Identity {
         // Generate separate entropy for HPKE key (key separation invariant).
         let mut hpke_seed: [u8; 32] = rand::random();
         // Astronomically unlikely, but the invariant requires it.
-        debug_assert_ne!(
-            &hpke_seed,
-            signing_key.to_bytes().as_slice(),
-            "Ed25519 and HPKE seeds must differ"
+        // Use assert_ne! (not debug_assert_ne!) so a broken RNG that produces equal
+        // seeds causes an explicit panic in release builds rather than a silent
+        // security invariant violation.
+        assert_ne!(
+            hpke_seed,
+            signing_key.to_bytes(),
+            "RNG produced identical Ed25519 and HPKE seeds — key separation invariant violated"
         );
         let hpke_secret = x25519_dalek::StaticSecret::from(hpke_seed);
         hpke_seed.zeroize();

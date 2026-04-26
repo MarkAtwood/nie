@@ -87,8 +87,8 @@ impl BusSubscriber {
                     match rx.recv().await {
                         Ok(msg) => return Some(msg),
                         Err(broadcast::error::RecvError::Closed) => return None,
-                        Err(broadcast::error::RecvError::Lagged(_)) => {
-                            // Lagged: some messages were dropped; retry from the oldest available.
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("LocalBus receiver lagged, dropped {} messages", n);
                             continue;
                         }
                     }
@@ -228,9 +228,23 @@ struct RedisSubscriber {
 impl RedisSubscriber {
     async fn recv(&mut self) -> Option<BusMessage> {
         use futures::StreamExt;
-        let msg = self.conn.on_message().next().await?;
-        let payload: String = msg.get_payload().ok()?;
-        serde_json::from_str(&payload).ok()
+        loop {
+            let msg = self.conn.on_message().next().await?;
+            let payload: String = match msg.get_payload() {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!("RedisSubscriber: failed to extract payload: {e}");
+                    continue;
+                }
+            };
+            match serde_json::from_str::<BusMessage>(&payload) {
+                Ok(m) => return Some(m),
+                Err(e) => {
+                    tracing::warn!("RedisSubscriber: failed to deserialize bus message: {e}");
+                    continue;
+                }
+            }
+        }
     }
 }
 

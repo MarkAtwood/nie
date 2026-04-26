@@ -186,13 +186,13 @@ async fn main() -> Result<()> {
         ));
 
     // Routes that accept ?token= for browser clients (WebSocket and EventSource APIs
-    // cannot set Authorization headers). The token is stripped from the request URI
-    // by a middleware layer so it cannot appear in access logs if a TraceLayer is
-    // added in the future.
+    // cannot set Authorization headers). The token is extracted from the URI,
+    // stored in request extensions as QueryToken, and the URI is rewritten with
+    // the value replaced by [redacted] so downstream logging sees no real token.
     let browser_auth_routes = Router::new()
         .route("/ws/events", get(ws_events::handle_ws_events))
         .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
-        .route_layer(axum::middleware::from_fn(redact_token_query_param));
+        .route_layer(axum::middleware::from_fn(token::redact_token_query_param));
 
     let app = Router::new()
         .route("/", get(web::handle_index))
@@ -252,57 +252,6 @@ async fn main() -> Result<()> {
     axum::serve(listener, app).await?;
     pid::release_pid_file(&pid_path);
     Ok(())
-}
-
-/// Middleware that logs a sanitized request URI (with `?token=` redacted) at
-/// trace level, then passes the original request through unchanged.
-///
-/// Browser WebSocket and EventSource APIs cannot set Authorization headers, so
-/// they must send the bearer token as a query parameter. Mutating the URI here
-/// would break the `Query` extractor in downstream handlers — each handler
-/// reads `?token=` itself and performs its own constant-time comparison.
-///
-/// Redaction is case-insensitive (`token=`, `TOKEN=`, `Token=`, etc.) and also
-/// matches the URL-encoded form `%74oken=` (lowercase 't' percent-encoded as
-/// `%74`).  A parameter is a token parameter if its name, when lowercased and
-/// with `%74` replaced by `t`, is `"token"`.
-async fn redact_token_query_param(
-    req: axum::extract::Request,
-    next: axum::middleware::Next,
-) -> axum::response::Response {
-    if tracing::enabled!(tracing::Level::TRACE) {
-        let uri = req.uri();
-        if let Some(query) = uri.query() {
-            // Detect any token= variant (case-insensitive, URL-encoded) before
-            // allocating the redacted string.
-            let lower = query.to_ascii_lowercase();
-            let normalized = lower.replace("%74oken", "token");
-            if normalized.contains("token=") {
-                let redacted: String = query
-                    .split('&')
-                    .map(|param| {
-                        // Extract the param name (everything before '=' or the
-                        // whole param if there is no '=').
-                        let name = param.split('=').next().unwrap_or(param);
-                        let name_lower = name.to_ascii_lowercase();
-                        let name_norm = name_lower.replace("%74oken", "token");
-                        if name_norm == "token" {
-                            "token=REDACTED"
-                        } else {
-                            param
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join("&");
-                tracing::trace!(
-                    path = uri.path(),
-                    query = %redacted,
-                    "browser-auth request (token redacted)"
-                );
-            }
-        }
-    }
-    next.run(req).await
 }
 
 fn data_dir() -> Result<PathBuf> {

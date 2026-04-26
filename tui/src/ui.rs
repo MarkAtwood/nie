@@ -149,8 +149,9 @@ fn strip_unsafe_chars(s: &str) -> String {
         // Inside a CSI (ESC [) or other non-OSC escape sequence.
         // Terminates on any ASCII letter.
         Csi { len: usize },
-        // Inside an OSC sequence (ESC ]). Terminates on BEL (\x07) or ST (ESC \).
-        Osc { last_was_esc: bool },
+        // Inside an OSC sequence (ESC ]). Terminates on BEL (\x07), ST (ESC \),
+        // or after 128 chars — beyond that a peer is trying to swallow content.
+        Osc { last_was_esc: bool, len: usize },
     }
 
     let mut state = EscState::Normal;
@@ -189,6 +190,7 @@ fn strip_unsafe_chars(s: &str) -> String {
                     // OSC sequence: ESC ] ... BEL  or  ESC ] ... ESC \
                     state = EscState::Osc {
                         last_was_esc: false,
+                        len: 0,
                     };
                 } else {
                     // All other sequences (CSI = '[', plus single-char Fe sequences).
@@ -224,17 +226,27 @@ fn strip_unsafe_chars(s: &str) -> String {
 
             EscState::Osc {
                 ref mut last_was_esc,
+                ref mut len,
             } => {
+                *len += 1;
                 if ch == '\x07' {
                     // BEL terminates an OSC sequence.
                     state = EscState::Normal;
                 } else if *last_was_esc && ch == '\\' {
                     // ST = ESC \ terminates an OSC sequence.
                     state = EscState::Normal;
+                } else if *len > 128 {
+                    // Cap: a real OSC never exceeds 128 chars; beyond this the
+                    // peer is malicious and trying to swallow subsequent content.
+                    // Reset and emit the current char normally.
+                    state = EscState::Normal;
+                    if !ch.is_control() || ch == '\n' || ch == '\t' {
+                        out.push(ch);
+                    }
                 } else {
                     *last_was_esc = ch == '\x1b';
+                    // Swallow chars inside the OSC payload.
                 }
-                // Swallow all chars inside the OSC payload.
             }
         }
     }
@@ -418,5 +430,36 @@ mod tests {
             strip_unsafe_chars("héllo\u{2019}s café 日本語"),
             "héllo\u{2019}s café 日本語"
         );
+    }
+
+    #[test]
+    fn strip_unsafe_chars_caps_overlong_osc() {
+        // An unterminated ESC ] with no BEL or ST must not swallow all subsequent
+        // content. After the 128-char cap the rest of the string must be preserved.
+        let osc_body = "X".repeat(200);
+        let input = format!("\x1b]{osc_body}hello");
+        let result = strip_unsafe_chars(&input);
+        assert!(
+            result.ends_with("hello"),
+            "content after overlong OSC must be preserved: {result:?}"
+        );
+        assert!(
+            !result.starts_with('\x1b'),
+            "ESC must not appear in output: {result:?}"
+        );
+    }
+
+    #[test]
+    fn strip_unsafe_chars_osc_terminated_by_bel() {
+        // ESC ] <payload> BEL — BEL terminates; following text is preserved.
+        let input = "\x1b]0;window title\x07visible text";
+        assert_eq!(strip_unsafe_chars(input), "visible text");
+    }
+
+    #[test]
+    fn strip_unsafe_chars_osc_terminated_by_st() {
+        // ESC ] <payload> ESC \ — ST terminates; following text is preserved.
+        let input = "\x1b]0;window title\x1b\\visible text";
+        assert_eq!(strip_unsafe_chars(input), "visible text");
     }
 }

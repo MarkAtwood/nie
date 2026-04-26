@@ -1,18 +1,18 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        Query, State,
+        Extension, State,
     },
     http::StatusCode,
     response::IntoResponse,
 };
 use futures::{SinkExt, StreamExt};
-use std::collections::HashMap;
 use subtle::ConstantTimeEq;
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::state::DaemonState;
 use crate::token::validate_token_header;
+use crate::token::QueryToken;
 
 /// WebSocket handler for /ws/events
 /// Streams DaemonEvents as JSON text frames to connected browser clients.
@@ -20,22 +20,25 @@ use crate::token::validate_token_header;
 /// Accepts auth via:
 ///   - `Authorization: Bearer <token>` header (programmatic clients)
 ///   - `?token=<token>` query param (browser WebSocket API, which cannot set headers)
+///     The token value is extracted and stored as an extension by the
+///     `redact_token_query_param` middleware before the URI is redacted.
 pub async fn handle_ws_events(
     ws: WebSocketUpgrade,
     State(state): State<DaemonState>,
     headers: axum::http::HeaderMap,
-    Query(params): Query<HashMap<String, String>>,
+    query_token: Option<Extension<QueryToken>>,
 ) -> impl IntoResponse {
     // Token check BEFORE upgrade — reject unauthenticated connections.
-    // Check Authorization header first, then ?token= query param.
+    // Check Authorization header first, then the QueryToken extension set by
+    // the redact_token_query_param middleware (which has already redacted the URI).
     let auth_ok = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .map(|h| validate_token_header(h, state.token()))
         .unwrap_or(false)
-        || params
-            .get("token")
-            .map(|t| bool::from(t.as_bytes().ct_eq(state.token().as_bytes())))
+        || query_token
+            .as_ref()
+            .map(|Extension(qt)| bool::from(qt.0.as_bytes().ct_eq(state.token().as_bytes())))
             .unwrap_or(false);
 
     if !auth_ok {
@@ -156,11 +159,11 @@ mod tests {
     #[test]
     fn test_query_param_token_accepts_correct() {
         let state = make_state();
-        let mut params = HashMap::new();
-        params.insert("token".to_string(), "test-token-ws".to_string());
-        let auth_ok = params
-            .get("token")
-            .map(|t| bool::from(t.as_bytes().ct_eq(state.token().as_bytes())))
+        let query_token: Option<Extension<QueryToken>> =
+            Some(Extension(QueryToken("test-token-ws".to_string())));
+        let auth_ok = query_token
+            .as_ref()
+            .map(|Extension(qt)| bool::from(qt.0.as_bytes().ct_eq(state.token().as_bytes())))
             .unwrap_or(false);
         assert!(auth_ok);
     }
@@ -168,11 +171,11 @@ mod tests {
     #[test]
     fn test_query_param_token_rejects_wrong() {
         let state = make_state();
-        let mut params = HashMap::new();
-        params.insert("token".to_string(), "wrong-token".to_string());
-        let auth_ok = params
-            .get("token")
-            .map(|t| bool::from(t.as_bytes().ct_eq(state.token().as_bytes())))
+        let query_token: Option<Extension<QueryToken>> =
+            Some(Extension(QueryToken("wrong-token".to_string())));
+        let auth_ok = query_token
+            .as_ref()
+            .map(|Extension(qt)| bool::from(qt.0.as_bytes().ct_eq(state.token().as_bytes())))
             .unwrap_or(false);
         assert!(!auth_ok);
     }

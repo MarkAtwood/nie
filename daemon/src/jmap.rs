@@ -10,7 +10,7 @@
 
 use axum::{
     body::Bytes,
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::{header, StatusCode},
     response::{sse, IntoResponse},
     Json,
@@ -30,6 +30,7 @@ use ulid::Ulid;
 use crate::state::DaemonState;
 use crate::store::{ChatContactRow, ChatRow, EditBodyResult, MessageRow, SpaceMemberOp, SpaceRole};
 use crate::token::validate_token_header;
+use crate::token::QueryToken;
 use crate::types::DaemonEvent;
 
 // ── Capability URIs ────────────────────────────────────────────────────────────
@@ -2670,8 +2671,6 @@ pub struct EventSourceParams {
     pub types: Option<String>,
     pub closeafter: Option<String>,
     pub ping: Option<u64>,
-    /// Browser EventSource API cannot set headers; accept token in query string.
-    pub token: Option<String>,
 }
 
 /// Carries all state across `stream::unfold` iterations for the SSE stream.
@@ -2748,11 +2747,14 @@ async fn daemon_event_to_jmap_event(
 /// GET /jmap/eventsource/ — RFC 8620 §7.3 Server-Sent Events push channel.
 ///
 /// Auth: `Authorization: Bearer <token>` header or `?token=<token>` query param.
+/// The `?token=` value is extracted by `redact_token_query_param` middleware
+/// (stored as a `QueryToken` extension) before the URI is redacted.
 /// Params: `types` (comma-separated data types or `*`), `closeafter` (`state`|`no`),
 ///         `ping` (keep-alive interval in seconds, 0 = disabled).
 pub async fn handle_jmap_eventsource(
     State(state): State<DaemonState>,
     headers: axum::http::HeaderMap,
+    query_token: Option<Extension<QueryToken>>,
     Query(params): Query<EventSourceParams>,
 ) -> axum::response::Response {
     let auth_ok = headers
@@ -2760,10 +2762,9 @@ pub async fn handle_jmap_eventsource(
         .and_then(|v| v.to_str().ok())
         .map(|h| validate_token_header(h, state.token()))
         .unwrap_or(false)
-        || params
-            .token
-            .as_deref()
-            .map(|t| bool::from(t.as_bytes().ct_eq(state.token().as_bytes())))
+        || query_token
+            .as_ref()
+            .map(|Extension(qt)| bool::from(qt.0.as_bytes().ct_eq(state.token().as_bytes())))
             .unwrap_or(false);
 
     if !auth_ok {
