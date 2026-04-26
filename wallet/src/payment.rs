@@ -20,7 +20,7 @@
 
 use std::fmt;
 
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use sapling::circuit::{OutputParameters, SpendParameters};
@@ -38,6 +38,22 @@ use crate::{
 /// Account index for the nie payment wallet (ZIP-32 account 0).
 pub const PAYMENT_ACCOUNT: u32 = 0;
 
+/// Successful result from [`send_payment`].
+///
+/// The payment was broadcast and the txid is machine-readable in `txid`.
+/// If `mark_spent_warning` is `Some`, the DB failed to mark the spent notes
+/// after the broadcast succeeded.  The payment is on-chain; callers should
+/// log the warning and treat the payment as succeeded, but note that a wallet
+/// rescan may be required to prevent double-spend on the next send.
+#[derive(Debug)]
+pub struct SendPaymentResult {
+    /// The txid returned by the lightwalletd broadcast.
+    pub txid: String,
+    /// Non-None when `mark_notes_spent` failed after a successful broadcast.
+    /// Contains a human-readable description of the failure.
+    pub mark_spent_warning: Option<String>,
+}
+
 /// All failure modes for [`send_payment`].
 #[derive(Debug)]
 pub enum SendPaymentError {
@@ -51,13 +67,6 @@ pub enum SendPaymentError {
     Connect(anyhow::Error),
     /// A wallet store operation failed (note queries, tx record insertion, etc.).
     Db(anyhow::Error),
-    /// The transaction was broadcast but `mark_notes_spent` failed.
-    ///
-    /// The payment is on-chain and cannot be recalled.  The spent notes remain
-    /// "unspent" in the local DB and will be re-selected on the next send,
-    /// producing a double-spend rejection from the network.  Recovery requires
-    /// a full wallet rescan from seed.
-    MarkSpentFailed(String),
 }
 
 impl fmt::Display for SendPaymentError {
@@ -68,7 +77,6 @@ impl fmt::Display for SendPaymentError {
             Self::Broadcast(e) => write!(f, "broadcast failed: {e}"),
             Self::Connect(e) => write!(f, "could not connect to lightwalletd: {e}"),
             Self::Db(e) => write!(f, "database error: {e}"),
-            Self::MarkSpentFailed(msg) => write!(f, "mark notes spent failed: {msg}"),
         }
     }
 }
@@ -79,7 +87,7 @@ impl std::error::Error for SendPaymentError {
             Self::SyncLag(e) => Some(e),
             Self::Build(e) => Some(e),
             Self::Broadcast(e) => Some(e),
-            Self::Connect(_) | Self::Db(_) | Self::MarkSpentFailed(_) => None,
+            Self::Connect(_) | Self::Db(_) => None,
         }
     }
 }
@@ -163,7 +171,7 @@ pub async fn send_payment<C: WalletClient>(
     client: &mut C,
     params: Option<&(SpendParameters, OutputParameters)>,
     network: ZcashNetwork,
-) -> Result<String, SendPaymentError> {
+) -> Result<SendPaymentResult, SendPaymentError> {
     // Step 1: Sync-lag check.
     // scan_tip is also the anchor height for Sapling witnesses (witnesses in
     // spendable_notes() are all valid at the scan_tip).
@@ -265,21 +273,25 @@ pub async fn send_payment<C: WalletClient>(
     // Mark selected notes as spent in one transaction.
     // The transaction is already on-chain — there is no way to undo it.
     // If this fails, the notes remain "unspent" in the DB and will be re-selected
-    // on the next send, causing a double-spend rejection.  Return an error so the
-    // caller can surface the "please rescan" message to the user.
-    if let Err(e) = store.mark_notes_spent(&selected_ids, &txid).await {
-        error!(
+    // on the next send, causing a double-spend rejection.  Return a partial-success
+    // result so the caller gets the txid as a machine-readable field and can surface
+    // the "please rescan" warning to the user without losing the txid.
+    let mark_spent_warning = if let Err(e) = store.mark_notes_spent(&selected_ids, &txid).await {
+        let warning = format!(
+            "txid {txid} was broadcast but notes could not be marked spent ({e}); \
+             rescan the wallet from seed to recover"
+        );
+        warn!(
             txid = %txid,
             note_ids = ?selected_ids,
             error = %e,
             "mark_notes_spent failed after successful broadcast — \
              notes remain unspent in DB; rescan required to recover"
         );
-        return Err(SendPaymentError::MarkSpentFailed(format!(
-            "txid {txid} was broadcast but notes could not be marked spent ({e}); \
-             rescan the wallet from seed to recover"
-        )));
-    }
+        Some(warning)
+    } else {
+        None
+    };
 
     // Insert the outgoing tx record.
     // i64::try_from: block heights and unix timestamps fit in i64 for any real
@@ -298,10 +310,10 @@ pub async fn send_payment<C: WalletClient>(
     )
     .unwrap_or(i64::MAX); // Unix timestamps won't overflow i64 until year 292 billion.
                           // NOTE: block_height is the scan_tip at broadcast time, not the actual
-                          // confirmation height.  The scanner uses INSERT OR IGNORE on txid, so it
-                          // will not overwrite this with the confirmed height when the tx is mined.
-                          // This means block_height for outgoing txs is approximate (off by ~1-3
-                          // blocks).  When the transaction watcher (nie-hov) lands it must either
+                          // confirmation height.  The scanner uses INSERT OR REPLACE on txid, so it
+                          // will update peer_pub_id/memo if the tx is re-inserted with richer data.
+                          // block_height for outgoing txs is approximate (off by ~1-3 blocks).
+                          // When the transaction watcher (nie-hov) lands it must either
                           // (a) use UPDATE to correct the height after confirmation, or
                           // (b) add a separate confirmed_height column and leave this as broadcast_height.
     let tx_record = TxRecord {
@@ -317,7 +329,10 @@ pub async fn send_payment<C: WalletClient>(
         warn!(txid = %txid, error = %e, "failed to insert tx record after broadcast");
     }
 
-    Ok(txid)
+    Ok(SendPaymentResult {
+        txid,
+        mark_spent_warning,
+    })
 }
 
 #[cfg(test)]
@@ -601,8 +616,12 @@ mod tests {
         )
         .await;
 
-        let txid = result.expect("happy path must succeed");
-        assert_eq!(txid, expected_txid, "returned txid must match mock");
+        let result = result.expect("happy path must succeed");
+        assert_eq!(result.txid, expected_txid, "returned txid must match mock");
+        assert!(
+            result.mark_spent_warning.is_none(),
+            "happy path must have no mark_spent_warning"
+        );
 
         // Note must be marked spent.
         let unspent = store.unspent_notes().await.unwrap();

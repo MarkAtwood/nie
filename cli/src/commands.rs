@@ -91,7 +91,7 @@ use nie_wallet::db::WalletStore;
 use nie_wallet::fees::{sapling_logical_actions, zip317_fee};
 use nie_wallet::orchard::{OrchardFullViewingKey, OrchardSpendingKey};
 use nie_wallet::params::SaplingParamPaths;
-use nie_wallet::payment::{send_payment, SendPaymentError};
+use nie_wallet::payment::{send_payment, SendPaymentError, SendPaymentResult};
 use nie_wallet::scanner::{NoteDecryptor, SaplingIvkDecryptor};
 use nie_wallet::tx_builder::{load_sapling_params, DUST_THRESHOLD};
 use nie_wallet::unified::{decode_unified_address, diversified_address, sapling_receiver};
@@ -3240,7 +3240,11 @@ async fn dispatch_payment(
                             amount_zatoshi
                         );
                         match sf(address.clone(), amount_zatoshi, session_id).await {
-                            Ok(txid) => {
+                            Ok(payment) => {
+                                let txid = payment.txid;
+                                if let Some(w) = payment.mark_spent_warning {
+                                    warn!(txid = %txid, "{w}");
+                                }
                                 println!("[pay] Payment sent. Txid: {txid}");
                                 {
                                     let session = entry.get_mut();
@@ -3739,8 +3743,9 @@ type SendFn = dyn Fn(
         String,
         u64,
         Uuid,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<String, SendPaymentError>> + Send>>
-    + Send
+    ) -> Pin<
+        Box<dyn std::future::Future<Output = Result<SendPaymentResult, SendPaymentError>> + Send>,
+    > + Send
     + Sync;
 
 /// Attempt to load and decrypt wallet.key, derive Sapling DFVK and Orchard FVK.
@@ -5288,8 +5293,18 @@ mod tests {
                        _amt: u64,
                        _sid: Uuid|
          -> Pin<
-            Box<dyn std::future::Future<Output = Result<String, SendPaymentError>> + Send>,
-        > { Box::pin(async { Ok("deadbeef0000cafe".repeat(4)) }) };
+            Box<
+                dyn std::future::Future<Output = Result<SendPaymentResult, SendPaymentError>>
+                    + Send,
+            >,
+        > {
+            Box::pin(async {
+                Ok(SendPaymentResult {
+                    txid: "deadbeef0000cafe".repeat(4),
+                    mark_spent_warning: None,
+                })
+            })
+        };
         let sf: &SendFn = &mock_fn;
 
         let alive = dispatch_payment(
@@ -5380,7 +5395,10 @@ mod tests {
                       _: u64,
                       _: Uuid|
          -> Pin<
-            Box<dyn std::future::Future<Output = Result<String, SendPaymentError>> + Send>,
+            Box<
+                dyn std::future::Future<Output = Result<SendPaymentResult, SendPaymentError>>
+                    + Send,
+            >,
         > {
             Box::pin(async {
                 Err(SendPaymentError::SyncLag(
@@ -5461,7 +5479,10 @@ mod tests {
                         _: u64,
                         _: Uuid|
          -> Pin<
-            Box<dyn std::future::Future<Output = Result<String, SendPaymentError>> + Send>,
+            Box<
+                dyn std::future::Future<Output = Result<SendPaymentResult, SendPaymentError>>
+                    + Send,
+            >,
         > {
             Box::pin(async {
                 Err(SendPaymentError::Build(

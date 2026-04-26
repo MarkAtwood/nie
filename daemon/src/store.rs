@@ -1296,6 +1296,16 @@ impl Store {
     // ── SpaceMember ──────────────────────────────────────────────────────
 
     pub async fn upsert_space_member(&self, space_id: &str, contact_id: &str) -> Result<()> {
+        // Guard: reject the INSERT if the space no longer exists.  Without this
+        // check, a deleted-at-runtime default space causes a FK violation that
+        // is swallowed by INSERT OR IGNORE, silently breaking auto-enrollment.
+        let exists: Option<(i32,)> = sqlx::query_as("SELECT 1 FROM space WHERE id = ?")
+            .bind(space_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        if exists.is_none() {
+            anyhow::bail!("space {space_id} does not exist");
+        }
         let rows =
             sqlx::query("INSERT OR IGNORE INTO space_member (space_id, contact_id) VALUES (?, ?)")
                 .bind(space_id)

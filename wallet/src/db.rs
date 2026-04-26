@@ -817,6 +817,29 @@ impl WalletStore {
         Ok(())
     }
 
+    /// Return which of the given `note_ids` are marked spent in the DB.
+    ///
+    /// Used by the scanner to prune its in-memory witness map after notes are
+    /// spent by `payment.rs`.  Returns only the IDs that have `spent = 1`; IDs
+    /// that do not exist in the DB are silently excluded from the result.
+    pub async fn spent_note_ids_in(&self, note_ids: &[i64]) -> Result<Vec<i64>> {
+        if note_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        let mut spent = Vec::new();
+        for &note_id in note_ids {
+            let row: Option<(i64,)> =
+                sqlx::query_as("SELECT note_id FROM notes WHERE note_id = ? AND spent = 1")
+                    .bind(note_id)
+                    .fetch_optional(&self.pool)
+                    .await?;
+            if row.is_some() {
+                spent.push(note_id);
+            }
+        }
+        Ok(spent)
+    }
+
     // ---- witnesses ----
 
     /// Insert or replace the latest incremental Merkle witness for a note.
@@ -954,7 +977,13 @@ impl WalletStore {
 
     // ---- transactions ----
 
-    /// Record a confirmed transaction.  Ignores conflicts (idempotent re-index).
+    /// Record a confirmed transaction.
+    ///
+    /// If a row with the same txid already exists, `peer_pub_id` and `memo`
+    /// are updated so that a retry with richer data (e.g. after a rescan that
+    /// populates the peer identity) is not silently dropped.  Immutable fields
+    /// (`block_height`, `direction`, `amount_zatoshi`, `created_at`) are left
+    /// unchanged on conflict.
     pub async fn insert_tx(&self, tx: &TxRecord) -> Result<()> {
         let value = i64::try_from(tx.amount_zatoshi).map_err(|_| {
             anyhow::anyhow!(
@@ -963,9 +992,12 @@ impl WalletStore {
             )
         })?;
         sqlx::query(
-            "INSERT OR IGNORE INTO transactions
+            "INSERT INTO transactions
                 (txid, block_height, direction, amount_zatoshi, memo, peer_pub_id, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(txid) DO UPDATE SET
+                peer_pub_id = excluded.peer_pub_id,
+                memo        = excluded.memo",
         )
         .bind(&tx.txid)
         .bind(tx.block_height)
@@ -2196,9 +2228,12 @@ mod tests {
         assert_eq!(got.peer_pub_id.as_deref(), Some("a".repeat(64).as_str()));
     }
 
-    /// Duplicate insert_tx is silently ignored (INSERT OR IGNORE).
+    /// Duplicate insert_tx does not create a second row and does not error.
+    ///
+    /// Oracle: insert the same TxRecord twice; `recent_txs` must return exactly
+    /// one row.  Verifies the `ON CONFLICT DO UPDATE` path is idempotent.
     #[tokio::test]
-    async fn duplicate_tx_is_ignored() {
+    async fn duplicate_tx_is_idempotent() {
         let (store, _tempfile) = make_store().await;
         let tx = TxRecord {
             txid: "cafebabe".repeat(8),
@@ -2216,6 +2251,67 @@ mod tests {
             store.recent_txs(10).await.unwrap().len(),
             1,
             "duplicate insert must not create a second row"
+        );
+    }
+
+    /// insert_tx with a conflicting txid updates peer_pub_id and memo.
+    ///
+    /// Oracle: first insert has no peer_pub_id/memo; second insert provides
+    /// them.  After the second call the stored row must carry the new values.
+    /// Immutable fields (block_height, amount_zatoshi) must be unchanged.
+    #[tokio::test]
+    async fn duplicate_tx_updates_peer_pub_id_and_memo() {
+        let (store, _tempfile) = make_store().await;
+        let txid = "deadbeef".repeat(8);
+        let tx_first = TxRecord {
+            txid: txid.clone(),
+            block_height: 1_000,
+            direction: TxDirection::Incoming,
+            amount_zatoshi: 50_000,
+            memo: None,
+            peer_pub_id: None,
+            created_at: 1_000,
+        };
+        store.insert_tx(&tx_first).await.unwrap();
+
+        let peer = "b".repeat(64);
+        let tx_second = TxRecord {
+            txid: txid.clone(),
+            block_height: 9_999,              // must NOT overwrite the original
+            direction: TxDirection::Outgoing, // must NOT overwrite the original
+            amount_zatoshi: 99_999,           // must NOT overwrite the original
+            memo: Some(b"hello".to_vec()),
+            peer_pub_id: Some(peer.clone()),
+            created_at: 9_999,
+        };
+        store.insert_tx(&tx_second).await.unwrap();
+
+        let txs = store.recent_txs(10).await.unwrap();
+        assert_eq!(txs.len(), 1, "must still have exactly one row");
+        let got = &txs[0];
+        assert_eq!(
+            got.memo.as_deref(),
+            Some(b"hello".as_slice()),
+            "memo must be updated"
+        );
+        assert_eq!(
+            got.peer_pub_id.as_deref(),
+            Some(peer.as_str()),
+            "peer_pub_id must be updated"
+        );
+        // Immutable fields must not change.
+        assert_eq!(
+            got.block_height, 1_000,
+            "block_height must not change on conflict"
+        );
+        assert_eq!(
+            got.amount_zatoshi, 50_000,
+            "amount must not change on conflict"
+        );
+        assert_eq!(
+            got.direction,
+            TxDirection::Incoming,
+            "direction must not change on conflict"
         );
     }
 

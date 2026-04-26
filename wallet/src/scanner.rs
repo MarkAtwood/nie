@@ -441,6 +441,23 @@ impl CompactBlockScanner {
             }
         }
 
+        // Prune witnesses for any notes that were marked spent since the last
+        // block (e.g. by payment.rs calling mark_notes_spent).  Without this,
+        // the map grows unboundedly over a long session: spent notes accumulate
+        // witnesses that are updated and serialised on every block even though
+        // the notes can never be re-spent.
+        //
+        // Collect the current key set before the immutable borrow in the loop.
+        let witness_note_ids: Vec<i64> = self.witnesses.keys().copied().collect();
+        let spent_ids = self
+            .store
+            .spent_note_ids_in(&witness_note_ids)
+            .await
+            .map_err(|e| anyhow::anyhow!("scanner: spent_note_ids_in failed: {e}"))?;
+        for id in &spent_ids {
+            self.witnesses.remove(id);
+        }
+
         // Serialize the updated commitment tree.
         let mut tree_bytes = Vec::new();
         write_commitment_tree(&self.tree, &mut tree_bytes)

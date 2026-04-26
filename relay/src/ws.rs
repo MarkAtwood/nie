@@ -1108,6 +1108,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // Reject the all-zero key (RFC 7748 §6.1 low-order point).
+                        // An all-zero X25519 public key is a degenerate low-order
+                        // point; any DH with it yields the zero shared secret,
+                        // breaking HPKE confidentiality.
+                        if params.public_key.iter().all(|&b| b == 0) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "invalid public key",
+                            )
+                            .await;
+                            continue;
+                        }
                         match state
                             .inner
                             .store
