@@ -342,6 +342,15 @@ async fn handle(socket: WebSocket, state: AppState) {
             }
         }
     }
+    // SECURITY (nie-43zd.4): reject stale nonces before signature verification.
+    // new_challenge() embeds the issue timestamp in bytes 0–3 of the nonce; a
+    // captured nonce that is replayed after CHALLENGE_TTL_SECS is rejected here
+    // without reaching the (more expensive) Ed25519 verify step.
+    if let Err(e) = nie_core::auth::nonce_is_fresh(&nonce) {
+        tracing::debug!("stale challenge nonce rejected: {e}");
+        send_error_response(&mut sink, req.id, rpc_errors::AUTH_FAILED, "auth failed").await;
+        return;
+    }
     // SECURITY: PoW check precedes signature check
     let pub_id = match verify_challenge(&params.pub_key, &nonce, &params.signature) {
         Ok(id) => id,
@@ -621,6 +630,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // SECURITY: reject zero-length payload before fan-out.
+                        // An empty broadcast triggers O(N) mpsc pushes with no
+                        // useful content and causes MLS decryption failures on
+                        // every peer.  The rate limit alone is insufficient
+                        // because each zero-byte message still fans out to all
+                        // subscribers.
+                        if params.payload.is_empty() {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "payload must not be empty",
+                            )
+                            .await;
+                            continue;
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {
@@ -686,6 +711,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        // SECURITY: reject zero-length sealed payload before fan-out.
+                        // Same amplification risk as BROADCAST: a zero-byte sealed
+                        // message fans out to all subscribers and fails HPKE
+                        // decryption on every peer.
+                        if params.sealed.is_empty() {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "sealed payload must not be empty",
+                            )
+                            .await;
+                            continue;
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {
@@ -1097,6 +1136,28 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // Per-caller cooldown: prevent rapid key replacement.
+                        // Overwriting an HPKE key silently invalidates all sealed
+                        // messages that peers have already encrypted to the old key.
+                        // A 5-second cooldown limits unintentional or malicious churn
+                        // without blocking legitimate rotation.
+                        {
+                            let rate_limited = state
+                                .inner
+                                .hpke_key_rate_limits
+                                .get(&pub_id.0)
+                                .is_some_and(|last| last.elapsed() < Duration::from_secs(5));
+                            if rate_limited {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RATE_LIMITED,
+                                    "HPKE key updates are rate limited to once per 5 seconds",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
                         // Validate: a Curve25519 / X25519 public key is exactly 32 bytes.
                         if params.public_key.len() != 32 {
                             send_client_error(
@@ -1129,6 +1190,11 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await
                         {
                             Ok(()) => {
+                                // Record timestamp for per-caller cooldown.
+                                state
+                                    .inner
+                                    .hpke_key_rate_limits
+                                    .insert(pub_id.0.clone(), Instant::now());
                                 // No broadcast: peers fetch on demand via GET_HPKE_KEY.
                                 // serde_json::to_string on a derived Serialize cannot fail
                                 let ok = serde_json::to_string(
@@ -2299,6 +2365,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // SECURITY: gate TYPING behind subscription when required.
+                        // Without this check an unsubscribed client can broadcast
+                        // presence notifications to every connected peer for free,
+                        // bypassing the subscription gate on BROADCAST/WHISPER.
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
                         // TYPING is rate-limited even though it does not count toward
                         // message throughput quotas (DESIGN.md: excluded from message
                         // rate limit).  Without a rate limit, a single client sending

@@ -62,6 +62,11 @@ pub struct Inner {
     /// its nickname, enforcing the 5-second cooldown across all connections from
     /// the same pub_id.  Keyed by pub_id string.
     pub nickname_rate_limits: dashmap::DashMap<String, Instant>,
+    /// Per-pub_id PUBLISH_HPKE_KEY rate limit: records when the identity last
+    /// published an HPKE key, enforcing a 5-second cooldown.  Prevents a caller
+    /// from rapidly overwriting their own key (which would silently discard any
+    /// sealed messages in flight encrypted to the previous key).
+    pub hpke_key_rate_limits: dashmap::DashMap<String, Instant>,
     /// Max broadcasts per 60-second window per pub_id. 0 = unlimited.
     pub rate_limit_per_min: u32,
     /// Random 32-byte salt generated at startup.  Never persisted, never logged.
@@ -110,6 +115,7 @@ impl AppState {
                 merchant: OnceLock::new(),
                 rate_limits: dashmap::DashMap::new(),
                 nickname_rate_limits: dashmap::DashMap::new(),
+                hpke_key_rate_limits: dashmap::DashMap::new(),
                 rate_limit_per_min,
                 pow_server_salt: {
                     let mut salt = [0u8; 32];
@@ -244,8 +250,14 @@ impl AppState {
             .collect();
 
         // Drive live deliveries; track which pub_ids had at least one success.
-        // Re-check group membership before each live send when a group_id is
-        // provided, to prevent delivery to members who departed concurrently.
+        //
+        // GUARD SYMMETRY: both this live-delivery loop and the offline-enqueue
+        // loop below re-check group membership (via is_group_member) when
+        // group_id is Some.  The two checks are intentionally symmetric so that
+        // a member who departs between the caller's list_group_members fetch and
+        // this fan-out receives neither a live message nor an offline-queued one.
+        // Any future third delivery path added here MUST include the same guard.
+        //
         // We memoize the per-pub_id check result so that multiple connections
         // for the same pub_id only hit the DB once.
         let mut membership_cache: std::collections::HashMap<String, bool> =
@@ -291,6 +303,29 @@ impl AppState {
                         Err(e) => {
                             tracing::warn!(
                                 "broadcast_to_group: is_group_member check failed for {member}: {e}"
+                            );
+                            continue;
+                        }
+                    }
+                }
+                // SECURITY (nie-qgag.13): do not accumulate offline messages for
+                // recipients without an active subscription when the relay enforces
+                // subscriptions.  An unsubscribed user cannot retrieve queued
+                // messages (they are rejected at auth), so enqueuing wastes storage
+                // and can be abused to fill the offline queue without limit.
+                if self.inner.require_subscription {
+                    match self.inner.store.subscription_expiry(member).await {
+                        Ok(Some(_)) => {} // active subscription — proceed
+                        Ok(None) => {
+                            tracing::debug!(
+                                "broadcast_to_group: skipping offline enqueue for \
+                                 unsubscribed recipient {member}"
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "broadcast_to_group: subscription check failed for {member}: {e}"
                             );
                             continue;
                         }

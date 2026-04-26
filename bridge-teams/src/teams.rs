@@ -50,26 +50,38 @@ pub struct TeamsFrom {
 impl TeamsActivity {
     /// Return the plain text body for a user message, or `None`.
     ///
-    /// Teams outgoing webhooks may strip @mention markup from the text; we
-    /// return the text as-is and let the nie layer decide how to display it.
-    pub fn text_body(&self) -> Option<&str> {
+    /// Teams outgoing webhooks prepend `<at>BotName</at>` mention tags to the
+    /// text.  Multiple @mentions may appear anywhere in the string.  This
+    /// method removes ALL `<at>…</at>` spans and returns the remaining text
+    /// with leading/trailing whitespace trimmed.
+    pub fn text_body(&self) -> Option<String> {
         if self.activity_type != "message" {
             return None;
         }
-        // Strip leading @mention if present (Teams prepends "<at>BotName</at> " to text).
         let raw = self.text.as_deref()?;
-        // Remove any leading XML <at>…</at> mention tag.
-        let stripped = if raw.starts_with("<at>") {
-            raw.find("</at>")
-                .map(|i| raw[i + 5..].trim_start())
-                .unwrap_or(raw)
-        } else {
-            raw.trim_start()
-        };
-        if stripped.is_empty() {
+        // Walk raw, collecting characters that are outside <at>…</at> spans.
+        let mut out = String::with_capacity(raw.len());
+        let mut i = 0;
+        while i < raw.len() {
+            if raw[i..].starts_with("<at>") {
+                if let Some(rel) = raw[i..].find("</at>") {
+                    i += rel + 5; // 5 == "</at>".len()
+                } else {
+                    // Malformed: no closing tag — emit the rest as-is.
+                    out.push_str(&raw[i..]);
+                    break;
+                }
+            } else {
+                let ch = raw[i..].chars().next().unwrap();
+                out.push(ch);
+                i += ch.len_utf8();
+            }
+        }
+        let trimmed = out.trim().to_owned();
+        if trimmed.is_empty() {
             None
         } else {
-            Some(stripped)
+            Some(trimmed)
         }
     }
 }
@@ -98,8 +110,9 @@ pub fn verify_teams_signature(security_token: &str, body: &[u8], auth_header: &s
     // Constant-time comparison.
     let computed_bytes = computed.as_bytes();
     let header_bytes = auth_header.as_bytes();
-    if computed_bytes.len() != header_bytes.len() || !bool::from(computed_bytes.ct_eq(header_bytes))
-    {
+    // subtle::ct_eq handles unequal lengths (returns false) without leaking
+    // which bytes differ or whether the lengths matched.
+    if !bool::from(computed_bytes.ct_eq(header_bytes)) {
         return Err(anyhow!("Teams signature mismatch"));
     }
     Ok(())
@@ -159,7 +172,7 @@ mod tests {
             from: None,
             text: Some("hello world".to_string()),
         };
-        assert_eq!(act.text_body(), Some("hello world"));
+        assert_eq!(act.text_body(), Some("hello world".to_string()));
     }
 
     #[test]
@@ -169,7 +182,17 @@ mod tests {
             from: None,
             text: Some("<at>BridgeBot</at> hello world".to_string()),
         };
-        assert_eq!(act.text_body(), Some("hello world"));
+        assert_eq!(act.text_body(), Some("hello world".to_string()));
+    }
+
+    #[test]
+    fn text_body_strips_multiple_at_mentions() {
+        let act = TeamsActivity {
+            activity_type: "message".to_string(),
+            from: None,
+            text: Some("<at>Bot</at> hello <at>Alice</at> world".to_string()),
+        };
+        assert_eq!(act.text_body(), Some("hello  world".to_string()));
     }
 
     #[test]

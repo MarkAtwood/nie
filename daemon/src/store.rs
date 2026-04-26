@@ -19,6 +19,22 @@ type ChatTuple = (
     i64,
 );
 
+// ── Result types for JMAP method handlers ─────────────────────────────────────
+
+/// Return type for [`Store::edit_message_body`].
+///
+/// Distinguishes "message not found" from "caller is not the sender" so
+/// the JMAP layer can return the correct error code (`notFound` vs `forbidden`)
+/// without leaking message existence to non-owners.
+pub enum EditBodyResult {
+    /// No message with the given ID exists.
+    NotFound,
+    /// The message exists but its `sender_id` does not match `caller_id`.
+    Forbidden,
+    /// Edit applied successfully.
+    Updated,
+}
+
 // ── Row types for JMAP method handlers ────────────────────────────────────────
 
 #[derive(Debug)]
@@ -1905,17 +1921,30 @@ impl Store {
     }
 
     /// Edit a message body.  Saves the previous body to `edit_history`.
-    /// Returns `true` if the message was found.
-    pub async fn edit_message_body(&self, msg_id: &str, new_body: &str) -> Result<bool> {
+    ///
+    /// `caller_id` must match the message's `sender_id`; if the message exists
+    /// but was sent by a different identity, returns `Ok(EditBodyResult::Forbidden)`
+    /// so the JMAP layer can return the correct `forbidden` error instead of
+    /// leaking existence via `notFound`.
+    pub async fn edit_message_body(
+        &self,
+        msg_id: &str,
+        caller_id: &str,
+        new_body: &str,
+    ) -> Result<EditBodyResult> {
         let mut tx = self.pool.begin().await?;
-        let row: Option<(String, String, String)> =
-            sqlx::query_as("SELECT body, sent_at, edit_history FROM message WHERE id = ?")
-                .bind(msg_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let Some((old_body, sent_at, history_json)) = row else {
-            return Ok(false);
+        let row: Option<(String, String, String, String)> = sqlx::query_as(
+            "SELECT body, sent_at, edit_history, sender_id FROM message WHERE id = ?",
+        )
+        .bind(msg_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some((old_body, sent_at, history_json, sender_id)) = row else {
+            return Ok(EditBodyResult::NotFound);
         };
+        if sender_id != caller_id {
+            return Ok(EditBodyResult::Forbidden);
+        }
         let mut history: Vec<serde_json::Value> =
             serde_json::from_str(&history_json).unwrap_or_default();
         if history.len() >= 100 {
@@ -1938,7 +1967,7 @@ impl Store {
             .execute(&mut *tx)
             .await?;
         tx.commit().await?;
-        Ok(true)
+        Ok(EditBodyResult::Updated)
     }
 
     /// Mark a message as read.  If `burn_on_read = 1`, hard-deletes the message

@@ -28,7 +28,7 @@ use unicode_normalization::UnicodeNormalization;
 use ulid::Ulid;
 
 use crate::state::DaemonState;
-use crate::store::{ChatContactRow, ChatRow, MessageRow, SpaceMemberOp, SpaceRole};
+use crate::store::{ChatContactRow, ChatRow, EditBodyResult, MessageRow, SpaceMemberOp, SpaceRole};
 use crate::token::validate_token_header;
 use crate::types::DaemonEvent;
 
@@ -1079,13 +1079,24 @@ fn try_parse_simple_space_prop<'a>(
             } else {
                 let result = value
                     .as_str()
-                    .map(|s| SimplePropPatch::Description(Some(s)))
                     .ok_or_else(|| {
                         serde_json::json!({
                             "type": "invalidProperties",
                             "properties": ["description"],
                             "description": "description must be a string or null"
                         })
+                    })
+                    .and_then(|s| {
+                        // nie-0j6b.10: cap description at 1024 bytes.
+                        if s.len() > 1024 {
+                            Err(serde_json::json!({
+                                "type": "invalidArguments",
+                                "properties": ["description"],
+                                "description": "description exceeds maximum length of 1024 bytes"
+                            }))
+                        } else {
+                            Ok(SimplePropPatch::Description(Some(s)))
+                        }
                     });
                 Some(result)
             }
@@ -1209,7 +1220,21 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
             let description = match props.get("description") {
                 None | Some(Value::Null) => None,
                 Some(v) => match v.as_str() {
-                    Some(s) => Some(s.to_string()),
+                    Some(s) => {
+                        // nie-0j6b.10: cap description at 1024 bytes.
+                        if s.len() > 1024 {
+                            not_created.insert(
+                                client_id.clone(),
+                                serde_json::json!({
+                                    "type": "invalidArguments",
+                                    "properties": ["description"],
+                                    "description": "description exceeds maximum length of 1024 bytes"
+                                }),
+                            );
+                            continue;
+                        }
+                        Some(s.to_string())
+                    }
                     None => {
                         not_created.insert(
                             client_id.clone(),
@@ -2156,14 +2181,23 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                             }));
                             break;
                         }
-                    } else if path == "readAt" && value.as_str().is_none() {
+                    } else if path == "readAt" {
+                        if value.as_str().is_none() {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "readAt must be a string"
+                            }));
+                            break;
+                        }
+                    } else {
+                        // nie-u966.11: JMAP spec requires unknown patch paths to
+                        // return invalidArguments rather than being silently ignored.
                         validate_err = Some(serde_json::json!({
                             "type": "invalidArguments",
-                            "description": "readAt must be a string"
+                            "description": format!("unknown patch path: {path}")
                         }));
                         break;
                     }
-                    // Unknown patch path: ignore (permissive)
                 }
                 if let Some(err) = validate_err {
                     not_updated.insert(msg_id.clone(), err);
@@ -2219,9 +2253,26 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                     } else if path == "body" {
                         // value.as_str() is Some — validated above
                         let new_body = value.as_str().unwrap();
-                        match store.edit_message_body(msg_id, new_body).await {
-                            Ok(false) => {
+                        // nie-f0pz.12: cap body at 65536 bytes.
+                        if new_body.len() > 65536 {
+                            update_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "body exceeds maximum length of 65536 bytes"
+                            }));
+                            break;
+                        }
+                        match store
+                            .edit_message_body(msg_id, state.my_pub_id(), new_body)
+                            .await
+                        {
+                            Ok(EditBodyResult::NotFound) => {
                                 update_err = Some(serde_json::json!({"type":"notFound"}));
+                                break;
+                            }
+                            // nie-f0pz.13: caller is not the sender → forbidden,
+                            // not notFound, to avoid leaking message existence.
+                            Ok(EditBodyResult::Forbidden) => {
+                                update_err = Some(serde_json::json!({"type":"forbidden"}));
                                 break;
                             }
                             Err(e) => {
@@ -2231,7 +2282,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                 });
                                 break;
                             }
-                            Ok(true) => {}
+                            Ok(EditBodyResult::Updated) => {}
                         }
                     } else if path == "deletedAt" {
                         // value.is_string() — validated above.
@@ -2262,7 +2313,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                             break;
                         }
                     }
-                    // Unknown patch path: ignore (permissive)
+                    // All known paths handled above; unknown paths rejected in Phase 1.
                 }
                 if let Some(err) = update_err {
                     not_updated.insert(msg_id.clone(), err);

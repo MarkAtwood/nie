@@ -261,6 +261,11 @@ async fn main() -> Result<()> {
 /// they must send the bearer token as a query parameter. Mutating the URI here
 /// would break the `Query` extractor in downstream handlers — each handler
 /// reads `?token=` itself and performs its own constant-time comparison.
+///
+/// Redaction is case-insensitive (`token=`, `TOKEN=`, `Token=`, etc.) and also
+/// matches the URL-encoded form `%74oken=` (lowercase 't' percent-encoded as
+/// `%74`).  A parameter is a token parameter if its name, when lowercased and
+/// with `%74` replaced by `t`, is `"token"`.
 async fn redact_token_query_param(
     req: axum::extract::Request,
     next: axum::middleware::Next,
@@ -268,14 +273,20 @@ async fn redact_token_query_param(
     if tracing::enabled!(tracing::Level::TRACE) {
         let uri = req.uri();
         if let Some(query) = uri.query() {
-            if query.contains("token=") {
+            // Detect any token= variant (case-insensitive, URL-encoded) before
+            // allocating the redacted string.
+            let lower = query.to_ascii_lowercase();
+            let normalized = lower.replace("%74oken", "token");
+            if normalized.contains("token=") {
                 let redacted: String = query
                     .split('&')
                     .map(|param| {
-                        if param == "token"
-                            || param.starts_with("token=")
-                            || param.starts_with("token =")
-                        {
+                        // Extract the param name (everything before '=' or the
+                        // whole param if there is no '=').
+                        let name = param.split('=').next().unwrap_or(param);
+                        let name_lower = name.to_ascii_lowercase();
+                        let name_norm = name_lower.replace("%74oken", "token");
+                        if name_norm == "token" {
                             "token=REDACTED"
                         } else {
                             param

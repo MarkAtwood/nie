@@ -83,7 +83,7 @@ async fn teams_webhook(
             .as_ref()
             .and_then(|f| f.name.as_deref())
             .unwrap_or("unknown");
-        let nie_text = format_for_nie(sender, text);
+        let nie_text = format_for_nie(sender, &text);
         // Block until the message is in the channel.
         // If send fails (channel closed), return 500 so Teams retries.
         if state.tx.send(nie_text).await.is_err() {
