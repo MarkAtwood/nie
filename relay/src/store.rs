@@ -3,6 +3,15 @@ use chrono::{DateTime, Utc};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use tracing::info;
 
+/// Maximum number of groups returned per user by [`Store::list_groups_for_user`].
+const MAX_GROUPS_PER_USER: i64 = 256;
+
+/// Maximum number of key packages returned per user by [`Store::get_all_key_packages`].
+const MAX_KEY_PACKAGES_PER_USER: i64 = 10;
+
+/// Maximum number of users returned by [`Store::all_users`].
+const MAX_ALL_USERS: i64 = 10_000;
+
 /// A group registry record.
 #[derive(Debug, Clone)]
 pub struct GroupRow {
@@ -436,9 +445,11 @@ impl Store {
     }
 
     /// All known users in order of first appearance, with their nicknames.
+    /// Returns at most [`MAX_ALL_USERS`] rows.
     pub async fn all_users(&self) -> Result<Vec<(String, Option<String>)>> {
         let rows: Vec<(String, Option<String>)> =
-            sqlx::query_as("SELECT pub_id, nickname FROM users ORDER BY first_seen ASC")
+            sqlx::query_as("SELECT pub_id, nickname FROM users ORDER BY first_seen ASC LIMIT ?1")
+                .bind(MAX_ALL_USERS)
                 .fetch_all(&self.pool)
                 .await?;
         Ok(rows)
@@ -498,9 +509,10 @@ impl Store {
     /// Returns one entry per device that has published a key package.
     pub async fn get_all_key_packages(&self, pub_id: &str) -> Result<Vec<Vec<u8>>> {
         let rows: Vec<(Vec<u8>,)> = sqlx::query_as(
-            "SELECT data FROM key_packages WHERE pub_id = ?1 ORDER BY updated_at DESC",
+            "SELECT data FROM key_packages WHERE pub_id = ?1 ORDER BY updated_at DESC LIMIT ?2",
         )
         .bind(pub_id)
+        .bind(MAX_KEY_PACKAGES_PER_USER)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows.into_iter().map(|r| r.0).collect())
@@ -1000,17 +1012,15 @@ impl Store {
 
     // ---- Groups ----
 
-    /// Create a group record. INSERT OR IGNORE — idempotent; a duplicate
-    /// group_id is silently ignored.
+    /// Create a group record. Returns a unique-constraint error if `group_id`
+    /// already exists — callers must detect duplicate group creation.
     pub async fn create_group(&self, group_id: &str, created_by: &str, name: &str) -> Result<()> {
-        sqlx::query(
-            "INSERT OR IGNORE INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)",
-        )
-        .bind(group_id)
-        .bind(created_by)
-        .bind(name)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)")
+            .bind(group_id)
+            .bind(created_by)
+            .bind(name)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -1038,9 +1048,11 @@ impl Store {
             "SELECT g.group_id, g.created_by, g.name, g.created_at \
              FROM groups g \
              JOIN group_members m ON g.group_id = m.group_id \
-             WHERE m.pub_id = ?1",
+             WHERE m.pub_id = ?1 \
+             LIMIT ?2",
         )
         .bind(pub_id)
+        .bind(MAX_GROUPS_PER_USER)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows
@@ -1078,22 +1090,31 @@ impl Store {
         pub_id: &str,
         cap: u64,
     ) -> Result<bool> {
-        let mut tx = self.pool.begin().await?;
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<bool> = async {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+                    .bind(group_id)
+                    .fetch_one(&mut *conn)
+                    .await?;
+            if count as u64 >= cap {
+                return Ok(false);
+            }
+            sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
                 .bind(group_id)
-                .fetch_one(&mut *tx)
+                .bind(pub_id)
+                .execute(&mut *conn)
                 .await?;
-        if count as u64 >= cap {
-            return Ok(false);
+            Ok(true)
         }
-        sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
-            .bind(group_id)
-            .bind(pub_id)
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
-        Ok(true)
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     /// Remove `pub_id` from `group_id`. No-op if the membership does not exist.
@@ -1178,28 +1199,36 @@ impl Store {
         group_id: &str,
         pub_id: &str,
     ) -> Result<bool> {
-        let mut tx = self.pool.begin().await?;
-        sqlx::query("DELETE FROM group_members WHERE group_id = ?1 AND pub_id = ?2")
-            .bind(group_id)
-            .bind(pub_id)
-            .execute(&mut *tx)
-            .await?;
-        let remaining: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<bool> = async {
+            sqlx::query("DELETE FROM group_members WHERE group_id = ?1 AND pub_id = ?2")
                 .bind(group_id)
-                .fetch_one(&mut *tx)
+                .bind(pub_id)
+                .execute(&mut *conn)
                 .await?;
-        if remaining == 0 {
-            sqlx::query("DELETE FROM groups WHERE group_id = ?1")
-                .bind(group_id)
-                .execute(&mut *tx)
-                .await?;
-            tx.commit().await?;
-            Ok(true)
-        } else {
-            tx.commit().await?;
-            Ok(false)
+            let remaining: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+                    .bind(group_id)
+                    .fetch_one(&mut *conn)
+                    .await?;
+            if remaining == 0 {
+                sqlx::query("DELETE FROM groups WHERE group_id = ?1")
+                    .bind(group_id)
+                    .execute(&mut *conn)
+                    .await?;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
         }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     /// Atomically create a group and add its creator as the first member.
@@ -1692,24 +1721,23 @@ mod tests {
         assert!(got.is_none(), "unknown group_id must return None");
     }
 
-    /// create_group is idempotent: a duplicate insert is silently ignored.
+    /// create_group returns an error on duplicate group_id.
     #[tokio::test]
-    async fn group_create_idempotent() {
+    async fn group_create_duplicate_is_error() {
         let (store, _f) = make_store().await;
         store
-            .create_group("grp-idem", "alice", "original name")
+            .create_group("grp-dup", "alice", "original name")
             .await
             .unwrap();
-        // Second insert with same group_id must not fail, and must not overwrite.
-        store
-            .create_group("grp-idem", "bob", "different name")
-            .await
-            .unwrap();
-        let got = store.get_group("grp-idem").await.unwrap().unwrap();
-        assert_eq!(
-            got.created_by, "alice",
-            "INSERT OR IGNORE must preserve the original row"
+        // Second insert with same group_id must fail with a unique-constraint error.
+        let result = store.create_group("grp-dup", "bob", "different name").await;
+        assert!(
+            result.is_err(),
+            "duplicate group_id must return an error, not silently ignore"
         );
+        // Original row must be unchanged.
+        let got = store.get_group("grp-dup").await.unwrap().unwrap();
+        assert_eq!(got.created_by, "alice", "original row must be preserved");
         assert_eq!(got.name, "original name");
     }
 

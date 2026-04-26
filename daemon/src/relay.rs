@@ -449,6 +449,20 @@ async fn dispatch_peer_deliver(
     thread_root_id: Option<String>,
 ) {
     let stored_id = if let Some(store) = state.store() {
+        // Verify the chat exists before inserting; a nonexistent chat_id would
+        // produce a FK violation that is silently swallowed, and then a phantom
+        // MessageReceived event would still be emitted.
+        match store.get_chats(Some(&[chat_id.as_str()])).await {
+            Ok((_, not_found)) if !not_found.is_empty() => {
+                tracing::warn!("peer_deliver: chat_id {chat_id} does not exist; dropping message");
+                return;
+            }
+            Err(e) => {
+                tracing::warn!("peer_deliver: chat lookup failed: {e}");
+                return;
+            }
+            Ok(_) => {}
+        }
         match store
             .insert_message_ext(
                 &chat_id,

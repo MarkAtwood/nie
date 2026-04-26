@@ -184,6 +184,10 @@ pub fn connect_with_retry(
 }
 
 /// Background task that manages the WebSocket connection with reconnection.
+///
+/// Gives up after `MAX_RETRIES` consecutive failed connection attempts and sends
+/// `ClientEvent::Disconnected` so callers know the connection is permanently dead.
+/// A successful connection resets the retry counter.
 async fn connection_manager(
     url: String,
     identity: Identity,
@@ -192,8 +196,10 @@ async fn connection_manager(
     mut out_rx: mpsc::Receiver<JsonRpcRequest>,
     in_tx: mpsc::Sender<ClientEvent>,
 ) {
+    const MAX_RETRIES: u32 = 10;
     let mut delay_secs: u64 = 1;
     let mut ever_connected = false;
+    let mut consecutive_failures: u32 = 0;
 
     loop {
         match open_authenticated_ws(&url, &identity, accept_invalid_certs, proxy.clone()).await {
@@ -203,6 +209,7 @@ async fn connection_manager(
                 }
                 ever_connected = true;
                 delay_secs = 1; // reset backoff after successful connection
+                consecutive_failures = 0; // reset retry counter after successful connection
 
                 // Bridge: select between outgoing requests and incoming WS frames.
                 // Breaks when WS dies (relay_disconnect = true) or chat exits (= false).
@@ -252,7 +259,13 @@ async fn connection_manager(
                 // fall through to reconnect backoff
             }
             Err(e) => {
-                warn!("connection attempt failed: {e}");
+                consecutive_failures += 1;
+                warn!("connection attempt failed ({consecutive_failures}/{MAX_RETRIES}): {e}");
+                if consecutive_failures >= MAX_RETRIES {
+                    error!("giving up after {MAX_RETRIES} consecutive connection failures");
+                    let _ = in_tx.send(ClientEvent::Disconnected).await;
+                    return;
+                }
                 // fall through to reconnect backoff
             }
         }

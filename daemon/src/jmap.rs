@@ -365,6 +365,7 @@ fn message_to_json(m: &MessageRow) -> Value {
         "threadRootId": m.thread_root_id,
         "expiresAt": m.expires_at,
         "burnOnRead": m.burn_on_read,
+        "readAt": m.read_at,
     })
 }
 
@@ -1956,7 +1957,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
             // Verify the chat exists before inserting (RFC 8620 §5.3: a
             // reference to a nonexistent object must produce invalidProperties,
             // not serverFail).
-            match store.get_chats(Some(&[chat_id.as_str()])).await {
+            let chat_space_id = match store.get_chats(Some(&[chat_id.as_str()])).await {
                 Err(e) => {
                     not_created.insert(client_id.clone(), db_error(e).1);
                     continue;
@@ -1972,7 +1973,28 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                     );
                     continue;
                 }
-                Ok(_) => {}
+                Ok((chats, _)) => chats.into_iter().next().and_then(|c| c.space_id),
+            };
+
+            // For space channels, verify the caller is a member of the space.
+            if let Some(ref space_id) = chat_space_id {
+                match store.get_space_member_role(space_id, &account_id).await {
+                    Err(e) => {
+                        not_created.insert(client_id.clone(), db_error(e).1);
+                        continue;
+                    }
+                    Ok(None) => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "forbidden",
+                                "description": "not a member of this space"
+                            }),
+                        );
+                        continue;
+                    }
+                    Ok(Some(_)) => {}
+                }
             }
 
             // Store message locally.

@@ -1201,6 +1201,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // Check subscription before the user_exists DB lookup so
+                        // unsubscribed clients are rejected without a DB round-trip.
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Verify the recipient is a known enrolled user to prevent
                         // phantom-recipient flooding of the offline_messages table.
                         match state.inner.store.user_exists(&params.to).await {
@@ -1226,18 +1240,6 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .await;
                                 continue;
                             }
-                        }
-                        if state.inner.require_subscription
-                            && !subscribed_flag.load(Ordering::Relaxed)
-                        {
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::SUBSCRIPTION_REQUIRED,
-                                "an active subscription is required to send messages",
-                            )
-                            .await;
-                            continue;
                         }
                         // Route opaque bytes to one specific connected user.
                         // The relay never inspects the payload (MLS Welcome or other control msg).

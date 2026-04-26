@@ -167,6 +167,7 @@ pub struct MessageRow {
     pub thread_root_id: Option<String>,
     pub expires_at: Option<String>,
     pub burn_on_read: bool,
+    pub read_at: Option<String>,
 }
 
 #[derive(Clone)]
@@ -479,6 +480,19 @@ impl Store {
             tx.commit().await?;
         }
 
+        if version < 6 {
+            let mut tx = self.pool.begin().await?;
+            // Add read_at column to message table to store the exact timestamp
+            // at which the recipient marked the message read.
+            sqlx::query("ALTER TABLE message ADD COLUMN read_at TEXT")
+                .execute(&mut *tx)
+                .await?;
+            sqlx::query("PRAGMA user_version = 6")
+                .execute(&mut *tx)
+                .await?;
+            tx.commit().await?;
+        }
+
         Ok(())
     }
 
@@ -708,7 +722,7 @@ impl Store {
     pub async fn get_space_members(&self, space_id: &str) -> Result<Vec<SpaceMemberRow>> {
         let rows = sqlx::query_as::<_, (String, String, Option<String>, String, String)>(
             "SELECT space_id, contact_id, nick, role, joined_at
-             FROM space_member WHERE space_id = ? ORDER BY joined_at ASC",
+             FROM space_member WHERE space_id = ? ORDER BY joined_at ASC LIMIT 1000",
         )
         .bind(space_id)
         .fetch_all(&self.pool)
@@ -1293,7 +1307,7 @@ impl Store {
                 >(
                     "SELECT id, login, display_name, first_seen_at, last_seen_at, presence, blocked
                      FROM chat_contact
-                     ORDER BY first_seen_at ASC",
+                     ORDER BY first_seen_at ASC LIMIT 1000",
                 )
                 .fetch_all(&self.pool)
                 .await?;
@@ -1365,7 +1379,9 @@ impl Store {
         } else {
             format!("WHERE {}", conditions.join(" AND "))
         };
-        let sql = format!("SELECT id FROM chat_contact {where_clause} ORDER BY first_seen_at ASC");
+        let sql = format!(
+            "SELECT id FROM chat_contact {where_clause} ORDER BY first_seen_at ASC LIMIT 1000"
+        );
         // sqlx doesn't support fully dynamic binding; use raw query with explicit branches.
         let ids: Vec<String> = match (presence, blocked) {
             (None, None) => sqlx::query_scalar(&sql).fetch_all(&self.pool).await?,
@@ -1551,7 +1567,8 @@ impl Store {
             let row = sqlx::query_as::<_, MessageRow>(
                 "SELECT id, sender_msg_id, chat_id, sender_id, body, body_type, sent_at,
                         received_at, delivery_state, deleted_at, deleted_for_all,
-                        reactions, edit_history, reply_to, thread_root_id, expires_at, burn_on_read
+                        reactions, edit_history, reply_to, thread_root_id, expires_at, burn_on_read,
+                        read_at
                  FROM message WHERE id = ?",
             )
             .bind(id)
@@ -1751,6 +1768,9 @@ impl Store {
         };
         let mut history: Vec<serde_json::Value> =
             serde_json::from_str(&history_json).unwrap_or_default();
+        if history.len() >= 100 {
+            anyhow::bail!("edit history limit reached");
+        }
         history.push(serde_json::json!({
             "body": old_body,
             "sentAt": sent_at,
@@ -1786,12 +1806,11 @@ impl Store {
             self.hard_delete_message(msg_id).await?;
             return Ok(true); // burned
         }
-        // No dedicated read_at column; update delivery_state to 'read'.
-        sqlx::query("UPDATE message SET delivery_state = 'read' WHERE id = ?")
+        sqlx::query("UPDATE message SET delivery_state = 'read', read_at = ? WHERE id = ?")
+            .bind(read_at)
             .bind(msg_id)
             .execute(&self.pool)
             .await?;
-        let _ = read_at; // stored implicitly via delivery_state transition
         self.bump_state_seq("Message").await?;
         Ok(false)
     }
