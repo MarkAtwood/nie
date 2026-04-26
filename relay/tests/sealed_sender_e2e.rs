@@ -287,7 +287,9 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
 
     // Sealed plaintext is just the MLS ciphertext — no self-asserted sender prefix.
     // Sender identity is authenticated by MLS when the receiver calls process_incoming.
-    let sealed = nie_core::hpke::seal_message(&alice_room_pk, &mls_ct).expect("seal_message");
+    let room_pub_id: String = alice_room_pk.iter().map(|b| format!("{b:02x}")).collect();
+    let sealed =
+        nie_core::hpke::seal_message(&alice_room_pk, &room_pub_id, &mls_ct).expect("seal_message");
 
     let sealed_broadcast_req = JsonRpcRequest::new(
         next_request_id(),
@@ -342,8 +344,8 @@ async fn sealed_broadcast_relay_blind_and_recipient_recovers_sender() {
     )
     .expect("SealedDeliverParams must deserialize");
 
-    let mls_ciphertext =
-        nie_core::hpke::unseal_message(&bob_room_sk, &params.sealed).expect("bob unseal_message");
+    let mls_ciphertext = nie_core::hpke::unseal_message(&bob_room_sk, &room_pub_id, &params.sealed)
+        .expect("bob unseal_message");
 
     assert_eq!(
         mls_ciphertext.len(),

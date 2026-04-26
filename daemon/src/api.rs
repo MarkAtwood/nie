@@ -178,11 +178,12 @@ pub async fn handle_wallet_balance(
         ));
     };
     let balance = wallet.balance_with_confirmations(1).await.map_err(|e| {
+        tracing::error!("wallet balance query failed: {e}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 code: "wallet_error".to_string(),
-                message: format!("balance query failed: {e}"),
+                message: "internal error".to_string(),
             }),
         )
     })?;
@@ -253,11 +254,12 @@ pub async fn handle_wallet_pay(
 
     // Check available balance.
     let balance = wallet.balance_with_confirmations(1).await.map_err(|e| {
+        tracing::error!("wallet balance query failed: {e}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 code: "wallet_error".to_string(),
-                message: format!("balance query failed: {e}"),
+                message: "internal error".to_string(),
             }),
         )
     })?;
@@ -327,11 +329,12 @@ pub async fn handle_wallet_pay(
 
     // Relay send succeeded; now persist the session.
     wallet.upsert_session(&session).await.map_err(|e| {
+        tracing::error!("wallet session persist failed: {e}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 code: "wallet_error".to_string(),
-                message: format!("session persist failed: {e}"),
+                message: "internal error".to_string(),
             }),
         )
     })?;

@@ -360,20 +360,32 @@ pub async fn handle_relay_event(
 
                     // Choose HPKE key: room key if MLS active and derived, else identity key.
                     let plaintext = {
-                        let active_secret: &[u8; 32] = if state.mls_active {
-                            match state.room_hpke_secret.as_ref() {
-                                Some(sk) => sk,
-                                None => {
-                                    tracing::warn!(
+                        let (active_secret, active_pub_id): (&[u8; 32], String) =
+                            if state.mls_active {
+                                match (
+                                    state.room_hpke_secret.as_ref(),
+                                    state.room_hpke_pub.as_ref(),
+                                ) {
+                                    (Some(sk), Some(pk)) => {
+                                        let pub_id: String =
+                                            pk.iter().map(|b| format!("{b:02x}")).collect();
+                                        (sk, pub_id)
+                                    }
+                                    _ => {
+                                        tracing::warn!(
                                         "sealed_deliver while mls_active but no room_hpke_secret"
                                     );
-                                    return Ok(());
+                                        return Ok(());
+                                    }
                                 }
-                            }
-                        } else {
-                            &state.hpke_identity_secret
-                        };
-                        match nie_core::hpke::unseal_message(active_secret, &p.sealed) {
+                            } else {
+                                (&state.hpke_identity_secret, state.my_pub_id.clone())
+                            };
+                        match nie_core::hpke::unseal_message(
+                            active_secret,
+                            &active_pub_id,
+                            &p.sealed,
+                        ) {
                             Ok(pt) => pt,
                             Err(e) => {
                                 tracing::warn!("sealed_deliver unseal failed: {e}");
@@ -983,22 +995,25 @@ async fn send_chat(
             }
         };
         match state.room_hpke_pub {
-            Some(pub_key) => match nie_core::hpke::seal_message(&pub_key, &mls_ciphertext) {
-                Ok(sealed) => {
-                    let req = JsonRpcRequest::new(
-                        next_request_id(),
-                        rpc_methods::SEALED_BROADCAST,
-                        SealedBroadcastParams { sealed },
-                    )
-                    .map_err(anyhow::Error::from)?;
-                    if tx.send(req).await.is_err() {
-                        tracing::warn!("relay send channel closed while sending sealed chat");
+            Some(pub_key) => {
+                let room_pub_id: String = pub_key.iter().map(|b| format!("{b:02x}")).collect();
+                match nie_core::hpke::seal_message(&pub_key, &room_pub_id, &mls_ciphertext) {
+                    Ok(sealed) => {
+                        let req = JsonRpcRequest::new(
+                            next_request_id(),
+                            rpc_methods::SEALED_BROADCAST,
+                            SealedBroadcastParams { sealed },
+                        )
+                        .map_err(anyhow::Error::from)?;
+                        if tx.send(req).await.is_err() {
+                            tracing::warn!("relay send channel closed while sending sealed chat");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("send_chat: HPKE seal failed, dropping message: {e}");
                     }
                 }
-                Err(e) => {
-                    tracing::warn!("send_chat: HPKE seal failed, dropping message: {e}");
-                }
-            },
+            }
             None => {
                 tracing::warn!(
                     "send_chat: MLS active but room HPKE key not yet available, dropping"
@@ -2127,7 +2142,8 @@ mod tests {
         state.mls_active = false;
 
         let plaintext = b"some sealed payload";
-        let sealed = nie_core::hpke::seal_message(&hpke_pk, plaintext).unwrap();
+        let my_pub_id = "a".repeat(64);
+        let sealed = nie_core::hpke::seal_message(&hpke_pk, &my_pub_id, plaintext).unwrap();
 
         let p = SealedDeliverParams { sealed };
         let (tx, _rx) = tokio::sync::mpsc::channel(16);

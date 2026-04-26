@@ -120,12 +120,11 @@ pub fn format_for_nie(event: &MatrixEvent, text: &str) -> ClearMessage {
 
 /// Returns true if the Matrix event came from our own bridge bot sender.
 pub fn is_bot_sender(event: &MatrixEvent, bot_localpart: &str, homeserver: &str) -> bool {
-    // Homeserver domain from URL: strip https:// and any trailing path.
+    // Homeserver domain from URL: strip http(s):// and any trailing slash.
     let domain = homeserver
         .trim_start_matches("https://")
-        .split('/')
-        .next()
-        .unwrap_or("");
+        .trim_start_matches("http://")
+        .trim_end_matches('/');
     let bot_mxid = format!("@{bot_localpart}:{domain}");
     event.sender == bot_mxid
 }

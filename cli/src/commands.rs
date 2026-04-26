@@ -1333,18 +1333,22 @@ pub async fn chat(
                         // Choose the right HPKE key: room key if MLS active and derived,
                         // identity key otherwise.  Never log the secret.
                         let plaintext = {
-                            let active_secret: &[u8; 32] = if mls_active {
-                                match room_hpke_secret.as_ref() {
-                                    Some(sk) => sk,
-                                    None => {
+                            let (active_secret, active_pub_id): (&[u8; 32], String) = if mls_active {
+                                match (room_hpke_secret.as_ref(), room_hpke_pub.as_ref()) {
+                                    (Some(sk), Some(pk)) => {
+                                        let pub_id: String =
+                                            pk.iter().map(|b| format!("{b:02x}")).collect();
+                                        (sk, pub_id)
+                                    }
+                                    _ => {
                                         warn!("sealed_deliver while mls_active but no room_hpke_secret");
                                         continue;
                                     }
                                 }
                             } else {
-                                &hpke_identity_secret
+                                (&hpke_identity_secret, my_pub_id.clone())
                             };
-                            match nie_hpke::unseal_message(active_secret, &params.sealed) {
+                            match nie_hpke::unseal_message(active_secret, &active_pub_id, &params.sealed) {
                                 Ok(pt) => pt,
                                 Err(e) => {
                                     warn!("sealed_deliver unseal failed: {e}");
@@ -1558,7 +1562,7 @@ pub async fn chat(
                         };
                         // DMs are always sealed to the identity key, not the room key.
                         // Never log hpke_identity_secret.
-                        let plaintext = match nie_hpke::unseal_message(&hpke_identity_secret, &params.sealed) {
+                        let plaintext = match nie_hpke::unseal_message(&hpke_identity_secret, &my_pub_id, &params.sealed) {
                             Ok(pt) => pt,
                             Err(e) => {
                                 warn!("sealed_whisper_deliver unseal failed: {e}");
@@ -2799,7 +2803,9 @@ pub async fn chat(
                     if let Some(pub_key) = room_hpke_pub {
                         // Sealed broadcast: MLS ciphertext HPKE-sealed to the room public key.
                         // Sender identity is authenticated by MLS — no self-asserted prefix needed.
-                        match nie_hpke::seal_message(&pub_key, &mls_ciphertext) {
+                        let room_pub_id: String =
+                            pub_key.iter().map(|b| format!("{b:02x}")).collect();
+                        match nie_hpke::seal_message(&pub_key, &room_pub_id, &mls_ciphertext) {
                             Ok(sealed) => {
                                 let req = JsonRpcRequest::new(
                                     next_request_id(),
