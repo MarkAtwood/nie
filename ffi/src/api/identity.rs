@@ -47,6 +47,12 @@ pub fn pub_id_from_secret(secret_b64: String) -> Result<String> {
 /// This function creates any missing parent directories.
 /// Overwrites any existing file at `path`.
 /// `secret_b64` must be a valid base64-encoded 64-byte secret.
+///
+/// # Security note
+/// File permissions are not explicitly restricted (uses OS umask).
+/// On Android, the app sandbox (`filesDir`) provides isolation.
+/// Do not use this function on Linux without ensuring the directory
+/// is mode 0700 or the file is explicitly chmoded afterward.
 pub fn save_identity_to_file(path: String, secret_b64: String) -> Result<()> {
     let bytes = B64
         .decode(&secret_b64)

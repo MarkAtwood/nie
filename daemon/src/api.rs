@@ -253,9 +253,12 @@ pub async fn handle_wallet_pay(
         ));
     };
 
-    // Hold the payment lock across balance-check + relay send to prevent two
-    // concurrent requests from both passing the balance check on the same
-    // stale read and then both spending (TOCTOU over-spend).
+    // wallet_pay_lock prevents duplicate sessions for the same payment amount.
+    // It covers the balance-check + session-creation window only.
+    // The actual Zcash spend is initiated when the peer responds with
+    // PaymentAction::Address (in the payment_event handler); that path
+    // does not re-acquire this lock because a session already exists at
+    // that point — the session creation is the idempotency gate.
     let _pay_guard = state.wallet_pay_lock().await;
 
     // Check available balance.

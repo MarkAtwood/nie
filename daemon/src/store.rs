@@ -703,7 +703,7 @@ impl Store {
                  SELECT 1 FROM space_member sm
                  WHERE sm.space_id = s.id AND sm.contact_id = ?
              )
-             ORDER BY s.created_at ASC",
+             ORDER BY s.created_at ASC LIMIT 1000",
         )
         .bind(account_id)
         .fetch_all(&self.pool)

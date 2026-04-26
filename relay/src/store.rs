@@ -1430,12 +1430,13 @@ impl Store {
             if total as u64 >= cap {
                 return Ok(GroupAddOutcome::CapExceeded);
             }
-            let res =
-                sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
-                    .bind(group_id)
-                    .bind(member_pub_id)
-                    .execute(&mut *conn)
-                    .await?;
+            let res = sqlx::query(
+                "INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)",
+            )
+            .bind(group_id)
+            .bind(member_pub_id)
+            .execute(&mut *conn)
+            .await?;
             if res.rows_affected() == 1 {
                 Ok(GroupAddOutcome::Added)
             } else {

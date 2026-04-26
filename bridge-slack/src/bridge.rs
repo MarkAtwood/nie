@@ -104,7 +104,11 @@ async fn slack_events(
                 // from exceeding the relay's WebSocket frame size limit.
                 const MAX_SLACK_TEXT: usize = 8192;
                 let text = if raw_text.len() > MAX_SLACK_TEXT {
-                    &raw_text[..MAX_SLACK_TEXT]
+                    let mut end = MAX_SLACK_TEXT;
+                    while end > 0 && !raw_text.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    &raw_text[..end]
                 } else {
                     raw_text
                 };
@@ -187,7 +191,15 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
             .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
+        let local_addr = listener.local_addr()?;
         tracing::info!("Slack events server listening on port {listen_port}");
+        if !local_addr.ip().is_loopback() {
+            tracing::warn!(
+                "Slack events server listening on {} without TLS — \
+                 ensure Slack webhook requests arrive via a TLS reverse proxy",
+                local_addr
+            );
+        }
         tokio::spawn(async move {
             axum::serve(listener, app).await.ok();
         });
