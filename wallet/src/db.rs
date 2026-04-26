@@ -2397,6 +2397,37 @@ mod tests {
         assert_eq!(b.pending_zatoshi, 500_000);
     }
 
+    /// A note with block_height = 0 is pending even when scan_tip >= min_confirmations.
+    ///
+    /// block_height=0 is the migration v4 DEFAULT sentinel meaning "not yet mined".
+    /// It must never be counted as confirmed regardless of how high the scan tip is —
+    /// the confirmed SQL condition `block_height > 0 AND block_height <= threshold`
+    /// rejects it because `0 > 0` is false.
+    ///
+    /// Oracle: setup scan_tip=2_000_000, min_confirmations=10 → threshold=1_999_990.
+    /// block_height=0 fails `0 > 0` → not confirmed.
+    /// block_height=0 matches `block_height = 0` in the pending clause → pending.
+    /// Expected: confirmed=0, pending=500_000.
+    #[tokio::test]
+    async fn balance_height_zero_note_is_always_pending() {
+        let (store, _tempfile) = make_store().await;
+        let mut note = sample_note();
+        note.block_height = 0; // migration v4 DEFAULT sentinel
+        store.insert_note(&note).await.unwrap();
+
+        // scan_tip well above any reasonable threshold — block_height=0 must
+        // still land in pending, not confirmed.
+        let b = store.balance(2_000_000, 10).await.unwrap();
+        assert_eq!(
+            b.confirmed_zatoshi, 0,
+            "block_height=0 (sentinel) must never be confirmed, regardless of scan_tip"
+        );
+        assert_eq!(
+            b.pending_zatoshi, 500_000,
+            "block_height=0 note must appear in pending balance"
+        );
+    }
+
     // ---- accounts / diversifier index (nie-0dg) ----
 
     /// A fresh store returns diversifier_index = 0 for any account.

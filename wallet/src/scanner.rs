@@ -384,7 +384,14 @@ impl CompactBlockScanner {
         }
         let mut stream = self.client.get_block_range(start, end).await?;
         let mut scanned = 0u64;
+        let mut prev_height: Option<u64> = None;
         while let Some(block) = stream.message().await? {
+            // Verify strict height monotonicity before touching the commitment tree.
+            // The Sapling incremental commitment tree relies on commitments being
+            // appended in strictly ascending block order; an out-of-order or
+            // repeated block would corrupt the tree and all witnesses silently.
+            check_block_height_monotonic(block.height, prev_height, start, scan_tip)?;
+            prev_height = Some(block.height);
             self.scan_block(&block).await?;
             scanned += 1;
         }
@@ -638,6 +645,40 @@ pub fn spawn_scanner(
             }
         }
     })
+}
+
+/// Verify that `block_height` is the next expected height in the scan stream.
+///
+/// Returns `Ok(())` when the height is correct.  Returns `Err` with a
+/// descriptive message when the stream delivers a block out of order or
+/// repeats a height — both of which would silently corrupt the Sapling
+/// incremental commitment tree if processed.
+///
+/// # Parameters
+/// - `block_height`: the height reported by the block just received.
+/// - `prev_height`: the height of the previously-processed block, or `None`
+///   if this is the first block in the current stream.
+/// - `expected_start`: the height that the first block must have
+///   (`scan_tip + 1` at the call site).
+/// - `scan_tip`: the stored scan tip, included in the error message for
+///   context.
+fn check_block_height_monotonic(
+    block_height: u64,
+    prev_height: Option<u64>,
+    expected_start: u64,
+    scan_tip: u64,
+) -> Result<()> {
+    let expected = match prev_height {
+        None => expected_start,
+        Some(h) => h + 1,
+    };
+    if block_height != expected {
+        return Err(anyhow::anyhow!(
+            "scanner: block height out of order from lightwalletd: \
+             expected {expected}, got {block_height} (scan_tip={scan_tip})"
+        ));
+    }
+    Ok(())
 }
 
 /// Returns `true` if `e` is a SQLite UNIQUE constraint violation.
@@ -937,5 +978,83 @@ mod tests {
         // Option::from on CtOption<T> is unambiguous when the result type is named.
         let node: Option<sapling::Node> = Option::from(sapling::Node::from_bytes([0u8; 32]));
         assert!(node.is_some(), "all-zero cmu must parse as a valid Node");
+    }
+
+    // ---- Tests for check_block_height_monotonic ----
+    //
+    // Oracle: the expected height is derived by hand from the inputs — not
+    // from the function under test.  Each case names the property being
+    // checked so failures are self-diagnosing.
+
+    /// First block with the correct starting height is accepted.
+    ///
+    /// Oracle: prev_height=None, expected_start=1_000_000, block_height=1_000_000
+    /// → expected=1_000_000 == block_height → Ok.
+    #[test]
+    fn monotonic_first_block_correct_height_is_ok() {
+        assert!(
+            check_block_height_monotonic(1_000_000, None, 1_000_000, 999_999).is_ok(),
+            "first block at the expected start height must be accepted"
+        );
+    }
+
+    /// First block at the wrong height returns Err.
+    ///
+    /// Oracle: prev_height=None, expected_start=1_000_000, block_height=999_999
+    /// → expected=1_000_000 != 999_999 → Err.
+    #[test]
+    fn monotonic_first_block_wrong_height_is_err() {
+        assert!(
+            check_block_height_monotonic(999_999, None, 1_000_000, 999_998).is_err(),
+            "first block at a height below expected_start must be rejected"
+        );
+    }
+
+    /// Consecutive block after a correct previous height is accepted.
+    ///
+    /// Oracle: prev_height=Some(1_000_000), block_height=1_000_001
+    /// → expected=1_000_001 == block_height → Ok.
+    #[test]
+    fn monotonic_consecutive_block_is_ok() {
+        assert!(
+            check_block_height_monotonic(1_000_001, Some(1_000_000), 1_000_000, 999_999).is_ok(),
+            "block at prev+1 must be accepted"
+        );
+    }
+
+    /// Repeated height (duplicate block) returns Err.
+    ///
+    /// Oracle: prev_height=Some(1_000_000), block_height=1_000_000
+    /// → expected=1_000_001 != 1_000_000 → Err.
+    #[test]
+    fn monotonic_repeated_height_is_err() {
+        assert!(
+            check_block_height_monotonic(1_000_000, Some(1_000_000), 999_999, 999_998).is_err(),
+            "repeated block height must be rejected"
+        );
+    }
+
+    /// Skipped height (gap in sequence) returns Err.
+    ///
+    /// Oracle: prev_height=Some(1_000_000), block_height=1_000_002
+    /// → expected=1_000_001 != 1_000_002 → Err.
+    #[test]
+    fn monotonic_skipped_height_is_err() {
+        assert!(
+            check_block_height_monotonic(1_000_002, Some(1_000_000), 999_999, 999_998).is_err(),
+            "skipped block height must be rejected"
+        );
+    }
+
+    /// Backward step (earlier height than previous) returns Err.
+    ///
+    /// Oracle: prev_height=Some(1_000_005), block_height=1_000_003
+    /// → expected=1_000_006 != 1_000_003 → Err.
+    #[test]
+    fn monotonic_backward_step_is_err() {
+        assert!(
+            check_block_height_monotonic(1_000_003, Some(1_000_005), 999_999, 999_998).is_err(),
+            "out-of-order (backward) block height must be rejected"
+        );
     }
 }

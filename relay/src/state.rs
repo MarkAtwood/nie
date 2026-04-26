@@ -239,8 +239,35 @@ impl AppState {
             .collect();
 
         // Drive live deliveries; track which pub_ids had at least one success.
+        // Re-check group membership before each live send when a group_id is
+        // provided, to prevent delivery to members who departed concurrently.
+        // We memoize the per-pub_id check result so that multiple connections
+        // for the same pub_id only hit the DB once.
+        let mut membership_cache: std::collections::HashMap<String, bool> =
+            std::collections::HashMap::new();
         let mut delivered: std::collections::HashSet<String> = std::collections::HashSet::new();
         for (pub_id, tx) in channels {
+            if let Some(gid) = group_id {
+                // Memoize: look up or query membership once per pub_id.
+                let is_member = if let Some(&cached) = membership_cache.get(&pub_id) {
+                    cached
+                } else {
+                    let result = match self.inner.store.is_group_member(gid, &pub_id).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::warn!(
+                                "broadcast_to_group: live membership check failed for {pub_id}: {e}"
+                            );
+                            false
+                        }
+                    };
+                    membership_cache.insert(pub_id.clone(), result);
+                    result
+                };
+                if !is_member {
+                    continue;
+                }
+            }
             if tx.send(msg.clone()).await.is_ok() {
                 delivered.insert(pub_id);
             }

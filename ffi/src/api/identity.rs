@@ -58,7 +58,9 @@ pub fn save_identity_to_file(path: String, secret_b64: String) -> Result<()> {
     if let Some(parent) = p.parent() {
         fs::create_dir_all(parent).map_err(|e| anyhow!("create_dir_all({parent:?}): {e}"))?;
     }
-    fs::write(p, &bytes).map_err(|e| anyhow!("write identity file {path:?}: {e}"))
+    let tmp = p.with_extension("tmp");
+    fs::write(&tmp, &bytes).map_err(|e| anyhow!("write identity tmp file {path:?}: {e}"))?;
+    fs::rename(&tmp, p).map_err(|e| anyhow!("rename identity tmp file {path:?}: {e}"))
 }
 
 /// Load the identity secret from a file at `path`.

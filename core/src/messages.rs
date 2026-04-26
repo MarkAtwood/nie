@@ -15,6 +15,7 @@ use uuid::Uuid;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClearMessage {
     Chat {
+        #[serde(deserialize_with = "deserialize_bounded_body")]
         text: String,
     },
     Payment {
@@ -144,7 +145,11 @@ pub enum ClearMessage {
         #[serde(deserialize_with = "deserialize_bounded_id")]
         contact_id: String,
         /// New role (only set for "role_change").
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_opt_bounded_id"
+        )]
         role: Option<String>,
     },
 }
@@ -521,6 +526,7 @@ pub enum PaymentAction {
         chain: Chain,
         #[serde(deserialize_with = "deserialize_bounded_id")]
         tx_hash: String,
+        #[serde(deserialize_with = "deserialize_nonzero_zatoshi")]
         amount_zatoshi: u64,
     },
     /// Payee confirms receipt detected on chain.

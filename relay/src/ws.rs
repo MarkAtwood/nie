@@ -1996,35 +1996,6 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
-                        // SECURITY (nie-qgag.4): cap outstanding (non-expired) invoices
-                        // per user to 5.  Without this, a user can create ~7200 rows/hour
-                        // at the existing rate limit, growing the subscription_invoices
-                        // table without bound.
-                        const MAX_PENDING_INVOICES: u64 = 5;
-                        match state.inner.store.count_pending_invoices(&pub_id.0).await {
-                            Ok(n) if n >= MAX_PENDING_INVOICES => {
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::RATE_LIMITED,
-                                    "too many pending invoices; pay or wait for existing ones to expire",
-                                )
-                                .await;
-                                continue;
-                            }
-                            Ok(_) => {}
-                            Err(e) => {
-                                error!("count_pending_invoices for {pub_id}: {e}");
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INTERNAL_ERROR,
-                                    "internal error",
-                                )
-                                .await;
-                                continue;
-                            }
-                        }
                         // Allocate a fresh Sapling payment address using the relay
                         // store's diversifier counter (the same two-step advance as
                         // alloc_fresh_address in nie-wallet, inlined here because the
@@ -2063,16 +2034,40 @@ async fn handle(socket: WebSocket, state: AppState) {
                             expires_at: expires_at.clone(),
                             subscription_days: Some(params.duration_days as u64),
                         };
-                        if let Err(e) = state.inner.store.create_invoice(&invoice).await {
-                            error!("create_invoice failed: {e}");
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INTERNAL_ERROR,
-                                "internal error",
-                            )
-                            .await;
-                            continue;
+                        // SECURITY (nie-qgag.4 / nie-ozqt.3): atomically count
+                        // outstanding invoices and insert the new one inside a single
+                        // BEGIN IMMEDIATE transaction.  Without this, two concurrent
+                        // SUBSCRIBE_REQUEST handlers can both read count=4, both pass
+                        // the ≥5 check, and both insert — leaving 6 pending invoices.
+                        const MAX_PENDING_INVOICES: u64 = 5;
+                        match state
+                            .inner
+                            .store
+                            .count_and_create_invoice(&invoice, MAX_PENDING_INVOICES)
+                            .await
+                        {
+                            Ok(()) => {}
+                            Err(e) if e.to_string().contains("too many pending invoices") => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RATE_LIMITED,
+                                    "too many pending invoices; pay or wait for existing ones to expire",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("count_and_create_invoice failed: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
                         }
                         let result = SubscribeInvoiceResult {
                             invoice_id,

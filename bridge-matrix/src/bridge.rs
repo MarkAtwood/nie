@@ -156,7 +156,7 @@ async fn as_transaction(
     let authed = bearer.is_some_and(|token| {
         let expected = state.hs_token.as_bytes();
         let provided = token.as_bytes();
-        expected.len() == provided.len() && bool::from(expected.ct_eq(provided))
+        bool::from(expected.ct_eq(provided))
     });
     if !authed {
         return axum::http::StatusCode::FORBIDDEN;
