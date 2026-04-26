@@ -174,6 +174,8 @@ impl AppState {
         if remove_key {
             self.inner.clients.remove(&pub_id.0);
             self.inner.rate_limits.remove(&pub_id.0);
+            self.inner.nickname_rate_limits.remove(&pub_id.0);
+            self.inner.hpke_key_rate_limits.remove(&pub_id.0);
         }
     }
 

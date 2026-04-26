@@ -9,7 +9,7 @@ use nie_core::{
     auth,
     identity::Identity,
     messages::{pad, unpad, ClearMessage},
-    protocol::UserInfo,
+    protocol::{UserInfo, MAX_USERS_IN_DIRECTORY},
 };
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
@@ -164,15 +164,25 @@ impl NieRelayClient {
                     // Update our online list from the authoritative snapshot.
                     // The relay sends this sorted ascending by sequence — online[0]
                     // is the MLS group admin candidate.
-                    if let Ok(users) =
+                    //
+                    // Cap each array at MAX_USERS_IN_DIRECTORY before storing or
+                    // forwarding to JS.  A rogue relay could otherwise send an
+                    // unbounded array and OOM the browser tab, since this path
+                    // does not go through DirectoryListParams's custom Deserialize.
+                    if let Ok(mut users) =
                         serde_json::from_value::<Vec<UserInfo>>(v["params"]["online"].clone())
                     {
+                        users.truncate(MAX_USERS_IN_DIRECTORY);
                         *online_users.borrow_mut() = users;
                     }
+                    // Build capped slices for the JS event so the event itself
+                    // is also bounded regardless of what the relay sent.
+                    let online_capped = cap_array(&v["params"]["online"], MAX_USERS_IN_DIRECTORY);
+                    let offline_capped = cap_array(&v["params"]["offline"], MAX_USERS_IN_DIRECTORY);
                     serde_json::json!({
                         "type": "directory_updated",
-                        "online": v["params"]["online"],
-                        "offline": v["params"]["offline"],
+                        "online": online_capped,
+                        "offline": offline_capped,
                     })
                 }
                 "user_joined" => {
@@ -376,4 +386,17 @@ fn decode_payload_text(payload_b64: &str) -> String {
 
     // Fall back to raw UTF-8 if it isn't a Chat variant (e.g. Payment, Ack).
     String::from_utf8(plaintext).unwrap_or_else(|_| "(binary payload)".to_string())
+}
+
+/// Return a `serde_json::Value` that is `v` capped to at most `max` elements.
+///
+/// If `v` is a JSON array, returns a new array containing only the first `max`
+/// entries.  If `v` is not an array (or is null/missing), returns it unchanged.
+/// Used to bound directory_list arrays before forwarding to JS so that a rogue
+/// relay cannot OOM the browser tab by sending an unbounded array.
+fn cap_array(v: &Value, max: usize) -> Value {
+    match v.as_array() {
+        Some(arr) if arr.len() > max => Value::Array(arr[..max].to_vec()),
+        _ => v.clone(),
+    }
 }

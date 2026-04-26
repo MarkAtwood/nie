@@ -56,7 +56,9 @@ pub fn nonce_is_fresh(nonce: &str) -> Result<()> {
     let age = now.saturating_sub(ts);
     let skew = ts.saturating_sub(now);
     if age > CHALLENGE_TTL_SECS || skew > CHALLENGE_TTL_SECS {
-        return Err(anyhow::anyhow!("challenge nonce is stale or from the future"));
+        return Err(anyhow::anyhow!(
+            "challenge nonce is stale or from the future"
+        ));
     }
     Ok(())
 }
@@ -127,7 +129,10 @@ mod tests {
     #[test]
     fn fresh_nonce_is_accepted() {
         let nonce = new_challenge();
-        assert!(nonce_is_fresh(&nonce).is_ok(), "fresh nonce must be accepted");
+        assert!(
+            nonce_is_fresh(&nonce).is_ok(),
+            "fresh nonce must be accepted"
+        );
     }
 
     /// A nonce whose embedded timestamp is exactly TTL+1 seconds in the past must

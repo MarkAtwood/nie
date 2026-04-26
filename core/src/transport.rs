@@ -55,11 +55,15 @@ pub enum ClientEvent {
     /// Successfully reconnected after a [`Reconnecting`] gap.
     /// Only emitted by [`connect_with_retry`].
     Reconnected,
-    /// Connection closed cleanly or due to an error. No reconnect will occur.
+    /// The relay appears unreachable or has disconnected.
     ///
-    /// Only emitted by [`connect`] (single-attempt). After this event,
-    /// `rx.recv()` returns `None`. Callers that loop on `Some(_)` must
-    /// handle this event explicitly to detect relay disconnection.
+    /// Emitted by [`connect`] on connection loss (no retry follows; after this
+    /// event `rx.recv()` returns `None`).
+    ///
+    /// Also emitted by [`connect_with_retry`] after `MAX_RETRIES` consecutive
+    /// failed connection attempts as a soft-limit notification; retrying
+    /// continues at the capped backoff interval so callers should surface this
+    /// to the user but must not assume the connection is permanently dead.
     Disconnected,
 }
 
@@ -188,9 +192,12 @@ pub fn connect_with_retry(
 
 /// Background task that manages the WebSocket connection with reconnection.
 ///
-/// Gives up after `MAX_RETRIES` consecutive failed connection attempts and sends
-/// `ClientEvent::Disconnected` so callers know the connection is permanently dead.
-/// A successful connection resets the retry counter.
+/// Never exits due to retry exhaustion alone. After `MAX_RETRIES` consecutive
+/// failed connection attempts it emits `ClientEvent::Disconnected` to notify
+/// the caller that the relay appears unreachable, then resets the failure
+/// counter and continues retrying at the capped backoff interval (60 s).
+/// The loop exits only when the caller drops the send or receive channel.
+/// A successful connection resets the retry counter and the backoff delay.
 async fn connection_manager(
     url: String,
     identity: Identity,
@@ -265,9 +272,16 @@ async fn connection_manager(
                 consecutive_failures += 1;
                 warn!("connection attempt failed ({consecutive_failures}/{MAX_RETRIES}): {e}");
                 if consecutive_failures >= MAX_RETRIES {
-                    error!("giving up after {MAX_RETRIES} consecutive connection failures");
-                    let _ = in_tx.send(ClientEvent::Disconnected).await;
-                    return;
+                    error!(
+                        "{MAX_RETRIES} consecutive connection failures; \
+                         relay appears unreachable — will keep retrying"
+                    );
+                    // Notify caller that the relay is unreachable, but do NOT exit.
+                    // Reset the counter so we don't spam Disconnected every iteration.
+                    consecutive_failures = 0;
+                    if in_tx.send(ClientEvent::Disconnected).await.is_err() {
+                        return; // caller dropped rx — stop
+                    }
                 }
                 // fall through to reconnect backoff
             }
@@ -365,7 +379,11 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
     identity: &Identity,
     connector: Option<Connector>,
 ) -> Result<(WsSink, WsStream)> {
-    let ws_config = WebSocketConfig::default().max_message_size(Some(1024 * 1024));
+    // 4 MiB cap — must be at least MAX_USERS_IN_DIRECTORY × max_UserInfo_wire_bytes × 2 fields.
+    // At ~130 bytes/UserInfo and two fields (online + offline): 10_000 × 130 × 2 ≈ 2.6 MiB.
+    // 4 MiB gives headroom while still blocking most abuse.  If MAX_USERS_IN_DIRECTORY
+    // changes, update this value to maintain the invariant documented in protocol.rs.
+    let ws_config = WebSocketConfig::default().max_message_size(Some(4 * 1024 * 1024));
     let (ws, _) = client_async_tls_with_config(url, stream, Some(ws_config), connector)
         .await
         .with_context(|| format!("WebSocket upgrade to {url} failed"))?;
