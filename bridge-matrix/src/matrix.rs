@@ -86,7 +86,8 @@ impl MatrixClient {
             .map_err(|e| anyhow!("Matrix HTTP error: {e}"))?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let err_text = resp.text().await.unwrap_or_default();
+            let err_bytes = resp.bytes().await.unwrap_or_default();
+            let err_text = String::from_utf8_lossy(&err_bytes[..err_bytes.len().min(65536)]);
             return Err(anyhow!("Matrix send failed {status}: {err_text}"));
         }
         Ok(())

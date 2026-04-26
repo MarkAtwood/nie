@@ -1681,11 +1681,36 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                     continue;
                 }
             };
-            // Require the caller to be a member of the space.  Without this
-            // check, any authenticated user can create invite codes for spaces
-            // they do not belong to, granting others unauthorized membership.
-            match store.get_space_member_role(&space_id, &account_id).await {
+            // Require the caller to be a member of the space.  Use the
+            // combined existence+membership query so a nonexistent space_id
+            // returns invalidProperties (the field value is bad) rather than
+            // forbidden (which would be misleading and leak that the space does
+            // not exist via a different error code than "not a member").
+            match store
+                .get_space_role_if_exists(&space_id, &account_id)
+                .await
+            {
+                Err(e) => {
+                    not_created.insert(client_id.clone(), {
+                        tracing::error!("database error: {e}");
+                        serde_json::json!({"type":"serverFail","description":"database error"})
+                    });
+                    continue;
+                }
                 Ok(None) => {
+                    // Space does not exist — the supplied spaceId is invalid.
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({
+                            "type": "invalidProperties",
+                            "properties": ["spaceId"],
+                            "description": "space not found"
+                        }),
+                    );
+                    continue;
+                }
+                Ok(Some(None)) => {
+                    // Space exists but caller is not a member.
                     not_created.insert(
                         client_id.clone(),
                         serde_json::json!({
@@ -1695,14 +1720,7 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                     );
                     continue;
                 }
-                Err(e) => {
-                    not_created.insert(client_id.clone(), {
-                        tracing::error!("database error: {e}");
-                        serde_json::json!({"type":"serverFail","description":"database error"})
-                    });
-                    continue;
-                }
-                Ok(Some(_)) => {} // caller is a member, proceed
+                Ok(Some(Some(_))) => {} // caller is a member, proceed
             }
             let id = crate::store::Store::new_id();
             // Use chars [10..18] of the ULID — 8 Crockford Base32 chars from the

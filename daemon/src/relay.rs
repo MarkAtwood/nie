@@ -5,9 +5,10 @@ use nie_core::{
     mls::MlsClient,
     protocol::{
         rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcNotification,
-        TypingNotifyParams, UserJoinedParams, UserLeftParams,
+        JsonRpcRequest, PublishHpkeKeyParams, PublishKeyPackageParams, TypingNotifyParams,
+        UserJoinedParams, UserLeftParams,
     },
-    transport::{self, ClientEvent},
+    transport::{self, next_request_id, ClientEvent},
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -35,6 +36,10 @@ pub async fn start_relay_connector(
     // Log only the public side — never log secret bytes.
     tracing::info!("loaded identity: {}", identity.pub_id());
 
+    // Extract HPKE public key before identity is moved into the transport.
+    // Safe to store: this is the public half only.
+    let hpke_pub_key = identity.hpke_pub_key_bytes();
+
     let mls_client = MlsClient::new(&identity.pub_id().0).context("create MLS client")?;
     let mls_client = Arc::new(Mutex::new(mls_client));
 
@@ -50,6 +55,7 @@ pub async fn start_relay_connector(
         state,
         relay_url.to_string(),
         mls_client,
+        hpke_pub_key,
     ));
 
     Ok(())
@@ -61,6 +67,7 @@ async fn relay_event_loop(
     state: DaemonState,
     relay_url: String,
     mls: Arc<Mutex<MlsClient>>,
+    hpke_pub_key: [u8; 32],
 ) {
     loop {
         let Some(event) = rx.recv().await else {
@@ -102,6 +109,10 @@ async fn relay_event_loop(
                     relay_url: relay_url.clone(),
                     timestamp: utc_now(),
                 });
+                // Re-publish HPKE key and MLS key package — the relay clears these
+                // slots on restart, so other clients cannot send sealed messages until
+                // they are re-published.  Mirror what the CLI does on DIRECTORY_LIST.
+                republish_keys(&state, &mls, hpke_pub_key).await;
             }
             ClientEvent::Message(notif) => {
                 dispatch_notification(notif, &state, &mls).await;
@@ -115,6 +126,59 @@ async fn relay_event_loop(
                 break;
             }
         }
+    }
+}
+
+/// Re-publish the HPKE public key and a fresh MLS key package to the relay.
+///
+/// Called after every reconnect because the relay clears these slots on restart.
+/// Mirrors the CLI's DIRECTORY_LIST handler.  Failures are logged as warnings —
+/// the connection will reconnect again if needed, and this will be retried.
+async fn republish_keys(
+    state: &DaemonState,
+    mls: &Arc<Mutex<MlsClient>>,
+    hpke_pub_key: [u8; 32],
+) {
+    let Some(tx) = state.relay_tx().await else {
+        tracing::warn!("republish_keys: relay_tx not available, skipping");
+        return;
+    };
+
+    // Publish a fresh MLS key package so the admin can add us to the group.
+    match mls.lock().await.key_package_and_device_id() {
+        Ok((kp, device_id)) => {
+            match JsonRpcRequest::new(
+                next_request_id(),
+                rpc_methods::PUBLISH_KEY_PACKAGE,
+                PublishKeyPackageParams { device_id, data: kp },
+            ) {
+                Ok(req) => {
+                    if tx.send(req).await.is_err() {
+                        tracing::warn!("republish_keys: relay_tx closed while sending key package");
+                        return;
+                    }
+                    tracing::info!("republished MLS key package after reconnect");
+                }
+                Err(e) => tracing::warn!("republish_keys: failed to build key package request: {e}"),
+            }
+        }
+        Err(e) => tracing::warn!("republish_keys: key_package_and_device_id failed: {e}"),
+    }
+
+    // Publish the HPKE public key so peers can send sealed messages.
+    match JsonRpcRequest::new(
+        next_request_id(),
+        rpc_methods::PUBLISH_HPKE_KEY,
+        PublishHpkeKeyParams { public_key: hpke_pub_key.to_vec() },
+    ) {
+        Ok(req) => {
+            if tx.send(req).await.is_err() {
+                tracing::warn!("republish_keys: relay_tx closed while sending HPKE key");
+                return;
+            }
+            tracing::info!("republished HPKE key after reconnect");
+        }
+        Err(e) => tracing::warn!("republish_keys: failed to build HPKE key request: {e}"),
     }
 }
 
@@ -776,6 +840,7 @@ mod tests {
             state,
             "ws://test-relay".to_string(),
             mls,
+            [0u8; 32],
         ));
 
         tx.send(ClientEvent::Reconnected).await.unwrap();
@@ -809,6 +874,7 @@ mod tests {
             state,
             "ws://test-relay".to_string(),
             mls,
+            [0u8; 32],
         ));
 
         tx.send(ClientEvent::Reconnecting { delay_secs: 5 })
@@ -840,6 +906,7 @@ mod tests {
             state,
             "ws://test-relay".to_string(),
             mls,
+            [0u8; 32],
         ));
 
         // Dropping the sender causes rx.recv() to return None → loop exits.

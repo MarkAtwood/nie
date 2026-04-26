@@ -79,6 +79,14 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
+    // chrono::Duration::days() panics for values > i64::MAX / 86400.
+    const CHRONO_MAX_DAYS: u64 = 106_751_991;
+    if subscription_days > CHRONO_MAX_DAYS {
+        anyhow::bail!(
+            "SUBSCRIPTION_DAYS={subscription_days} exceeds the maximum safe value \
+             {CHRONO_MAX_DAYS} (chrono::Duration::days overflow)"
+        );
+    }
     if require_subscription && subscription_days == 0 {
         anyhow::bail!(
             "SUBSCRIPTION_DAYS=0 with REQUIRE_SUBSCRIPTION=true would prevent any user from \
