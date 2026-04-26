@@ -1686,10 +1686,7 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
             // returns invalidProperties (the field value is bad) rather than
             // forbidden (which would be misleading and leak that the space does
             // not exist via a different error code than "not a member").
-            match store
-                .get_space_role_if_exists(&space_id, &account_id)
-                .await
-            {
+            match store.get_space_role_if_exists(&space_id, &account_id).await {
                 Err(e) => {
                     not_created.insert(client_id.clone(), {
                         tracing::error!("database error: {e}");
@@ -1723,10 +1720,10 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                 Ok(Some(Some(_))) => {} // caller is a member, proceed
             }
             let id = crate::store::Store::new_id();
-            // Use chars [10..18] of the ULID — 8 Crockford Base32 chars from the
-            // random suffix (~40-bit entropy).  [..8] would be pure timestamp:
-            // zero random bits and trivially enumerable.
-            let code = Ulid::new().to_string()[10..18].to_uppercase();
+            // Use all 16 random chars [10..26] of the ULID — full Crockford
+            // Base32 random suffix (~80-bit entropy).  [..8] would be pure
+            // timestamp: zero random bits and trivially enumerable.
+            let code = Ulid::new().to_string()[10..26].to_uppercase();
             match store
                 .create_space_invite(&id, &code, &space_id, &account_id)
                 .await
@@ -2573,7 +2570,7 @@ async fn message_query_changes(args: Value, state: &DaemonState) -> (String, Val
 /// Upload raw bytes.  Returns a BlobDescriptor JSON object with the blobId.
 /// The blobId is the hex-encoded SHA-256 of the content (content-addressed).
 /// Maximum permitted upload size (RFC 8620 §6 maxSizeUpload).
-const UPLOAD_MAX_BYTES: usize = 25 * 1024 * 1024; // 25 MB
+pub const UPLOAD_MAX_BYTES: usize = 25 * 1024 * 1024; // 25 MB
 
 pub async fn handle_jmap_upload(
     State(state): State<DaemonState>,

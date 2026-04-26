@@ -77,12 +77,10 @@ async fn main() -> Result<()> {
             }
         }
     } else {
-        tracing::warn!(
-            "no keyfile at {}; run 'nie init' first or set KEYFILE",
+        anyhow::bail!(
+            "keyfile not found at {}; run 'nie init' first or set KEYFILE",
             keyfile_path.display()
         );
-        // Daemon starts without an identity; /api/whoami will reflect this.
-        "no_identity".to_string()
     };
 
     // Zcash network selection: NETWORK env var, default "mainnet".
@@ -175,7 +173,11 @@ async fn main() -> Result<()> {
         // JMAP Core (RFC 8620)
         .route("/.well-known/jmap", get(jmap::handle_jmap_session))
         .route("/jmap", post(jmap::handle_jmap_request))
-        .route("/jmap/upload/{account_id}", post(jmap::handle_jmap_upload))
+        .route(
+            "/jmap/upload/{account_id}",
+            post(jmap::handle_jmap_upload)
+                .layer(axum::extract::DefaultBodyLimit::max(jmap::UPLOAD_MAX_BYTES)),
+        )
         .route(
             "/jmap/download/{account_id}/{blob_id}/{name}",
             get(jmap::handle_jmap_download),

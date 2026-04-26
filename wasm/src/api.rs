@@ -255,7 +255,13 @@ impl NieClient {
         let users = client.online_users();
         let json_str = serde_json::to_string(&users).unwrap_or_else(|_| "[]".to_string());
         // js_sys::JSON::parse converts a JSON string into a native JS value.
-        js_sys::JSON::parse(&json_str).unwrap_or(JsValue::NULL)
+        // Return the JS error as a string rather than silently returning null,
+        // so callers can detect and diagnose parse failures.
+        js_sys::JSON::parse(&json_str).unwrap_or_else(|e| {
+            let msg = format!("online_users: JSON parse error: {e:?}");
+            web_sys::console::warn_1(&JsValue::from_str(&msg));
+            JsValue::from_str(&msg)
+        })
     }
 
     /// The caller's pub_id (64 lowercase hex chars).

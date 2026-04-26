@@ -263,7 +263,10 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
         };
         let app = axum::Router::new()
             .route("/transactions/{txn_id}", axum::routing::put(as_transaction))
-            .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024))
+            // 64 MiB: homeservers batch many events per AS transaction; 1 MiB
+            // was too small and caused 413 rejections that trigger infinite
+            // homeserver retries.
+            .layer(axum::extract::DefaultBodyLimit::max(64 * 1024 * 1024))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Matrix AS server listening on :{listen_port}");
