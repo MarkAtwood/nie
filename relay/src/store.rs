@@ -62,6 +62,8 @@ pub enum SetNicknameResult {
     HasNickname,
     /// Another user already holds this nickname (unique constraint violation).
     NicknameTaken,
+    /// The user row does not exist (pruned between auth and this call).
+    NotFound,
 }
 
 #[derive(Clone)]
@@ -475,17 +477,12 @@ impl Store {
             return Ok(0);
         }
         let mut tx = self.pool.begin().await?;
+        // ON DELETE CASCADE removes group_members for pruned users automatically.
         let result =
             sqlx::query("DELETE FROM users WHERE last_seen < datetime('now', ? || ' days')")
                 .bind(format!("-{expiry_days}"))
                 .execute(&mut *tx)
                 .await?;
-        // Remove group_members rows for users that were just deleted.
-        // The v2 migration adds ON DELETE CASCADE, but we delete explicitly here
-        // so the cleanup is correct regardless of whether FK enforcement is active.
-        sqlx::query("DELETE FROM group_members WHERE pub_id NOT IN (SELECT pub_id FROM users)")
-            .execute(&mut *tx)
-            .await?;
         // Remove groups that have no remaining members.
         sqlx::query(
             "DELETE FROM groups WHERE NOT EXISTS \
@@ -527,38 +524,57 @@ impl Store {
     /// - `Ok(SetNicknameResult::Set)` — nickname stored.
     /// - `Ok(SetNicknameResult::HasNickname)` — this user already has a nickname.
     /// - `Ok(SetNicknameResult::NicknameTaken)` — another user holds this nickname.
+    /// - `Ok(SetNicknameResult::NotFound)` — user row not found (pruned between auth and this call).
+    ///
+    /// The SELECT and UPDATE run inside a single `BEGIN IMMEDIATE` transaction,
+    /// eliminating the TOCTOU where two concurrent SET_NICKNAME calls for the
+    /// same pub_id both pass the `existing.is_none()` check and both attempt
+    /// the UPDATE.
     pub async fn try_set_nickname(
         &self,
         pub_id: &str,
         nickname: &str,
     ) -> Result<SetNicknameResult> {
-        // First check whether this user already has a nickname. We do this as a
-        // separate query so we can distinguish the two failure cases: a zero
-        // rows_affected result from the UPDATE below is ambiguous (user already
-        // has a nickname vs. nickname taken by someone else).
-        let existing: Option<String> =
-            sqlx::query_scalar("SELECT nickname FROM users WHERE pub_id = ?")
-                .bind(pub_id)
-                .fetch_optional(&self.pool)
-                .await?
-                .flatten();
-        if existing.is_some() {
-            return Ok(SetNicknameResult::HasNickname);
-        }
-
-        let result =
-            sqlx::query("UPDATE users SET nickname = ? WHERE pub_id = ? AND nickname IS NULL")
-                .bind(nickname)
-                .bind(pub_id)
-                .execute(&self.pool)
-                .await;
-        match result {
-            Ok(_) => Ok(SetNicknameResult::Set),
-            Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
-                Ok(SetNicknameResult::NicknameTaken)
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<SetNicknameResult> = async {
+            // Check whether this user already has a nickname. We do this inside
+            // the write transaction so the check and the UPDATE are atomic.
+            let existing: Option<String> =
+                sqlx::query_scalar("SELECT nickname FROM users WHERE pub_id = ?")
+                    .bind(pub_id)
+                    .fetch_optional(&mut *conn)
+                    .await?
+                    .flatten();
+            if existing.is_some() {
+                return Ok(SetNicknameResult::HasNickname);
             }
-            Err(e) => Err(e.into()),
+
+            let update =
+                sqlx::query("UPDATE users SET nickname = ? WHERE pub_id = ? AND nickname IS NULL")
+                    .bind(nickname)
+                    .bind(pub_id)
+                    .execute(&mut *conn)
+                    .await;
+            match update {
+                // rows_affected == 0 here means the user row is gone (pruned
+                // between authentication and this call); the HasNickname case
+                // was handled by the SELECT above.
+                Ok(r) if r.rows_affected() == 0 => Ok(SetNicknameResult::NotFound),
+                Ok(_) => Ok(SetNicknameResult::Set),
+                Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+                    Ok(SetNicknameResult::NicknameTaken)
+                }
+                Err(e) => Err(e.into()),
+            }
         }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     // ---- MLS key packages ----
@@ -757,39 +773,48 @@ impl Store {
     ///
     /// Callers must loop until an empty vec is returned to drain all messages.
     pub async fn drain(&self, pub_id: &str) -> Result<Vec<String>> {
-        let mut tx = self.pool.begin().await?;
-        let rows: Vec<(i64, String)> = sqlx::query_as(
-            "SELECT id, payload FROM offline_messages \
-             WHERE to_pub_id = ?1 AND expires_at > datetime('now') \
-             ORDER BY id ASC \
-             LIMIT 100",
-        )
-        .bind(pub_id)
-        .fetch_all(&mut *tx)
-        .await?;
-        if let Some((last_id, _)) = rows.last() {
-            // Delete the batch we read, plus any expired rows for this user.
-            sqlx::query(
-                "DELETE FROM offline_messages \
-                 WHERE to_pub_id = ?1 \
-                 AND (expires_at <= datetime('now') OR id <= ?2)",
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<Vec<String>> = async {
+            let rows: Vec<(i64, String)> = sqlx::query_as(
+                "SELECT id, payload FROM offline_messages \
+                 WHERE to_pub_id = ?1 AND expires_at > datetime('now') \
+                 ORDER BY id ASC \
+                 LIMIT 100",
             )
             .bind(pub_id)
-            .bind(*last_id)
-            .execute(&mut *tx)
+            .fetch_all(&mut *conn)
             .await?;
-        } else {
-            // Batch was empty — only purge expired rows; do NOT touch valid ones.
-            sqlx::query(
-                "DELETE FROM offline_messages \
-                 WHERE to_pub_id = ?1 AND expires_at <= datetime('now')",
-            )
-            .bind(pub_id)
-            .execute(&mut *tx)
-            .await?;
+            if let Some((last_id, _)) = rows.last() {
+                // Delete the batch we read, plus any expired rows for this user.
+                sqlx::query(
+                    "DELETE FROM offline_messages \
+                     WHERE to_pub_id = ?1 \
+                     AND (expires_at <= datetime('now') OR id <= ?2)",
+                )
+                .bind(pub_id)
+                .bind(*last_id)
+                .execute(&mut *conn)
+                .await?;
+            } else {
+                // Batch was empty — only purge expired rows; do NOT touch valid ones.
+                sqlx::query(
+                    "DELETE FROM offline_messages \
+                     WHERE to_pub_id = ?1 AND expires_at <= datetime('now')",
+                )
+                .bind(pub_id)
+                .execute(&mut *conn)
+                .await?;
+            }
+            Ok(rows.into_iter().map(|(_, s)| s).collect())
         }
-        tx.commit().await?;
-        Ok(rows.into_iter().map(|(_, s)| s).collect())
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     // ---- Payment watcher state ----
@@ -927,39 +952,54 @@ impl Store {
     /// Advance the diversifier index for `account` to at least `idx`.
     ///
     /// Monotonic: ignored if `idx` ≤ the current stored value.
+    ///
+    /// Uses `BEGIN IMMEDIATE` so the SELECT and conditional UPDATE are
+    /// serialised against concurrent `next_diversifier` callers, preserving
+    /// the monotonicity invariant.
     pub async fn advance_diversifier_to(&self, account: u32, idx: u128) -> anyhow::Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
-        // Ensure the row exists.
-        sqlx::query(
-            "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
-             VALUES (?, '0')",
-        )
-        .bind(account as i64)
-        .execute(&mut *tx)
-        .await?;
+        let result: anyhow::Result<()> = async {
+            // Ensure the row exists.
+            sqlx::query(
+                "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+                 VALUES (?, '0')",
+            )
+            .bind(account as i64)
+            .execute(&mut *conn)
+            .await?;
 
-        let raw: String = sqlx::query_scalar(
-            "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
-        )
-        .bind(account as i64)
-        .fetch_one(&mut *tx)
-        .await?;
+            let raw: String = sqlx::query_scalar(
+                "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+            )
+            .bind(account as i64)
+            .fetch_one(&mut *conn)
+            .await?;
 
-        let current: u128 = raw
-            .parse()
-            .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+            let current: u128 = raw
+                .parse()
+                .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
 
-        if idx > current {
-            sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
+            if idx > current {
+                sqlx::query(
+                    "UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?",
+                )
                 .bind(idx.to_string())
                 .bind(account as i64)
-                .execute(&mut *tx)
+                .execute(&mut *conn)
                 .await?;
-        }
+            }
 
-        tx.commit().await?;
-        Ok(())
+            Ok(())
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     // ---- Subscription invoices (Phase 3) ----

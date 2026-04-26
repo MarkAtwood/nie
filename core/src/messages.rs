@@ -209,17 +209,23 @@ where
     }
 }
 
-/// Deserialize `FileHeader.name`, rejecting path-traversal names.
+/// Deserialize `FileHeader.name`, rejecting path-traversal names and overlong values.
 ///
-/// Rejected: names containing `/` or `\`, names that are `..`, and empty names.
-/// A hostile peer cannot use a crafted `FileHeader` to write outside the
-/// download directory — the name is rejected at the protocol boundary before
-/// any receiver sees it.
+/// Rejected: names longer than 255 bytes, names containing `/` or `\`, names
+/// that are `..`, and empty names.  A hostile peer cannot use a crafted
+/// `FileHeader` to write outside the download directory — the name is rejected
+/// at the protocol boundary before any receiver sees it.
 fn deserialize_file_name<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
+    if s.len() > 255 {
+        return Err(serde::de::Error::custom(format!(
+            "file name too long: {} bytes (max 255)",
+            s.len()
+        )));
+    }
     if s.is_empty() {
         return Err(serde::de::Error::custom("file name must not be empty"));
     }

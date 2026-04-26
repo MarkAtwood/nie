@@ -903,6 +903,15 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 )
                                 .await;
                             }
+                            Ok(SetNicknameResult::NotFound) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "user not found",
+                                )
+                                .await;
+                            }
                             Err(e) => {
                                 error!("try_set_nickname error: {e}");
                                 send_client_error(
