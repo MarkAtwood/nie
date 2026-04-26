@@ -43,6 +43,11 @@ const MAX_WS_MESSAGE_BYTES: usize = 1024 * 1024; // 1 MiB
 /// to 64 KiB × (queue depth cap) per user.
 const MAX_WHISPER_PAYLOAD_BYTES: usize = 65536; // 64 KiB
 
+/// Maximum payload size for GROUP_SEND.  At 1 MiB WebSocket cap, a single
+/// GROUP_SEND fans out to MAX_MEMBERS_PER_GROUP=1000 recipients; this cap
+/// limits per-message amplification.
+const MAX_GROUP_PAYLOAD_BYTES: usize = 65536; // 64 KiB
+
 /// Maximum number of groups a single user may create.
 const MAX_GROUPS_CREATED_PER_USER: u64 = 100;
 
@@ -2146,6 +2151,16 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 req.id,
                                 rpc_errors::INVALID_REQUEST,
                                 "payload must not be empty",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if params.payload.len() > MAX_GROUP_PAYLOAD_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "group payload exceeds maximum size",
                             )
                             .await;
                             continue;

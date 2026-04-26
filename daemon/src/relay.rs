@@ -76,6 +76,19 @@ async fn relay_event_loop(
         match event {
             ClientEvent::Reconnecting { delay_secs } => {
                 tracing::warn!("relay disconnected, reconnecting in {}s", delay_secs);
+                // Reset MLS group state — the relay loses all epoch context on disconnect.
+                // Without this reset, all GROUP_DELIVER decryption fails after reconnect
+                // because the daemon's stale epoch won't match the relay's fresh state.
+                {
+                    let mut guard = mls.lock().await;
+                    match MlsClient::new(state.my_pub_id()) {
+                        Ok(fresh) => {
+                            *guard = fresh;
+                            tracing::info!("MLS state reset for reconnect");
+                        }
+                        Err(e) => tracing::error!("failed to reset MLS client on reconnect: {e}"),
+                    }
+                }
                 state.broadcast_event(DaemonEvent::ConnectionStateChanged {
                     status: "reconnecting".to_string(),
                     relay_url: relay_url.clone(),

@@ -739,6 +739,9 @@ impl Store {
     /// subsequent call fetches the next batch. The select and delete run inside a
     /// single transaction for atomicity.
     ///
+    /// When the batch is empty (no non-expired rows remain), only expired rows
+    /// are purged — valid rows are never touched.
+    ///
     /// Callers must loop until an empty vec is returned to drain all messages.
     pub async fn drain(&self, pub_id: &str) -> Result<Vec<String>> {
         let mut tx = self.pool.begin().await?;
@@ -751,16 +754,27 @@ impl Store {
         .bind(pub_id)
         .fetch_all(&mut *tx)
         .await?;
-        // Delete the rows we read (by id) plus any expired rows for this user.
-        sqlx::query(
-            "DELETE FROM offline_messages \
-             WHERE to_pub_id = ?1 \
-             AND (expires_at <= datetime('now') OR id <= ?2)",
-        )
-        .bind(pub_id)
-        .bind(rows.last().map(|(id, _)| *id).unwrap_or(i64::MAX))
-        .execute(&mut *tx)
-        .await?;
+        if let Some((last_id, _)) = rows.last() {
+            // Delete the batch we read, plus any expired rows for this user.
+            sqlx::query(
+                "DELETE FROM offline_messages \
+                 WHERE to_pub_id = ?1 \
+                 AND (expires_at <= datetime('now') OR id <= ?2)",
+            )
+            .bind(pub_id)
+            .bind(*last_id)
+            .execute(&mut *tx)
+            .await?;
+        } else {
+            // Batch was empty — only purge expired rows; do NOT touch valid ones.
+            sqlx::query(
+                "DELETE FROM offline_messages \
+                 WHERE to_pub_id = ?1 AND expires_at <= datetime('now')",
+            )
+            .bind(pub_id)
+            .execute(&mut *tx)
+            .await?;
+        }
         tx.commit().await?;
         Ok(rows.into_iter().map(|(_, s)| s).collect())
     }
@@ -1152,23 +1166,29 @@ impl Store {
         result
     }
 
-    /// Atomically allocate a Sapling diversifier index and create a subscription
-    /// invoice in a single `BEGIN IMMEDIATE` transaction.
+    /// Allocate a Sapling diversifier index and create a subscription invoice.
     ///
-    /// This eliminates the TOCTOU window in the previous two-step sequence
-    /// (`next_diversifier` → `find_address` → `count_and_create_invoice`) where
-    /// the diversifier was advanced before the invoice write, meaning a failure
-    /// in `count_and_create_invoice` (cap hit or DB error) would burn the
-    /// address: any payment sent to it would be silently ignored.
+    /// Uses a two-phase approach to avoid holding the SQLite write lock during
+    /// CPU-bound Zcash key derivation:
     ///
-    /// The `find_addr` closure receives the current diversifier start index and
-    /// returns `(actual_diversifier_used, bech32_address_string)`.  It runs
-    /// inside the transaction window (but is pure computation — no I/O).
+    /// **Phase 1 (no lock):** Read the current diversifier index with a plain
+    /// SELECT, then call `find_addr` (CPU-bound key derivation) outside any
+    /// transaction.
+    ///
+    /// **Phase 2 (BEGIN IMMEDIATE):** Re-read the diversifier inside the write
+    /// transaction. If it has advanced since Phase 1 (concurrent request), bail
+    /// with an error — the caller can retry. Otherwise check the invoice cap,
+    /// advance the diversifier, and insert the invoice atomically.
+    ///
+    /// `find_addr` is `FnOnce`: it is called exactly once in Phase 1. If the
+    /// Phase 2 re-read detects a concurrent change, the function returns `Err`
+    /// (very rare race; the SUBSCRIBE_REQUEST handler propagates this to the
+    /// client, which retries).
     ///
     /// Returns:
     /// - `Ok(Some(address))` — diversifier advanced, invoice inserted.
     /// - `Ok(None)` — invoice cap already reached; diversifier NOT advanced.
-    /// - `Err` — DB failure; diversifier NOT advanced.
+    /// - `Err` — DB failure or concurrent diversifier change; diversifier NOT advanced.
     pub async fn alloc_diversifier_and_create_invoice(
         &self,
         account: u32,
@@ -1186,17 +1206,57 @@ impl Store {
             .context("subscription_days overflow")?;
 
         let mut conn = self.pool.acquire().await?;
+
+        // Phase 1: read diversifier and run CPU-bound key derivation without
+        // holding the write lock.
+        sqlx::query(
+            "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+             VALUES (?, '0')",
+        )
+        .bind(account as i64)
+        .execute(&mut *conn)
+        .await?;
+
+        let raw_start: String = sqlx::query_scalar(
+            "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+        )
+        .bind(account as i64)
+        .fetch_one(&mut *conn)
+        .await?;
+
+        let start: u128 = raw_start
+            .parse()
+            .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+        if start >= MAX_DIVERSIFIER {
+            anyhow::bail!("diversifier index overflow for account {account}");
+        }
+
+        // CPU-bound: no lock held.
+        let (actual, address) = find_addr(start)?;
+
+        // Phase 2: acquire write lock and complete the transaction.
         sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
         let result: Result<Option<String>> = async {
-            // Ensure the diversifier row exists.
-            sqlx::query(
-                "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
-                 VALUES (?, '0')",
+            // Re-read diversifier; bail if a concurrent request advanced it.
+            let raw_now: String = sqlx::query_scalar(
+                "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
             )
             .bind(account as i64)
-            .execute(&mut *conn)
+            .fetch_one(&mut *conn)
             .await?;
+
+            let now: u128 = raw_now
+                .parse()
+                .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+            if now != start {
+                anyhow::bail!(
+                    "diversifier for account {account} changed concurrently \
+                     (was {start}, now {now}); caller should retry"
+                );
+            }
 
             // Check invoice cap.
             let count: i64 = sqlx::query_scalar(
@@ -1210,25 +1270,6 @@ impl Store {
             if count as u64 >= cap {
                 return Ok(None);
             }
-
-            // Read the current diversifier index.
-            let raw: String = sqlx::query_scalar(
-                "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
-            )
-            .bind(account as i64)
-            .fetch_one(&mut *conn)
-            .await?;
-
-            let start: u128 = raw
-                .parse()
-                .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
-
-            if start >= MAX_DIVERSIFIER {
-                anyhow::bail!("diversifier index overflow for account {account}");
-            }
-
-            // Pure computation: find the address for this diversifier start.
-            let (actual, address) = find_addr(start)?;
 
             // Advance the stored index past the one we just used.
             let next = actual.saturating_add(1);
