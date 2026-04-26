@@ -17,7 +17,7 @@ use uuid::Uuid;
 use unicode_normalization::UnicodeNormalization;
 
 use crate::state::AppState;
-use crate::store::InvoiceRow;
+use crate::store::{InvoiceRow, SetNicknameResult};
 use nie_core::auth::{new_challenge, verify_challenge};
 use nie_core::protocol::{
     rpc_errors, rpc_methods, AuthenticateParams, AuthenticateResult, BroadcastParams,
@@ -569,15 +569,22 @@ async fn handle(socket: WebSocket, state: AppState) {
     // Drain any offline messages queued while this client was disconnected.
     // client_tx is ready (write_task is already spawned above), so messages
     // sent here will be flushed to the socket immediately.
-    let queued = match state.inner.store.drain(&pub_id.0).await {
-        Ok(msgs) => msgs,
-        Err(e) => {
-            warn!("drain failed for {pub_id}: {e}");
-            vec![]
+    // drain() returns at most 100 messages per call; loop until the queue is empty.
+    loop {
+        let batch = match state.inner.store.drain(&pub_id.0).await {
+            Ok(msgs) => msgs,
+            Err(e) => {
+                warn!("drain failed for {pub_id}: {e}");
+                break;
+            }
+        };
+        let done = batch.is_empty();
+        for msg in batch {
+            client_tx.send(msg).await.ok();
         }
-    };
-    for msg in queued {
-        client_tx.send(msg).await.ok();
+        if done {
+            break;
+        }
     }
 
     // All device_ids published by this connection via PUBLISH_KEY_PACKAGE.
@@ -838,7 +845,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .try_set_nickname(&pub_id.0, &nickname)
                             .await
                         {
-                            Ok(true) => {
+                            Ok(SetNicknameResult::Set) => {
                                 // Broadcast to everyone including the sender.
                                 // serde_json::to_string on a derived Serialize cannot fail
                                 let notif = serde_json::to_string(
@@ -864,12 +871,21 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .unwrap();
                                 client_tx.send(ok).await.ok();
                             }
-                            Ok(false) => {
+                            Ok(SetNicknameResult::HasNickname) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::NICKNAME_ALREADY_SET,
+                                    "you already have a nickname and it cannot be changed",
+                                )
+                                .await;
+                            }
+                            Ok(SetNicknameResult::NicknameTaken) => {
                                 send_client_error(
                                     &client_tx,
                                     req.id,
                                     rpc_errors::NICKNAME_TAKEN,
-                                    "nickname already set and cannot be changed",
+                                    "nickname is already taken by another user",
                                 )
                                 .await;
                             }
@@ -2014,7 +2030,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 &remaining_before,
                                 Some(&pub_id.0),
                                 leave_notif,
-                                None,
+                                Some(&params.group_id),
                             )
                             .await;
                         // serde_json::to_string on a derived Serialize cannot fail

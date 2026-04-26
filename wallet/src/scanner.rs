@@ -471,11 +471,19 @@ impl CompactBlockScanner {
         let tree_snapshot = self.tree.clone();
         let witnesses_snapshot = self.witnesses.clone();
 
-        for tx in &block.vtx {
-            if let Err(e) = self.scan_tx(block.height, block.time, tx).await {
+        // Helper macro: on any error path restore both snapshots so the next
+        // retry of this block starts from a consistent pre-block tree state.
+        macro_rules! restore_and_return {
+            ($err:expr) => {{
                 self.tree = tree_snapshot;
                 self.witnesses = witnesses_snapshot;
-                return Err(anyhow::anyhow!(
+                return Err($err);
+            }};
+        }
+
+        for tx in &block.vtx {
+            if let Err(e) = self.scan_tx(block.height, block.time, tx).await {
+                restore_and_return!(anyhow::anyhow!(
                     "scan_tx failed at height {}: {e}",
                     block.height
                 ));
@@ -490,36 +498,53 @@ impl CompactBlockScanner {
         //
         // Collect the current key set before the immutable borrow in the loop.
         let witness_note_ids: Vec<i64> = self.witnesses.keys().copied().collect();
-        let spent_ids = self
-            .store
-            .spent_note_ids_in(&witness_note_ids)
-            .await
-            .map_err(|e| anyhow::anyhow!("scanner: spent_note_ids_in failed: {e}"))?;
+        let spent_ids = match self.store.spent_note_ids_in(&witness_note_ids).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                restore_and_return!(anyhow::anyhow!("scanner: spent_note_ids_in failed: {e}"));
+            }
+        };
         for id in &spent_ids {
             self.witnesses.remove(id);
         }
 
         // Serialize the updated commitment tree.
         let mut tree_bytes = Vec::new();
-        write_commitment_tree(&self.tree, &mut tree_bytes)
-            .map_err(|e| anyhow::anyhow!("tree serialize failed: {e}"))?;
+        if let Err(e) = write_commitment_tree(&self.tree, &mut tree_bytes) {
+            restore_and_return!(anyhow::anyhow!("tree serialize failed: {e}"));
+        }
 
         // Convert block height once for SQLite (i64).
-        let block_height_i64 = i64::try_from(block.height).map_err(|_| {
-            anyhow::anyhow!(
-                "block height {} exceeds i64::MAX; cannot store in SQLite",
-                block.height
-            )
-        })?;
+        let block_height_i64 = match i64::try_from(block.height) {
+            Ok(h) => h,
+            Err(_) => {
+                restore_and_return!(anyhow::anyhow!(
+                    "block height {} exceeds i64::MAX; cannot store in SQLite",
+                    block.height
+                ));
+            }
+        };
 
-        // Serialize all witnesses.
-        let mut witness_rows: Vec<(i64, i64, Vec<u8>)> = Vec::new();
-        for (note_id, witness) in &self.witnesses {
-            let mut wbytes = Vec::new();
-            write_incremental_witness(witness, &mut wbytes)
-                .map_err(|e| anyhow::anyhow!("witness serialize failed for note {note_id}: {e}"))?;
-            witness_rows.push((*note_id, block_height_i64, wbytes));
-        }
+        // Serialize all witnesses.  Collect into a Vec first so the borrow of
+        // `self.witnesses` is fully released before any restore_and_return!
+        // invocation that needs to assign to `self.witnesses`.
+        let witness_ser_result: Result<Vec<(i64, i64, Vec<u8>)>> = self
+            .witnesses
+            .iter()
+            .map(|(note_id, witness)| {
+                let mut wbytes = Vec::new();
+                write_incremental_witness(witness, &mut wbytes).map_err(|e| {
+                    anyhow::anyhow!("witness serialize failed for note {note_id}: {e}")
+                })?;
+                Ok((*note_id, block_height_i64, wbytes))
+            })
+            .collect();
+        let witness_rows = match witness_ser_result {
+            Ok(rows) => rows,
+            Err(e) => {
+                restore_and_return!(e);
+            }
+        };
 
         // Persist tree_state, all witnesses, and the new scan tip atomically.
         // A crash between any two of these writes would leave the DB inconsistent
@@ -533,9 +558,7 @@ impl CompactBlockScanner {
             // Restore in-memory state to the pre-block snapshot so the next
             // scan_to_tip invocation replays this block against a consistent
             // tree rather than double-counting its commitments.
-            self.tree = tree_snapshot;
-            self.witnesses = witnesses_snapshot;
-            return Err(anyhow::anyhow!("scanner: save_block_state failed: {e}"));
+            restore_and_return!(anyhow::anyhow!("scanner: save_block_state failed: {e}"));
         }
 
         Ok(())

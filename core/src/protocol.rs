@@ -74,7 +74,10 @@ pub mod rpc_errors {
     pub const AUTH_FAILED: i32 = -32001;
     pub const NOT_AUTHENTICATED: i32 = -32002;
     pub const SPOOFED_SENDER: i32 = -32003;
+    /// Another user already holds this nickname.
     pub const NICKNAME_TAKEN: i32 = -32004;
+    /// This user already has a nickname set; nicknames are immutable once assigned.
+    pub const NICKNAME_ALREADY_SET: i32 = -32005;
     /// Per-user resource quota exceeded (e.g. too many key packages).
     /// Stable wire contract; value must never change.
     pub const RESOURCE_EXHAUSTED: i32 = -32008;

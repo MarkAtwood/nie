@@ -40,6 +40,17 @@ pub struct InvoiceRow {
     pub subscription_days: Option<u64>,
 }
 
+/// Result of a [`Store::try_set_nickname`] call.
+#[derive(Debug, PartialEq, Eq)]
+pub enum SetNicknameResult {
+    /// Nickname was successfully stored.
+    Set,
+    /// This user already has a nickname; nicknames are immutable once assigned.
+    HasNickname,
+    /// Another user already holds this nickname (unique constraint violation).
+    NicknameTaken,
+}
+
 #[derive(Clone)]
 pub struct Store {
     pool: SqlitePool,
@@ -493,12 +504,35 @@ impl Store {
         Ok(row.is_some())
     }
 
-    /// Attempt to set a nickname for `pub_id`. Succeeds only if no nickname is
-    /// currently set (nicknames are immutable once assigned) and no other user
-    /// already holds this nickname (enforced by the UNIQUE index on nickname).
-    /// Returns `true` if the nickname was stored, `false` if one was already set
-    /// for this pub_id or the nickname is already taken by another user.
-    pub async fn try_set_nickname(&self, pub_id: &str, nickname: &str) -> Result<bool> {
+    /// Attempt to set a nickname for `pub_id`.
+    ///
+    /// Succeeds only if this user has no nickname yet (nicknames are immutable
+    /// once assigned) and no other user already holds this nickname (enforced by
+    /// the UNIQUE index on nickname).
+    ///
+    /// Returns:
+    /// - `Ok(SetNicknameResult::Set)` — nickname stored.
+    /// - `Ok(SetNicknameResult::HasNickname)` — this user already has a nickname.
+    /// - `Ok(SetNicknameResult::NicknameTaken)` — another user holds this nickname.
+    pub async fn try_set_nickname(
+        &self,
+        pub_id: &str,
+        nickname: &str,
+    ) -> Result<SetNicknameResult> {
+        // First check whether this user already has a nickname. We do this as a
+        // separate query so we can distinguish the two failure cases: a zero
+        // rows_affected result from the UPDATE below is ambiguous (user already
+        // has a nickname vs. nickname taken by someone else).
+        let existing: Option<String> =
+            sqlx::query_scalar("SELECT nickname FROM users WHERE pub_id = ?")
+                .bind(pub_id)
+                .fetch_optional(&self.pool)
+                .await?
+                .flatten();
+        if existing.is_some() {
+            return Ok(SetNicknameResult::HasNickname);
+        }
+
         let result =
             sqlx::query("UPDATE users SET nickname = ? WHERE pub_id = ? AND nickname IS NULL")
                 .bind(nickname)
@@ -506,8 +540,10 @@ impl Store {
                 .execute(&self.pool)
                 .await;
         match result {
-            Ok(r) => Ok(r.rows_affected() > 0),
-            Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => Ok(false),
+            Ok(_) => Ok(SetNicknameResult::Set),
+            Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+                Ok(SetNicknameResult::NicknameTaken)
+            }
             Err(e) => Err(e.into()),
         }
     }
@@ -550,11 +586,17 @@ impl Store {
         let mut conn = self.pool.acquire().await?;
         sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
         let result: Result<bool> = async {
-            let count: i64 =
-                sqlx::query_scalar("SELECT COUNT(*) FROM key_packages WHERE pub_id = ?1")
-                    .bind(pub_id)
-                    .fetch_one(&mut *conn)
-                    .await?;
+            // Count packages for *other* devices belonging to this user.
+            // An upsert (same device updating its own package) must not be
+            // blocked even when the cap is full — it doesn't increase the count.
+            // Only reject when other devices have already filled the quota.
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM key_packages WHERE pub_id = ?1 AND device_id != ?2",
+            )
+            .bind(pub_id)
+            .bind(device_id)
+            .fetch_one(&mut *conn)
+            .await?;
             if count >= MAX_KEY_PACKAGES_PER_USER {
                 return Ok(false);
             }
@@ -689,28 +731,38 @@ impl Store {
         result
     }
 
-    /// Drain all queued messages for `pub_id`.
+    /// Drain up to 100 queued messages for `pub_id` per call.
     ///
     /// Returns only non-expired messages (expires_at > datetime('now')), ordered
-    /// by insertion order (id ASC). Deletes ALL rows for `pub_id` regardless of
-    /// expiry so stale entries cannot accumulate. The select and delete run inside
-    /// a single transaction for atomicity.
+    /// by insertion order (id ASC), with a LIMIT 100 cap to bound memory use.
+    /// Deletes the rows that were selected (by id) plus any expired rows, so a
+    /// subsequent call fetches the next batch. The select and delete run inside a
+    /// single transaction for atomicity.
+    ///
+    /// Callers must loop until an empty vec is returned to drain all messages.
     pub async fn drain(&self, pub_id: &str) -> Result<Vec<String>> {
         let mut tx = self.pool.begin().await?;
-        let rows: Vec<(String,)> = sqlx::query_as(
-            "SELECT payload FROM offline_messages \
+        let rows: Vec<(i64, String)> = sqlx::query_as(
+            "SELECT id, payload FROM offline_messages \
              WHERE to_pub_id = ?1 AND expires_at > datetime('now') \
-             ORDER BY id ASC",
+             ORDER BY id ASC \
+             LIMIT 100",
         )
         .bind(pub_id)
         .fetch_all(&mut *tx)
         .await?;
-        sqlx::query("DELETE FROM offline_messages WHERE to_pub_id = ?1")
-            .bind(pub_id)
-            .execute(&mut *tx)
-            .await?;
+        // Delete the rows we read (by id) plus any expired rows for this user.
+        sqlx::query(
+            "DELETE FROM offline_messages \
+             WHERE to_pub_id = ?1 \
+             AND (expires_at <= datetime('now') OR id <= ?2)",
+        )
+        .bind(pub_id)
+        .bind(rows.last().map(|(id, _)| *id).unwrap_or(i64::MAX))
+        .execute(&mut *tx)
+        .await?;
         tx.commit().await?;
-        Ok(rows.into_iter().map(|(s,)| s).collect())
+        Ok(rows.into_iter().map(|(_, s)| s).collect())
     }
 
     // ---- Payment watcher state ----
@@ -791,44 +843,58 @@ impl Store {
     ///
     /// Creates the account row on first use (INSERT OR IGNORE + UPDATE pattern
     /// so the row always exists before we read it).
+    ///
+    /// Uses `BEGIN IMMEDIATE` to serialize concurrent callers; a DEFERRED
+    /// transaction would allow two callers to read the same current index before
+    /// either advances it, producing duplicate diversifiers.
     pub async fn next_diversifier(&self, account: u32) -> anyhow::Result<u128> {
         const MAX_DIVERSIFIER: u128 = (1u128 << 88) - 1;
 
-        let mut tx = self.pool.begin().await?;
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
-        // Ensure the row exists.
-        sqlx::query(
-            "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
-             VALUES (?, '0')",
-        )
-        .bind(account as i64)
-        .execute(&mut *tx)
-        .await?;
-
-        let raw: String = sqlx::query_scalar(
-            "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
-        )
-        .bind(account as i64)
-        .fetch_one(&mut *tx)
-        .await?;
-
-        let current: u128 = raw
-            .parse()
-            .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
-
-        if current >= MAX_DIVERSIFIER {
-            anyhow::bail!("diversifier index overflow for account {account}");
-        }
-
-        let next = current + 1;
-        sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
-            .bind(next.to_string())
+        let result: anyhow::Result<u128> = async {
+            // Ensure the row exists.
+            sqlx::query(
+                "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+                 VALUES (?, '0')",
+            )
             .bind(account as i64)
-            .execute(&mut *tx)
+            .execute(&mut *conn)
             .await?;
 
-        tx.commit().await?;
-        Ok(current)
+            let raw: String = sqlx::query_scalar(
+                "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+            )
+            .bind(account as i64)
+            .fetch_one(&mut *conn)
+            .await?;
+
+            let current: u128 = raw
+                .parse()
+                .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+            if current >= MAX_DIVERSIFIER {
+                anyhow::bail!("diversifier index overflow for account {account}");
+            }
+
+            let next = current + 1;
+            sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
+                .bind(next.to_string())
+                .bind(account as i64)
+                .execute(&mut *conn)
+                .await?;
+
+            Ok(current)
+        }
+        .await;
+
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     /// Advance the diversifier index for `account` to at least `idx`.
