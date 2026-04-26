@@ -648,7 +648,7 @@ impl Store {
                          SELECT 1 FROM space_member sm
                          WHERE sm.space_id = s.id AND sm.contact_id = ?
                      )
-                     ORDER BY s.created_at ASC",
+                     ORDER BY s.created_at ASC LIMIT 1000",
                 )
                 .bind(account_id)
                 .fetch_all(&self.pool)
@@ -780,7 +780,7 @@ impl Store {
         let sql = format!(
             "SELECT space_id, contact_id, nick, role, joined_at \
              FROM space_member WHERE space_id IN ({placeholders}) \
-             ORDER BY space_id, joined_at ASC LIMIT 100000"
+             ORDER BY space_id, joined_at ASC LIMIT 10000"
         );
         let mut query = sqlx::query_as::<_, (String, String, Option<String>, String, String)>(&sql);
         for id in space_ids {
@@ -1363,6 +1363,7 @@ impl Store {
     ) -> Result<String> {
         let id = Ulid::new().to_string();
         let sender_msg_id = Ulid::new().to_string();
+        let mut tx = self.pool.begin().await?;
         sqlx::query(
             "INSERT INTO message
                 (id, sender_msg_id, chat_id, sender_id, body, sent_at,
@@ -1379,15 +1380,16 @@ impl Store {
         .bind(thread_root_id)
         .bind(expires_at)
         .bind(if burn_on_read { 1i64 } else { 0i64 })
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
         sqlx::query(
             "UPDATE chat SET last_message_at = datetime('now'), unread_count = unread_count + 1
              WHERE id = ?",
         )
         .bind(chat_id)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
         self.bump_state_seq("Message").await?;
         Ok(id)
     }
@@ -1871,6 +1873,9 @@ impl Store {
         };
         let mut map: serde_json::Map<String, serde_json::Value> =
             serde_json::from_str(&json_str).unwrap_or_default();
+        if !map.contains_key(reaction_id) && map.len() >= 100 {
+            anyhow::bail!("reaction cap of 100 per message exceeded");
+        }
         map.insert(
             reaction_id.to_string(),
             serde_json::json!({ "emoji": emoji, "sentAt": sent_at, "senderId": "self" }),

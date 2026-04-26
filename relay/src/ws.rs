@@ -37,6 +37,15 @@ use nie_core::protocol::{
 /// one sender forces O(N × payload) allocation across all connected clients.
 const MAX_WS_MESSAGE_BYTES: usize = 1024 * 1024; // 1 MiB
 
+/// Maximum payload size for WHISPER and SEALED_WHISPER messages stored in the
+/// offline queue.  At the 1 MiB WebSocket cap, 1000 undelivered WHISPERs to
+/// one offline user would consume up to 1 GiB; this cap bounds queue growth
+/// to 64 KiB × (queue depth cap) per user.
+const MAX_WHISPER_PAYLOAD_BYTES: usize = 65536; // 64 KiB
+
+/// Maximum number of groups a single user may create.
+const MAX_GROUPS_CREATED_PER_USER: u64 = 100;
+
 const BIDI_CONTROLS: &[char] = &[
     '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}', '\u{2066}', '\u{2067}', '\u{2068}',
     '\u{2069}', '\u{200E}', '\u{200F}',
@@ -1353,6 +1362,33 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // SECURITY: reject oversized payloads before enqueue.
+                        // At the 1 MiB WS frame cap, unbounded enqueue calls can
+                        // fill offline_messages with gigabytes for a single user.
+                        if params.payload.len() > MAX_WHISPER_PAYLOAD_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "payload too large",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Verify the recipient is a known enrolled user to prevent
                         // phantom-recipient flooding of the offline_messages table.
                         match state.inner.store.user_exists(&params.to).await {
@@ -1466,6 +1502,19 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // SECURITY: reject oversized sealed payloads before enqueue.
+                        // At the 1 MiB WS frame cap, unbounded enqueue calls can
+                        // fill offline_messages with gigabytes for a single user.
+                        if params.sealed.len() > MAX_WHISPER_PAYLOAD_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "payload too large",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Verify the recipient is a known enrolled user to prevent
                         // phantom-recipient flooding of the offline_messages table.
                         match state.inner.store.user_exists(&params.to).await {
@@ -1547,6 +1596,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         let name = match canonicalize_display_name(&params.name) {
                             Ok(n) => n,
                             Err(e) => {
@@ -1561,21 +1624,39 @@ async fn handle(socket: WebSocket, state: AppState) {
                             }
                         };
                         let group_id = Uuid::new_v4().to_string();
-                        if let Err(e) = state
+                        match state
                             .inner
                             .store
-                            .create_group_with_creator(&group_id, &pub_id.0, &name)
+                            .create_group_with_creator_capped(
+                                &group_id,
+                                &pub_id.0,
+                                &name,
+                                MAX_GROUPS_CREATED_PER_USER,
+                            )
                             .await
                         {
-                            error!("create_group_with_creator for {pub_id}: {e}");
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INTERNAL_ERROR,
-                                "internal error",
-                            )
-                            .await;
-                            continue;
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RESOURCE_EXHAUSTED,
+                                    "group creation limit reached",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("create_group_with_creator_capped for {pub_id}: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
                         }
                         // serde_json::to_string on a derived Serialize cannot fail
                         let resp = serde_json::to_string(
@@ -2056,6 +2137,19 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // SECURITY: reject zero-length payload before fan-out.
+                        // An empty GROUP_SEND fans out to all group members and
+                        // causes MLS decryption failure on every peer.
+                        if params.payload.is_empty() {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "payload must not be empty",
+                            )
+                            .await;
+                            continue;
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {

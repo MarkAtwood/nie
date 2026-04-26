@@ -1529,6 +1529,56 @@ impl Store {
         Ok(())
     }
 
+    /// Atomically check the per-creator group count cap and create the group.
+    ///
+    /// The COUNT and INSERT run inside a single `BEGIN IMMEDIATE` transaction,
+    /// eliminating the TOCTOU where two concurrent GROUP_CREATE callers both read
+    /// count < cap and both insert, exceeding the limit.
+    ///
+    /// Returns `Ok(true)` if the group was created, `Ok(false)` if `created_by`
+    /// already owns `cap` or more groups.
+    pub async fn create_group_with_creator_capped(
+        &self,
+        group_id: &str,
+        created_by: &str,
+        name: &str,
+        cap: u64,
+    ) -> Result<bool> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<bool> = async {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM groups WHERE created_by = ?1")
+                    .bind(created_by)
+                    .fetch_one(&mut *conn)
+                    .await?;
+            if count as u64 >= cap {
+                return Ok(false);
+            }
+            sqlx::query(
+                "INSERT OR IGNORE INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)",
+            )
+            .bind(group_id)
+            .bind(created_by)
+            .bind(name)
+            .execute(&mut *conn)
+            .await?;
+            sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
+                .bind(group_id)
+                .bind(created_by)
+                .execute(&mut *conn)
+                .await?;
+            Ok(true)
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
     /// Delete a group and all its membership rows, atomically.
     pub async fn delete_group(&self, group_id: &str) -> Result<()> {
         let mut tx = self.pool.begin().await?;
