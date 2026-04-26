@@ -38,6 +38,22 @@ use crate::{
 /// Account index for the nie payment wallet (ZIP-32 account 0).
 pub const PAYMENT_ACCOUNT: u32 = 0;
 
+/// Successful result from [`send_payment`].
+///
+/// The payment was broadcast and the txid is machine-readable in `txid`.
+/// If `mark_spent_warning` is `Some`, the DB failed to mark the spent notes
+/// after the broadcast succeeded.  The payment is on-chain; callers should
+/// log the warning and treat the payment as succeeded, but note that a wallet
+/// rescan may be required to prevent double-spend on the next send.
+#[derive(Debug)]
+pub struct SendPaymentResult {
+    /// The txid returned by the lightwalletd broadcast.
+    pub txid: String,
+    /// Non-None when `mark_notes_spent` failed after a successful broadcast.
+    /// Contains a human-readable description of the failure.
+    pub mark_spent_warning: Option<String>,
+}
+
 /// All failure modes for [`send_payment`].
 #[derive(Debug)]
 pub enum SendPaymentError {
@@ -155,38 +171,69 @@ pub async fn send_payment<C: WalletClient>(
     client: &mut C,
     params: Option<&(SpendParameters, OutputParameters)>,
     network: ZcashNetwork,
-) -> Result<String, SendPaymentError> {
+) -> Result<SendPaymentResult, SendPaymentError> {
     // Step 1: Sync-lag check.
     // scan_tip is also the anchor height for Sapling witnesses (witnesses in
     // spendable_notes() are all valid at the scan_tip).
     //
-    // TOCTOU: chain_tip is fetched here; spendable_notes is fetched below.
-    // The real chain tip can advance between these two awaits.  The
-    // MAX_SYNC_LAG buffer absorbs 1-2 new blocks during the window.  See the
-    // MAX_SYNC_LAG constant in sync_guard.rs for the full race analysis.
-    // Do not restructure these two fetches into a single await without
-    // re-reading that comment.
-    let scan_tip = store.scan_tip().await.map_err(SendPaymentError::Db)?;
+    // scan_tip and spendable_notes are read together in one DB transaction to
+    // prevent the TOCTOU where the scanner's save_block_state advances both
+    // tip_height and witness rows atomically between two separate reads.
+    // Without the transaction, scan_tip could return N while spendable_notes
+    // returns witnesses already at N+1, making the anchor mismatch the
+    // witnesses' Merkle root.
+    //
+    // The chain_tip (network call) and the sync-lag check run after the DB
+    // snapshot is taken.  The MAX_SYNC_LAG buffer absorbs 1-2 new blocks
+    // during the window between the DB reads and the network call.  See
+    // sync_guard.rs for the full race analysis.
+    let (scan_tip, all_notes) = store
+        .scan_tip_and_spendable_notes(PAYMENT_ACCOUNT)
+        .await
+        .map_err(SendPaymentError::Db)?;
     let chain_tip = client
         .latest_height()
         .await
         .map_err(SendPaymentError::Connect)?;
     check_lag(scan_tip, chain_tip, MAX_SYNC_LAG).map_err(SendPaymentError::SyncLag)?;
 
-    // Step 2: Fetch spendable notes.
-    let all_notes = store
-        .spendable_notes(PAYMENT_ACCOUNT)
-        .await
-        .map_err(SendPaymentError::Db)?;
+    // Step 2: Check for spendable notes.
     if all_notes.is_empty() {
         return Err(SendPaymentError::Build(TxBuildError::NoSpendableNotes));
     }
 
     // Step 3: Derive change address diversifier.
-    let change_di = store
+    //
+    // `next_diversifier` reserves a slot and advances the DB counter by 1.
+    // `find_address` may skip ahead to the next *valid* Sapling diversifier,
+    // leaving a gap.  Advance the DB counter past the actual index so that
+    // a future call cannot allocate the same address again (ZIP-316 §Fresh
+    // subaddress per payment).  Mirrors the pattern in `alloc_fresh_address`.
+    //
+    // Accepted limitation (nie-kef6.8): this counter advance is permanent.
+    // If `build_shielded_tx` below fails (InsufficientFunds, AnchorMismatch,
+    // etc.), the allocated diversifier index is consumed but no address is
+    // used — unused diversifiers are not recycled.  Rolling back the counter
+    // is not safe because a concurrent `send_payment` or `alloc_fresh_address`
+    // call may have already taken the next index.  With 2^88 available indices
+    // exhaustion is impossible in practice; the gap is an accepted limitation.
+    let change_di_start = store
         .next_diversifier(PAYMENT_ACCOUNT)
         .await
         .map_err(SendPaymentError::Db)?;
+    let (actual_di, _) = sk.to_dfvk().find_address(change_di_start).map_err(|e| {
+        SendPaymentError::Build(TxBuildError::BuilderError(format!(
+            "change address diversifier derivation: {e}"
+        )))
+    })?;
+    let actual_u128 = u128::from(actual_di);
+    if actual_u128 > change_di_start {
+        store
+            .advance_diversifier_to(PAYMENT_ACCOUNT, actual_u128 + 1)
+            .await
+            .map_err(SendPaymentError::Db)?;
+    }
+    let change_di = actual_u128;
 
     // Step 4: Encode the session UUID into a ZIP-302 memo.
     let memo = session_id_to_memo(session_id);
@@ -225,12 +272,30 @@ pub async fn send_payment<C: WalletClient>(
 
     info!(txid = %txid, amount_zatoshi, session_id = %session_id, "payment broadcast");
 
-    // Step 7: Best-effort post-broadcast DB updates.
+    // Step 7: Post-broadcast DB updates.
 
     // Mark selected notes as spent in one transaction.
-    if let Err(e) = store.mark_notes_spent(&selected_ids, &txid).await {
-        warn!(txid = %txid, error = %e, "failed to mark notes spent after broadcast — notes remain unspent in DB; next send will re-select them and be rejected as double-spend; recovery requires wallet rescan from seed");
-    }
+    // The transaction is already on-chain — there is no way to undo it.
+    // If this fails, the notes remain "unspent" in the DB and will be re-selected
+    // on the next send, causing a double-spend rejection.  Return a partial-success
+    // result so the caller gets the txid as a machine-readable field and can surface
+    // the "please rescan" warning to the user without losing the txid.
+    let mark_spent_warning = if let Err(e) = store.mark_notes_spent(&selected_ids, &txid).await {
+        let warning = format!(
+            "txid {txid} was broadcast but notes could not be marked spent ({e}); \
+             rescan the wallet from seed to recover"
+        );
+        warn!(
+            txid = %txid,
+            note_ids = ?selected_ids,
+            error = %e,
+            "mark_notes_spent failed after successful broadcast — \
+             notes remain unspent in DB; rescan required to recover"
+        );
+        Some(warning)
+    } else {
+        None
+    };
 
     // Insert the outgoing tx record.
     // i64::try_from: block heights and unix timestamps fit in i64 for any real
@@ -249,10 +314,10 @@ pub async fn send_payment<C: WalletClient>(
     )
     .unwrap_or(i64::MAX); // Unix timestamps won't overflow i64 until year 292 billion.
                           // NOTE: block_height is the scan_tip at broadcast time, not the actual
-                          // confirmation height.  The scanner uses INSERT OR IGNORE on txid, so it
-                          // will not overwrite this with the confirmed height when the tx is mined.
-                          // This means block_height for outgoing txs is approximate (off by ~1-3
-                          // blocks).  When the transaction watcher (nie-hov) lands it must either
+                          // confirmation height.  The scanner uses INSERT OR REPLACE on txid, so it
+                          // will update peer_pub_id/memo if the tx is re-inserted with richer data.
+                          // block_height for outgoing txs is approximate (off by ~1-3 blocks).
+                          // When the transaction watcher (nie-hov) lands it must either
                           // (a) use UPDATE to correct the height after confirmation, or
                           // (b) add a separate confirmed_height column and leave this as broadcast_height.
     let tx_record = TxRecord {
@@ -268,7 +333,10 @@ pub async fn send_payment<C: WalletClient>(
         warn!(txid = %txid, error = %e, "failed to insert tx record after broadcast");
     }
 
-    Ok(txid)
+    Ok(SendPaymentResult {
+        txid,
+        mark_spent_warning,
+    })
 }
 
 #[cfg(test)]
@@ -552,8 +620,12 @@ mod tests {
         )
         .await;
 
-        let txid = result.expect("happy path must succeed");
-        assert_eq!(txid, expected_txid, "returned txid must match mock");
+        let result = result.expect("happy path must succeed");
+        assert_eq!(result.txid, expected_txid, "returned txid must match mock");
+        assert!(
+            result.mark_spent_warning.is_none(),
+            "happy path must have no mark_spent_warning"
+        );
 
         // Note must be marked spent.
         let unspent = store.unspent_notes().await.unwrap();

@@ -38,6 +38,8 @@ jubjub.workspace = true
 ff.workspace = true
 # OsRng for transaction building (nie-wdw.7).
 rand.workspace = true
+# Zeroize key material on drop (nie-kef6.92, nie-kef6.94).
+zeroize.workspace = true
 zip32.workspace = true
 # Orchard key derivation and payment address (nie-1ws).
 orchard.workspace = true

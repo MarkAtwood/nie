@@ -98,6 +98,7 @@ async fn poll_for_notification(
                 // Other notifications or responses — keep draining
             }
             Ok(Some(ClientEvent::Reconnecting { .. })) | Ok(Some(ClientEvent::Reconnected)) => {}
+            Ok(Some(ClientEvent::Disconnected)) => panic!("unexpected disconnect"),
             Ok(None) | Err(_) => return None,
         }
     }

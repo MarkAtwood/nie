@@ -126,7 +126,6 @@ pub enum BotCommand {
     Send { text: String },
     SetNickname { nickname: String },
     Whoami,
-    Users,
     Quit,
 }
 

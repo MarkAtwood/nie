@@ -9,14 +9,11 @@ pub struct AsTransaction {
 }
 
 /// One Matrix room event from the homeserver.
-///
-/// `room_id` is intentionally absent: the bridge always routes to the single
-/// configured room and does not need to inspect the event's room.
-/// Unknown fields from the homeserver (including room_id) are ignored by serde.
 #[derive(Debug, Deserialize)]
 pub struct MatrixEvent {
     #[serde(rename = "type")]
     pub event_type: String,
+    pub room_id: String,
     pub sender: String,
     pub content: serde_json::Value,
     pub event_id: String,
@@ -79,14 +76,18 @@ impl MatrixClient {
         let resp = self
             .http
             .put(&url)
-            .query(&[("access_token", &self.as_token)])
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("Bearer {}", self.as_token),
+            )
             .json(&body)
             .send()
             .await
             .map_err(|e| anyhow!("Matrix HTTP error: {e}"))?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let err_text = resp.text().await.unwrap_or_default();
+            let err_bytes = resp.bytes().await.unwrap_or_default();
+            let err_text = String::from_utf8_lossy(&err_bytes[..err_bytes.len().min(65536)]);
             return Err(anyhow!("Matrix send failed {status}: {err_text}"));
         }
         Ok(())
@@ -102,6 +103,7 @@ mod tests {
     fn text_body_accepts_mtext() {
         let event = MatrixEvent {
             event_type: "m.room.message".to_string(),
+            room_id: "!abc:example.com".to_string(),
             sender: "@alice:example.com".to_string(),
             content: json!({"msgtype": "m.text", "body": "hello"}),
             event_id: "$xyz".to_string(),
@@ -113,6 +115,7 @@ mod tests {
     fn text_body_rejects_non_message() {
         let event = MatrixEvent {
             event_type: "m.room.member".to_string(),
+            room_id: "!abc:example.com".to_string(),
             sender: "@alice:example.com".to_string(),
             content: json!({"membership": "join"}),
             event_id: "$xyz".to_string(),
@@ -124,6 +127,7 @@ mod tests {
     fn text_body_rejects_mimage() {
         let event = MatrixEvent {
             event_type: "m.room.message".to_string(),
+            room_id: "!abc:example.com".to_string(),
             sender: "@alice:example.com".to_string(),
             content: json!({"msgtype": "m.image", "body": "photo.jpg", "url": "mxc://abc"}),
             event_id: "$xyz".to_string(),

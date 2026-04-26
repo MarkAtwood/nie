@@ -63,7 +63,7 @@ use nie_wallet::{
     client::{LightwalletdClient, DEFAULT_TESTNET_ENDPOINT},
     db::WalletStore,
     params::{ensure_params, HttpFetcher, SaplingParamPaths},
-    payment::send_payment,
+    payment::{send_payment, SendPaymentResult},
     scanner::{CompactBlockScanner, NullDecryptor, SaplingIvkDecryptor},
     tx_builder::load_sapling_params,
 };
@@ -414,7 +414,10 @@ async fn testnet_shielded_payment_end_to_end() {
         PAYMENT_AMOUNT_ZATOSHI
     );
 
-    let txid = tokio::time::timeout(
+    let SendPaymentResult {
+        txid,
+        mark_spent_warning,
+    } = tokio::time::timeout(
         Duration::from_secs(PAYMENT_TIMEOUT_SECS),
         send_payment(
             &alice_sk,
@@ -430,6 +433,10 @@ async fn testnet_shielded_payment_end_to_end() {
     .await
     .expect("payment must complete within 10 minutes")
     .expect("send_payment must succeed");
+    assert!(
+        mark_spent_warning.is_none(),
+        "e2e payment: mark_notes_spent must succeed, got: {mark_spent_warning:?}"
+    );
 
     // --- Assertions ---
     assert_eq!(txid.len(), 64, "txid must be 64 hex chars, got {txid:?}");
@@ -472,7 +479,7 @@ async fn testnet_shielded_payment_end_to_end() {
     // Step 3: scan Bob's wallet for the incoming note.
     // Bob's IVK is derived from his DFVK (not directly from the spending key).
     // The IVK bytes are key material; they must not be logged.
-    let bob_ivk_bytes: [u8; 32] = bob_sk.to_dfvk().ivk_bytes();
+    let bob_ivk_bytes = bob_sk.to_dfvk().ivk_bytes();
     let bob_decryptor = SaplingIvkDecryptor::new(&bob_ivk_bytes)
         .expect("Bob IVK must be a valid jubjub::Fr scalar");
 

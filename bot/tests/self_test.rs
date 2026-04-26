@@ -44,7 +44,7 @@ async fn self_test_exits_zero() {
     // with an empty passphrase (--no-passphrase path).
     let identity = Identity::generate();
     let seed = identity.to_secret_bytes_64();
-    let ciphertext = encrypt_keyfile(&seed, "").expect("encrypt_keyfile failed");
+    let ciphertext = encrypt_keyfile(&*seed, "").expect("encrypt_keyfile failed");
 
     let keyfile = tempfile::NamedTempFile::new().expect("temp keyfile");
     std::fs::write(keyfile.path(), &ciphertext).expect("write keyfile");

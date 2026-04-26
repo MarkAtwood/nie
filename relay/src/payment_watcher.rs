@@ -19,7 +19,6 @@
 
 use std::time::Duration;
 
-use chrono::Utc;
 use nie_core::protocol::{rpc_methods, JsonRpcNotification, SubscriptionActiveParams};
 use nie_relay::state::AppState;
 use nie_relay::store::InvoiceRow;
@@ -83,9 +82,19 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
     };
 
     // `last_scanned_height` tracks the highest block we have fully processed.
-    // 0 means we have not started yet; the first iteration sets it to
-    // `max(1, tip - INITIAL_LOOKBACK)` to catch recent payments.
-    let mut last_scanned_height: u64 = 0;
+    // On first run it defaults to `tip - INITIAL_LOOKBACK`; on restart it is
+    // loaded from the DB so payments confirmed between restarts are not missed.
+    let persisted_tip = match state.inner.store.get_payment_scan_tip().await {
+        Ok(h) => h,
+        Err(e) => {
+            warn!("payment_watcher: failed to load persisted scan tip ({e}); defaulting to tip-based lookback");
+            None
+        }
+    };
+    // 0 signals "not yet initialized"; the inner loop will set it from the
+    // live chain tip when first called.  A persisted value of 0 is treated
+    // the same way to avoid scanning from genesis after a DB wipe.
+    let mut last_scanned_height: u64 = persisted_tip.unwrap_or(0);
     let mut blocks_since_purge: u64 = 0;
 
     loop {
@@ -147,20 +156,62 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                 }
             };
 
-            // Process each block.
+            // Process each block.  Track whether the stream ended normally
+            // (Ok(None)) so we can choose the right sleep below.
+            let mut stream_error = false;
             loop {
-                let block = match stream.message().await {
-                    Ok(Some(b)) => b,
-                    Ok(None) => break, // Stream exhausted normally.
-                    Err(e) => {
-                        warn!("payment_watcher: block stream error: {e}");
-                        break;
-                    }
-                };
+                let block =
+                    match tokio::time::timeout(Duration::from_secs(30), stream.message()).await {
+                        Ok(Ok(Some(b))) => b,
+                        Ok(Ok(None)) => break, // Stream exhausted normally; stream_error stays false.
+                        Ok(Err(e)) => {
+                            warn!("payment_watcher: block stream error: {e}");
+                            stream_error = true;
+                            break;
+                        }
+                        Err(_elapsed) => {
+                            warn!("payment_watcher: block stream timed out after 30s");
+                            stream_error = true;
+                            break;
+                        }
+                    };
 
-                scan_block(&block, &decryptor, network_type, &state).await;
+                if block.height == 0 {
+                    warn!("payment_watcher: received CompactBlock with height=0; skipping to avoid scan-height reset");
+                    continue;
+                }
+                // Monotonicity guard: lightwalletd must deliver strictly
+                // increasing heights.  A non-monotonic block would move
+                // last_scanned_height backwards, causing re-scans of already-
+                // processed blocks and potential double-activations.
+                if block.height <= last_scanned_height {
+                    warn!(
+                        "payment_watcher: non-monotonic block height {} (last scanned {}); skipping",
+                        block.height, last_scanned_height
+                    );
+                    continue;
+                }
+
+                if scan_block(&block, &decryptor, network_type, &state)
+                    .await
+                    .is_err()
+                {
+                    // activate_subscription failed; do not advance the scan tip.
+                    // The stream_error flag stays false so we sleep POLL_INTERVAL
+                    // and retry rather than immediately reconnecting.
+                    stream_error = true;
+                    break;
+                }
 
                 last_scanned_height = block.height;
+                if let Err(e) = state
+                    .inner
+                    .store
+                    .set_payment_scan_tip(last_scanned_height)
+                    .await
+                {
+                    warn!("payment_watcher: failed to persist scan tip {last_scanned_height}: {e}");
+                }
                 blocks_since_purge += 1;
 
                 // Purge expired invoices every 100 blocks to keep the table clean.
@@ -173,6 +224,30 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                     }
                 }
             }
+
+            // Persist the tip one final time after the stream is exhausted.
+            // Per-block persist above may have been skipped due to a transient DB
+            // error (logged as warn and execution continued); this ensures the
+            // tip is durable so the next run starts from the right block rather
+            // than re-scanning from an earlier height.
+            if last_scanned_height > 0 {
+                if let Err(e) = state
+                    .inner
+                    .store
+                    .set_payment_scan_tip(last_scanned_height)
+                    .await
+                {
+                    warn!("payment_watcher: failed to persist final scan tip {last_scanned_height} after stream exhaustion: {e}");
+                }
+            }
+
+            // On stream error or timeout, break the scan loop so we reconnect
+            // after RECONNECT_DELAY.  On normal exhaustion (Ok(None)) the scan
+            // loop continues: on the next iteration last_scanned_height >= scan_end
+            // is true and we sleep POLL_INTERVAL before checking again.
+            if stream_error {
+                break;
+            }
         }
 
         // Connection broke or stream error — sleep before reconnecting.
@@ -183,13 +258,16 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
 /// Process one compact block: trial-decrypt every Sapling output.
 ///
 /// On a successful decryption and matching invoice, activates the subscription.
-/// Errors at the output level are logged and skipped; the block scan continues.
+/// Errors at the output level (missing address, underpayment, DB lookup) are
+/// logged and skipped; the block scan continues.  If `activate_subscription`
+/// fails for any matched payment, the block returns `Err` so the caller does
+/// not advance the scan tip past it — the block will be retried on the next run.
 async fn scan_block(
     block: &CompactBlock,
     decryptor: &SaplingIvkDecryptor,
     network_type: NetworkType,
     state: &AppState,
-) {
+) -> anyhow::Result<()> {
     for tx in &block.vtx {
         for (idx, output) in tx.outputs.iter().enumerate() {
             // try_decrypt_sapling returns None for outputs not belonging to this wallet.
@@ -228,6 +306,23 @@ async fn scan_block(
                 }
             };
 
+            // Warn if the invoice has already expired — payment arrived late but
+            // we still activate rather than silently drop the confirmed payment.
+            {
+                use chrono::Utc;
+                if let Ok(exp) =
+                    chrono::NaiveDateTime::parse_from_str(&invoice.expires_at, "%Y-%m-%d %H:%M:%S")
+                {
+                    if exp.and_utc() < Utc::now() {
+                        tracing::warn!(
+                            invoice_id = invoice.invoice_id,
+                            address = address_str,
+                            "payment_watcher: activating payment for expired invoice"
+                        );
+                    }
+                }
+            }
+
             // Check that the received amount meets the invoice minimum.
             let value_zatoshi = note.value_zatoshi;
             if value_zatoshi < invoice.amount_zatoshi {
@@ -244,18 +339,24 @@ async fn scan_block(
             info!(
                 height = block.height,
                 pub_id = invoice.pub_id,
-                address = address_str,
                 "payment_watcher: confirmed payment — activating subscription"
             );
 
             if let Err(e) = activate_subscription(state, &invoice).await {
                 warn!(
                     pub_id = invoice.pub_id,
-                    "payment_watcher: activate_subscription failed: {e}"
+                    "payment_watcher: activate_subscription failed: {e}; will retry block"
                 );
+                return Err(e);
             }
+            // activate_subscription_atomic deletes the invoice inside a single DB
+            // transaction, so a second output in this tx that decrypts to the same
+            // address will find get_invoice_by_address returning None and be skipped
+            // safely.  No explicit dedup is needed; the atomic delete is load-bearing
+            // for this correctness property (nie-r9nx.4).
         }
     }
+    Ok(())
 }
 
 /// Attempt to reconstruct the Sapling `PaymentAddress` from the decrypted note
@@ -285,21 +386,41 @@ fn reconstruct_address(note: &nie_wallet::db::Note, network_type: NetworkType) -
 
 /// Activate a subscription: write to DB, delete invoice, notify client.
 async fn activate_subscription(state: &AppState, invoice: &InvoiceRow) -> anyhow::Result<()> {
-    let subscription_days = state.inner.subscription_days;
-    let expires_at = Utc::now() + chrono::Duration::days(subscription_days as i64);
+    // Use the invoice's own expires_at (set at creation time and shown to the user)
+    // rather than recomputing from the current runtime subscription_days.
+    // If the operator changes SUBSCRIPTION_DAYS after the invoice was created,
+    // the subscriber still gets the duration they were promised.
+    let fallback_days = invoice
+        .subscription_days
+        .unwrap_or(state.inner.subscription_days);
+    let parsed_expires_at = match chrono::NaiveDateTime::parse_from_str(
+        &invoice.expires_at,
+        "%Y-%m-%d %H:%M:%S",
+    ) {
+        Ok(dt) => dt.and_utc(),
+        Err(e) => {
+            tracing::error!(
+                invoice_id = invoice.invoice_id,
+                address = invoice.address,
+                expires_at = %invoice.expires_at,
+                "activate_subscription: expires_at parse failed ({e}); using now + {fallback_days}d as fallback"
+            );
+            chrono::Utc::now() + chrono::Duration::days(fallback_days as i64)
+        }
+    };
+    // If the invoice expired before the confirmed payment arrived, grant a
+    // fresh subscription from now using the duration originally promised in the
+    // invoice (stored as subscription_days at creation time), falling back to the
+    // current operator setting only for pre-migration invoices that lack it.
+    let expires_at =
+        parsed_expires_at.max(chrono::Utc::now() + chrono::Duration::days(fallback_days as i64));
 
-    // 1. Write subscription to DB.
+    // 1. Write subscription and delete invoice atomically so a crash between
+    //    the two operations cannot trigger a double-activation or silent loss.
     state
         .inner
         .store
-        .set_subscription(&invoice.pub_id, expires_at)
-        .await?;
-
-    // 2. Delete the fulfilled invoice.
-    state
-        .inner
-        .store
-        .delete_invoice(&invoice.invoice_id)
+        .activate_subscription_atomic(&invoice.pub_id, expires_at, &invoice.invoice_id)
         .await?;
 
     // 3. Notify the client if online.

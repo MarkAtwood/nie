@@ -10,12 +10,12 @@
 
 use axum::{
     body::Bytes,
-    extract::{Path, Query, State},
+    extract::{Extension, Path, Query, State},
     http::{header, StatusCode},
     response::{sse, IntoResponse},
     Json,
 };
-use nie_core::messages::ClearMessage;
+use nie_core::messages::{pad, ClearMessage};
 use nie_core::protocol::{rpc_methods, BroadcastParams, JsonRpcRequest, TypingParams};
 use nie_core::transport::next_request_id;
 use serde::{Deserialize, Serialize};
@@ -28,8 +28,9 @@ use unicode_normalization::UnicodeNormalization;
 use ulid::Ulid;
 
 use crate::state::DaemonState;
-use crate::store::{ChatContactRow, ChatRow, MessageRow, SpaceMemberOp, SpaceRole};
+use crate::store::{ChatContactRow, ChatRow, EditBodyResult, MessageRow, SpaceMemberOp, SpaceRole};
 use crate::token::validate_token_header;
+use crate::token::QueryToken;
 use crate::types::DaemonEvent;
 
 // ── Capability URIs ────────────────────────────────────────────────────────────
@@ -40,6 +41,11 @@ pub const CAP_CHAT: &str = "urn:ietf:params:jmap:chat";
 /// RFC 8620 §3.1: maximum number of method calls allowed in a single
 /// POST /jmap batch.  Exceeding this returns a 400 requestTooLarge response.
 const MAX_CALLS_IN_REQUEST: usize = 64;
+
+/// Maximum number of message IDs returned by a single `Message/query` call.
+/// Prevents a client from forcing the server to load the entire message table
+/// into memory with a single request (`limit = i64::MAX`).
+const MAX_MESSAGE_QUERY_LIMIT: i64 = 4096;
 
 // ── Session object (RFC 8620 §2) ───────────────────────────────────────────────
 
@@ -200,21 +206,27 @@ async fn build_session(state: &DaemonState) -> Result<Session, StatusCode> {
 }
 
 /// Aggregate state token: concatenate per-type tokens to detect any change.
+///
+/// All 7 reads execute inside a single SQLite read transaction (nie-zvzr) so
+/// the composite token reflects a consistent snapshot even if a concurrent
+/// writer commits between reads.
 async fn session_state_token(state: &DaemonState) -> Result<String, StatusCode> {
     let Some(store) = state.store() else {
         // No store → stable token.
         return Ok("0".to_string());
     };
-    // Build a composite token from all tracked types.  If any type changes,
-    // the concatenation changes — simple, no hashing needed for a local server.
-    let mut parts = Vec::with_capacity(4);
-    for type_name in &["ChatContact", "Chat", "Message", "Space"] {
-        let tok = store
-            .state_token(type_name)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        parts.push(tok);
-    }
+    let parts = store
+        .state_token_snapshot(&[
+            "ChatContact",
+            "Chat",
+            "Message",
+            "Space",
+            "SpaceMember",
+            "SpaceInvite",
+            "Category",
+        ])
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(parts.join(":"))
 }
 
@@ -305,6 +317,13 @@ fn server_fail(msg: &str) -> (String, Value) {
     )
 }
 
+/// Log a database error internally and return a generic serverFail response.
+/// Never exposes raw SQLite error strings (table/column names) to the client.
+fn db_error(e: impl std::fmt::Display) -> (String, Value) {
+    tracing::error!("database error: {e}");
+    server_fail("database error")
+}
+
 fn contact_to_json(c: &ChatContactRow) -> Value {
     serde_json::json!({
         "id": c.id,
@@ -352,6 +371,7 @@ fn message_to_json(m: &MessageRow) -> Value {
         "threadRootId": m.thread_root_id,
         "expiresAt": m.expires_at,
         "burnOnRead": m.burn_on_read,
+        "readAt": m.read_at,
     })
 }
 
@@ -403,13 +423,18 @@ async fn contact_get(args: Value, state: &DaemonState) -> (String, Value) {
         ),
         _ => return method_error("invalidArguments"),
     };
+    if let Some(ref ids) = ids_opt {
+        if ids.len() > 4096 {
+            return invalid_args("too many ids");
+        }
+    }
     let id_strs: Option<Vec<&str>> = ids_opt
         .as_ref()
         .map(|v| v.iter().map(|s| s.as_str()).collect());
 
     let state_tok = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     match store.get_contacts(id_strs.as_deref()).await {
         Ok((list, not_found)) => method_ok(
@@ -421,7 +446,7 @@ async fn contact_get(args: Value, state: &DaemonState) -> (String, Value) {
                 "notFound": not_found,
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -439,7 +464,7 @@ async fn contact_changes(args: Value, state: &DaemonState) -> (String, Value) {
         .unwrap_or("0");
     let new_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     if since_state != new_state {
@@ -476,7 +501,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let old_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let mut updated: HashMap<String, Value> = HashMap::new();
@@ -571,7 +596,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // RFC 8620 §7.1: empty patch is a no-op if the object exists.
                 let (_, not_found) = match store.get_contacts(Some(&[id.as_str()])).await {
                     Ok(r) => r,
-                    Err(e) => return server_fail(&e.to_string()),
+                    Err(e) => return db_error(e),
                 };
                 if not_found.is_empty() {
                     updated.insert(id.clone(), Value::Null);
@@ -596,7 +621,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
                 Ok(false) => {
                     not_updated.insert(id.clone(), serde_json::json!({"type": "notFound"}));
                 }
-                Err(e) => return server_fail(&e.to_string()),
+                Err(e) => return db_error(e),
             }
         }
     }
@@ -614,7 +639,7 @@ async fn contact_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let new_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     method_ok(
@@ -652,11 +677,11 @@ async fn contact_query(args: Value, state: &DaemonState) -> (String, Value) {
 
     let query_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let ids = match store.query_contacts(presence, blocked).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
 
@@ -704,7 +729,7 @@ async fn contact_query_changes(args: Value, state: &DaemonState) -> (String, Val
         .unwrap_or("0");
     let new_state = match store.state_token("ChatContact").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     if since != new_state {
         // The daemon has no per-object change log.  ChatContact/query already
@@ -725,7 +750,7 @@ async fn contact_query_changes(args: Value, state: &DaemonState) -> (String, Val
         .and_then(|v| v.as_bool());
     let ids = match store.query_contacts(presence, blocked).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
     method_ok(
@@ -760,12 +785,17 @@ async fn chat_get(args: Value, state: &DaemonState) -> (String, Value) {
         ),
         _ => return method_error("invalidArguments"),
     };
+    if let Some(ref ids) = ids_opt {
+        if ids.len() > 4096 {
+            return invalid_args("too many ids");
+        }
+    }
     let id_strs: Option<Vec<&str>> = ids_opt
         .as_ref()
         .map(|v| v.iter().map(|s| s.as_str()).collect());
     let state_tok = match store.state_token("Chat").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     match store.get_chats(id_strs.as_deref()).await {
         Ok((list, not_found)) => method_ok(
@@ -777,7 +807,7 @@ async fn chat_get(args: Value, state: &DaemonState) -> (String, Value) {
                 "notFound": not_found,
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -795,17 +825,18 @@ async fn chat_changes(args: Value, state: &DaemonState) -> (String, Value) {
         .unwrap_or("0");
     let new_state = match store.state_token("Chat").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
-    let (created, updated): (Vec<String>, Vec<String>) = if since_state == new_state {
-        (vec![], vec![])
-    } else {
-        let ids = match store.get_chats(None).await {
-            Ok((list, _)) => list.iter().map(|c| c.id.clone()).collect::<Vec<String>>(),
-            Err(e) => return server_fail(&e.to_string()),
-        };
-        (ids, vec![])
-    };
+    if since_state != new_state {
+        // The daemon has no per-object change log, so it cannot enumerate
+        // which chats were created, updated, or removed since sinceState.
+        // Return cannotCalculateChanges per RFC 8620 §5.2; clients must fall
+        // back to Chat/get with ids=null to refresh their cache.
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "cannotCalculateChanges", "newState": new_state}),
+        );
+    }
     method_ok(
         "Chat/changes",
         serde_json::json!({
@@ -814,8 +845,8 @@ async fn chat_changes(args: Value, state: &DaemonState) -> (String, Value) {
             "newState": new_state,
             "hasMoreChanges": false,
             "removed": [],
-            "created": created,
-            "updated": updated,
+            "created": [],
+            "updated": [],
         }),
     )
 }
@@ -830,11 +861,11 @@ async fn chat_query(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let query_state = match store.state_token("Chat").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let (all_chats, _) = match store.get_chats(None).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     // Optional kind filter
     let kind_filter = args
@@ -934,23 +965,32 @@ async fn space_get(args: Value, state: &DaemonState) -> (String, Value) {
         ),
         _ => return method_error("invalidArguments"),
     };
+    if let Some(ref ids) = ids_opt {
+        if ids.len() > 4096 {
+            return invalid_args("too many ids");
+        }
+    }
     let id_strs: Option<Vec<&str>> = ids_opt
         .as_ref()
         .map(|v| v.iter().map(|s| s.as_str()).collect());
     let state_tok = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
-    let (spaces, not_found) = match store.get_spaces(id_strs.as_deref()).await {
+    let (spaces, not_found) = match store.get_spaces(id_strs.as_deref(), &account_id).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
+    };
+    // Fetch all member rows for every returned space in a single IN query
+    // rather than one query per space (N+1).
+    let space_id_strs: Vec<&str> = spaces.iter().map(|s| s.id.as_str()).collect();
+    let mut members_by_space = match store.get_space_members_batch(&space_id_strs).await {
+        Ok(m) => m,
+        Err(e) => return db_error(e),
     };
     let mut list = Vec::new();
     for s in &spaces {
-        let members = match store.get_space_members(&s.id).await {
-            Ok(m) => m,
-            Err(e) => return server_fail(&e.to_string()),
-        };
+        let members = members_by_space.remove(&s.id).unwrap_or_default();
         list.push(space_to_json(s, &members));
     }
     method_ok(
@@ -978,7 +1018,7 @@ async fn space_changes(args: Value, state: &DaemonState) -> (String, Value) {
         .unwrap_or("0");
     let new_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     if since != new_state {
         // The daemon has no per-object change log, so it cannot enumerate
@@ -1055,13 +1095,24 @@ fn try_parse_simple_space_prop<'a>(
             } else {
                 let result = value
                     .as_str()
-                    .map(|s| SimplePropPatch::Description(Some(s)))
                     .ok_or_else(|| {
                         serde_json::json!({
                             "type": "invalidProperties",
                             "properties": ["description"],
                             "description": "description must be a string or null"
                         })
+                    })
+                    .and_then(|s| {
+                        // nie-0j6b.10: cap description at 1024 bytes.
+                        if s.len() > 1024 {
+                            Err(serde_json::json!({
+                                "type": "invalidArguments",
+                                "properties": ["description"],
+                                "description": "description exceeds maximum length of 1024 bytes"
+                            }))
+                        } else {
+                            Ok(SimplePropPatch::Description(Some(s)))
+                        }
                     });
                 Some(result)
             }
@@ -1141,7 +1192,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let old_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let mut created = serde_json::Map::new();
@@ -1155,11 +1206,25 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Object(creates)) = args.get("create") {
         for (client_id, props) in creates {
             let name = match props.get("name").and_then(|v| v.as_str()) {
-                Some(n) => n.to_string(),
+                Some(n) => n,
                 None => {
                     not_created.insert(
                         client_id.clone(),
                         serde_json::json!({"type":"invalidProperties","properties":["name"]}),
+                    );
+                    continue;
+                }
+            };
+            let name = match canonicalize_display_name(name) {
+                Ok(n) => n,
+                Err(_) => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({
+                            "type": "invalidProperties",
+                            "properties": ["name"],
+                            "description": "display name invalid"
+                        }),
                     );
                     continue;
                 }
@@ -1171,7 +1236,21 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
             let description = match props.get("description") {
                 None | Some(Value::Null) => None,
                 Some(v) => match v.as_str() {
-                    Some(s) => Some(s.to_string()),
+                    Some(s) => {
+                        // nie-0j6b.10: cap description at 1024 bytes.
+                        if s.len() > 1024 {
+                            not_created.insert(
+                                client_id.clone(),
+                                serde_json::json!({
+                                    "type": "invalidArguments",
+                                    "properties": ["description"],
+                                    "description": "description exceeds maximum length of 1024 bytes"
+                                }),
+                            );
+                            continue;
+                        }
+                        Some(s.to_string())
+                    }
                     None => {
                         not_created.insert(
                             client_id.clone(),
@@ -1194,10 +1273,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                     created.insert(client_id.clone(), serde_json::json!({ "id": id }));
                 }
                 Err(e) => {
-                    not_created.insert(
-                        client_id.clone(),
-                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                    );
+                    not_created.insert(client_id.clone(), {
+                        tracing::error!("database error: {e}");
+                        serde_json::json!({"type":"serverFail","description":"database error"})
+                    });
                 }
             }
         }
@@ -1207,6 +1286,35 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Object(updates)) = args.get("update") {
         for (space_id, patch) in updates {
             if let Value::Object(patch_map) = patch {
+                // Single query: check existence and role atomically to avoid
+                // a TOCTOU gap between separate space_exists / get_space_member_role
+                // calls that could leak space existence via the forbidden path.
+                match store.get_space_role_if_exists(space_id, &account_id).await {
+                    Err(e) => {
+                        not_updated.insert(space_id.clone(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
+                        continue;
+                    }
+                    Ok(None) => {
+                        not_updated
+                            .insert(space_id.clone(), serde_json::json!({"type": "notFound"}));
+                        continue;
+                    }
+                    Ok(Some(None)) => {
+                        // Space exists but caller is not a member.
+                        not_updated
+                            .insert(space_id.clone(), serde_json::json!({"type": "forbidden"}));
+                        continue;
+                    }
+                    Ok(Some(Some(role))) if role != crate::store::SpaceRole::Admin => {
+                        not_updated
+                            .insert(space_id.clone(), serde_json::json!({"type": "forbidden"}));
+                        continue;
+                    }
+                    Ok(Some(Some(_))) => {} // admin — allowed
+                }
                 let mut update_err: Option<Value> = None;
                 let mut simple_ops: Vec<SimplePropPatch<'_>> = Vec::new();
                 let mut member_ops: Vec<SpaceMemberOp<'_>> = Vec::new();
@@ -1274,9 +1382,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                             update_err = Some(serde_json::json!({"type":"notFound"}));
                         }
                         Err(e) => {
+                            tracing::error!("database error: {e}");
                             update_err = Some(serde_json::json!({
                                 "type":"serverFail",
-                                "description":e.to_string()
+                                "description":"database error"
                             }));
                         }
                         Ok(true) => {}
@@ -1306,6 +1415,35 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Array(ids)) = args.get("destroy") {
         for id_val in ids {
             if let Some(id) = id_val.as_str() {
+                // Single query: check existence and role atomically to avoid
+                // a TOCTOU gap between separate space_exists / get_space_member_role
+                // calls that could leak space existence via the forbidden path.
+                match store.get_space_role_if_exists(id, &account_id).await {
+                    Err(e) => {
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
+                        continue;
+                    }
+                    Ok(None) => {
+                        not_destroyed
+                            .insert(id.to_string(), serde_json::json!({"type": "notFound"}));
+                        continue;
+                    }
+                    Ok(Some(None)) => {
+                        // Space exists but caller is not a member.
+                        not_destroyed
+                            .insert(id.to_string(), serde_json::json!({"type": "forbidden"}));
+                        continue;
+                    }
+                    Ok(Some(Some(role))) if role != crate::store::SpaceRole::Admin => {
+                        not_destroyed
+                            .insert(id.to_string(), serde_json::json!({"type": "forbidden"}));
+                        continue;
+                    }
+                    Ok(Some(Some(_))) => {} // admin — allowed
+                }
                 match store.delete_space(id).await {
                     Ok(true) => destroyed.push(Value::String(id.to_string())),
                     Ok(false) => {
@@ -1313,10 +1451,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                             .insert(id.to_string(), serde_json::json!({"type":"notFound"}));
                     }
                     Err(e) => {
-                        not_destroyed.insert(
-                            id.to_string(),
-                            serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                        );
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                     }
                 }
             }
@@ -1325,7 +1463,7 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let new_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     method_ok(
         "Space/set",
@@ -1353,11 +1491,11 @@ async fn space_query(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let query_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
-    let ids = match store.query_spaces().await {
+    let ids = match store.query_spaces(&account_id).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
     method_ok(
@@ -1387,21 +1525,25 @@ async fn space_query_changes(args: Value, state: &DaemonState) -> (String, Value
         .unwrap_or("0");
     let new_state = match store.state_token("Space").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
-    let ids = match store.query_spaces().await {
+    if since != new_state {
+        // The daemon has no per-object change log.  Space/query already
+        // advertises canCalculateChanges:false; returning cannotCalculateChanges
+        // here is the correct RFC 8620 §5.4 response when clients call anyway.
+        // Returning all IDs as `added` would be wrong — the client would treat
+        // every space as newly added on every poll after any mutation.
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "cannotCalculateChanges", "newState": new_state}),
+        );
+    }
+    // State unchanged — nothing added or removed.
+    let ids = match store.query_spaces(&account_id).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
-    let added: Vec<Value> = if since == new_state {
-        vec![]
-    } else {
-        ids.into_iter()
-            .enumerate()
-            .map(|(i, id)| serde_json::json!({ "index": i as i64, "id": id }))
-            .collect()
-    };
     method_ok(
         "Space/queryChanges",
         serde_json::json!({
@@ -1409,7 +1551,7 @@ async fn space_query_changes(args: Value, state: &DaemonState) -> (String, Value
             "oldQueryState": since,
             "newQueryState": new_state,
             "removed": [],
-            "added": added,
+            "added": [],
             "total": total,
         }),
     )
@@ -1431,16 +1573,29 @@ async fn space_join(args: Value, state: &DaemonState) -> (String, Value) {
         Some(c) => c.to_string(),
         None => return method_error("invalidArguments"),
     };
+    if code.len() > 128 {
+        return method_error("invalidArguments");
+    }
+    use crate::store::SpaceJoinOutcome;
     match store.use_space_invite_code(&code, &account_id).await {
-        Ok(Some(space_id)) => method_ok("Space/join", serde_json::json!({ "spaceId": space_id })),
-        Ok(None) => (
+        Ok(SpaceJoinOutcome::Joined(space_id)) => {
+            method_ok("Space/join", serde_json::json!({ "spaceId": space_id }))
+        }
+        Ok(SpaceJoinOutcome::AlreadyMember(_)) => (
+            "error".to_string(),
+            serde_json::json!({
+                "type": "alreadyMember",
+                "description": "already a member of this space"
+            }),
+        ),
+        Ok(SpaceJoinOutcome::NotFound) => (
             "error".to_string(),
             serde_json::json!({
                 "type": "notFound",
                 "description": "invite code not found or expired"
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -1474,14 +1629,22 @@ async fn space_invite_get(args: Value, state: &DaemonState) -> (String, Value) {
         ),
         _ => return method_error("invalidArguments"),
     };
+    if let Some(ref ids) = ids_opt {
+        if ids.len() > 4096 {
+            return invalid_args("too many ids");
+        }
+    }
     let id_strs: Option<Vec<&str>> = ids_opt
         .as_ref()
         .map(|v| v.iter().map(|s| s.as_str()).collect());
     let state_tok = match store.state_token("SpaceInvite").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
-    match store.get_space_invites(id_strs.as_deref()).await {
+    match store
+        .get_space_invites(id_strs.as_deref(), &account_id)
+        .await
+    {
         Ok((invites, not_found)) => method_ok(
             "SpaceInvite/get",
             serde_json::json!({
@@ -1491,7 +1654,7 @@ async fn space_invite_get(args: Value, state: &DaemonState) -> (String, Value) {
                 "notFound": not_found,
             }),
         ),
-        Err(e) => server_fail(&e.to_string()),
+        Err(e) => db_error(e),
     }
 }
 
@@ -1509,7 +1672,7 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
     };
     let old_state = match store.state_token("SpaceInvite").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let mut created = serde_json::Map::new();
@@ -1538,11 +1701,33 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                     continue;
                 }
             };
-            // Require the caller to be a member of the space.  Without this
-            // check, any authenticated user can create invite codes for spaces
-            // they do not belong to, granting others unauthorized membership.
-            match store.get_space_member_role(&space_id, &account_id).await {
+            // Require the caller to be a member of the space.  Use the
+            // combined existence+membership query so a nonexistent space_id
+            // returns invalidProperties (the field value is bad) rather than
+            // forbidden (which would be misleading and leak that the space does
+            // not exist via a different error code than "not a member").
+            match store.get_space_role_if_exists(&space_id, &account_id).await {
+                Err(e) => {
+                    not_created.insert(client_id.clone(), {
+                        tracing::error!("database error: {e}");
+                        serde_json::json!({"type":"serverFail","description":"database error"})
+                    });
+                    continue;
+                }
                 Ok(None) => {
+                    // Space does not exist — the supplied spaceId is invalid.
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({
+                            "type": "invalidProperties",
+                            "properties": ["spaceId"],
+                            "description": "space not found"
+                        }),
+                    );
+                    continue;
+                }
+                Ok(Some(None)) => {
+                    // Space exists but caller is not a member.
                     not_created.insert(
                         client_id.clone(),
                         serde_json::json!({
@@ -1552,20 +1737,13 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                     );
                     continue;
                 }
-                Err(e) => {
-                    not_created.insert(
-                        client_id.clone(),
-                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                    );
-                    continue;
-                }
-                Ok(Some(_)) => {} // caller is a member, proceed
+                Ok(Some(Some(_))) => {} // caller is a member, proceed
             }
             let id = crate::store::Store::new_id();
-            // Use chars [10..18] of the ULID — the random suffix (80-bit
-            // random encoded in Crockford Base32).  [..8] would be pure
+            // Use all 16 random chars [10..26] of the ULID — full Crockford
+            // Base32 random suffix (~80-bit entropy).  [..8] would be pure
             // timestamp: zero random bits and trivially enumerable.
-            let code = Ulid::new().to_string()[10..18].to_uppercase();
+            let code = Ulid::new().to_string()[10..26].to_uppercase();
             match store
                 .create_space_invite(&id, &code, &space_id, &account_id)
                 .await
@@ -1577,10 +1755,10 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                     );
                 }
                 Err(e) => {
-                    not_created.insert(
-                        client_id.clone(),
-                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                    );
+                    not_created.insert(client_id.clone(), {
+                        tracing::error!("database error: {e}");
+                        serde_json::json!({"type":"serverFail","description":"database error"})
+                    });
                 }
             }
         }
@@ -1596,21 +1774,26 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
         }
     }
 
-    // ── destroy: not supported ────────────────────────────────────────────
+    // ── destroy ───────────────────────────────────────────────────────────
+    // Members may revoke invites for spaces they belong to (RFC 8620 §5.3).
+    // Non-members and non-existent IDs both get notFound (no membership leak).
+    let mut destroyed: Vec<Value> = Vec::new();
     if let Some(Value::Array(ids)) = args.get("destroy") {
         for id_val in ids {
-            if let Some(id) = id_val.as_str() {
-                not_destroyed.insert(
-                    id.to_string(),
-                    serde_json::json!({"type":"forbidden","description":"SpaceInvite objects cannot be destroyed"}),
-                );
+            let Some(id) = id_val.as_str() else { continue };
+            match store.delete_space_invite(id, &account_id).await {
+                Ok(true) => destroyed.push(Value::String(id.to_string())),
+                Ok(false) => {
+                    not_destroyed.insert(id.to_string(), serde_json::json!({"type":"notFound"}));
+                }
+                Err(e) => return db_error(e),
             }
         }
     }
 
     let new_state = match store.state_token("SpaceInvite").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     method_ok(
         "SpaceInvite/set",
@@ -1622,7 +1805,7 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
             "notCreated": not_created,
             "updated": {},
             "notUpdated": not_updated,
-            "destroyed": [],
+            "destroyed": destroyed,
             "notDestroyed": not_destroyed,
         }),
     )
@@ -1638,30 +1821,70 @@ async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
     let Some(store) = state.store() else {
         return server_fail("store not initialized");
     };
-    let ids: Vec<String> = match args.get("ids") {
-        Some(Value::Array(arr)) => arr
-            .iter()
-            .filter_map(|v| v.as_str().map(String::from))
-            .collect(),
+    // RFC 8620 §5.1: ids=null means "return all objects".
+    let ids_opt: Option<Vec<String>> = match args.get("ids") {
+        None | Some(Value::Null) => None,
+        Some(Value::Array(arr)) => Some(
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect(),
+        ),
         _ => return method_error("invalidArguments"),
     };
-    let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+    if let Some(ref ids) = ids_opt {
+        if ids.len() > 4096 {
+            return invalid_args("too many ids");
+        }
+    }
+    let chat_id_opt: Option<String> = args
+        .get("chatId")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let state_tok = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
-    match store.get_messages(&id_strs).await {
-        Ok((list, not_found)) => method_ok(
-            "Message/get",
-            serde_json::json!({
-                "accountId": account_id,
-                "state": state_tok,
-                "list": list.iter().map(message_to_json).collect::<Vec<_>>(),
-                "notFound": not_found,
-            }),
-        ),
-        Err(e) => server_fail(&e.to_string()),
-    }
+    const MAX_GET_ALL: i64 = 256;
+    let (list, not_found) = if let Some(ref ids) = ids_opt {
+        let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+        match store.get_messages(&id_strs).await {
+            Ok(r) => r,
+            Err(e) => return db_error(e),
+        }
+    } else {
+        // ids=null: a chatId argument is required to scope the query.
+        let channel_id = match chat_id_opt.as_deref() {
+            Some(id) => id.to_string(),
+            None => {
+                return (
+                    "error".to_string(),
+                    serde_json::json!({
+                        "type": "urn:ietf:params:jmap:error:unsupportedFilter",
+                        "description": "Message/get with ids=null requires a chatId argument"
+                    }),
+                );
+            }
+        };
+        match store.query_messages(&channel_id, 0, MAX_GET_ALL).await {
+            Ok(ids) => {
+                let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
+                match store.get_messages(&id_strs).await {
+                    Ok(r) => r,
+                    Err(e) => return db_error(e),
+                }
+            }
+            Err(e) => return db_error(e),
+        }
+    };
+    method_ok(
+        "Message/get",
+        serde_json::json!({
+            "accountId": account_id,
+            "state": state_tok,
+            "list": list.iter().map(message_to_json).collect::<Vec<_>>(),
+            "notFound": not_found,
+        }),
+    )
 }
 
 async fn message_changes(args: Value, state: &DaemonState) -> (String, Value) {
@@ -1678,19 +1901,24 @@ async fn message_changes(args: Value, state: &DaemonState) -> (String, Value) {
         .unwrap_or("0");
     let new_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
-    // Simplified: if unchanged → empty; else return all message IDs as "created".
-    let created = if since_state == new_state {
-        vec![]
+    // Simplified: if unchanged → empty; else return up to 256 message IDs as "created".
+    const MAX_CHANGES: i64 = 256;
+    let (created, has_more) = if since_state == new_state {
+        (vec![], false)
     } else {
         // We don't have a cheap "all message ids" query — use default channel only.
         match state.default_channel_id() {
-            Some(chan) => match store.query_messages(chan, 0, i64::MAX).await {
-                Ok(ids) => ids,
-                Err(e) => return server_fail(&e.to_string()),
+            Some(chan) => match store.query_messages(chan, 0, MAX_CHANGES).await {
+                Ok(ids) => {
+                    let total = store.count_messages_in_chat(chan).await.unwrap_or(0);
+                    let has_more = total > MAX_CHANGES;
+                    (ids, has_more)
+                }
+                Err(e) => return db_error(e),
             },
-            None => vec![],
+            None => (vec![], false),
         }
     };
     method_ok(
@@ -1699,7 +1927,7 @@ async fn message_changes(args: Value, state: &DaemonState) -> (String, Value) {
             "accountId": account_id,
             "oldState": since_state,
             "newState": new_state,
-            "hasMoreChanges": false,
+            "hasMoreChanges": has_more,
             "removed": [],
             "created": created,
             "updated": [],
@@ -1718,7 +1946,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let old_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let mut created: HashMap<String, Value> = HashMap::new();
@@ -1750,24 +1978,147 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                     continue;
                 }
             };
+            if body.len() > 65536 {
+                not_created.insert(
+                    client_id.clone(),
+                    serde_json::json!({"type":"invalidProperties","properties":["body"],"description":"body exceeds 65536 bytes"}),
+                );
+                continue;
+            }
 
             // Optional fields
             let reply_to = props
                 .get("replyTo")
                 .and_then(|v| v.as_str())
                 .map(String::from);
+            if reply_to.as_deref().map(|s| s.len()).unwrap_or(0) > 128 {
+                not_created.insert(
+                    client_id.clone(),
+                    serde_json::json!({"type":"invalidArguments","description":"replyTo exceeds 128 bytes"}),
+                );
+                continue;
+            }
             let thread_root_id = props
                 .get("threadRootId")
                 .and_then(|v| v.as_str())
                 .map(String::from);
-            let expires_at = props
-                .get("senderExpiresAt")
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            if thread_root_id.as_deref().map(|s| s.len()).unwrap_or(0) > 128 {
+                not_created.insert(
+                    client_id.clone(),
+                    serde_json::json!({"type":"invalidArguments","description":"threadRootId exceeds 128 bytes"}),
+                );
+                continue;
+            }
+            // Normalize senderExpiresAt to SQLite datetime format so that the
+            // expires_at <= datetime('now') comparison in hard_delete_expired_messages
+            // works correctly.  RFC 3339 "T" separators compare incorrectly against
+            // SQLite's space-separated datetime() output.
+            let expires_at = match props.get("senderExpiresAt").and_then(|v| v.as_str()) {
+                None => None,
+                Some(s) => match chrono::DateTime::parse_from_rfc3339(s) {
+                    Ok(dt) => Some(dt.naive_utc().format("%Y-%m-%d %H:%M:%S").to_string()),
+                    Err(_) => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "invalidProperties",
+                                "properties": ["senderExpiresAt"],
+                                "description": "senderExpiresAt must be a valid RFC 3339 datetime"
+                            }),
+                        );
+                        continue;
+                    }
+                },
+            };
             let burn_on_read = props
                 .get("burnOnRead")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
+
+            // Verify the chat exists before inserting (RFC 8620 §5.3: a
+            // reference to a nonexistent object must produce invalidProperties,
+            // not serverFail).
+            let chat_space_id = match store.get_chats(Some(&[chat_id.as_str()])).await {
+                Err(e) => {
+                    not_created.insert(client_id.clone(), db_error(e).1);
+                    continue;
+                }
+                Ok((_, not_found)) if !not_found.is_empty() => {
+                    not_created.insert(
+                        client_id.clone(),
+                        serde_json::json!({
+                            "type": "invalidProperties",
+                            "description": "chatId does not exist",
+                            "properties": ["chatId"]
+                        }),
+                    );
+                    continue;
+                }
+                Ok((chats, _)) => chats.into_iter().next().and_then(|c| c.space_id),
+            };
+
+            // For space channels, verify the caller is a member of the space.
+            if let Some(ref space_id) = chat_space_id {
+                match store.get_space_member_role(space_id, &account_id).await {
+                    Err(e) => {
+                        not_created.insert(client_id.clone(), db_error(e).1);
+                        continue;
+                    }
+                    Ok(None) => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "forbidden",
+                                "description": "not a member of this space"
+                            }),
+                        );
+                        continue;
+                    }
+                    Ok(Some(_)) => {}
+                }
+            }
+
+            // Validate replyTo and threadRootId reference real messages in
+            // this chat.  Storing arbitrary strings would let clients fake
+            // thread structure pointing at non-existent messages.
+            if let Some(ref reply_id) = reply_to {
+                match store.message_exists_in_chat(reply_id, &chat_id).await {
+                    Err(e) => {
+                        not_created.insert(client_id.clone(), db_error(e).1);
+                        continue;
+                    }
+                    Ok(false) => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "replyTo message not found in this chat"
+                            }),
+                        );
+                        continue;
+                    }
+                    Ok(true) => {}
+                }
+            }
+            if let Some(ref root_id) = thread_root_id {
+                match store.message_exists_in_chat(root_id, &chat_id).await {
+                    Err(e) => {
+                        not_created.insert(client_id.clone(), db_error(e).1);
+                        continue;
+                    }
+                    Ok(false) => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "threadRootId message not found in this chat"
+                            }),
+                        );
+                        continue;
+                    }
+                    Ok(true) => {}
+                }
+            }
 
             // Store message locally.
             let now = chrono::Utc::now().to_rfc3339();
@@ -1785,26 +2136,42 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 .await
             {
                 Ok(id) => id,
-                Err(e) => return server_fail(&e.to_string()),
+                Err(e) => {
+                    not_created.insert(client_id.clone(), db_error(e).1);
+                    continue;
+                }
             };
 
             // Encrypt and send via relay if MLS client available.
             if let Some(mls) = state.mls_client().await {
-                let clear = ClearMessage::Chat { text: body };
+                let clear = ClearMessage::PeerDeliver {
+                    message_id: msg_id.clone(),
+                    chat_id: chat_id.clone(),
+                    body: body.clone(),
+                    body_type: "text/plain".to_string(),
+                    sent_at: now.clone(),
+                    reply_to: reply_to.clone(),
+                    thread_root_id: thread_root_id.clone(),
+                };
                 let payload_bytes = serde_json::to_vec(&clear).unwrap();
                 let encrypted = mls.lock().await.encrypt(&payload_bytes);
                 match encrypted {
-                    Ok(cipher) => {
-                        if let Some(tx) = state.relay_tx().await {
-                            let rpc = JsonRpcRequest::new(
-                                next_request_id(),
-                                rpc_methods::BROADCAST,
-                                BroadcastParams { payload: cipher },
-                            )
-                            .unwrap();
-                            let _ = tx.send(rpc).await;
+                    Ok(cipher) => match pad(&cipher) {
+                        Ok(padded) => {
+                            if let Some(tx) = state.relay_tx().await {
+                                let rpc = JsonRpcRequest::new(
+                                    next_request_id(),
+                                    rpc_methods::BROADCAST,
+                                    BroadcastParams { payload: padded },
+                                )
+                                .unwrap();
+                                let _ = tx.send(rpc).await;
+                            }
                         }
-                    }
+                        Err(e) => {
+                            tracing::warn!("Message/set: MLS payload too large to pad: {e}");
+                        }
+                    },
                     Err(e) => {
                         tracing::warn!("Message/set: MLS encrypt failed: {e}");
                         // Message stored locally — continue without relay send.
@@ -1819,7 +2186,98 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
     // ── update ──────────────────────────────────────────────────────────────
     if let Some(Value::Object(updates)) = args.get("update") {
         for (msg_id, patch) in updates {
+            // Note: no outer existence/ownership pre-check here.  Each store
+            // call in Phase 2 returns its own not-found or forbidden result.
+            // edit_message_body has an internal ownership check (EditBodyResult::Forbidden).
+            // A redundant outer check creates a TOCTOU window and was removed.
             if let Some(Value::Object(patch_map)) = Some(patch) {
+                // Phase 1: validate all patch paths and value types before
+                // writing anything to the DB.  This prevents partial-state
+                // where an early field write succeeds but a later field fails
+                // type validation, leaving the message in an inconsistent state.
+                let mut validate_err: Option<Value> = None;
+                for (path, value) in patch_map.iter() {
+                    if let Some(reaction_id) = path.strip_prefix("reactions/") {
+                        // reaction_id: max 64 chars, ASCII printable only (0x20–0x7E).
+                        if reaction_id.len() > 64
+                            || !reaction_id.bytes().all(|b| (0x20..=0x7e).contains(&b))
+                        {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "reaction_id must be 1–64 ASCII printable characters"
+                            }));
+                            break;
+                        }
+                        if !value.is_null() && !value.is_object() {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "reaction value must be null (to remove) or an object"
+                            }));
+                            break;
+                        }
+                        // When adding a reaction (value is an object), validate emoji length.
+                        if value.is_object() {
+                            if let Some(emoji_str) = value.get("emoji").and_then(|v| v.as_str()) {
+                                if emoji_str.len() > 32 {
+                                    validate_err = Some(serde_json::json!({
+                                        "type": "invalidArguments",
+                                        "description": "emoji must not exceed 32 bytes"
+                                    }));
+                                    break;
+                                }
+                            }
+                        }
+                    } else if path == "body" {
+                        if value.as_str().is_none() {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "body must be a string"
+                            }));
+                            break;
+                        }
+                    } else if path == "deletedAt" {
+                        if !value.is_string() {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "deletedAt must be a string timestamp"
+                            }));
+                            break;
+                        }
+                    } else if path == "readAt" {
+                        match value.as_str() {
+                            None => {
+                                validate_err = Some(serde_json::json!({
+                                    "type": "invalidArguments",
+                                    "description": "readAt must be a string"
+                                }));
+                                break;
+                            }
+                            Some(s) => {
+                                if chrono::DateTime::parse_from_rfc3339(s).is_err() {
+                                    validate_err = Some(serde_json::json!({
+                                        "type": "invalidArguments",
+                                        "description": "readAt must be a valid RFC 3339 timestamp"
+                                    }));
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        // nie-u966.11: JMAP spec requires unknown patch paths to
+                        // return invalidArguments rather than being silently ignored.
+                        validate_err = Some(serde_json::json!({
+                            "type": "invalidArguments",
+                            "description": format!("unknown patch path: {path}")
+                        }));
+                        break;
+                    }
+                }
+                if let Some(err) = validate_err {
+                    not_updated.insert(msg_id.clone(), err);
+                    continue;
+                }
+
+                // Phase 2: all paths validated — apply writes.
                 let mut update_err: Option<Value> = None;
                 for (path, value) in patch_map {
                     if let Some(reaction_id) = path.strip_prefix("reactions/") {
@@ -1830,15 +2288,17 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                     break;
                                 }
                                 Err(e) => {
+                                    tracing::error!("database error: {e}");
                                     update_err = Some(serde_json::json!({
                                         "type": "serverFail",
-                                        "description": e.to_string()
+                                        "description": "database error"
                                     }));
                                     break;
                                 }
                                 Ok(true) => {}
                             }
-                        } else if value.is_object() {
+                        } else {
+                            // value.is_object() — validated above
                             let emoji = value.get("emoji").and_then(|v| v.as_str()).unwrap_or("?");
                             let sent_at = value
                                 .get("sentAt")
@@ -1853,92 +2313,104 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                     break;
                                 }
                                 Err(e) => {
+                                    tracing::error!("database error: {e}");
                                     update_err = Some(serde_json::json!({
                                         "type": "serverFail",
-                                        "description": e.to_string()
+                                        "description": "database error"
                                     }));
                                     break;
                                 }
                                 Ok(true) => {}
                             }
-                        } else {
-                            // Reaction value must be null (remove) or an object (set).
-                            update_err = Some(serde_json::json!({
-                                "type": "invalidArguments",
-                                "description": "reaction value must be null (to remove) or an object"
-                            }));
-                            break;
                         }
                     } else if path == "body" {
-                        match value.as_str() {
-                            None => {
-                                update_err = Some(serde_json::json!({
-                                    "type": "invalidArguments",
-                                    "description": "body must be a string"
-                                }));
-                                break;
-                            }
-                            Some(new_body) => {
-                                match store.edit_message_body(msg_id, new_body).await {
-                                    Ok(false) => {
-                                        update_err = Some(serde_json::json!({"type":"notFound"}));
-                                        break;
-                                    }
-                                    Err(e) => {
-                                        update_err = Some(
-                                            serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                                        );
-                                        break;
-                                    }
-                                    Ok(true) => {}
-                                }
-                            }
-                        }
-                    } else if path == "deletedAt" {
-                        // null is rejected: setting deletedAt to null would
-                        // semantically mean "un-delete", which is not implemented.
-                        // Accepting null silently and soft-deleting is backwards.
-                        if value.is_string() {
-                            match store.soft_delete_message(msg_id, false).await {
-                                Ok(false) => {
-                                    update_err = Some(serde_json::json!({"type":"notFound"}));
-                                    break;
-                                }
-                                Err(e) => {
-                                    update_err = Some(
-                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                                    );
-                                    break;
-                                }
-                                Ok(true) => {}
-                            }
-                        } else {
+                        // value.as_str() is Some — validated above
+                        let new_body = value.as_str().unwrap();
+                        // nie-f0pz.12: cap body at 65536 bytes.
+                        if new_body.len() > 65536 {
                             update_err = Some(serde_json::json!({
                                 "type": "invalidArguments",
-                                "description": "deletedAt must be a string timestamp"
+                                "description": "body exceeds maximum length of 65536 bytes"
                             }));
                             break;
                         }
-                    } else if path == "readAt" {
-                        match value.as_str() {
-                            None => {
+                        match store
+                            .edit_message_body(msg_id, state.my_pub_id(), new_body)
+                            .await
+                        {
+                            Ok(EditBodyResult::NotFound) => {
+                                update_err = Some(serde_json::json!({"type":"notFound"}));
+                                break;
+                            }
+                            // nie-f0pz.13: caller is not the sender → forbidden,
+                            // not notFound, to avoid leaking message existence.
+                            Ok(EditBodyResult::Forbidden) => {
+                                update_err = Some(serde_json::json!({"type":"forbidden"}));
+                                break;
+                            }
+                            Err(e) => {
+                                update_err = Some({
+                                    tracing::error!("database error: {e}");
+                                    serde_json::json!({"type":"serverFail","description":"database error"})
+                                });
+                                break;
+                            }
+                            Ok(EditBodyResult::Updated) => {}
+                        }
+                    } else if path == "deletedAt" {
+                        // value.is_string() — validated above.
+                        // null is rejected: setting deletedAt to null would
+                        // semantically mean "un-delete", which is not implemented.
+                        //
+                        // Ownership check: only the sender may soft-delete their
+                        // own message.  Mirrors the guard in the destroy path.
+                        match store.message_sender_id(msg_id).await {
+                            Err(e) => {
+                                update_err = Some({
+                                    tracing::error!("database error: {e}");
+                                    serde_json::json!({"type":"serverFail","description":"database error"})
+                                });
+                                break;
+                            }
+                            Ok(None) => {
+                                update_err = Some(serde_json::json!({"type":"notFound"}));
+                                break;
+                            }
+                            Ok(Some(ref sender)) if sender != &account_id => {
                                 update_err = Some(serde_json::json!({
-                                    "type": "invalidArguments",
-                                    "description": "readAt must be a string"
+                                    "type": "forbidden",
+                                    "description": "not the message sender"
                                 }));
                                 break;
                             }
-                            Some(ts) => {
-                                if let Err(e) = store.read_message(msg_id, ts).await {
-                                    update_err = Some(
-                                        serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                                    );
-                                    break;
-                                }
+                            Ok(Some(_)) => {}
+                        }
+                        match store.soft_delete_message(msg_id, false).await {
+                            Ok(false) => {
+                                update_err = Some(serde_json::json!({"type":"notFound"}));
+                                break;
                             }
+                            Err(e) => {
+                                update_err = Some({
+                                    tracing::error!("database error: {e}");
+                                    serde_json::json!({"type":"serverFail","description":"database error"})
+                                });
+                                break;
+                            }
+                            Ok(true) => {}
+                        }
+                    } else if path == "readAt" {
+                        // value.as_str() is Some — validated above
+                        let ts = value.as_str().unwrap();
+                        if let Err(e) = store.read_message(msg_id, ts).await {
+                            update_err = Some({
+                                tracing::error!("database error: {e}");
+                                serde_json::json!({"type":"serverFail","description":"database error"})
+                            });
+                            break;
                         }
                     }
-                    // Unknown patch path: ignore (permissive)
+                    // All known paths handled above; unknown paths rejected in Phase 1.
                 }
                 if let Some(err) = update_err {
                     not_updated.insert(msg_id.clone(), err);
@@ -1964,6 +2436,30 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Array(ids)) = args.get("destroy") {
         for id_val in ids {
             if let Some(id) = id_val.as_str() {
+                // Fetch the message first to check existence and ownership.
+                match store.get_messages(&[id]).await {
+                    Err(e) => {
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
+                        continue;
+                    }
+                    Ok((rows, _)) => {
+                        if rows.is_empty() {
+                            not_destroyed
+                                .insert(id.to_string(), serde_json::json!({"type":"notFound"}));
+                            continue;
+                        }
+                        if rows[0].sender_id != account_id {
+                            not_destroyed.insert(
+                                id.to_string(),
+                                serde_json::json!({"type":"forbidden","description":"not the message sender"}),
+                            );
+                            continue;
+                        }
+                    }
+                }
                 match store.hard_delete_message(id).await {
                     Ok(true) => destroyed.push(Value::String(id.to_string())),
                     Ok(false) => {
@@ -1971,10 +2467,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                             .insert(id.to_string(), serde_json::json!({"type":"notFound"}));
                     }
                     Err(e) => {
-                        not_destroyed.insert(
-                            id.to_string(),
-                            serde_json::json!({"type":"serverFail","description":e.to_string()}),
-                        );
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                     }
                 }
             }
@@ -1983,7 +2479,7 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
 
     let new_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     method_ok(
@@ -2031,18 +2527,25 @@ async fn message_query(args: Value, state: &DaemonState) -> (String, Value) {
 
     let query_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     let position = args.get("position").and_then(|v| v.as_i64()).unwrap_or(0);
     let limit = args.get("limit").and_then(|v| v.as_i64()).unwrap_or(256);
+    if position < 0 {
+        return invalid_args("position must be non-negative");
+    }
+    if limit < 0 {
+        return invalid_args("limit must be non-negative");
+    }
+    let limit = limit.min(MAX_MESSAGE_QUERY_LIMIT);
     let total = match store.count_messages_in_chat(&chat_id).await {
         Ok(n) => n,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let ids = match store.query_messages(&chat_id, position, limit).await {
         Ok(v) => v,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
 
     method_ok(
@@ -2086,18 +2589,19 @@ async fn message_query_changes(args: Value, state: &DaemonState) -> (String, Val
         .unwrap_or("0");
     let new_state = match store.state_token("Message").await {
         Ok(t) => t,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
     let total = match store.count_messages_in_chat(&chat_id).await {
         Ok(n) => n,
-        Err(e) => return server_fail(&e.to_string()),
+        Err(e) => return db_error(e),
     };
+    const MAX_QUERY_CHANGES: i64 = 256;
     let added: Vec<Value> = if since == new_state {
         vec![]
     } else {
-        let ids = match store.query_messages(&chat_id, 0, i64::MAX).await {
+        let ids = match store.query_messages(&chat_id, 0, MAX_QUERY_CHANGES).await {
             Ok(v) => v,
-            Err(e) => return server_fail(&e.to_string()),
+            Err(e) => return db_error(e),
         };
         ids.iter()
             .enumerate()
@@ -2123,6 +2627,9 @@ async fn message_query_changes(args: Value, state: &DaemonState) -> (String, Val
 ///
 /// Upload raw bytes.  Returns a BlobDescriptor JSON object with the blobId.
 /// The blobId is the hex-encoded SHA-256 of the content (content-addressed).
+/// Maximum permitted upload size (RFC 8620 §6 maxSizeUpload).
+pub const UPLOAD_MAX_BYTES: usize = 25 * 1024 * 1024; // 25 MB
+
 pub async fn handle_jmap_upload(
     State(state): State<DaemonState>,
     Path(account_id): Path<String>,
@@ -2132,11 +2639,21 @@ pub async fn handle_jmap_upload(
     if account_id != state.my_pub_id() {
         return StatusCode::FORBIDDEN.into_response();
     }
-    let content_type = headers
+    if body.len() > UPLOAD_MAX_BYTES {
+        return (StatusCode::PAYLOAD_TOO_LARGE, "upload exceeds limit").into_response();
+    }
+    let content_type_raw = headers
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream")
-        .to_string();
+        .unwrap_or("application/octet-stream");
+    if content_type_raw.len() > 256 {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Content-Type header exceeds maximum length",
+        )
+            .into_response();
+    }
+    let content_type = content_type_raw.to_string();
 
     let blob_id = format!("{:x}", Sha256::digest(&body));
     let size = body.len();
@@ -2161,6 +2678,30 @@ pub async fn handle_jmap_upload(
         .into_response()
 }
 
+/// Return a safe Content-Type for a stored blob.
+///
+/// Allows `image/*`, `audio/*`, `video/*`, and `application/octet-stream`
+/// through unchanged.  Everything else — including `text/html` and
+/// `text/javascript` — is coerced to `application/octet-stream` to prevent
+/// the browser from rendering or executing the blob as active content.
+fn sanitize_blob_content_type(stored: &str) -> String {
+    let mime = stored
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    let safe = mime.starts_with("image/")
+        || mime.starts_with("audio/")
+        || mime.starts_with("video/")
+        || mime == "application/octet-stream";
+    if safe {
+        stored.to_string()
+    } else {
+        "application/octet-stream".to_string()
+    }
+}
+
 /// GET /jmap/download/:account_id/:blob_id/:name
 ///
 /// Download a blob.  The `:name` segment is ignored (used by clients as the
@@ -2177,7 +2718,15 @@ pub async fn handle_jmap_download(
     };
     match store.get_blob(&blob_id).await {
         Ok(Some((content_type, data))) => {
-            ([(header::CONTENT_TYPE, content_type)], data).into_response()
+            let safe_ct = sanitize_blob_content_type(&content_type);
+            (
+                [
+                    (header::CONTENT_TYPE, safe_ct),
+                    (header::CONTENT_DISPOSITION, "attachment".to_string()),
+                ],
+                data,
+            )
+                .into_response()
         }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => {
@@ -2195,8 +2744,6 @@ pub struct EventSourceParams {
     pub types: Option<String>,
     pub closeafter: Option<String>,
     pub ping: Option<u64>,
-    /// Browser EventSource API cannot set headers; accept token in query string.
-    pub token: Option<String>,
 }
 
 /// Carries all state across `stream::unfold` iterations for the SSE stream.
@@ -2243,7 +2790,7 @@ async fn daemon_event_to_jmap_event(
     }
 
     let changed_type: &str = match event {
-        DaemonEvent::MessageReceived { .. } => "Message",
+        DaemonEvent::MessageReceived { .. } | DaemonEvent::MessageRetracted { .. } => "Message",
         DaemonEvent::UserJoined { .. }
         | DaemonEvent::UserLeft { .. }
         | DaemonEvent::DirectoryUpdated { .. } => "ChatContact",
@@ -2273,11 +2820,14 @@ async fn daemon_event_to_jmap_event(
 /// GET /jmap/eventsource/ — RFC 8620 §7.3 Server-Sent Events push channel.
 ///
 /// Auth: `Authorization: Bearer <token>` header or `?token=<token>` query param.
+/// The `?token=` value is extracted by `redact_token_query_param` middleware
+/// (stored as a `QueryToken` extension) before the URI is redacted.
 /// Params: `types` (comma-separated data types or `*`), `closeafter` (`state`|`no`),
 ///         `ping` (keep-alive interval in seconds, 0 = disabled).
 pub async fn handle_jmap_eventsource(
     State(state): State<DaemonState>,
     headers: axum::http::HeaderMap,
+    query_token: Option<Extension<QueryToken>>,
     Query(params): Query<EventSourceParams>,
 ) -> axum::response::Response {
     let auth_ok = headers
@@ -2285,10 +2835,9 @@ pub async fn handle_jmap_eventsource(
         .and_then(|v| v.to_str().ok())
         .map(|h| validate_token_header(h, state.token()))
         .unwrap_or(false)
-        || params
-            .token
-            .as_deref()
-            .map(|t| bool::from(t.as_bytes().ct_eq(state.token().as_bytes())))
+        || query_token
+            .as_ref()
+            .map(|Extension(qt)| bool::from(qt.0.as_bytes().ct_eq(state.token().as_bytes())))
             .unwrap_or(false);
 
     if !auth_ok {
@@ -2886,7 +3435,11 @@ mod tests {
             .expect("in-memory store");
         let space_id = "01SPACE0000000000000000000";
         let channel_id = "01CHAN00000000000000000000";
-        store.create_space(space_id, "test").await.unwrap();
+        let owner_pub_id = "a".repeat(64);
+        store
+            .create_space_full(space_id, "test", None, &owner_pub_id)
+            .await
+            .unwrap();
         store
             .create_channel(channel_id, "general", space_id)
             .await
@@ -3046,6 +3599,61 @@ mod tests {
         );
     }
 
+    /// nie-ea6a.1: a user must not be able to soft-delete a message they did
+    /// not send.  The deletedAt patch must return forbidden, not updated, and
+    /// the message must remain un-deleted.
+    #[tokio::test]
+    async fn test_message_set_update_soft_delete_forbidden_for_non_sender() {
+        let state = make_store_state().await;
+        let channel_id = state.default_channel_id().unwrap().to_string();
+        let store = state.store().unwrap();
+        // Insert a message owned by a different sender ("b" * 64).
+        let other_sender = "b".repeat(64);
+        let msg_id = store
+            .insert_message(&channel_id, &other_sender, "text", "2026-04-23T00:00:00Z")
+            .await
+            .unwrap();
+
+        // The daemon's own account_id is "a" * 64 (set by make_store_state).
+        let req = JmapRequest {
+            using: vec![CAP_CHAT.to_string()],
+            method_calls: vec![MethodCall(
+                "Message/set".to_string(),
+                serde_json::json!({
+                    "accountId": "a".repeat(64),
+                    "update": {
+                        msg_id.clone(): { "deletedAt": "2026-04-23T12:00:00Z" }
+                    }
+                }),
+                "c3".to_string(),
+            )],
+        };
+        let Json(resp) = handle_jmap_request(State(state.clone()), Json(req))
+            .await
+            .unwrap();
+        let MethodResponse(method, result, _) = &resp.method_responses[0];
+        assert_eq!(method, "Message/set");
+        assert!(
+            result["updated"].as_object().unwrap().is_empty(),
+            "must not appear in updated"
+        );
+        let not_updated = result["notUpdated"].as_object().unwrap();
+        assert!(
+            not_updated.contains_key(msg_id.as_str()),
+            "must appear in notUpdated"
+        );
+        assert_eq!(
+            not_updated[msg_id.as_str()]["type"].as_str().unwrap(),
+            "forbidden"
+        );
+        // Message must remain un-deleted.
+        let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
+        assert!(
+            msgs[0].deleted_at.is_none(),
+            "message must not be soft-deleted when caller is not the sender"
+        );
+    }
+
     #[tokio::test]
     async fn test_message_set_create_with_expiry() {
         let state = make_store_state().await;
@@ -3079,7 +3687,8 @@ mod tests {
 
         // Verify expires_at was stored
         let (msgs, _) = store.get_messages(&[&msg_id]).await.unwrap();
-        assert_eq!(msgs[0].expires_at.as_deref(), Some("2026-01-01T00:00:00Z"));
+        // Stored in SQLite datetime format (normalized from RFC 3339 on write).
+        assert_eq!(msgs[0].expires_at.as_deref(), Some("2026-01-01 00:00:00"));
 
         // Run the reaper — should hard-delete this message (past expiry)
         let deleted = store.hard_delete_expired_messages().await.unwrap();

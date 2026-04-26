@@ -69,6 +69,9 @@ impl BridgeConfig {
         if self.hs_token.is_empty() {
             bail!("hs_token must not be empty");
         }
+        if self.bot_localpart.is_empty() {
+            bail!("bot_localpart must not be empty");
+        }
         Ok(())
     }
 }

@@ -17,7 +17,7 @@ use uuid::Uuid;
 use unicode_normalization::UnicodeNormalization;
 
 use crate::state::AppState;
-use crate::store::InvoiceRow;
+use crate::store::{GroupAddOutcome, InvoiceRow, SetNicknameResult};
 use nie_core::auth::{new_challenge, verify_challenge};
 use nie_core::protocol::{
     rpc_errors, rpc_methods, AuthenticateParams, AuthenticateResult, BroadcastParams,
@@ -36,6 +36,25 @@ use nie_core::protocol::{
 /// room for MLS overhead while preventing broadcast amplification DoS where
 /// one sender forces O(N × payload) allocation across all connected clients.
 const MAX_WS_MESSAGE_BYTES: usize = 1024 * 1024; // 1 MiB
+
+/// Maximum payload size for WHISPER and SEALED_WHISPER messages stored in the
+/// offline queue.  At the 1 MiB WebSocket cap, 1000 undelivered WHISPERs to
+/// one offline user would consume up to 1 GiB; this cap bounds queue growth
+/// to 64 KiB × (queue depth cap) per user.
+const MAX_WHISPER_PAYLOAD_BYTES: usize = 65536; // 64 KiB
+
+/// Maximum payload size for GROUP_SEND.  At 1 MiB WebSocket cap, a single
+/// GROUP_SEND fans out to MAX_MEMBERS_PER_GROUP=1000 recipients; this cap
+/// limits per-message amplification.
+const MAX_GROUP_PAYLOAD_BYTES: usize = 65536; // 64 KiB
+
+/// Maximum number of groups a single user may create.
+const MAX_GROUPS_CREATED_PER_USER: u64 = 100;
+
+/// Maximum byte length of a client-supplied group_id before it is passed to
+/// any DB operation.  Relay-generated IDs are UUID strings (36 bytes); this
+/// cap prevents unbounded-string injections while being 3× the valid length.
+const MAX_GROUP_ID_BYTES: usize = 128;
 
 const BIDI_CONTROLS: &[char] = &[
     '\u{202A}', '\u{202B}', '\u{202C}', '\u{202D}', '\u{202E}', '\u{2066}', '\u{2067}', '\u{2068}',
@@ -123,7 +142,7 @@ async fn handle(socket: WebSocket, state: AppState) {
     let (mut sink, mut stream) = socket.split();
 
     // --- Auth handshake ---
-    let nonce = new_challenge();
+    let nonce = new_challenge().expect("system clock is before Unix epoch");
 
     // serde_json::to_string on a derived Serialize cannot fail
     let challenge_json = serde_json::to_string(
@@ -153,11 +172,15 @@ async fn handle(socket: WebSocket, state: AppState) {
         return;
     }
 
-    // Receive the Authenticate request
-    let text = match stream.next().await {
-        Some(Ok(Message::Text(t))) => t,
-        Some(Ok(Message::Close(_))) | None => return,
-        _ => {
+    // Receive the Authenticate request.
+    // SECURITY (nie-43zd.2): apply a 30-second timeout so an attacker who opens
+    // many connections and never responds cannot hold tokio tasks + OS sockets
+    // indefinitely.
+    let text = match tokio::time::timeout(Duration::from_secs(30), stream.next()).await {
+        Ok(Some(Ok(Message::Text(t)))) => t,
+        Ok(Some(Ok(Message::Close(_)))) | Ok(None) => return,
+        Err(_timeout) => return, // timed out — close the connection silently
+        Ok(_) => {
             send_error_response(
                 &mut sink,
                 0,
@@ -253,10 +276,20 @@ async fn handle(socket: WebSocket, state: AppState) {
         pub_key_bytes.copy_from_slice(&pub_key_bytes_vec);
 
         // 3. Get current time
-        let now_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now_secs = match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+            Ok(d) => d.as_secs(),
+            Err(_) => {
+                tracing::error!("system clock is before the Unix epoch; cannot verify PoW token");
+                send_error_response(
+                    &mut sink,
+                    req.id,
+                    rpc_errors::INTERNAL_ERROR,
+                    "server clock error",
+                )
+                .await;
+                return;
+            }
+        };
 
         // 4. Verify the token
         let h16 = match nie_core::pow::verify_token(
@@ -284,41 +317,67 @@ async fn handle(socket: WebSocket, state: AppState) {
             }
         };
 
-        // 5. Replay check + lazy eviction
+        // 5. Replay check.  Eviction runs in a dedicated background task (main.rs)
+        // every 60 s so the hot enrollment path is never blocked by an O(n) DashMap
+        // retain that serializes concurrent enrollments.
+        // Hard cap: reject if the set is large between eviction passes.
+        // 1 M entries ≈ 100 MB; beyond this something is flooding us.
+        const MAX_REPLAY_ENTRIES: usize = 1_000_000;
         {
             let now_instant = std::time::Instant::now();
-            let ttl = std::time::Duration::from_secs(600);
-            // Evict expired entries
-            state
-                .inner
-                .pow_replay_set
-                .retain(|_, accepted_at| now_instant.duration_since(*accepted_at) < ttl);
-            // Check if h16 is already in the set
-            if state.inner.pow_replay_set.contains_key(&h16) {
+            // Size cap (checked before entry to avoid holding a shard lock during
+            // the length computation, which acquires all shard locks and would deadlock).
+            if state.inner.pow_replay_set.len() >= MAX_REPLAY_ENTRIES {
                 send_error_response(
                     &mut sink,
                     req.id,
                     rpc_errors::POW_REPLAYED,
-                    "PoW token replayed",
+                    "PoW replay set saturated; try again later",
                 )
                 .await;
                 return;
             }
-            // Mark as seen
-            state.inner.pow_replay_set.insert(h16, now_instant);
+            // Atomic check-and-insert: DashMap::entry() locks the shard for the
+            // entire operation, eliminating the TOCTOU between contains_key + insert.
+            use dashmap::mapref::entry::Entry;
+            match state.inner.pow_replay_set.entry(h16) {
+                Entry::Occupied(_) => {
+                    send_error_response(
+                        &mut sink,
+                        req.id,
+                        rpc_errors::POW_REPLAYED,
+                        "PoW token replayed",
+                    )
+                    .await;
+                    return;
+                }
+                Entry::Vacant(e) => {
+                    e.insert(now_instant);
+                }
+            }
         }
+    }
+    // SECURITY (nie-43zd.4): reject stale nonces before signature verification.
+    // new_challenge() embeds the issue timestamp in bytes 0–3 of the nonce; a
+    // captured nonce that is replayed after CHALLENGE_TTL_SECS is rejected here
+    // without reaching the (more expensive) Ed25519 verify step.
+    //
+    // Defense-in-depth note: since the relay generates this nonce moments
+    // before checking (TTL = 300 s, auth timeout = 30 s), this check will
+    // always pass in normal operation.  It remains valuable as a guard against
+    // large backward clock jumps (>270 s) or future changes to the nonce
+    // lifecycle that might widen the window between generation and verification.
+    if let Err(e) = nie_core::auth::nonce_is_fresh(&nonce) {
+        tracing::debug!("stale challenge nonce rejected: {e}");
+        send_error_response(&mut sink, req.id, rpc_errors::AUTH_FAILED, "auth failed").await;
+        return;
     }
     // SECURITY: PoW check precedes signature check
     let pub_id = match verify_challenge(&params.pub_key, &nonce, &params.signature) {
         Ok(id) => id,
         Err(e) => {
-            send_error_response(
-                &mut sink,
-                req.id,
-                rpc_errors::AUTH_FAILED,
-                &format!("auth failed: {e}"),
-            )
-            .await;
+            tracing::debug!("auth verification failed: {e}");
+            send_error_response(&mut sink, req.id, rpc_errors::AUTH_FAILED, "auth failed").await;
             return;
         }
     };
@@ -412,15 +471,15 @@ async fn handle(socket: WebSocket, state: AppState) {
             }
         })
         .partition(|u| state.inner.clients.contains_key(u.pub_id.as_str()));
-    // Sort online users by session connection order (lowest sequence = admin).
-    // This uses the monotonic connection_counter, not historical first_seen,
-    // so the first client to connect in the current relay session is always admin.
-    online.sort_by_key(|u| state.connection_seq(&u.pub_id));
-    // Stamp each online entry with its sequence number so clients can maintain
-    // sorted order when handling subsequent UserJoined events.
+    // Stamp each online entry with its sequence number first, then sort.
+    // Reading connection_seq() once per user (rather than once for sort and
+    // once for stamp) avoids a TOCTOU where a user disconnects between the
+    // two calls and the stamped sequence disagrees with the sort order.
     for u in &mut online {
         u.sequence = state.connection_seq(&u.pub_id);
     }
+    // Sort by the stamped sequence: lowest = earliest connected = admin.
+    online.sort_by_key(|u| u.sequence);
 
     // serde_json::to_string on a derived Serialize cannot fail
     let dir_json = serde_json::to_string(
@@ -490,7 +549,15 @@ async fn handle(socket: WebSocket, state: AppState) {
                             // Update the subscription flag before sending so the
                             // read loop can use the flag on the very next message
                             // without waiting for the socket round-trip.
-                            if json.contains(r#""method":"subscription_active""#) {
+                            // SECURITY (nie-qgag.5): parse the JSON properly rather
+                            // than a substring check — a payload embedding the literal
+                            // string "method":"subscription_active" would otherwise
+                            // grant send permission to an unsubscribed user.
+                            if serde_json::from_str::<serde_json::Value>(&json)
+                                .ok()
+                                .and_then(|v| v.get("method").and_then(|m| m.as_str()).map(|s| s == "subscription_active"))
+                                .unwrap_or(false)
+                            {
                                 subscribed_flag_write.store(true, Ordering::Relaxed);
                             }
                             // Delivery jitter: uniform 0–50 ms per-message random delay
@@ -523,21 +590,28 @@ async fn handle(socket: WebSocket, state: AppState) {
     // Drain any offline messages queued while this client was disconnected.
     // client_tx is ready (write_task is already spawned above), so messages
     // sent here will be flushed to the socket immediately.
-    let queued = match state.inner.store.drain(&pub_id.0).await {
-        Ok(msgs) => msgs,
-        Err(e) => {
-            warn!("drain failed for {pub_id}: {e}");
-            vec![]
+    // drain() returns at most 100 messages per call; loop until the queue is empty.
+    loop {
+        let batch = match state.inner.store.drain(&pub_id.0).await {
+            Ok(msgs) => msgs,
+            Err(e) => {
+                warn!("drain failed for {pub_id}: {e}");
+                break;
+            }
+        };
+        let done = batch.is_empty();
+        for msg in batch {
+            client_tx.send(msg).await.ok();
         }
-    };
-    for msg in queued {
-        client_tx.send(msg).await.ok();
+        if done {
+            break;
+        }
     }
 
-    // The device_id this connection published via PUBLISH_KEY_PACKAGE, if any.
-    // Set on successful publish; used at disconnect to remove the stale package
-    // so other devices' packages are unaffected.
-    let mut connection_device_id: Option<String> = None;
+    // All device_ids published by this connection via PUBLISH_KEY_PACKAGE.
+    // Pushed on each successful publish; all entries are cleaned up at
+    // disconnect so no stale key packages accumulate for any device.
+    let mut connection_device_ids: Vec<String> = Vec::new();
 
     // Track whether this connection has an active typing indicator outstanding.
     // If the client disconnects while typing=true, we synthesise a typing=false
@@ -584,13 +658,29 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // SECURITY: reject zero-length payload before fan-out.
+                        // An empty broadcast triggers O(N) mpsc pushes with no
+                        // useful content and causes MLS decryption failures on
+                        // every peer.  The rate limit alone is insufficient
+                        // because each zero-byte message still fans out to all
+                        // subscribers.
+                        if params.payload.is_empty() {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "payload must not be empty",
+                            )
+                            .await;
+                            continue;
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {
                             send_client_error(
                                 &client_tx,
                                 req.id,
-                                rpc_errors::NOT_AUTHENTICATED,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
                                 "an active subscription is required to send messages",
                             )
                             .await;
@@ -649,13 +739,27 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        // SECURITY: reject zero-length sealed payload before fan-out.
+                        // Same amplification risk as BROADCAST: a zero-byte sealed
+                        // message fans out to all subscribers and fails HPKE
+                        // decryption on every peer.
+                        if params.sealed.is_empty() {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "sealed payload must not be empty",
+                            )
+                            .await;
+                            continue;
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {
                             send_client_error(
                                 &client_tx,
                                 req.id,
-                                rpc_errors::NOT_AUTHENTICATED,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
                                 "an active subscription is required to send messages",
                             )
                             .await;
@@ -700,6 +804,35 @@ async fn handle(socket: WebSocket, state: AppState) {
                     }
 
                     rpc_methods::SET_NICKNAME => {
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to set a nickname",
+                            )
+                            .await;
+                            continue;
+                        }
+                        {
+                            let rate_limited = state
+                                .inner
+                                .nickname_rate_limits
+                                .get(&pub_id.0)
+                                .is_some_and(|last| last.elapsed() < Duration::from_secs(5));
+                            if rate_limited {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RATE_LIMITED,
+                                    "nickname changes are rate limited to once per 5 seconds",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
                         let params: SetNicknameParams =
                             match deserialize_params(req.params.as_ref()) {
                                 Ok(p) => p,
@@ -733,7 +866,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .try_set_nickname(&pub_id.0, &nickname)
                             .await
                         {
-                            Ok(true) => {
+                            Ok(SetNicknameResult::Set) => {
                                 // Broadcast to everyone including the sender.
                                 // serde_json::to_string on a derived Serialize cannot fail
                                 let notif = serde_json::to_string(
@@ -748,6 +881,10 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 )
                                 .unwrap();
                                 state.broadcast(None, notif).await;
+                                state
+                                    .inner
+                                    .nickname_rate_limits
+                                    .insert(pub_id.0.clone(), Instant::now());
                                 let ok = serde_json::to_string(
                                     &JsonRpcResponse::success(req.id, OkResult { ok: true })
                                         .unwrap(),
@@ -755,12 +892,30 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .unwrap();
                                 client_tx.send(ok).await.ok();
                             }
-                            Ok(false) => {
+                            Ok(SetNicknameResult::HasNickname) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::NICKNAME_ALREADY_SET,
+                                    "you already have a nickname and it cannot be changed",
+                                )
+                                .await;
+                            }
+                            Ok(SetNicknameResult::NicknameTaken) => {
                                 send_client_error(
                                     &client_tx,
                                     req.id,
                                     rpc_errors::NICKNAME_TAKEN,
-                                    "nickname already set and cannot be changed",
+                                    "nickname is already taken by another user",
+                                )
+                                .await;
+                            }
+                            Ok(SetNicknameResult::NotFound) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "user not found",
                                 )
                                 .await;
                             }
@@ -792,6 +947,35 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // SECURITY (nie-qgag.3): reject oversized key packages before
+                        // writing to the DB.  An MLS key package is typically a few
+                        // hundred bytes; 8 KiB is generous.  Without this check a
+                        // single 1 MiB WS frame persists as a ~750 KiB BLOB.
+                        const MAX_KEY_PACKAGE_BYTES: usize = 8192;
+                        if params.data.len() > MAX_KEY_PACKAGE_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "key package too large",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Validate device_id: must be exactly 64 lowercase hex characters
                         if params.device_id.len() != 64
                             || !params
@@ -811,12 +995,16 @@ async fn handle(socket: WebSocket, state: AppState) {
                         match state
                             .inner
                             .store
-                            .save_key_package(&pub_id.0, &params.device_id, &params.data)
+                            .save_key_package_capped(&pub_id.0, &params.device_id, &params.data)
                             .await
                         {
-                            Ok(()) => {
-                                // Record device_id so we can delete the package on disconnect.
-                                connection_device_id = Some(params.device_id.clone());
+                            Ok(true) => {
+                                // Track device_id so we can delete the package on disconnect.
+                                // Push rather than replace: a connection may publish multiple
+                                // device IDs; all must be cleaned up at disconnect.
+                                if !connection_device_ids.contains(&params.device_id) {
+                                    connection_device_ids.push(params.device_id.clone());
+                                }
                                 // Broadcast KeyPackageReady AFTER the write succeeds.
                                 // This creates a happens-before edge: any GetKeyPackage sent
                                 // in response to this notification is guaranteed to find the
@@ -842,8 +1030,17 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .unwrap();
                                 client_tx.send(ok).await.ok();
                             }
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RESOURCE_EXHAUSTED,
+                                    "too many key packages",
+                                )
+                                .await;
+                            }
                             Err(e) => {
-                                error!("save_key_package for {pub_id}: {e}");
+                                error!("save_key_package_capped for {pub_id}: {e}");
                                 send_client_error(
                                     &client_tx,
                                     req.id,
@@ -870,6 +1067,36 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // Validate target pub_id: must be exactly 64 lowercase hex chars.
+                        if params.pub_id.len() != 64
+                            || !params
+                                .pub_id
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "invalid pub_id",
+                            )
+                            .await;
+                            continue;
+                        }
                         let data = if let Some(did) = params.device_id {
                             // Targeted request: return only this device's package.
                             match state
@@ -941,6 +1168,42 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // Per-caller cooldown: prevent rapid key replacement.
+                        // Overwriting an HPKE key silently invalidates all sealed
+                        // messages that peers have already encrypted to the old key.
+                        // A 5-second cooldown limits unintentional or malicious churn
+                        // without blocking legitimate rotation.
+                        {
+                            let rate_limited = state
+                                .inner
+                                .hpke_key_rate_limits
+                                .get(&pub_id.0)
+                                .is_some_and(|last| last.elapsed() < Duration::from_secs(5));
+                            if rate_limited {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RATE_LIMITED,
+                                    "HPKE key updates are rate limited to once per 5 seconds",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
                         // Validate: a Curve25519 / X25519 public key is exactly 32 bytes.
                         if params.public_key.len() != 32 {
                             send_client_error(
@@ -952,6 +1215,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // Reject the all-zero key (RFC 7748 §6.1 low-order point).
+                        // An all-zero X25519 public key is a degenerate low-order
+                        // point; any DH with it yields the zero shared secret,
+                        // breaking HPKE confidentiality.
+                        if params.public_key.iter().all(|&b| b == 0) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "invalid public key",
+                            )
+                            .await;
+                            continue;
+                        }
                         match state
                             .inner
                             .store
@@ -959,6 +1236,11 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await
                         {
                             Ok(()) => {
+                                // Record timestamp for per-caller cooldown.
+                                state
+                                    .inner
+                                    .hpke_key_rate_limits
+                                    .insert(pub_id.0.clone(), Instant::now());
                                 // No broadcast: peers fetch on demand via GET_HPKE_KEY.
                                 // serde_json::to_string on a derived Serialize cannot fail
                                 let ok = serde_json::to_string(
@@ -996,6 +1278,36 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // Validate target pub_id: must be exactly 64 lowercase hex chars.
+                        if params.pub_id.len() != 64
+                            || !params
+                                .pub_id
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "invalid pub_id",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Unauthenticated lookup: no subscription check required.
                         // Any connected peer may fetch another user's HPKE public key.
                         let key_data = match state.inner.store.get_hpke_key(&params.pub_id).await {
@@ -1041,6 +1353,89 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // Validate recipient pub_id: must be exactly 64 lowercase hex chars.
+                        if params.to.len() != 64
+                            || !params
+                                .to
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "invalid recipient pub_id",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // Check subscription before the user_exists DB lookup so
+                        // unsubscribed clients are rejected without a DB round-trip.
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // SECURITY: reject oversized payloads before enqueue.
+                        // At the 1 MiB WS frame cap, unbounded enqueue calls can
+                        // fill offline_messages with gigabytes for a single user.
+                        if params.payload.len() > MAX_WHISPER_PAYLOAD_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "payload too large",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // Verify the recipient is a known enrolled user to prevent
+                        // phantom-recipient flooding of the offline_messages table.
+                        match state.inner.store.user_exists(&params.to).await {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "recipient not found",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("user_exists failed for whisper: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
                         // Route opaque bytes to one specific connected user.
                         // The relay never inspects the payload (MLS Welcome or other control msg).
                         // `from` in the outgoing WhisperDeliver is set by the relay from the
@@ -1086,6 +1481,90 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        // Validate recipient pub_id: must be exactly 64 lowercase hex chars.
+                        if params.to.len() != 64
+                            || !params
+                                .to
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "invalid recipient pub_id",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // Check subscription before consuming rate-limit quota so
+                        // unsubscribed clients cannot drain their budget with calls
+                        // that will always be rejected.
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // SECURITY: reject oversized sealed payloads before enqueue.
+                        // At the 1 MiB WS frame cap, unbounded enqueue calls can
+                        // fill offline_messages with gigabytes for a single user.
+                        if params.sealed.len() > MAX_WHISPER_PAYLOAD_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "payload too large",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // Verify the recipient is a known enrolled user to prevent
+                        // phantom-recipient flooding of the offline_messages table.
+                        match state.inner.store.user_exists(&params.to).await {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "recipient not found",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("user_exists failed for sealed_whisper: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
                         // SEALED SENDER: relay forwards opaque bytes to `to` with NO `from` field.
                         // Sender identity is hidden inside the encrypted sealed bytes.
                         // The relay never inspects params.sealed — it is opaque by construction.
@@ -1135,8 +1614,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                             send_client_error(
                                 &client_tx,
                                 req.id,
-                                rpc_errors::NOT_AUTHENTICATED,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
                                 "an active subscription is required to create groups",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
                             )
                             .await;
                             continue;
@@ -1155,37 +1648,39 @@ async fn handle(socket: WebSocket, state: AppState) {
                             }
                         };
                         let group_id = Uuid::new_v4().to_string();
-                        if let Err(e) = state
+                        match state
                             .inner
                             .store
-                            .create_group(&group_id, &pub_id.0, &name)
+                            .create_group_with_creator_capped(
+                                &group_id,
+                                &pub_id.0,
+                                &name,
+                                MAX_GROUPS_CREATED_PER_USER,
+                            )
                             .await
                         {
-                            error!("create_group for {pub_id}: {e}");
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INTERNAL_ERROR,
-                                "internal error",
-                            )
-                            .await;
-                            continue;
-                        }
-                        if let Err(e) = state
-                            .inner
-                            .store
-                            .add_group_member(&group_id, &pub_id.0)
-                            .await
-                        {
-                            error!("add_group_member (creator) for {pub_id}: {e}");
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INTERNAL_ERROR,
-                                "internal error",
-                            )
-                            .await;
-                            continue;
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RESOURCE_EXHAUSTED,
+                                    "group creation limit reached",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("create_group_with_creator_capped for {pub_id}: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
                         }
                         // serde_json::to_string on a derived Serialize cannot fail
                         let resp = serde_json::to_string(
@@ -1211,6 +1706,42 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if params.group_id.len() > MAX_GROUP_ID_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "group_id too long",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to add group members",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
 
                         // Validate member_pub_id is exactly 64 lowercase hex chars.
                         if params.member_pub_id.len() != 64
@@ -1227,6 +1758,32 @@ async fn handle(socket: WebSocket, state: AppState) {
                             )
                             .await;
                             continue;
+                        }
+
+                        // Member must be a known enrolled user.
+                        match state.inner.store.user_exists(&params.member_pub_id).await {
+                            Ok(true) => {}
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "unknown pub_id",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("user_exists failed: {e}");
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
                         }
 
                         // Group must exist.
@@ -1255,26 +1812,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                             }
                         };
 
-                        // Caller must be a member.
+                        // Atomically verify caller membership, check cap, and add new member.
+                        // All three steps run inside a single BEGIN IMMEDIATE transaction.
+                        const MAX_GROUP_MEMBERS: u64 = 100;
                         match state
                             .inner
                             .store
-                            .is_group_member(&params.group_id, &pub_id.0)
+                            .add_group_member_capped(
+                                &params.group_id,
+                                &pub_id.0,
+                                &params.member_pub_id,
+                                MAX_GROUP_MEMBERS,
+                            )
                             .await
                         {
-                            Ok(true) => {}
-                            Ok(false) => {
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::NOT_A_MEMBER,
-                                    "not a member",
-                                )
-                                .await;
-                                continue;
-                            }
                             Err(e) => {
-                                error!("is_group_member failed: {e}");
+                                error!("add_group_member_capped failed: {e}");
                                 send_client_error(
                                     &client_tx,
                                     req.id,
@@ -1284,55 +1837,61 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .await;
                                 continue;
                             }
-                        }
-
-                        // Add member (idempotent).
-                        if let Err(e) = state
-                            .inner
-                            .store
-                            .add_group_member(&params.group_id, &params.member_pub_id)
-                            .await
-                        {
-                            error!("add_group_member failed: {e}");
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INTERNAL_ERROR,
-                                "internal error",
-                            )
-                            .await;
-                            continue;
-                        }
-
-                        // Notify new member: GROUP_DELIVER with group name as payload.
-                        // `from` is relay-set from authenticated pub_id — never from params.
-                        // serde_json::to_string on a derived Serialize cannot fail
-                        let notif = serde_json::to_string(
-                            &JsonRpcNotification::new(
-                                rpc_methods::GROUP_DELIVER,
-                                GroupDeliverParams {
-                                    from: pub_id.0.clone(),
-                                    group_id: params.group_id.clone(),
-                                    payload: group_row.name.into_bytes(),
-                                },
-                            )
-                            .unwrap(),
-                        )
-                        .unwrap();
-                        let delivered = state
-                            .deliver_live(&params.member_pub_id, notif.clone())
-                            .await;
-                        if !delivered {
-                            if let Err(e) = state
-                                .inner
-                                .store
-                                .enqueue(&params.member_pub_id, &notif)
-                                .await
-                            {
-                                warn!(
-                                    "group_add notify enqueue failed for {}: {e}",
-                                    params.member_pub_id
-                                );
+                            Ok(GroupAddOutcome::CallerNotMember) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::NOT_A_MEMBER,
+                                    "not a member of this group",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Ok(GroupAddOutcome::CapExceeded) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "group has reached the maximum member limit",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Ok(GroupAddOutcome::AlreadyMember) => {
+                                // Idempotent: member already present, no notification needed.
+                            }
+                            Ok(GroupAddOutcome::Added) => {
+                                // Notify new member: GROUP_DELIVER with group name as payload.
+                                // `from` is relay-set from authenticated pub_id — never from params.
+                                // serde_json::to_string on a derived Serialize cannot fail
+                                let notif = serde_json::to_string(
+                                    &JsonRpcNotification::new(
+                                        rpc_methods::GROUP_DELIVER,
+                                        GroupDeliverParams {
+                                            from: pub_id.0.clone(),
+                                            group_id: params.group_id.clone(),
+                                            payload: group_row.name.into_bytes(),
+                                        },
+                                    )
+                                    .unwrap(),
+                                )
+                                .unwrap();
+                                let delivered = state
+                                    .deliver_live(&params.member_pub_id, notif.clone())
+                                    .await;
+                                if !delivered {
+                                    if let Err(e) = state
+                                        .inner
+                                        .store
+                                        .enqueue(&params.member_pub_id, &notif)
+                                        .await
+                                    {
+                                        warn!(
+                                            "group_add notify enqueue failed for {}: {e}",
+                                            params.member_pub_id
+                                        );
+                                    }
+                                }
                             }
                         }
 
@@ -1345,6 +1904,32 @@ async fn handle(socket: WebSocket, state: AppState) {
                     }
 
                     rpc_methods::GROUP_LIST => {
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to list groups",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         let groups = match state.inner.store.list_groups_for_user(&pub_id.0).await {
                             Ok(v) => v,
                             Err(e) => {
@@ -1359,14 +1944,25 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // Fetch all member counts in one query rather than one per group.
+                        let counts = match state.inner.store.member_counts_for_user(&pub_id.0).await
+                        {
+                            Ok(m) => m,
+                            Err(e) => {
+                                error!("member_counts_for_user DB error for {}: {e}", pub_id.0);
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
+                        };
                         let mut group_infos: Vec<GroupInfo> = Vec::with_capacity(groups.len());
                         for g in groups {
-                            let member_count = state
-                                .inner
-                                .store
-                                .member_count(&g.group_id)
-                                .await
-                                .unwrap_or(0);
+                            let member_count = counts.get(&g.group_id).copied().unwrap_or(0);
                             group_infos.push(GroupInfo {
                                 group_id: g.group_id,
                                 name: g.name,
@@ -1403,6 +1999,30 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        if params.group_id.len() > MAX_GROUP_ID_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "group_id too long",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         match state.inner.store.get_group(&params.group_id).await {
                             Ok(Some(_)) => {}
                             Ok(None) => {
@@ -1456,13 +2076,36 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         }
+                        // Fetch remaining members before removal so we can
+                        // notify them after the member has left.
+                        let remaining_before =
+                            match state.inner.store.list_group_members(&params.group_id).await {
+                                Ok(m) => m,
+                                Err(e) => {
+                                    error!(
+                                        "list_group_members before leave for {}: {e}",
+                                        params.group_id
+                                    );
+                                    send_client_error(
+                                        &client_tx,
+                                        req.id,
+                                        rpc_errors::INTERNAL_ERROR,
+                                        "internal error",
+                                    )
+                                    .await;
+                                    continue;
+                                }
+                            };
+                        // Atomically remove member and delete the group if empty.
+                        // This is a single transaction to eliminate the TOCTOU
+                        // between remove, count, and delete.
                         if let Err(e) = state
                             .inner
                             .store
-                            .remove_group_member(&params.group_id, &pub_id.0)
+                            .remove_member_and_maybe_delete_group(&params.group_id, &pub_id.0)
                             .await
                         {
-                            error!("remove_group_member for {pub_id}: {e}");
+                            error!("remove_member_and_maybe_delete_group for {pub_id}: {e}");
                             send_client_error(
                                 &client_tx,
                                 req.id,
@@ -1472,19 +2115,30 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
-                        // Delete the group when the last member leaves.
-                        let remaining = state
-                            .inner
-                            .store
-                            .member_count(&params.group_id)
-                            .await
-                            .unwrap_or(1);
-                        if remaining == 0 {
-                            if let Err(e) = state.inner.store.delete_group(&params.group_id).await {
-                                // Non-fatal: group is effectively empty; log and continue.
-                                error!("delete_group (empty) {}: {e}", params.group_id);
-                            }
-                        }
+                        // Notify remaining members that this user has left.
+                        // Remaining members are those who were in the group
+                        // before removal, excluding the departing user.
+                        // serde_json::to_string on a derived Serialize cannot fail
+                        let leave_notif = serde_json::to_string(
+                            &JsonRpcNotification::new(
+                                rpc_methods::GROUP_DELIVER,
+                                GroupDeliverParams {
+                                    from: pub_id.0.clone(),
+                                    group_id: params.group_id.clone(),
+                                    payload: Vec::new(),
+                                },
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
+                        state
+                            .broadcast_to_group(
+                                &remaining_before,
+                                Some(&pub_id.0),
+                                leave_notif,
+                                Some(&params.group_id),
+                            )
+                            .await;
                         // serde_json::to_string on a derived Serialize cannot fail
                         let ok = serde_json::to_string(
                             &JsonRpcResponse::success(req.id, OkResult { ok: true }).unwrap(),
@@ -1508,6 +2162,39 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        if params.group_id.len() > MAX_GROUP_ID_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "group_id too long",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // SECURITY: reject zero-length payload before fan-out.
+                        // An empty GROUP_SEND fans out to all group members and
+                        // causes MLS decryption failure on every peer.
+                        if params.payload.is_empty() {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "payload must not be empty",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if params.payload.len() > MAX_GROUP_PAYLOAD_BYTES {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_REQUEST,
+                                "group payload exceeds maximum size",
+                            )
+                            .await;
+                            continue;
+                        }
                         if state.inner.require_subscription
                             && !subscribed_flag.load(Ordering::Relaxed)
                         {
@@ -1533,6 +2220,34 @@ async fn handle(socket: WebSocket, state: AppState) {
                             )
                             .await;
                             continue;
+                        }
+                        // Verify the group exists before checking membership.
+                        // is_group_member returns false for both nonexistent groups
+                        // and groups where the caller is absent; checking group
+                        // existence first lets us return the correct error code.
+                        match state.inner.store.get_group(&params.group_id).await {
+                            Ok(Some(_)) => {}
+                            Ok(None) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::GROUP_NOT_FOUND,
+                                    "group not found",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("get_group for {}: {e}", params.group_id);
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
                         }
                         // Verify caller is a member of the group.
                         match state
@@ -1580,6 +2295,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 }
                             };
                         let message_id = Uuid::new_v4().to_string();
+                        let group_id = params.group_id;
                         // SECURITY: `from` is always relay-set from authenticated pub_id,
                         // never taken from client params.
                         // payload is forwarded opaque — relay must never inspect it (invariant #3).
@@ -1589,7 +2305,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 rpc_methods::GROUP_DELIVER,
                                 GroupDeliverParams {
                                     from: pub_id.0.clone(),
-                                    group_id: params.group_id,
+                                    group_id: group_id.clone(),
                                     payload: params.payload,
                                 },
                             )
@@ -1597,8 +2313,16 @@ async fn handle(socket: WebSocket, state: AppState) {
                         )
                         .unwrap();
                         // Fan out to all group members except the sender.
+                        // Pass the group_id so broadcast_to_group can re-check membership
+                        // before offline-enqueuing, preventing delivery to members who
+                        // left between the list_group_members call above and the enqueue.
                         state
-                            .broadcast_to_group(&members, Some(&pub_id.0), deliver_json)
+                            .broadcast_to_group(
+                                &members,
+                                Some(&pub_id.0),
+                                deliver_json,
+                                Some(&group_id),
+                            )
                             .await;
                         // serde_json::to_string on a derived Serialize cannot fail
                         let ok = serde_json::to_string(
@@ -1624,6 +2348,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        // Rate-limit BEFORE any allocations: prevents flooding the
+                        // diversifier counter and subscription_invoices table.
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         let merchant = match state.merchant() {
                             Some(m) => m,
                             None => {
@@ -1637,53 +2377,113 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
-                        // Allocate a fresh Sapling payment address using the relay
-                        // store's diversifier counter (the same two-step advance as
-                        // alloc_fresh_address in nie-wallet, inlined here because the
-                        // relay's Store is not a WalletStore).
-                        let address_str = match alloc_subscription_address(
-                            &merchant.dfvk,
-                            &state.inner.store,
-                            &merchant.network,
-                        )
-                        .await
-                        {
-                            Ok(a) => a,
-                            Err(e) => {
-                                error!("alloc_subscription_address failed: {e}");
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INTERNAL_ERROR,
-                                    "internal error",
-                                )
-                                .await;
-                                continue;
-                            }
-                        };
+                        // Validate duration_days BEFORE allocating a diversifier index.
+                        // Allocating first and then rejecting burns diversifier indices
+                        // with no invoice created — a client sending duration_days: 0
+                        // repeatedly would exhaust the counter.
+                        if params.duration_days == 0 {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "duration_days must be at least 1",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // Cap duration_days to the operator-configured maximum.
+                        // A u32 with no upper bound could request multi-millennium
+                        // subscriptions that overflow chrono::Duration::days().
+                        let max_days = state.inner.subscription_days;
+                        if params.duration_days as u64 > max_days {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "duration_days exceeds maximum allowed subscription length",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // params.duration_days is u32; u32::MAX (~4.3B) is far below
+                        // i64::MAX/86400 (~106T), so chrono::Duration::days() cannot
+                        // overflow here.
                         let days = params.duration_days as i64;
                         let expires_at = (chrono::Utc::now() + chrono::Duration::days(days))
                             .format("%Y-%m-%d %H:%M:%S")
                             .to_string();
                         let invoice_id = Uuid::new_v4().to_string();
-                        let invoice = InvoiceRow {
+                        // Construct the invoice row without an address; the address
+                        // is filled in by alloc_diversifier_and_create_invoice.
+                        let invoice_template = InvoiceRow {
                             invoice_id: invoice_id.clone(),
                             pub_id: pub_id.0.clone(),
-                            address: address_str.clone(),
+                            address: String::new(),
                             amount_zatoshi: state.inner.subscription_price_zatoshi,
                             expires_at: expires_at.clone(),
+                            subscription_days: Some(params.duration_days as u64),
                         };
-                        if let Err(e) = state.inner.store.create_invoice(&invoice).await {
-                            error!("create_invoice failed: {e}");
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::INTERNAL_ERROR,
-                                "internal error",
-                            )
-                            .await;
-                            continue;
-                        }
+                        // SECURITY (nie-tb8e.1 / nie-qgag.4 / nie-ozqt.3):
+                        // Atomically check the invoice cap, advance the Sapling
+                        // diversifier, and insert the invoice row in a single
+                        // BEGIN IMMEDIATE transaction.  This prevents the previous
+                        // two-step bug where the diversifier was advanced before the
+                        // invoice write: a cap hit or DB error would burn the address,
+                        // causing payments sent to it to be silently ignored.
+                        const MAX_PENDING_INVOICES: u64 = 5;
+                        let network = merchant.network;
+                        let address_str = {
+                            use zcash_address::{ToAddress, ZcashAddress};
+                            use zcash_protocol::consensus::NetworkType;
+                            let network_type = match network {
+                                nie_wallet::address::ZcashNetwork::Mainnet => NetworkType::Main,
+                                nie_wallet::address::ZcashNetwork::Testnet => NetworkType::Test,
+                            };
+                            let _guard = state.inner.subscription_alloc_lock.lock().await;
+                            match state
+                                .inner
+                                .store
+                                .alloc_diversifier_and_create_invoice(
+                                    0,
+                                    &invoice_template,
+                                    MAX_PENDING_INVOICES,
+                                    |start| {
+                                        let (actual_di, addr) =
+                                            merchant.dfvk.find_address(start)?;
+                                        let actual_u128 = u128::from(actual_di);
+                                        let addr_bytes: [u8; 43] = addr.to_bytes();
+                                        let bech32 =
+                                            ZcashAddress::from_sapling(network_type, addr_bytes)
+                                                .encode();
+                                        Ok((actual_u128, bech32))
+                                    },
+                                )
+                                .await
+                            {
+                                Ok(Some(addr)) => addr,
+                                Ok(None) => {
+                                    send_client_error(
+                                        &client_tx,
+                                        req.id,
+                                        rpc_errors::RATE_LIMITED,
+                                        "too many pending invoices; pay or wait for existing ones to expire",
+                                    )
+                                    .await;
+                                    continue;
+                                }
+                                Err(e) => {
+                                    error!("alloc_diversifier_and_create_invoice failed: {e}");
+                                    send_client_error(
+                                        &client_tx,
+                                        req.id,
+                                        rpc_errors::INTERNAL_ERROR,
+                                        "internal error",
+                                    )
+                                    .await;
+                                    continue;
+                                }
+                            }
+                        };
                         let result = SubscribeInvoiceResult {
                             invoice_id,
                             address: address_str,
@@ -1712,6 +2512,28 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // SECURITY: gate TYPING behind subscription when required.
+                        // Without this check an unsubscribed client can broadcast
+                        // presence notifications to every connected peer for free,
+                        // bypassing the subscription gate on BROADCAST/WHISPER.
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
+                        // TYPING is rate-limited even though it does not count toward
+                        // message throughput quotas (DESIGN.md: excluded from message
+                        // rate limit).  Without a rate limit, a single client sending
+                        // TYPING at wire speed forces O(N) mpsc pushes per frame across
+                        // all connected clients.  Using the same token bucket as other
+                        // handlers bounds the amplification factor.
                         if !check_rate_limit(
                             &state.inner.rate_limits,
                             &pub_id.0,
@@ -1795,13 +2617,14 @@ async fn handle(socket: WebSocket, state: AppState) {
         state.broadcast(Some(&pub_id.0), stop_notif).await;
     }
 
-    // Remove stale key package for this device so the store stays current.
-    // Only this device's package is removed; other devices' packages are unaffected.
-    if let Some(did) = connection_device_id {
+    // Remove stale key packages for all devices published by this connection.
+    // A connection may have published multiple device IDs; all must be removed
+    // so no stale packages accumulate when only the last one was previously tracked.
+    for did in &connection_device_ids {
         if let Err(e) = state
             .inner
             .store
-            .delete_device_key_package(&pub_id.0, &did)
+            .delete_device_key_package(&pub_id.0, did)
             .await
         {
             tracing::warn!("delete_device_key_package for {pub_id}/{did}: {e}");
@@ -1856,36 +2679,6 @@ fn deserialize_params<T: for<'de> serde::Deserialize<'de>>(
         Some(v) => serde_json::from_value(v.clone()),
         None => Err(serde::de::Error::custom("missing params")),
     }
-}
-
-/// Allocate a fresh Sapling payment address for subscription invoices.
-///
-/// Mirrors the two-step diversifier advance in `nie_wallet::address::alloc_fresh_address`
-/// but uses the relay store's `merchant_diversifier` table instead of a `WalletStore`,
-/// since the relay does not hold a full wallet database.
-///
-/// Returns the bech32-encoded payment address string.
-async fn alloc_subscription_address(
-    dfvk: &nie_wallet::address::SaplingDiversifiableFvk,
-    store: &crate::store::Store,
-    network: &nie_wallet::address::ZcashNetwork,
-) -> anyhow::Result<String> {
-    use zcash_address::{ToAddress, ZcashAddress};
-    use zcash_protocol::consensus::NetworkType;
-
-    let start: u128 = store.next_diversifier(0).await?;
-    let (actual_di, addr) = dfvk.find_address(start)?;
-    let actual_u128 = u128::from(actual_di);
-    if actual_u128 > start {
-        store.advance_diversifier_to(0, actual_u128 + 1).await?;
-    }
-    let network_type = match network {
-        nie_wallet::address::ZcashNetwork::Mainnet => NetworkType::Main,
-        nie_wallet::address::ZcashNetwork::Testnet => NetworkType::Test,
-    };
-    let sapling_bytes = addr.to_bytes();
-    let bech32 = ZcashAddress::from_sapling(network_type, sapling_bytes).encode();
-    Ok(bech32)
 }
 
 #[cfg(test)]

@@ -65,6 +65,15 @@ pub enum DaemonEvent {
         typing: bool,
         timestamp: String,
     },
+    MessageRetracted {
+        message_id: String,
+        from_pub_id: String,
+        for_all: bool,
+        timestamp: String,
+    },
+    EventsDropped {
+        count: u64,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -120,18 +120,27 @@ impl LightwalletdClient {
     }
 
     /// Return the height of the chain tip reported by the server.
+    ///
+    /// A 30-second timeout is applied to the RPC call.  Returns an error if
+    /// the server does not respond within that window.
     pub async fn latest_height(&mut self) -> Result<u64> {
-        let response = self
-            .inner
-            .get_latest_block(ChainSpec {})
-            .await
-            .context("GetLatestBlock RPC failed")?;
+        let response = tokio::time::timeout(
+            Duration::from_secs(30),
+            self.inner.get_latest_block(ChainSpec {}),
+        )
+        .await
+        .map_err(|_| anyhow::anyhow!("GetLatestBlock RPC timed out after 30s"))?
+        .context("GetLatestBlock RPC failed")?;
         Ok(response.into_inner().height)
     }
 
     /// Broadcast a raw Zcash transaction to the network via lightwalletd.
     ///
     /// Returns the txid as a 64-character lowercase hex string on success.
+    ///
+    /// A 30-second timeout is applied to the RPC call.  Returns
+    /// [`BroadcastError::Grpc`] with code `-1` if the server does not respond
+    /// within that window.
     ///
     /// # Errors
     ///
@@ -154,17 +163,22 @@ impl LightwalletdClient {
         // by the node anyway, but we catch it here so callers get a clear error.
         validate_raw_tx(raw_tx)?;
 
-        let response = self
-            .inner
-            .send_transaction(lwd::RawTransaction {
+        let response = tokio::time::timeout(
+            Duration::from_secs(30),
+            self.inner.send_transaction(lwd::RawTransaction {
                 data: raw_tx.to_vec(),
                 height: 0,
-            })
-            .await
-            .map_err(|status| BroadcastError::Grpc {
-                code: status.code() as i32,
-                message: status.message().to_owned(),
-            })?;
+            }),
+        )
+        .await
+        .map_err(|_| BroadcastError::Grpc {
+            code: -1,
+            message: "send_transaction RPC timed out after 30s".to_owned(),
+        })?
+        .map_err(|status| BroadcastError::Grpc {
+            code: status.code() as i32,
+            message: status.message().to_owned(),
+        })?;
 
         parse_send_response(response.into_inner())
     }
@@ -179,7 +193,7 @@ impl LightwalletdClient {
         start: u64,
         end: u64,
     ) -> Result<tonic::Streaming<CompactBlock>> {
-        assert!(
+        anyhow::ensure!(
             start <= end,
             "get_block_range: start ({start}) must be <= end ({end})"
         );

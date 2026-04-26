@@ -18,6 +18,7 @@
 use anyhow::Result;
 use orchard::keys::{FullViewingKey, Scope, SpendingKey};
 use orchard::Address;
+use zeroize::Zeroizing;
 use zip32::{AccountId, DiversifierIndex};
 
 /// Zcash network for ZIP-32 coin-type selection.
@@ -31,7 +32,10 @@ pub use crate::address::ZcashNetwork;
 /// Wraps the account-level spending key at path m/32'/coin_type'/account'.
 /// Never implements `Debug` — spending key material must not appear in
 /// tracing output.  See CLAUDE.md §Wallet Security.
-pub struct OrchardSpendingKey(SpendingKey);
+///
+/// The key bytes are stored in a `Zeroizing` wrapper and overwritten on drop.
+/// The `SpendingKey` is reconstructed from the bytes on each method call.
+pub struct OrchardSpendingKey(Zeroizing<[u8; 32]>);
 
 /// Orchard full viewing key.
 ///
@@ -42,6 +46,16 @@ pub struct OrchardSpendingKey(SpendingKey);
 pub struct OrchardFullViewingKey(FullViewingKey);
 
 impl OrchardSpendingKey {
+    /// Reconstruct the inner `SpendingKey` from the stored bytes.
+    ///
+    /// The bytes were written by `SpendingKey::to_bytes()` in the constructor and
+    /// are guaranteed to be a valid, non-zero key, so this is infallible by construction.
+    fn sk(&self) -> SpendingKey {
+        SpendingKey::from_bytes(*self.0)
+            .into_option()
+            .expect("OrchardSpendingKey bytes are always a valid SpendingKey")
+    }
+
     /// Derive the Orchard account spending key from a BIP-39 seed at the
     /// ZIP-32 path m/32'/coin_type'/account'.
     ///
@@ -53,24 +67,25 @@ impl OrchardSpendingKey {
             .map_err(|_| anyhow::anyhow!("account index {account} out of range for AccountId"))?;
         let sk = SpendingKey::from_zip32_seed(seed, network.coin_type(), account_id)
             .map_err(|e| anyhow::anyhow!("Orchard ZIP-32 derivation failed: {e:?}"))?;
-        Ok(Self(sk))
+        Ok(Self(Zeroizing::new(*sk.to_bytes())))
     }
 
     /// Get the raw 32-byte spending key.
     ///
     /// Never log this value.
-    pub fn to_bytes(&self) -> &[u8; 32] {
-        self.0.to_bytes()
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn to_bytes(&self) -> &[u8; 32] {
+        &self.0
     }
 
     /// Derive the full viewing key.
     pub fn to_fvk(&self) -> OrchardFullViewingKey {
-        OrchardFullViewingKey(FullViewingKey::from(&self.0))
+        OrchardFullViewingKey(FullViewingKey::from(&self.sk()))
     }
 
     /// Return the default Orchard payment address (diversifier index 0, external scope).
     pub fn default_address(&self) -> (DiversifierIndex, Address) {
-        let fvk = FullViewingKey::from(&self.0);
+        let fvk = FullViewingKey::from(&self.sk());
         let di = DiversifierIndex::from(0u32);
         let addr = fvk.address_at(di, Scope::External);
         (di, addr)

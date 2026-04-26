@@ -3,6 +3,7 @@ use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use nie_core::identity::Identity;
 use std::fs;
+use std::io::Write as _;
 use std::path::Path;
 
 // ---------------------------------------------------------------------------
@@ -16,7 +17,7 @@ use std::path::Path;
 /// never log it.
 pub fn generate_identity() -> String {
     let identity = Identity::generate();
-    B64.encode(identity.to_secret_bytes_64())
+    B64.encode(*identity.to_secret_bytes_64())
 }
 
 /// Derive the public ID from a base64-encoded 64-byte secret.
@@ -30,7 +31,7 @@ pub fn pub_id_from_secret(secret_b64: String) -> Result<String> {
     let arr: [u8; 64] = bytes
         .try_into()
         .map_err(|_| anyhow!("keyfile corrupt: expected 64 bytes"))?;
-    let identity = Identity::from_secret_bytes(&arr);
+    let identity = Identity::from_secret_bytes(&arr)?;
     Ok(identity.pub_id().0)
 }
 
@@ -47,6 +48,11 @@ pub fn pub_id_from_secret(secret_b64: String) -> Result<String> {
 /// This function creates any missing parent directories.
 /// Overwrites any existing file at `path`.
 /// `secret_b64` must be a valid base64-encoded 64-byte secret.
+///
+/// # Security note
+/// On Unix, the file is created with mode 0o600 (owner read/write only),
+/// regardless of the process umask.  On Android, the app sandbox (`filesDir`)
+/// provides an additional layer of isolation.
 pub fn save_identity_to_file(path: String, secret_b64: String) -> Result<()> {
     let bytes = B64
         .decode(&secret_b64)
@@ -58,7 +64,35 @@ pub fn save_identity_to_file(path: String, secret_b64: String) -> Result<()> {
     if let Some(parent) = p.parent() {
         fs::create_dir_all(parent).map_err(|e| anyhow!("create_dir_all({parent:?}): {e}"))?;
     }
-    fs::write(p, &bytes).map_err(|e| anyhow!("write identity file {path:?}: {e}"))
+    let tmp = p.with_extension("tmp");
+    // Remove any stale tmp file from a previous interrupted write so that
+    // create_new(true) below does not fail unexpectedly.
+    let _ = fs::remove_file(&tmp);
+    {
+        #[cfg(unix)]
+        let mut file = {
+            use std::fs::OpenOptions;
+            use std::os::unix::fs::OpenOptionsExt as _;
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&tmp)
+                .map_err(|e| anyhow!("create identity tmp file {path:?}: {e}"))?
+        };
+        #[cfg(not(unix))]
+        let mut file = {
+            use std::fs::OpenOptions;
+            OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&tmp)
+                .map_err(|e| anyhow!("create identity tmp file {path:?}: {e}"))?
+        };
+        file.write_all(&bytes)
+            .map_err(|e| anyhow!("write identity tmp file {path:?}: {e}"))?;
+    }
+    fs::rename(&tmp, p).map_err(|e| anyhow!("rename identity tmp file {path:?}: {e}"))
 }
 
 /// Load the identity secret from a file at `path`.
@@ -68,10 +102,11 @@ pub fn save_identity_to_file(path: String, secret_b64: String) -> Result<()> {
 /// Returns `Err` if the file exists but is malformed.
 pub fn load_identity_from_file(path: String) -> Result<Option<String>> {
     let p = Path::new(&path);
-    if !p.exists() {
-        return Ok(None);
-    }
-    let bytes = fs::read(p).map_err(|e| anyhow!("read identity file {path:?}: {e}"))?;
+    let bytes = match fs::read(p) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(anyhow!("read identity file {path:?}: {e}")),
+    };
     if bytes.len() != 64 {
         return Err(anyhow!(
             "identity file at {path:?} is {len} bytes, expected 64",
@@ -164,6 +199,26 @@ mod tests {
         assert!(
             std::path::Path::new(&path).exists(),
             "identity file must exist after save"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn save_identity_file_is_mode_0600() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir
+            .path()
+            .join("identity.bin")
+            .to_string_lossy()
+            .to_string();
+        let secret = generate_identity();
+        save_identity_to_file(path.clone(), secret).expect("save must succeed");
+        let meta = std::fs::metadata(&path).expect("metadata must be readable");
+        let mode = meta.permissions().mode() & 0o777;
+        assert_eq!(
+            mode, 0o600,
+            "identity file must be mode 0600, got {mode:#o}"
         );
     }
 }

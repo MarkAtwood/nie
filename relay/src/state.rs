@@ -6,7 +6,7 @@ use rand::rngs::OsRng;
 use rand::RngCore;
 
 use dashmap::DashMap;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 
 use nie_core::identity::PubId;
 use nie_wallet::address::{SaplingDiversifiableFvk, ZcashNetwork};
@@ -58,6 +58,15 @@ pub struct Inner {
     /// Per-pub_id broadcast rate limit counters: (message_count, window_start).
     /// Key: pub_id. Value: (count in current window, when window started).
     pub rate_limits: dashmap::DashMap<String, (u32, Instant)>,
+    /// Per-pub_id SET_NICKNAME rate limit: records when the identity last changed
+    /// its nickname, enforcing the 5-second cooldown across all connections from
+    /// the same pub_id.  Keyed by pub_id string.
+    pub nickname_rate_limits: dashmap::DashMap<String, Instant>,
+    /// Per-pub_id PUBLISH_HPKE_KEY rate limit: records when the identity last
+    /// published an HPKE key, enforcing a 5-second cooldown.  Prevents a caller
+    /// from rapidly overwriting their own key (which would silently discard any
+    /// sealed messages in flight encrypted to the previous key).
+    pub hpke_key_rate_limits: dashmap::DashMap<String, Instant>,
     /// Max broadcasts per 60-second window per pub_id. 0 = unlimited.
     pub rate_limit_per_min: u32,
     /// Random 32-byte salt generated at startup.  Never persisted, never logged.
@@ -73,6 +82,15 @@ pub struct Inner {
     /// `LocalBus` (default) is a no-op for single-process deployments.
     /// Swap for `RedisBus` to enable multi-instance delivery.
     pub bus: MessageBus,
+    /// Serializes subscription address allocation across concurrent requests.
+    ///
+    /// `alloc_subscription_address` does next_diversifier → find_address →
+    /// advance_diversifier_to.  Two concurrent callers can receive the same
+    /// `start` value from `next_diversifier` if `find_address` on either side
+    /// skips ahead past the other's starting point, producing a duplicate
+    /// Sapling address.  This mutex prevents that race by making the whole
+    /// sequence atomic within a single process.
+    pub subscription_alloc_lock: Mutex<()>,
 }
 
 impl AppState {
@@ -96,6 +114,8 @@ impl AppState {
                 subscription_days,
                 merchant: OnceLock::new(),
                 rate_limits: dashmap::DashMap::new(),
+                nickname_rate_limits: dashmap::DashMap::new(),
+                hpke_key_rate_limits: dashmap::DashMap::new(),
                 rate_limit_per_min,
                 pow_server_salt: {
                     let mut salt = [0u8; 32];
@@ -105,6 +125,7 @@ impl AppState {
                 pow_difficulty: AtomicU8::new(0),
                 pow_replay_set: dashmap::DashMap::new(),
                 bus: MessageBus::local(),
+                subscription_alloc_lock: Mutex::new(()),
             }),
         })
     }
@@ -153,6 +174,8 @@ impl AppState {
         if remove_key {
             self.inner.clients.remove(&pub_id.0);
             self.inner.rate_limits.remove(&pub_id.0);
+            self.inner.nickname_rate_limits.remove(&pub_id.0);
+            self.inner.hpke_key_rate_limits.remove(&pub_id.0);
         }
     }
 
@@ -188,10 +211,27 @@ impl AppState {
     /// For each member in `members` (excluding `exclude`):
     /// - Attempts live delivery via all of the client's sender channels.
     /// - If ANY channel for a pub_id succeeds, that pub_id is marked delivered.
-    /// - If the client is offline (no channels succeed), enqueues via `store.enqueue()`.
+    /// - If the client is offline (no channels succeed), enqueues via `store.enqueue()`
+    ///   only if the member is still in the group (checked atomically per recipient
+    ///   to prevent delivery after departure when a member leaves between the caller's
+    ///   list-fetch and this enqueue).
+    ///
+    /// `group_id` is used for the departure check.  Pass `None` to skip the check
+    /// (e.g. for non-group fan-outs).
     ///
     /// Never holds the DashMap lock across an await point.
-    pub async fn broadcast_to_group(&self, members: &[String], exclude: Option<&str>, msg: String) {
+    pub async fn broadcast_to_group(
+        &self,
+        members: &[String],
+        exclude: Option<&str>,
+        msg: String,
+        group_id: Option<&str>,
+    ) {
+        // O(1) membership test: convert the member list to a HashSet once before
+        // iterating over all connected clients.  Without this, `contains` is O(M)
+        // per client, giving O(N*M) total work at 10K clients and 100 members.
+        let members_set: std::collections::HashSet<&str> =
+            members.iter().map(String::as_str).collect();
         // Collect live channels without holding the lock across awaits.
         let channels: Vec<(String, ClientTx)> = self
             .inner
@@ -199,7 +239,7 @@ impl AppState {
             .iter()
             .flat_map(|entry| {
                 let pub_id = entry.key().clone();
-                if members.contains(&pub_id) && exclude.is_none_or(|ex| pub_id != ex) {
+                if members_set.contains(pub_id.as_str()) && exclude.is_none_or(|ex| pub_id != ex) {
                     entry
                         .value()
                         .iter()
@@ -212,16 +252,97 @@ impl AppState {
             .collect();
 
         // Drive live deliveries; track which pub_ids had at least one success.
+        //
+        // GUARD SYMMETRY: both this live-delivery loop and the offline-enqueue
+        // loop below re-check group membership (via is_group_member) when
+        // group_id is Some.  The two checks are intentionally symmetric so that
+        // a member who departs between the caller's list_group_members fetch and
+        // this fan-out receives neither a live message nor an offline-queued one.
+        // Any future third delivery path added here MUST include the same guard.
+        //
+        // We memoize the per-pub_id check result so that multiple connections
+        // for the same pub_id only hit the DB once.
+        let mut membership_cache: std::collections::HashMap<String, bool> =
+            std::collections::HashMap::new();
         let mut delivered: std::collections::HashSet<String> = std::collections::HashSet::new();
         for (pub_id, tx) in channels {
+            if let Some(gid) = group_id {
+                // Memoize: look up or query membership once per pub_id.
+                let is_member = if let Some(&cached) = membership_cache.get(&pub_id) {
+                    cached
+                } else {
+                    let result = match self.inner.store.is_group_member(gid, &pub_id).await {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::warn!(
+                                "broadcast_to_group: live membership check failed for {pub_id}: {e}"
+                            );
+                            false
+                        }
+                    };
+                    membership_cache.insert(pub_id.clone(), result);
+                    result
+                };
+                if !is_member {
+                    continue;
+                }
+            }
             if tx.send(msg.clone()).await.is_ok() {
                 delivered.insert(pub_id);
             }
         }
 
-        // Enqueue for offline members.
+        // Enqueue for offline members, with a membership re-check when a group_id
+        // is provided to avoid delivering to members who left after the caller
+        // fetched the member list.
         for member in members {
             if exclude.is_none_or(|ex| member != ex) && !delivered.contains(member) {
+                // Re-verify membership if a group_id was provided.
+                // Reuse the membership_cache built in the live loop to avoid a
+                // redundant DB query for members who had live connections (nie-qmwv.9).
+                if let Some(gid) = group_id {
+                    let is_member = if let Some(&cached) = membership_cache.get(member) {
+                        cached
+                    } else {
+                        let result = match self.inner.store.is_group_member(gid, member).await {
+                            Ok(v) => v,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "broadcast_to_group: is_group_member check failed for {member}: {e}"
+                                );
+                                false
+                            }
+                        };
+                        membership_cache.insert(member.to_string(), result);
+                        result
+                    };
+                    if !is_member {
+                        continue; // departed between list-fetch and enqueue
+                    }
+                }
+                // SECURITY (nie-qgag.13): do not accumulate offline messages for
+                // recipients without an active subscription when the relay enforces
+                // subscriptions.  An unsubscribed user cannot retrieve queued
+                // messages (they are rejected at auth), so enqueuing wastes storage
+                // and can be abused to fill the offline queue without limit.
+                if self.inner.require_subscription {
+                    match self.inner.store.subscription_expiry(member).await {
+                        Ok(Some(_)) => {} // active subscription — proceed
+                        Ok(None) => {
+                            tracing::debug!(
+                                "broadcast_to_group: skipping offline enqueue for \
+                                 unsubscribed recipient {member}"
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "broadcast_to_group: subscription check failed for {member}: {e}"
+                            );
+                            continue;
+                        }
+                    }
+                }
                 if let Err(e) = self.inner.store.enqueue(member, &msg).await {
                     tracing::warn!("broadcast_to_group: enqueue failed for {member}: {e}");
                 }
@@ -235,11 +356,19 @@ impl AppState {
     }
 
     /// Set the PoW difficulty.  0 = disabled; 20 = default.
-    /// Capped at 30 to prevent impossible challenges.
+    /// Capped at MAX_DIFFICULTY (30) to prevent impossible challenges.
     pub fn set_pow_difficulty(&self, d: u8) {
+        use nie_core::pow::MAX_DIFFICULTY;
+        if d > MAX_DIFFICULTY {
+            tracing::warn!(
+                "POW_DIFFICULTY {} exceeds MAX_DIFFICULTY {MAX_DIFFICULTY}, \
+                 clamping to {MAX_DIFFICULTY}",
+                d
+            );
+        }
         self.inner
             .pow_difficulty
-            .store(d.min(30), Ordering::Relaxed);
+            .store(d.min(MAX_DIFFICULTY), Ordering::Relaxed);
     }
 
     /// Return a reference to the server PoW salt.

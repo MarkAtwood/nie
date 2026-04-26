@@ -20,7 +20,7 @@ use wasm_bindgen_futures::future_to_promise;
 #[wasm_bindgen]
 pub fn generate_identity() -> String {
     let identity = Identity::generate();
-    B64.encode(identity.to_secret_bytes_64())
+    B64.encode(*identity.to_secret_bytes_64())
 }
 
 /// Derive the public ID from a base64-encoded 64-byte secret.
@@ -35,7 +35,8 @@ pub fn pub_id_from_secret(secret_b64: &str) -> Result<String, JsValue> {
     let arr: [u8; 64] = bytes
         .try_into()
         .map_err(|_| JsValue::from_str("keyfile corrupt: expected 64 bytes"))?;
-    let identity = Identity::from_secret_bytes(&arr);
+    let identity =
+        Identity::from_secret_bytes(&arr).map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(identity.pub_id().0)
 }
 
@@ -151,7 +152,15 @@ impl NieClient {
             let arr: [u8; 64] = bytes
                 .try_into()
                 .map_err(|_| JsValue::from_str("keyfile corrupt: expected 64 bytes"))?;
-            let identity = Identity::from_secret_bytes(&arr);
+            let identity =
+                Identity::from_secret_bytes(&arr).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+            // Close any existing connection before opening a new one.
+            // This prevents the relay from seeing two concurrent authenticated
+            // sessions for the same identity.
+            if let Some(existing) = inner.borrow().as_ref() {
+                existing.close();
+            }
 
             let client = crate::client::NieRelayClient::connect(&relay_url, identity)
                 .await
@@ -244,10 +253,15 @@ impl NieClient {
             None => return JsValue::NULL,
         };
         let users = client.online_users();
-        // serde_json::to_string on a Vec<UserInfo> with derived Serialize cannot fail
-        let json_str = serde_json::to_string(&users).unwrap();
+        let json_str = serde_json::to_string(&users).unwrap_or_else(|_| "[]".to_string());
         // js_sys::JSON::parse converts a JSON string into a native JS value.
-        js_sys::JSON::parse(&json_str).unwrap_or(JsValue::NULL)
+        // Return the JS error as a string rather than silently returning null,
+        // so callers can detect and diagnose parse failures.
+        js_sys::JSON::parse(&json_str).unwrap_or_else(|e| {
+            let msg = format!("online_users: JSON parse error: {e:?}");
+            web_sys::console::warn_1(&JsValue::from_str(&msg));
+            JsValue::from_str(&msg)
+        })
     }
 
     /// The caller's pub_id (64 lowercase hex chars).

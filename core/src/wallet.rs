@@ -17,12 +17,13 @@
 /// with the --network CLI flag before any key material is accessed.
 use anyhow::Result;
 use bip39::{Language, Mnemonic};
+use zeroize::Zeroizing;
 
 /// The 64-byte ZIP-32 Sapling master key.
 ///
 /// Never implement `Debug` — spending_key is key material that must never appear in
 /// tracing output.  See CLAUDE.md §Key material handling.
-#[derive(Clone)]
+#[derive(zeroize::ZeroizeOnDrop)]
 pub struct WalletMasterKey {
     /// ZIP-32 master spending key (I[0..32])
     spending_key: [u8; 32],
@@ -89,7 +90,7 @@ impl WalletMasterKey {
 /// - `seed` is the 64-byte BIP-39 seed (PBKDF2 output); this is what callers
 ///   must persist and pass to `SaplingExtendedSpendingKey::from_seed` /
 ///   `OrchardSpendingKey::from_seed` to derive payment keys.
-pub fn generate_wallet() -> Result<(Vec<String>, WalletMasterKey, [u8; 64])> {
+pub fn generate_wallet() -> Result<(Vec<String>, WalletMasterKey, Zeroizing<[u8; 64]>)> {
     use rand::RngCore;
     // 32 bytes of entropy → 256-bit security → 24-word BIP-39 mnemonic.
     let mut entropy = [0u8; 32];
@@ -99,7 +100,7 @@ pub fn generate_wallet() -> Result<(Vec<String>, WalletMasterKey, [u8; 64])> {
     // The passphrase slot is intentionally empty — ZIP-32 key hardening provides
     // equivalent protection, and a user-chosen passphrase would be a second secret
     // to manage without adding unlinkability benefit.
-    let seed: [u8; 64] = mnemonic.to_seed("");
+    let seed: Zeroizing<[u8; 64]> = Zeroizing::new(mnemonic.to_seed(""));
     let master = WalletMasterKey::from_seed(&seed);
     // Split via to_string() to avoid depending on a specific word-iterator API.
     let words: Vec<String> = mnemonic.to_string().split(' ').map(str::to_owned).collect();
@@ -111,10 +112,10 @@ pub fn generate_wallet() -> Result<(Vec<String>, WalletMasterKey, [u8; 64])> {
 /// `phrase` is the space-separated word list (24 words for 256-bit entropy).
 /// Returns `(master_key, seed)` where `seed` is the 64-byte BIP-39 seed that
 /// callers must persist in `wallet.key`.
-pub fn restore_wallet(phrase: &str) -> Result<(WalletMasterKey, [u8; 64])> {
+pub fn restore_wallet(phrase: &str) -> Result<(WalletMasterKey, Zeroizing<[u8; 64]>)> {
     let mnemonic = Mnemonic::parse_in_normalized(Language::English, phrase)
         .map_err(|e| anyhow::anyhow!("invalid mnemonic: {e}"))?;
-    let seed: [u8; 64] = mnemonic.to_seed("");
+    let seed: Zeroizing<[u8; 64]> = Zeroizing::new(mnemonic.to_seed(""));
     Ok((WalletMasterKey::from_seed(&seed), seed))
 }
 
@@ -185,7 +186,7 @@ mod tests {
         assert_eq!(seed, seed2);
         // The key must be non-zero (all-zeros would indicate a degenerate derivation).
         assert_ne!(key.as_bytes(), [0u8; 64]);
-        assert_ne!(seed, [0u8; 64]);
+        assert_ne!(*seed, [0u8; 64]);
     }
 
     /// Invalid mnemonic is rejected with an error.

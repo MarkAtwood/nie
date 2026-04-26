@@ -5,7 +5,12 @@ use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use futures::channel::oneshot;
 use js_sys::Function;
-use nie_core::{auth, identity::Identity, messages::ClearMessage, protocol::UserInfo};
+use nie_core::{
+    auth,
+    identity::Identity,
+    messages::{pad, unpad, ClearMessage},
+    protocol::{UserInfo, MAX_USERS_IN_DIRECTORY},
+};
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
@@ -48,10 +53,12 @@ impl NieRelayClient {
             .await
             .map_err(|_| "WebSocket open channel dropped".to_string())??;
 
-        // 3. Install a temporary notify callback that extracts the challenge nonce.
+        // 3. Install a temporary notify callback that extracts the challenge params.
         //    The relay sends a "challenge" notification immediately after the
-        //    TCP+WS handshake.  We capture the nonce via a oneshot channel.
-        let (challenge_tx, challenge_rx) = oneshot::channel::<Result<String, String>>();
+        //    TCP+WS handshake.  We capture nonce, difficulty, and server_salt.
+        //    Type: (nonce, difficulty, server_salt_b64_opt)
+        type ChallengeFields = (String, u8, Option<String>);
+        let (challenge_tx, challenge_rx) = oneshot::channel::<Result<ChallengeFields, String>>();
         let challenge_tx_cell = Rc::new(RefCell::new(Some(challenge_tx)));
         let challenge_tx_for_cb = Rc::clone(&challenge_tx_cell);
 
@@ -61,27 +68,96 @@ impl NieRelayClient {
             if v["method"].as_str() == Some("challenge") {
                 if let Some(nonce) = v["params"]["nonce"].as_str() {
                     if let Some(tx) = challenge_tx_for_cb.borrow_mut().take() {
+                        let difficulty = v["params"]["difficulty"].as_u64().unwrap_or(0) as u8;
+                        let server_salt =
+                            v["params"]["server_salt"].as_str().map(|s| s.to_string());
                         // Ignore send error — receiver already gone.
-                        let _ = tx.send(Ok(nonce.to_string()));
+                        let _ = tx.send(Ok((nonce.to_string(), difficulty, server_salt)));
                     }
                 }
             }
         }));
 
-        // 4. Await the challenge nonce.
-        let nonce = challenge_rx
-            .await
-            .map_err(|_| "challenge channel dropped before nonce arrived".to_string())??;
+        // 4. Await the challenge with a 10-second timeout (nie-jedt.3).
+        //    Without a timeout, a misbehaving relay causes the connect() Promise to
+        //    hang indefinitely.  We implement the timeout via a browser setTimeout
+        //    that fires into a second oneshot channel; futures::select races the two.
+        const CHALLENGE_TIMEOUT_MS: i32 = 10_000;
+        let (timeout_tx, timeout_rx) = oneshot::channel::<()>();
+        {
+            let timeout_tx_cell = RefCell::new(Some(timeout_tx));
+            let cb = wasm_bindgen::closure::Closure::once(move || {
+                if let Some(tx) = timeout_tx_cell.borrow_mut().take() {
+                    let _ = tx.send(());
+                }
+            });
+            web_sys::window()
+                .ok_or("connect: no browser window")?
+                .set_timeout_with_callback_and_timeout_and_arguments_0(
+                    cb.as_ref().unchecked_ref::<js_sys::Function>(),
+                    CHALLENGE_TIMEOUT_MS,
+                )
+                .map_err(|e| format!("connect: set_timeout failed: {e:?}"))?;
+            cb.forget(); // JS holds the reference; safe to forget for a one-shot timer
+        }
+        use futures::future::Either;
+        let (nonce, pow_difficulty, server_salt_b64) =
+            match futures::future::select(challenge_rx, timeout_rx).await {
+                Either::Left((result, _)) => result
+                    .map_err(|_| "challenge channel dropped before nonce arrived".to_string())??,
+                Either::Right((_, _)) => {
+                    return Err(format!(
+                        "timed out waiting for relay challenge after {}s",
+                        CHALLENGE_TIMEOUT_MS / 1000
+                    ));
+                }
+            };
 
         // Clear the challenge callback — the Rust closure is dropped by replacing it
         // with a no-op.  No JS lifetime ordering is required.
         transport.set_notify_callback(Box::new(|_| {}));
 
-        // 5. Sign the nonce with our Ed25519 identity.
+        // 5. Mine a PoW token if the relay requires it (difficulty > 0).
+        //    WASM is single-threaded so we mine synchronously (no spawn_blocking).
+        //    Typical difficulty (20–30 leading zero bits) takes <1 s.
+        let pow_token: Option<String> = if pow_difficulty == 0 {
+            None
+        } else {
+            let server_salt_str = server_salt_b64
+                .ok_or_else(|| "relay requires PoW but sent no server_salt".to_string())?;
+            let salt_bytes = B64
+                .decode(&server_salt_str)
+                .map_err(|e| format!("invalid server_salt base64: {e}"))?;
+            if salt_bytes.len() != 32 {
+                return Err(format!(
+                    "server_salt must be 32 bytes, got {}",
+                    salt_bytes.len()
+                ));
+            }
+            let mut server_salt = [0u8; 32];
+            server_salt.copy_from_slice(&salt_bytes);
+            let max = nie_core::pow::MAX_DIFFICULTY;
+            if pow_difficulty > max {
+                return Err(format!(
+                    "relay PoW difficulty {pow_difficulty} exceeds max {max}; rejecting"
+                ));
+            }
+            let pub_key_bytes: [u8; 32] = identity.verifying_key().to_bytes();
+            // ts_floor: minutes since Unix epoch, via js_sys::Date (no std::time in WASM).
+            let ts_floor = (js_sys::Date::now() / (60.0 * 1000.0)) as u32;
+            Some(nie_core::pow::mine_token(
+                &pub_key_bytes,
+                &server_salt,
+                pow_difficulty,
+                ts_floor,
+            ))
+        };
+
+        // 6. Sign the nonce with our Ed25519 identity.
         //    sign_challenge signs nonce.as_bytes() (raw UTF-8) — never encode first.
         let (pub_key_b64, sig_b64) = auth::sign_challenge(&identity, &nonce);
 
-        // 6. Send the "authenticate" request.
+        // 7. Send the "authenticate" request.
         let auth_result = transport
             .send_request(
                 "authenticate",
@@ -89,6 +165,7 @@ impl NieRelayClient {
                     "pub_key": pub_key_b64,
                     "nonce": nonce,
                     "signature": sig_b64,
+                    "pow_token": pow_token,
                 }),
             )
             .await?;
@@ -122,6 +199,7 @@ impl NieRelayClient {
     /// Replaces any previously registered callback.
     pub fn set_event_callback(&mut self, js_cb: Function) {
         let online_users = Rc::clone(&self.online_users);
+        let own_pub_id = self.identity.pub_id().0.clone();
 
         // Transport now delivers the already-parsed Value — no second JSON parse.
         let notify_cb = Box::new(move |v: Value| {
@@ -133,6 +211,9 @@ impl NieRelayClient {
             let event: Value = match method {
                 "deliver" => {
                     let from = v["params"]["from"].as_str().unwrap_or("").to_string();
+                    if from == own_pub_id {
+                        return; // skip own broadcast echo
+                    }
                     let payload_b64 = v["params"]["payload"].as_str().unwrap_or("");
                     let text = decode_payload_text(payload_b64);
                     serde_json::json!({
@@ -155,15 +236,25 @@ impl NieRelayClient {
                     // Update our online list from the authoritative snapshot.
                     // The relay sends this sorted ascending by sequence — online[0]
                     // is the MLS group admin candidate.
-                    if let Ok(users) =
+                    //
+                    // Cap each array at MAX_USERS_IN_DIRECTORY before storing or
+                    // forwarding to JS.  A rogue relay could otherwise send an
+                    // unbounded array and OOM the browser tab, since this path
+                    // does not go through DirectoryListParams's custom Deserialize.
+                    if let Ok(mut users) =
                         serde_json::from_value::<Vec<UserInfo>>(v["params"]["online"].clone())
                     {
+                        users.truncate(MAX_USERS_IN_DIRECTORY);
                         *online_users.borrow_mut() = users;
                     }
+                    // Build capped slices for the JS event so the event itself
+                    // is also bounded regardless of what the relay sent.
+                    let online_capped = cap_array(&v["params"]["online"], MAX_USERS_IN_DIRECTORY);
+                    let offline_capped = cap_array(&v["params"]["offline"], MAX_USERS_IN_DIRECTORY);
                     serde_json::json!({
                         "type": "directory_updated",
-                        "online": v["params"]["online"],
-                        "offline": v["params"]["offline"],
+                        "online": online_capped,
+                        "offline": offline_capped,
                     })
                 }
                 "user_joined" => {
@@ -184,6 +275,7 @@ impl NieRelayClient {
                     let mut users = online_users.borrow_mut();
                     let pos = users.partition_point(|u| u.sequence < sequence);
                     users.insert(pos, new_user);
+                    users.truncate(MAX_USERS_IN_DIRECTORY);
                     serde_json::json!({
                         "type": "user_joined",
                         "pub_id": pub_id,
@@ -230,20 +322,25 @@ impl NieRelayClient {
                 }
             };
 
-            // serde_json::to_string on a Value from serde_json::json! cannot fail
-            let event_str = serde_json::to_string(&event).unwrap();
+            // serde_json::to_string on a serde_json::Value is infallible.
+            let event_str =
+                serde_json::to_string(&event).expect("serde_json::Value serializes infallibly");
             // Parse the JSON string into a native JS object so JS receives an
             // object directly rather than a string (nie-7bv6.4).
+            // If parse fails, skip this event rather than delivering null/undefined
+            // to the callback, which would look like a valid (but empty) event.
             let event_jsval = match js_sys::JSON::parse(&event_str) {
                 Ok(obj) => obj,
                 Err(_) => {
                     web_sys::console::warn_1(&JsValue::from_str(
-                        "nie-wasm: failed to convert event to JS object",
+                        "nie-wasm: failed to convert event to JS object; skipping",
                     ));
-                    JsValue::NULL
+                    return;
                 }
             };
-            let _ = js_cb.call1(&JsValue::NULL, &event_jsval);
+            if let Err(err) = js_cb.call1(&JsValue::NULL, &event_jsval) {
+                web_sys::console::error_1(&err);
+            }
         });
 
         self.transport.set_notify_callback(notify_cb);
@@ -259,7 +356,7 @@ impl NieRelayClient {
             .transport
             .send_request(
                 "broadcast",
-                serde_json::json!({ "payload": build_payload(text) }),
+                serde_json::json!({ "payload": build_payload(text)? }),
             )
             .await?;
 
@@ -278,7 +375,7 @@ impl NieRelayClient {
             .transport
             .send_request(
                 "whisper",
-                serde_json::json!({ "to": to, "payload": build_payload(text) }),
+                serde_json::json!({ "to": to, "payload": build_payload(text)? }),
             )
             .await?;
 
@@ -320,18 +417,20 @@ impl NieRelayClient {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/// Serialize `text` as a `ClearMessage::Chat` and base64-encode the result.
+/// Serialize `text` as a `ClearMessage::Chat`, pad for traffic-analysis resistance,
+/// and base64-encode the result.
 ///
 /// This is the MLS insertion point: when MLS lands, replace the plaintext
 /// `serde_json::to_vec` with an MLS encrypt call. The base64 encoding and
 /// `"payload"` key in the JSON-RPC params stay the same.
-fn build_payload(text: &str) -> String {
+fn build_payload(text: &str) -> Result<String, String> {
     let msg = ClearMessage::Chat {
         text: text.to_string(),
     };
-    // serde_json::to_vec on a derived Serialize cannot fail
-    let payload_bytes = serde_json::to_vec(&msg).unwrap();
-    B64.encode(payload_bytes)
+    // ClearMessage::Chat is a derived Serialize with a single String field — infallible.
+    let payload_bytes = serde_json::to_vec(&msg).expect("ClearMessage::Chat serializes infallibly");
+    let padded = pad(&payload_bytes).map_err(|e| e.to_string())?;
+    Ok(B64.encode(padded))
 }
 
 /// Decode a base64-encoded payload string into a human-readable text.
@@ -348,11 +447,29 @@ fn decode_payload_text(payload_b64: &str) -> String {
         Err(_) => return "(invalid base64 payload)".to_string(),
     };
 
+    let plaintext = match unpad(&bytes) {
+        Ok(p) => p,
+        Err(_) => return "(invalid padded payload)".to_string(),
+    };
+
     // Attempt to parse as ClearMessage::Chat.
-    if let Ok(ClearMessage::Chat { text }) = serde_json::from_slice::<ClearMessage>(&bytes) {
+    if let Ok(ClearMessage::Chat { text }) = serde_json::from_slice::<ClearMessage>(&plaintext) {
         return text;
     }
 
     // Fall back to raw UTF-8 if it isn't a Chat variant (e.g. Payment, Ack).
-    String::from_utf8(bytes).unwrap_or_else(|_| "(binary payload)".to_string())
+    String::from_utf8(plaintext).unwrap_or_else(|_| "(binary payload)".to_string())
+}
+
+/// Return a `serde_json::Value` that is `v` capped to at most `max` elements.
+///
+/// If `v` is a JSON array, returns a new array containing only the first `max`
+/// entries.  If `v` is not an array (or is null/missing), returns it unchanged.
+/// Used to bound directory_list arrays before forwarding to JS so that a rogue
+/// relay cannot OOM the browser tab by sending an unbounded array.
+fn cap_array(v: &Value, max: usize) -> Value {
+    match v.as_array() {
+        Some(arr) if arr.len() > max => Value::Array(arr[..max].to_vec()),
+        _ => v.clone(),
+    }
 }

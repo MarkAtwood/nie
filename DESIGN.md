@@ -27,7 +27,8 @@ nie/
 ├── daemon/     nie-daemon (bin): HTTP API + WebSocket event server
 ├── bot/        nie-bot (bin): headless scripting client
 ├── wallet/     nie-wallet (rlib): Zcash Sapling wallet, lightwalletd client
-└── wasm/       nie-wasm (cdylib): browser WebAssembly client
+├── wasm/       nie-wasm (cdylib): browser WebAssembly client
+└── nie-monero/ nie-monero (rlib): Monero subaddress derivation and wallet helpers
 ```
 
 ### nie-core modules
@@ -104,17 +105,18 @@ tracing::debug!("identity loaded: {:?}", identity);
 tracing::debug!("identity loaded: {}", identity.pub_id());
 ```
 
-Keyfile on disk is raw 32 bytes, no encoding, no header. `load_identity()`
-must validate `bytes.len() == 32` before constructing.
+Keyfile on disk is raw 64 bytes (32-byte Ed25519 seed + 32-byte HPKE seed),
+no encoding, no header. `load_identity()` must validate `bytes.len() == 64`
+before constructing.
 
 ```rust
 // WRONG
-let bytes: [u8; 32] = std::fs::read(keyfile)?.try_into().unwrap();
+let bytes: [u8; 64] = std::fs::read(keyfile)?.try_into().unwrap();
 
 // CORRECT
-let bytes: [u8; 32] = std::fs::read(keyfile)?
+let bytes: [u8; 64] = std::fs::read(keyfile)?
     .try_into()
-    .map_err(|_| anyhow::anyhow!("keyfile corrupt: expected 32 bytes"))?;
+    .map_err(|_| anyhow::anyhow!("keyfile corrupt: expected 64 bytes"))?;
 ```
 
 The relay `AppState` / `Inner` / `MerchantWallet` structs intentionally do **not**

@@ -56,11 +56,15 @@ async fn start_test_daemon() -> TestDaemon {
             token::require_token,
         ));
 
-    let app = Router::new()
-        .route("/health", get(|| async { "ok" }))
+    let browser_auth_routes = Router::new()
         .route("/ws/events", get(ws_events::handle_ws_events))
         .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
+        .route_layer(middleware::from_fn(token::redact_token_query_param));
+
+    let app = Router::new()
+        .route("/health", get(|| async { "ok" }))
         .route("/", get(web::handle_index))
+        .merge(browser_auth_routes)
         .merge(api_router)
         .with_state(state);
 
@@ -396,8 +400,12 @@ async fn test_ws_receives_broadcast_event() {
             token::require_token,
         ));
 
-    let app = Router::new()
+    let browser_auth_routes = Router::new()
         .route("/ws/events", get(ws_events::handle_ws_events))
+        .route_layer(middleware::from_fn(token::redact_token_query_param));
+
+    let app = Router::new()
+        .merge(browser_auth_routes)
         .merge(api_router)
         .with_state(state.clone());
 
@@ -620,14 +628,14 @@ async fn test_eventsource_query_token_accepted() {
 async fn test_blob_upload_and_download_roundtrip() {
     let d = start_test_daemon_with_store().await;
     let content = b"hello blob world";
-    let content_type = "text/plain";
 
-    // Upload
+    // Upload with text/plain — must be coerced to application/octet-stream on
+    // download to prevent XSS (browser must not render it as HTML/script).
     let upload_url = format!("http://{}/jmap/upload/{}", d.addr, d.pub_id);
     let res = http_client()
         .post(&upload_url)
         .header("Authorization", format!("Bearer {}", d.token))
-        .header("Content-Type", content_type)
+        .header("Content-Type", "text/plain")
         .body(content.as_slice())
         .send()
         .await
@@ -638,10 +646,10 @@ async fn test_blob_upload_and_download_roundtrip() {
         .as_str()
         .expect("blobId in response")
         .to_string();
-    assert_eq!(body["type"].as_str().unwrap(), content_type);
+    assert_eq!(body["type"].as_str().unwrap(), "text/plain");
     assert_eq!(body["size"].as_u64().unwrap(), content.len() as u64);
 
-    // Download
+    // Download — text/plain must be sanitized to application/octet-stream.
     let download_url = format!(
         "http://{}/jmap/download/{}/{}/hello.txt",
         d.addr, d.pub_id, blob_id
@@ -658,12 +666,49 @@ async fn test_blob_upload_and_download_roundtrip() {
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    assert!(
-        ct.starts_with(content_type),
-        "content-type must match: {ct}"
+    assert_eq!(
+        ct, "application/octet-stream",
+        "text/plain must be coerced to application/octet-stream; got: {ct}"
     );
+    let cd = res
+        .headers()
+        .get("content-disposition")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert_eq!(cd, "attachment", "content-disposition must be attachment");
     let bytes = res.bytes().await.unwrap();
     assert_eq!(bytes.as_ref(), content);
+
+    // Upload with image/png — must pass through unchanged.
+    let img_content = b"\x89PNG\r\n";
+    let res = http_client()
+        .post(&upload_url)
+        .header("Authorization", format!("Bearer {}", d.token))
+        .header("Content-Type", "image/png")
+        .body(img_content.as_slice())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 201, "image upload must return 201");
+    let body: serde_json::Value = res.json().await.unwrap();
+    let img_blob_id = body["blobId"].as_str().expect("blobId").to_string();
+    let download_url2 = format!(
+        "http://{}/jmap/download/{}/{}/img.png",
+        d.addr, d.pub_id, img_blob_id
+    );
+    let res = http_client()
+        .get(&download_url2)
+        .header("Authorization", format!("Bearer {}", d.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 200);
+    let ct2 = res
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert_eq!(ct2, "image/png", "image/png must pass through unchanged");
 }
 
 #[tokio::test]

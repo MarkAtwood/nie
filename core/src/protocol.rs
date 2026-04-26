@@ -74,7 +74,13 @@ pub mod rpc_errors {
     pub const AUTH_FAILED: i32 = -32001;
     pub const NOT_AUTHENTICATED: i32 = -32002;
     pub const SPOOFED_SENDER: i32 = -32003;
+    /// Another user already holds this nickname.
     pub const NICKNAME_TAKEN: i32 = -32004;
+    /// This user already has a nickname set; nicknames are immutable once assigned.
+    pub const NICKNAME_ALREADY_SET: i32 = -32005;
+    /// Per-user resource quota exceeded (e.g. too many key packages).
+    /// Stable wire contract; value must never change.
+    pub const RESOURCE_EXHAUSTED: i32 = -32008;
     pub const SUBSCRIPTION_REQUIRED: i32 = -32010;
     pub const GROUP_NOT_FOUND: i32 = -32011;
     pub const NOT_A_MEMBER: i32 = -32012;
@@ -379,10 +385,59 @@ pub struct UserNicknameParams {
     pub nickname: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Maximum number of [`UserInfo`] entries in each of the `online` and `offline`
+/// fields of a single [`DirectoryListParams`] message.
+///
+/// Each field is capped individually, so the combined total cannot exceed
+/// 2 × MAX_USERS_IN_DIRECTORY.  Capping per-field (not combined) is the
+/// important property: it bounds allocation before the full deserialization
+/// of the second vec completes.
+///
+/// Size invariant (must be kept consistent with `max_message_size` in
+/// `core/src/transport.rs`):
+///   MAX_USERS_IN_DIRECTORY × max_UserInfo_wire_bytes + protocol overhead
+///   ≤ max_message_size
+/// At ~130 bytes/UserInfo and two fields: 10_000 × 130 × 2 ≈ 2.6 MiB.
+/// The WebSocket cap is set to 4 MiB, which gives headroom and blocks abuse.
+///
+/// 10 000 covers realistic relay deployments.
+pub const MAX_USERS_IN_DIRECTORY: usize = 10_000;
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DirectoryListParams {
     pub online: Vec<UserInfo>,
     pub offline: Vec<UserInfo>,
+}
+
+impl<'de> serde::Deserialize<'de> for DirectoryListParams {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Deserialize into a temporary struct with plain Vecs, then enforce the
+        // per-field cap.  Checking each field individually means a rogue relay
+        // cannot force 2× the intended allocation by filling both vecs to the
+        // combined limit before the check fires.
+        #[derive(serde::Deserialize)]
+        struct Raw {
+            online: Vec<UserInfo>,
+            offline: Vec<UserInfo>,
+        }
+        let raw = Raw::deserialize(deserializer)?;
+        if raw.online.len() > MAX_USERS_IN_DIRECTORY {
+            return Err(serde::de::Error::custom(format!(
+                "directory_list.online contains {} entries, exceeding the per-field cap of {MAX_USERS_IN_DIRECTORY}",
+                raw.online.len()
+            )));
+        }
+        if raw.offline.len() > MAX_USERS_IN_DIRECTORY {
+            return Err(serde::de::Error::custom(format!(
+                "directory_list.offline contains {} entries, exceeding the per-field cap of {MAX_USERS_IN_DIRECTORY}",
+                raw.offline.len()
+            )));
+        }
+        Ok(DirectoryListParams {
+            online: raw.online,
+            offline: raw.offline,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

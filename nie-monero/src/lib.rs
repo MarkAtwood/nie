@@ -25,6 +25,7 @@ use nie_core::messages::Chain;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Which Monero network to use.
 ///
@@ -55,15 +56,21 @@ impl From<MoneroNetwork> for Network {
 /// scalars.  Both are sensitive — store them encrypted and never log them.
 /// This type intentionally does NOT implement `Debug` to prevent accidental
 /// logging of key material.
-#[derive(Clone, Serialize, Deserialize)]
+///
+/// `Serialize`/`Deserialize` are retained because the CLI persists and loads
+/// keys as JSON on disk (`~/.config/nie/monero-keys.json`).  Callers are
+/// responsible for storing that file with restrictive permissions.
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct MoneroKeys {
     /// 32-byte spend key scalar (secret — never log).
     pub spend_key_bytes: [u8; 32],
     /// 32-byte view key scalar (secret).
     pub view_key_bytes: [u8; 32],
     /// Primary address for this wallet (public — safe to share).
+    #[zeroize(skip)]
     pub primary_address: String,
     /// Network these keys belong to.
+    #[zeroize(skip)]
     pub network: MoneroNetwork,
 }
 
@@ -122,14 +129,24 @@ impl MoneroKeys {
 
     /// Generate a unique receive address for a nie payment session.
     ///
-    /// The session_id UUID maps to a subaddress minor index via its first 4
-    /// bytes interpreted as a little-endian u32, masked to 31 bits to stay
-    /// well within the valid range.  Major index is always 0.
+    /// XOR-folds all 16 UUID bytes into four byte lanes to produce a u32
+    /// minor subaddress index.  Using the full 16 bytes raises the
+    /// birthday-collision threshold to √(2^32) ≈ 65,536 sessions (vs.
+    /// √(2^31) ≈ 46,341 with the original 4-byte / 31-bit scheme).
+    /// Monero accepts u32 minor indices across the full 0–0xFFFF_FFFF range.
     ///
-    /// Returns the same address for the same session_id (deterministic).
+    /// Major index is always 0.  Returns the same address for the same
+    /// session_id (deterministic).
     pub fn address_for_session(&self, session_id: Uuid) -> Result<String> {
         let b = session_id.as_bytes();
-        let minor = u32::from_le_bytes([b[0], b[1], b[2], b[3]]) & 0x7FFF_FFFF;
+        // XOR-fold all 16 bytes into four lanes so the full UUID entropy
+        // contributes to the minor index rather than only bytes 0–3.
+        let minor = u32::from_le_bytes([
+            b[0] ^ b[4] ^ b[8] ^ b[12],
+            b[1] ^ b[5] ^ b[9] ^ b[13],
+            b[2] ^ b[6] ^ b[10] ^ b[14],
+            b[3] ^ b[7] ^ b[11] ^ b[15],
+        ]);
         self.subaddress(0, minor)
     }
 

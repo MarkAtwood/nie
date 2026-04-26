@@ -24,47 +24,10 @@ use nie_core::messages::{pad, unpad, ClearMessage};
 use nie_core::protocol::{rpc_methods, BroadcastParams, DeliverParams, JsonRpcRequest};
 use nie_core::transport::{next_request_id, ClientEvent};
 use serde_json::Value;
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::config::BridgeConfig;
 use crate::slack::{verify_slack_signature, SlackClient, SlackEvent};
-
-/// Bounded set of recently-seen Slack timestamps used to prevent echo loops.
-///
-/// When we post a message to Slack, Slack echoes it back via the Events API.
-/// We suppress those echoes by recording the outgoing message text and ignoring
-/// incoming events whose text matches a recently-sent one.  The deque is bounded
-/// to 1000 entries so memory use is constant regardless of message volume.
-struct SentTexts {
-    texts: VecDeque<String>,
-    set: std::collections::HashSet<String>,
-}
-
-impl SentTexts {
-    fn new() -> Self {
-        Self {
-            texts: VecDeque::new(),
-            set: std::collections::HashSet::new(),
-        }
-    }
-
-    fn insert(&mut self, text: String) {
-        const MAX: usize = 1000;
-        if self.texts.len() >= MAX {
-            if let Some(old) = self.texts.pop_front() {
-                self.set.remove(&old);
-            }
-        }
-        self.set.insert(text.clone());
-        self.texts.push_back(text);
-    }
-
-    #[allow(dead_code)]
-    fn contains(&self, text: &str) -> bool {
-        self.set.contains(text)
-    }
-}
 
 /// Format a nie message for display in Slack.
 ///
@@ -87,6 +50,7 @@ pub fn format_for_nie(slack_user: &str, text: &str) -> String {
 #[derive(Clone)]
 struct SlackState {
     signing_secret: String,
+    slack_channel_id: String,
     tx: tokio::sync::mpsc::Sender<String>,
 }
 
@@ -126,11 +90,35 @@ async fn slack_events(
     // Handle message events.
     if envelope.event_type == "event_callback" {
         if let Some(inner) = envelope.event {
-            if let Some(text) = inner.text_body() {
+            // Filter: only forward messages from the configured channel.
+            if inner.channel.as_deref() != Some(state.slack_channel_id.as_str()) {
+                tracing::debug!(
+                    channel = ?inner.channel,
+                    "Slack event from unconfigured channel; skipped"
+                );
+                return Ok(Json(serde_json::json!({})));
+            }
+            if let Some(raw_text) = inner.text_body() {
                 let user = inner.user.as_deref().unwrap_or("unknown");
+                // Cap incoming Slack text to prevent the MLS-padded payload
+                // from exceeding the relay's WebSocket frame size limit.
+                const MAX_SLACK_TEXT: usize = 8192;
+                let text = if raw_text.len() > MAX_SLACK_TEXT {
+                    let mut end = MAX_SLACK_TEXT;
+                    while end > 0 && !raw_text.is_char_boundary(end) {
+                        end -= 1;
+                    }
+                    &raw_text[..end]
+                } else {
+                    raw_text
+                };
                 let nie_text = format_for_nie(user, text);
-                // Fire-and-forget: if the channel is full, drop the message rather than block.
-                let _ = state.tx.try_send(nie_text);
+                // Return 200 only after the message is in the channel.
+                // If send fails (channel closed), return 500 so Slack retries.
+                if state.tx.send(nie_text).await.is_err() {
+                    tracing::warn!("Slack→nie channel closed; returning 500 for retry");
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
             }
         }
     }
@@ -146,7 +134,6 @@ async fn handle_nie_deliver(
     slack: &SlackClient,
     channel_id: &str,
     bridge_prefix: Option<&str>,
-    sent_texts: &Arc<Mutex<SentTexts>>,
 ) {
     let Some(params) = params else { return };
     let Ok(deliver) = serde_json::from_value::<DeliverParams>(params) else {
@@ -164,9 +151,10 @@ async fn handle_nie_deliver(
     let ClearMessage::Chat { text } = clear else {
         return;
     };
+    // Echo suppression: the Slack bot token causes outbound messages to arrive
+    // back as bot_message events; `is_bot_message()` in SlackInnerEvent filters
+    // those before they reach this handler.
     let formatted = format_for_slack(&deliver.from, &text, bridge_prefix);
-    // Record this text so the Slack echo is suppressed.
-    sent_texts.lock().unwrap().insert(formatted.clone());
     if let Err(e) = slack.post_message(channel_id, &formatted).await {
         tracing::warn!("Slack post_message failed: {e}");
     }
@@ -187,7 +175,6 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
     let channel_id = config.slack_channel_id.clone();
     let bridge_prefix = config.bridge_prefix.clone();
     let listen_port = config.listen_port;
-    let sent_texts: Arc<Mutex<SentTexts>> = Arc::new(Mutex::new(SentTexts::new()));
 
     // Channel: Slack events → nie broadcast.
     let (slack_tx, mut slack_rx) = tokio::sync::mpsc::channel::<String>(64);
@@ -196,13 +183,23 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
     {
         let state = SlackState {
             signing_secret: config.slack_signing_secret.clone(),
+            slack_channel_id: config.slack_channel_id.clone(),
             tx: slack_tx,
         };
         let app = axum::Router::new()
             .route("/slack/events", axum::routing::post(slack_events))
+            .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
+        let local_addr = listener.local_addr()?;
         tracing::info!("Slack events server listening on port {listen_port}");
+        if !local_addr.ip().is_loopback() {
+            tracing::warn!(
+                "Slack events server listening on {} without TLS — \
+                 ensure Slack webhook requests arrive via a TLS reverse proxy",
+                local_addr
+            );
+        }
         tokio::spawn(async move {
             axum::serve(listener, app).await.ok();
         });
@@ -215,7 +212,9 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
         tokio::select! {
             // Slack message → nie broadcast.
             maybe_text = slack_rx.recv() => {
-                let Some(text) = maybe_text else { break };
+                let Some(text) = maybe_text else {
+                    anyhow::bail!("Slack event channel closed; exiting for systemd restart");
+                };
                 let payload = serde_json::to_vec(&ClearMessage::Chat { text }).unwrap();
                 let Ok(padded) = pad(&payload) else {
                     tracing::warn!("Slack message too large to pad; dropped");
@@ -229,13 +228,14 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                     continue;
                 };
                 if conn.tx.send(rpc).await.is_err() {
-                    tracing::warn!("relay disconnected while sending");
-                    break;
+                    anyhow::bail!("relay send channel closed; exiting for systemd restart");
                 }
             }
             // nie relay event → Slack post.
             maybe_event = conn.rx.recv() => {
-                let Some(event) = maybe_event else { break };
+                let Some(event) = maybe_event else {
+                    anyhow::bail!("relay event channel closed; exiting for systemd restart");
+                };
                 match event {
                     ClientEvent::Message(notif) => {
                         if notif.method == rpc_methods::DELIVER {
@@ -245,7 +245,6 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                                 &slack,
                                 &channel_id,
                                 bridge_prefix.as_deref(),
-                                &sent_texts,
                             )
                             .await;
                         }
@@ -253,12 +252,14 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                     ClientEvent::Reconnecting { delay_secs } => {
                         tracing::info!("relay reconnecting in {delay_secs}s");
                     }
+                    ClientEvent::Disconnected => {
+                        anyhow::bail!("relay permanently disconnected; exiting for systemd restart");
+                    }
                     _ => {}
                 }
             }
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -287,24 +288,5 @@ mod tests {
     fn format_for_nie_includes_user_and_text() {
         let result = format_for_nie("U123456", "hello world");
         assert_eq!(result, "[Slack/U123456] hello world");
-    }
-
-    #[test]
-    fn sent_texts_insert_and_lookup() {
-        let mut st = SentTexts::new();
-        st.insert("hello".to_string());
-        assert!(st.contains("hello"));
-        assert!(!st.contains("world"));
-    }
-
-    #[test]
-    fn sent_texts_bounded_at_1000() {
-        let mut st = SentTexts::new();
-        for i in 0..1001 {
-            st.insert(format!("msg-{i}"));
-        }
-        // msg-0 should have been evicted (1001 inserts, cap=1000).
-        assert!(!st.contains("msg-0"));
-        assert!(st.contains("msg-1000"));
     }
 }

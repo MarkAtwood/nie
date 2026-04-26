@@ -8,7 +8,10 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_socks::tcp::Socks5Stream;
 use tokio_tungstenite::{
-    client_async_tls_with_config, tungstenite::Error as WsError, tungstenite::Message, Connector,
+    client_async_tls_with_config,
+    tungstenite::protocol::WebSocketConfig,
+    tungstenite::{Error as WsError, Message},
+    Connector,
 };
 use tracing::{debug, error, info, warn};
 
@@ -47,16 +50,34 @@ pub enum ClientEvent {
     /// flows initiated after the auth handshake (e.g. GetKeyPackage).
     Response(JsonRpcResponse),
     /// Connection lost; will retry after `delay_secs` seconds.
+    /// Only emitted by [`connect_with_retry`].
     Reconnecting { delay_secs: u64 },
-    /// Successfully reconnected.
+    /// Successfully reconnected after a [`Reconnecting`] gap.
+    /// Only emitted by [`connect_with_retry`].
     Reconnected,
+    /// The relay appears unreachable or has disconnected.
+    ///
+    /// Emitted by [`connect`] on connection loss (no retry follows; after this
+    /// event `rx.recv()` returns `None`).
+    ///
+    /// Also emitted by [`connect_with_retry`] after `MAX_RETRIES` consecutive
+    /// failed connection attempts as a soft-limit notification; retrying
+    /// continues at the capped backoff interval so callers should surface this
+    /// to the user but must not assume the connection is permanently dead.
+    Disconnected,
 }
 
 /// A live, authenticated relay connection (single-attempt).
 pub struct RelayConn {
     /// Send JSON-RPC requests to the relay.
     pub tx: mpsc::Sender<JsonRpcRequest>,
-    /// Receive JSON-RPC notifications and responses from the relay.
+    /// Receive notifications and responses from the relay.
+    ///
+    /// Delivers [`ClientEvent::Message`] and [`ClientEvent::Response`] while
+    /// connected, then a single [`ClientEvent::Disconnected`] when the relay
+    /// closes the connection or a read error occurs. After `Disconnected`,
+    /// `recv()` returns `None`. Callers must handle `Disconnected` explicitly
+    /// to detect disconnection — do not rely on `None` alone.
     pub rx: mpsc::Receiver<ClientEvent>,
 }
 
@@ -118,10 +139,12 @@ pub async fn connect(
                 }
                 Ok(Message::Close(_)) => {
                     info!("relay closed connection");
+                    let _ = in_tx.send(ClientEvent::Disconnected).await;
                     break;
                 }
                 Err(e) => {
                     error!("ws read error: {e}");
+                    let _ = in_tx.send(ClientEvent::Disconnected).await;
                     break;
                 }
                 _ => {} // ping/pong/binary: ignore
@@ -168,6 +191,13 @@ pub fn connect_with_retry(
 }
 
 /// Background task that manages the WebSocket connection with reconnection.
+///
+/// Never exits due to retry exhaustion alone. After `MAX_RETRIES` consecutive
+/// failed connection attempts it emits `ClientEvent::Disconnected` to notify
+/// the caller that the relay appears unreachable, then resets the failure
+/// counter and continues retrying at the capped backoff interval (60 s).
+/// The loop exits only when the caller drops the send or receive channel.
+/// A successful connection resets the retry counter and the backoff delay.
 async fn connection_manager(
     url: String,
     identity: Identity,
@@ -176,8 +206,10 @@ async fn connection_manager(
     mut out_rx: mpsc::Receiver<JsonRpcRequest>,
     in_tx: mpsc::Sender<ClientEvent>,
 ) {
+    const MAX_RETRIES: u32 = 10;
     let mut delay_secs: u64 = 1;
     let mut ever_connected = false;
+    let mut consecutive_failures: u32 = 0;
 
     loop {
         match open_authenticated_ws(&url, &identity, accept_invalid_certs, proxy.clone()).await {
@@ -187,6 +219,7 @@ async fn connection_manager(
                 }
                 ever_connected = true;
                 delay_secs = 1; // reset backoff after successful connection
+                consecutive_failures = 0; // reset retry counter after successful connection
 
                 // Bridge: select between outgoing requests and incoming WS frames.
                 // Breaks when WS dies (relay_disconnect = true) or chat exits (= false).
@@ -236,7 +269,20 @@ async fn connection_manager(
                 // fall through to reconnect backoff
             }
             Err(e) => {
-                warn!("connection attempt failed: {e}");
+                consecutive_failures += 1;
+                warn!("connection attempt failed ({consecutive_failures}/{MAX_RETRIES}): {e}");
+                if consecutive_failures >= MAX_RETRIES {
+                    error!(
+                        "{MAX_RETRIES} consecutive connection failures; \
+                         relay appears unreachable — will keep retrying"
+                    );
+                    // Notify caller that the relay is unreachable, but do NOT exit.
+                    // Reset the counter so we don't spam Disconnected every iteration.
+                    consecutive_failures = 0;
+                    if in_tx.send(ClientEvent::Disconnected).await.is_err() {
+                        return; // caller dropped rx — stop
+                    }
+                }
                 // fall through to reconnect backoff
             }
         }
@@ -333,7 +379,12 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
     identity: &Identity,
     connector: Option<Connector>,
 ) -> Result<(WsSink, WsStream)> {
-    let (ws, _) = client_async_tls_with_config(url, stream, None, connector)
+    // 4 MiB cap — must be at least MAX_USERS_IN_DIRECTORY × max_UserInfo_wire_bytes × 2 fields.
+    // At ~130 bytes/UserInfo and two fields (online + offline): 10_000 × 130 × 2 ≈ 2.6 MiB.
+    // 4 MiB gives headroom while still blocking most abuse.  If MAX_USERS_IN_DIRECTORY
+    // changes, update this value to maintain the invariant documented in protocol.rs.
+    let ws_config = WebSocketConfig::default().max_message_size(Some(4 * 1024 * 1024));
+    let (ws, _) = client_async_tls_with_config(url, stream, Some(ws_config), connector)
         .await
         .with_context(|| format!("WebSocket upgrade to {url} failed"))?;
 
@@ -382,9 +433,20 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
 
         let pub_key_bytes: [u8; 32] = identity.verifying_key().to_bytes();
         let diff = params.difficulty;
+        // Reject difficulty above the relay's own cap before spawning the mining task.
+        // A rogue relay sending diff > MAX_DIFFICULTY could force the client to mine
+        // for an astronomically long time; reject it immediately.
+        let max = crate::pow::MAX_DIFFICULTY;
+        anyhow::ensure!(
+            diff <= max,
+            "relay requested PoW difficulty {diff} above maximum {max}; rejecting"
+        );
+        // Fail explicitly if the system clock is broken.  unwrap_or_default()
+        // would silently produce ts_floor=0, which the relay rejects as stale
+        // with a cryptic POW_STALE error that gives no hint about the real cause.
         let ts_floor = (std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
+            .context("system clock is before the Unix epoch; check your clock")?
             .as_secs()
             / 60) as u32;
 
@@ -428,12 +490,20 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
         anyhow::bail!("authentication failed: {} (code {})", err.message, err.code);
     }
 
-    // Extract pub_id from result for the info log; missing result is still auth success.
-    if let Some(result) = &resp.result {
-        if let Some(pub_id) = result.get("pub_id").and_then(|v| v.as_str()) {
-            let sub_expires = result.get("subscription_expires").and_then(|v| v.as_str());
-            info!("authenticated as {pub_id} (subscription: {sub_expires:?})");
+    // Verify and log the pub_id returned by the relay.
+    let result = resp
+        .result
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("auth response missing result field"))?;
+    if let Some(relay_pub_id) = result.get("pub_id").and_then(|v| v.as_str()) {
+        let expected = identity.pub_id().0;
+        if relay_pub_id != expected {
+            anyhow::bail!(
+                "relay returned unexpected pub_id: got {relay_pub_id}, expected {expected}"
+            );
         }
+        let sub_expires = result.get("subscription_expires").and_then(|v| v.as_str());
+        info!("authenticated as {relay_pub_id} (subscription: {sub_expires:?})");
     }
 
     Ok((sink, stream))
@@ -546,26 +616,31 @@ fn relay_socket_addr(relay_url: &str) -> Result<String> {
 }
 
 /// Read the next text frame from the stream, skipping ping/pong frames.
-/// Returns an error if the connection closes before a text frame arrives.
+/// Returns an error if the connection closes before a text frame arrives,
+/// or if 30 seconds elapse without a text frame (guards against ping floods).
 async fn recv_text_frame(stream: &mut WsStream, context: &str) -> Result<String> {
-    loop {
-        match stream.next().await {
-            Some(Ok(Message::Text(t))) => return Ok(t.to_string()),
-            Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
-                // Ignore ping/pong frames and keep waiting.
-                continue;
-            }
-            Some(Ok(other)) => {
-                anyhow::bail!("expected text frame for {context}, got: {other:?}");
-            }
-            Some(Err(e)) => {
-                return Err(e).with_context(|| format!("reading {context} frame"));
-            }
-            None => {
-                anyhow::bail!("relay closed connection before {context}");
+    tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        loop {
+            match stream.next().await {
+                Some(Ok(Message::Text(t))) => return Ok(t.to_string()),
+                Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
+                    // Ignore ping/pong frames and keep waiting.
+                    continue;
+                }
+                Some(Ok(other)) => {
+                    anyhow::bail!("expected text frame for {context}, got: {other:?}");
+                }
+                Some(Err(e)) => {
+                    return Err(e).with_context(|| format!("reading {context} frame"));
+                }
+                None => {
+                    anyhow::bail!("relay closed connection before {context}");
+                }
             }
         }
-    }
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!("timeout waiting for relay response ({context})"))?
 }
 
 /// Parse an incoming text frame as either a JSON-RPC notification or response.
@@ -589,8 +664,8 @@ fn parse_incoming(text: &str) -> Option<ClientEvent> {
                 }
             }
         }
-        Ok(v) if v.get("id").is_some() => {
-            // Response: has id.
+        Ok(v) if v.get("id").is_some_and(|id| !id.is_null()) => {
+            // Response: has id (non-null).
             match serde_json::from_value::<JsonRpcResponse>(v) {
                 Ok(resp) => Some(ClientEvent::Response(resp)),
                 Err(e) => {
@@ -599,9 +674,14 @@ fn parse_incoming(text: &str) -> Option<ClientEvent> {
                 }
             }
         }
-        Ok(_) => {
-            // Neither notification nor response — discard.
-            warn!("unrecognized JSON-RPC frame (no id, no method)");
+        Ok(v) => {
+            // id is null (or absent) and no method field.
+            // JSON-RPC 2.0 §5 permits id:null on error responses for parse errors.
+            if let Some(err) = v.get("error") {
+                error!("JSON-RPC error with null id from relay: {err}");
+            } else {
+                warn!("unrecognized JSON-RPC frame (no id, no method)");
+            }
             None
         }
         Err(e) => {
@@ -725,6 +805,34 @@ mod tests {
         assert!(
             msg.contains("socks5"),
             "error must mention socks5, got: {msg}"
+        );
+    }
+
+    // --- parse_incoming: null-id frames fall through to the null-id handler ---
+
+    #[test]
+    fn parse_incoming_null_id_is_not_treated_as_response() {
+        // JSON-RPC 2.0 §5 allows "id": null on parse-error responses.
+        // Before the fix, v.get("id").is_some() returned true for null, causing
+        // the error to be fed into the Response deserializer (which fails) and
+        // then the error was silently dropped.
+        // After the fix, "id": null falls through to the null-id handler which
+        // logs the error and returns None — the correct behaviour.
+        let null_id_error =
+            r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"parse error"}}"#;
+        let result = parse_incoming(null_id_error);
+        assert!(
+            result.is_none(),
+            "null-id error frame must return None (logged, not parsed as Response)"
+        );
+
+        // A frame with a real integer id must still be parsed as a Response.
+        let real_id_error =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"invalid request"}}"#;
+        let result = parse_incoming(real_id_error);
+        assert!(
+            matches!(result, Some(ClientEvent::Response(_))),
+            "non-null id frame must be parsed as ClientEvent::Response"
         );
     }
 

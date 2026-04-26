@@ -13,6 +13,8 @@ use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
+use zeroize::Zeroizing;
+
 use nie_core::hpke as nie_hpke;
 use nie_core::identity::{Identity, PubId};
 use nie_core::messages::{
@@ -89,17 +91,62 @@ use nie_wallet::db::WalletStore;
 use nie_wallet::fees::{sapling_logical_actions, zip317_fee};
 use nie_wallet::orchard::{OrchardFullViewingKey, OrchardSpendingKey};
 use nie_wallet::params::SaplingParamPaths;
-use nie_wallet::payment::{send_payment, SendPaymentError};
+use nie_wallet::payment::{send_payment, SendPaymentError, SendPaymentResult};
 use nie_wallet::scanner::{NoteDecryptor, SaplingIvkDecryptor};
 use nie_wallet::tx_builder::{load_sapling_params, DUST_THRESHOLD};
 use nie_wallet::unified::{decode_unified_address, diversified_address, sapling_receiver};
 
+// ---- Secret file helpers ----
+
+/// Write `data` to `path` with owner-read-write-only (0600) permissions.
+///
+/// On Unix the file is created with mode 0600 from the start so there is no
+/// window where another process can read the plaintext or ciphertext.  On
+/// non-Unix platforms (e.g. Windows) we fall back to a plain write; Windows
+/// ACLs are set separately by the OS based on the user account.
+fn write_secret_file(path: impl AsRef<std::path::Path>, data: &[u8]) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::io::Write as _;
+        use std::os::unix::fs::OpenOptionsExt as _;
+
+        let path = path.as_ref();
+
+        // Preserve AlreadyExists semantics for callers that check this error kind.
+        if path.exists() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                "file already exists",
+            ));
+        }
+
+        // Write to a sibling .tmp file first so that the final rename is atomic.
+        let mut tmp_path = path.as_os_str().to_owned();
+        tmp_path.push(".tmp");
+        let tmp_path = std::path::PathBuf::from(tmp_path);
+
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&tmp_path)?;
+        file.write_all(data)?;
+        file.sync_all()?;
+        drop(file);
+
+        // POSIX rename is atomic: either the real path gets the complete file or it does not.
+        std::fs::rename(&tmp_path, path)?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, data)
+    }
+}
+
 // ---- Identity management ----
 
 pub async fn init(keyfile: &str, no_passphrase: bool) -> Result<()> {
-    if std::path::Path::new(keyfile).exists() {
-        bail!("keyfile already exists at {keyfile}. Delete it to start fresh.");
-    }
     let id = Identity::generate();
     let seed = id.to_secret_bytes_64();
 
@@ -114,7 +161,13 @@ pub async fn init(keyfile: &str, no_passphrase: bool) -> Result<()> {
     };
 
     let encrypted = encrypt_keyfile(&seed, &passphrase)?;
-    std::fs::write(keyfile, &encrypted)?;
+    write_secret_file(keyfile, &encrypted).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AlreadyExists {
+            anyhow::anyhow!("keyfile already exists at {keyfile}. Delete it to start fresh.")
+        } else {
+            anyhow::anyhow!(e)
+        }
+    })?;
 
     println!("identity created");
     println!("public id  : {}", id.pub_id().0);
@@ -199,7 +252,7 @@ pub async fn chat(
     let my_pub_id = id.pub_id().0;
     // Extract HPKE keypair before `id` is moved into the transport layer.
     // hpke_secret_bytes() must never be logged — see security checklist item 1.
-    let hpke_identity_secret: [u8; 32] = id.hpke_secret_bytes();
+    let hpke_identity_secret: Zeroizing<[u8; 32]> = id.hpke_secret_bytes();
     let hpke_identity_pub: [u8; 32] = id.hpke_pub_key_bytes();
 
     let history = History::open(data_dir).await?;
@@ -310,7 +363,7 @@ pub async fn chat(
     // Sealed sender state.  room_hpke_* is derived from MLS export_secret once
     // the group is active; before that we fall back to identity-level HPKE.
     // Neither field is ever logged — only public keys (room_hpke_pub) are safe to log.
-    let mut room_hpke_secret: Option<[u8; 32]> = None;
+    let mut room_hpke_secret: Option<Zeroizing<[u8; 32]>> = None;
     let mut room_hpke_pub: Option<[u8; 32]> = None;
     let mut nicknames: HashMap<String, String> = HashMap::new();
     let mut ever_connected = false;
@@ -344,6 +397,10 @@ pub async fn chat(
 
     // In-flight file transfers being received: transfer_id → assembly state.
     let mut file_transfers: HashMap<Uuid, FileReceiveState> = HashMap::new();
+
+    // Directory for received files — created once at startup.
+    let dl_dir = data_dir.join("downloads");
+    tokio::fs::create_dir_all(&dl_dir).await.ok();
 
     // Expire sessions that have not advanced within 24 hours (nie-0bj).
     // Terminal sessions (Confirmed/Failed/Expired) are unchanged.
@@ -436,7 +493,7 @@ pub async fn chat(
         // is used exclusively; otherwise the network defaults are used.
         let lwd_endpoints = resolve_lwd_endpoints(lightwalletd_url.as_deref(), fvks.network);
         Some(spawn_block_watcher(
-            fvks.sapling.ivk_bytes(),
+            *fvks.sapling.ivk_bytes(),
             watch_registry.clone(),
             conf_tx,
             lwd_endpoints,
@@ -465,6 +522,8 @@ pub async fn chat(
                         online.clear();
                         online_seq.clear();
                         active_groups.clear();
+                        file_transfers.clear();
+                        peer_profiles.clear();
                         // Reset MLS client so the reconnected session gets a fresh OpenMLS
                         // provider.  Without this, create_group() returns GroupAlreadyExists
                         // on reconnect (openmls checks its storage before writing) and the
@@ -648,7 +707,10 @@ pub async fn chat(
                                         }
                                     }
                                 }
-                                Err(e) => warn!("create_group: {e}"),
+                                Err(e) => {
+                                    warn!("create_group: {e}");
+                                    println!("\r[MLS] group creation failed ({e}); reconnect to retry");
+                                }
                             }
                         }
                     }
@@ -1010,6 +1072,20 @@ pub async fn chat(
                             Err(_) => {
                                 // Binary payload → treat as MLS Welcome (existing behavior).
                                 if !mls_active {
+                                    // Security: only accept a Welcome from the current MLS admin
+                                    // (online[0]).  Any relay-authenticated peer can send a
+                                    // whisper; without this check an attacker could whisper a
+                                    // crafted Welcome and pull the target into an
+                                    // attacker-controlled group.
+                                    let admin = online.first().map(|s| s.as_str());
+                                    if admin != Some(from.as_str()) {
+                                        warn!(
+                                            "whisper_deliver: ignoring Welcome from non-admin sender \
+                                             {} (expected {})",
+                                            from,
+                                            admin.unwrap_or("<none>")
+                                        );
+                                    } else {
                                     match mls.join_from_welcome(&payload) {
                                         Ok(()) => {
                                             mls_active = true;
@@ -1060,6 +1136,7 @@ pub async fn chat(
                                         }
                                         Err(e) => warn!("join_from_welcome: {e}"),
                                     }
+                                    } // else (sender is admin)
                                 }
                             }
                         }
@@ -1130,8 +1207,15 @@ pub async fn chat(
                                     )
                                 };
                                 println!("\r[{ts}] {formatted}");
+                                let capped = if text.len() > MAX_HISTORY_TEXT_BYTES {
+                                    let mut end = MAX_HISTORY_TEXT_BYTES;
+                                    while end > 0 && !text.is_char_boundary(end) { end -= 1; }
+                                    &text[..end]
+                                } else {
+                                    &text
+                                };
                                 if let Err(e) =
-                                    history.append_received(&from, text.as_bytes()).await
+                                    history.append_received(&from, capped.as_bytes()).await
                                 {
                                     warn!("history write failed: {e}");
                                 }
@@ -1175,12 +1259,15 @@ pub async fn chat(
                             }) => {
                                 // Reject path traversal: use only the basename.
                                 let safe = safe_name(&name);
-                                // Max chunks = ceil(10 MB / 45 KB) + 1 = 229; guards vec! allocation.
-                                const FILE_MAX_CHUNKS: u32 = 230;
+                                // Must match nie_core::messages::MAX_CHUNKS = 102
+                                // (floor(1 GiB / 10 MiB)); guards vec! allocation.
+                                const FILE_MAX_CHUNKS: u32 = 102;
                                 if size_bytes > 10 * 1024 * 1024 {
                                     warn!("ignoring file transfer {transfer_id}: size {size_bytes} exceeds 10 MB");
                                 } else if total_chunks == 0 || total_chunks > FILE_MAX_CHUNKS {
                                     warn!("ignoring file transfer {transfer_id}: total_chunks={total_chunks} out of range");
+                                } else if file_transfers.len() >= 16 {
+                                    warn!("ignoring file transfer {transfer_id}: too many in-flight transfers");
                                 } else {
                                     match file_transfers.entry(transfer_id) {
                                         std::collections::hash_map::Entry::Occupied(_) => {
@@ -1222,9 +1309,10 @@ pub async fn chat(
                                                 println!("\r[recv] ERROR: hash mismatch for {} — discarding", state.name);
                                             } else {
                                                 let safe = safe_name(&state.name);
-                                                match tokio::fs::write(&safe, &assembled).await {
-                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", safe, assembled.len()),
-                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", safe),
+                                                let dest = dl_dir.join(&safe);
+                                                match tokio::fs::write(&dest, &assembled).await {
+                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", dest.display(), assembled.len()),
+                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", dest.display()),
                                                 }
                                             }
                                         }
@@ -1261,8 +1349,9 @@ pub async fn chat(
                                     )
                                 };
                                 println!("\r[{ts}] {formatted}");
+                                let capped_bytes = &plaintext_bytes[..plaintext_bytes.len().min(MAX_HISTORY_TEXT_BYTES)];
                                 if let Err(e) =
-                                    history.append_received(&from, &plaintext_bytes).await
+                                    history.append_received(&from, capped_bytes).await
                                 {
                                     warn!("history write failed: {e}");
                                 }
@@ -1288,18 +1377,22 @@ pub async fn chat(
                         // Choose the right HPKE key: room key if MLS active and derived,
                         // identity key otherwise.  Never log the secret.
                         let plaintext = {
-                            let active_secret: &[u8; 32] = if mls_active {
-                                match room_hpke_secret.as_ref() {
-                                    Some(sk) => sk,
-                                    None => {
+                            let (active_secret, active_pub_id): (&Zeroizing<[u8; 32]>, String) = if mls_active {
+                                match (room_hpke_secret.as_ref(), room_hpke_pub.as_ref()) {
+                                    (Some(sk), Some(pk)) => {
+                                        let pub_id: String =
+                                            pk.iter().map(|b| format!("{b:02x}")).collect();
+                                        (sk, pub_id)
+                                    }
+                                    _ => {
                                         warn!("sealed_deliver while mls_active but no room_hpke_secret");
                                         continue;
                                     }
                                 }
                             } else {
-                                &hpke_identity_secret
+                                (&hpke_identity_secret, my_pub_id.clone())
                             };
-                            match nie_hpke::unseal_message(active_secret, &params.sealed) {
+                            match nie_hpke::unseal_message(active_secret, &active_pub_id, &params.sealed) {
                                 Ok(pt) => pt,
                                 Err(e) => {
                                     warn!("sealed_deliver unseal failed: {e}");
@@ -1356,8 +1449,15 @@ pub async fn chat(
                                     )
                                 };
                                 println!("\r[{ts}] {formatted}");
+                                let capped = if text.len() > MAX_HISTORY_TEXT_BYTES {
+                                    let mut end = MAX_HISTORY_TEXT_BYTES;
+                                    while end > 0 && !text.is_char_boundary(end) { end -= 1; }
+                                    &text[..end]
+                                } else {
+                                    &text
+                                };
                                 if let Err(e) =
-                                    history.append_received(&from, text.as_bytes()).await
+                                    history.append_received(&from, capped.as_bytes()).await
                                 {
                                     warn!("history write failed: {e}");
                                 }
@@ -1401,12 +1501,15 @@ pub async fn chat(
                             }) => {
                                 // Reject path traversal: use only the basename.
                                 let safe = safe_name(&name);
-                                // Max chunks = ceil(10 MB / 45 KB) + 1 = 229; guards vec! allocation.
-                                const FILE_MAX_CHUNKS: u32 = 230;
+                                // Must match nie_core::messages::MAX_CHUNKS = 102
+                                // (floor(1 GiB / 10 MiB)); guards vec! allocation.
+                                const FILE_MAX_CHUNKS: u32 = 102;
                                 if size_bytes > 10 * 1024 * 1024 {
                                     warn!("ignoring file transfer {transfer_id}: size {size_bytes} exceeds 10 MB");
                                 } else if total_chunks == 0 || total_chunks > FILE_MAX_CHUNKS {
                                     warn!("ignoring file transfer {transfer_id}: total_chunks={total_chunks} out of range");
+                                } else if file_transfers.len() >= 16 {
+                                    warn!("ignoring file transfer {transfer_id}: too many in-flight transfers");
                                 } else {
                                     match file_transfers.entry(transfer_id) {
                                         std::collections::hash_map::Entry::Occupied(_) => {
@@ -1448,9 +1551,10 @@ pub async fn chat(
                                                 println!("\r[recv] ERROR: hash mismatch for {} — discarding", state.name);
                                             } else {
                                                 let safe = safe_name(&state.name);
-                                                match tokio::fs::write(&safe, &assembled).await {
-                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", safe, assembled.len()),
-                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", safe),
+                                                let dest = dl_dir.join(&safe);
+                                                match tokio::fs::write(&dest, &assembled).await {
+                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", dest.display(), assembled.len()),
+                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", dest.display()),
                                                 }
                                             }
                                         }
@@ -1487,8 +1591,9 @@ pub async fn chat(
                                     )
                                 };
                                 println!("\r[{ts}] {formatted}");
+                                let capped_bytes = &plaintext_bytes[..plaintext_bytes.len().min(MAX_HISTORY_TEXT_BYTES)];
                                 if let Err(e) =
-                                    history.append_received(&from, &plaintext_bytes).await
+                                    history.append_received(&from, capped_bytes).await
                                 {
                                     warn!("history write failed: {e}");
                                 }
@@ -1513,7 +1618,7 @@ pub async fn chat(
                         };
                         // DMs are always sealed to the identity key, not the room key.
                         // Never log hpke_identity_secret.
-                        let plaintext = match nie_hpke::unseal_message(&hpke_identity_secret, &params.sealed) {
+                        let plaintext = match nie_hpke::unseal_message(&hpke_identity_secret, &my_pub_id, &params.sealed) {
                             Ok(pt) => pt,
                             Err(e) => {
                                 warn!("sealed_whisper_deliver unseal failed: {e}");
@@ -1534,8 +1639,15 @@ pub async fn chat(
                                                 text
                                             );
                                             println!("\r[{ts}] {formatted}");
+                                            let capped = if text.len() > MAX_HISTORY_TEXT_BYTES {
+                                                let mut end = MAX_HISTORY_TEXT_BYTES;
+                                                while end > 0 && !text.is_char_boundary(end) { end -= 1; }
+                                                &text[..end]
+                                            } else {
+                                                &text
+                                            };
                                             if let Err(e) =
-                                                history.append_received(&from, text.as_bytes()).await
+                                                history.append_received(&from, capped.as_bytes()).await
                                             {
                                                 warn!("history write failed: {e}");
                                             }
@@ -1557,52 +1669,15 @@ pub async fn chat(
                                 }
                             }
                         } else {
-                            // Not yet in MLS group — treat plaintext as a raw MLS Welcome
-                            // (same as WhisperDeliver before MLS is active).
-                            match mls.join_from_welcome(&plaintext) {
-                                Ok(()) => {
-                                    mls_active = true;
-                                    println!(
-                                        "\r[MLS] joined group (sealed welcome) — epoch {}",
-                                        mls.epoch().unwrap_or(0)
-                                    );
-                                    match mls.room_hpke_keypair() {
-                                        Ok((room_sk, room_pk)) => {
-                                            room_hpke_secret = Some(room_sk);
-                                            room_hpke_pub = Some(room_pk);
-                                            let req = JsonRpcRequest::new(
-                                                next_request_id(),
-                                                rpc_methods::PUBLISH_HPKE_KEY,
-                                                PublishHpkeKeyParams { public_key: room_pk.to_vec() },
-                                            )
-                                            .unwrap();
-                                            if tx.send(req).await.is_err() {
-                                                eprintln!("connection lost.");
-                                                break;
-                                            }
-                                            tracing::debug!(
-                                                "published room HPKE key for epoch {}",
-                                                mls.epoch().unwrap_or(0)
-                                            );
-                                        }
-                                        Err(e) => {
-                                            tracing::warn!("failed to derive room HPKE keypair: {e}");
-                                        }
-                                    }
-                                    if !send_profile_broadcast(&tx, &own_profile, mls_active, &mut mls).await {
-                                        eprintln!("connection lost.");
-                                        break;
-                                    }
-                                    if !sessions_resynced {
-                                        sessions_resynced = true;
-                                        if !resync_sessions(&sessions, &online, &tx, &mut mls).await {
-                                            eprintln!("connection lost.");
-                                            break;
-                                        }
-                                    }
-                                }
-                                Err(e) => warn!("sealed_whisper_deliver join_from_welcome: {e}"),
-                            }
+                            // Security: reject Welcome messages arriving via sealed whisper.
+                            // Sealed whispers carry no verified sender identity (the relay strips `from`),
+                            // so we cannot verify the sender is the MLS admin.  Welcomes must arrive via
+                            // WhisperDeliver where sender identity is relay-authenticated and checked
+                            // against online[0].
+                            tracing::warn!(
+                                "sealed_whisper_deliver: rejecting Welcome — \
+                                 Welcome delivery requires authenticated WhisperDeliver"
+                            );
                         }
                     }
 
@@ -1664,6 +1739,13 @@ pub async fn chat(
                             }
                         };
                         let payload = params.payload;
+                        // Empty payload is the relay's sentinel for "member left".
+                        // Check before MLS decrypt — an empty ciphertext is not valid MLS.
+                        if payload.is_empty() {
+                            let leaver = colored_name(&params.from, &nicknames, &local_names);
+                            println!("\r[{group_name}] {leaver} left");
+                            continue;
+                        }
                         // Attempt MLS decrypt if we have a group context for this id.
                         let plaintext: Vec<u8> = if mls.has_group_id(gid.as_bytes()) {
                             match mls.process_for_group(gid.as_bytes(), &payload) {
@@ -1688,6 +1770,11 @@ pub async fn chat(
                                 warn!("group_deliver: unrecognized message format for group {gid}");
                             }
                         }
+                    }
+
+                    ClientEvent::Disconnected => {
+                        eprintln!("\nDisconnected from relay.");
+                        break;
                     }
 
                     ClientEvent::Message(other) => info!("relay: {other:?}"),
@@ -1999,6 +2086,7 @@ pub async fn chat(
                     }
                     // Send chunks.
                     println!("[send] sending {} ({} bytes, {} chunks)", file_name, bytes.len(), total_chunks);
+                    let mut send_ok = true;
                     for (seq, chunk) in chunks.iter().enumerate() {
                         let chunk_bytes = serde_json::to_vec(&ClearMessage::FileChunk {
                             transfer_id,
@@ -2013,12 +2101,14 @@ pub async fn chat(
                                     Ok(p) => p,
                                     Err(e) => {
                                         eprintln!("\r[send] pad failed for chunk {seq}: {e}");
-                                        continue;
+                                        send_ok = false;
+                                        break;
                                     }
                                 },
                                 Err(e) => {
                                     eprintln!("\r[send] MLS encrypt failed for chunk {seq}: {e}");
-                                    continue;
+                                    send_ok = false;
+                                    break;
                                 }
                             }
                         } else {
@@ -2032,13 +2122,16 @@ pub async fn chat(
                         .unwrap();
                         if tx.send(chunk_req).await.is_err() {
                             eprintln!("connection lost.");
+                            send_ok = false;
                             break;
                         }
                         if (seq + 1) % 10 == 0 || seq + 1 == total_chunks as usize {
                             println!("\r[send] {}/{} chunks", seq + 1, total_chunks);
                         }
                     }
-                    println!("[send] done: {file_name}");
+                    if send_ok {
+                        println!("[send] done: {file_name}");
+                    }
                     continue;
                 }
 
@@ -2644,7 +2737,15 @@ pub async fn chat(
                                 .unwrap();
                                 let payload = if mls.has_group_id(gid.as_bytes()) {
                                     match mls.encrypt_for_group(gid.as_bytes(), &clear_bytes) {
-                                        Ok(ct) => ct,
+                                        Ok(ct) => match nie_core::messages::pad(&ct) {
+                                            Ok(padded) => padded,
+                                            Err(e) => {
+                                                eprintln!(
+                                                    "[group] payload too large to pad for '{gname}': {e}"
+                                                );
+                                                continue;
+                                            }
+                                        },
                                         Err(e) => {
                                             eprintln!(
                                                 "[group] MLS encrypt failed for '{gname}': {e}"
@@ -2723,7 +2824,9 @@ pub async fn chat(
                     if let Some(pub_key) = room_hpke_pub {
                         // Sealed broadcast: MLS ciphertext HPKE-sealed to the room public key.
                         // Sender identity is authenticated by MLS — no self-asserted prefix needed.
-                        match nie_hpke::seal_message(&pub_key, &mls_ciphertext) {
+                        let room_pub_id: String =
+                            pub_key.iter().map(|b| format!("{b:02x}")).collect();
+                        match nie_hpke::seal_message(&pub_key, &room_pub_id, &mls_ciphertext) {
                             Ok(sealed) => {
                                 let req = JsonRpcRequest::new(
                                     next_request_id(),
@@ -2850,7 +2953,7 @@ fn encrypt_keyfile(seed: &[u8; 64], passphrase: &str) -> Result<Vec<u8>> {
 
 /// Decrypt an age-encrypted keyfile and return the 64-byte payload
 /// (Ed25519_seed || X25519_seed).
-fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> {
+fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<Zeroizing<[u8; 64]>> {
     nie_core::keyfile::decrypt_keyfile(ciphertext, passphrase)
 }
 
@@ -3085,6 +3188,10 @@ async fn generate_fresh_address(
 /// nie uses a single-account wallet; all payment operations share account 0.
 const PAYMENT_ACCOUNT: u32 = 0;
 
+/// Maximum bytes written to history for a single received chat message.
+/// Protects the history DB against oversized messages from malicious peers.
+const MAX_HISTORY_TEXT_BYTES: usize = 65536;
+
 /// Route an incoming `ClearMessage::Payment` to the correct session handler.
 ///
 /// Dispatches on (role, state, action) to advance the payment state machine.
@@ -3158,7 +3265,11 @@ async fn dispatch_payment(
                             amount_zatoshi
                         );
                         match sf(address.clone(), amount_zatoshi, session_id).await {
-                            Ok(txid) => {
+                            Ok(payment) => {
+                                let txid = payment.txid;
+                                if let Some(w) = payment.mark_spent_warning {
+                                    warn!(txid = %txid, "{w}");
+                                }
                                 println!("[pay] Payment sent. Txid: {txid}");
                                 {
                                     let session = entry.get_mut();
@@ -3657,8 +3768,9 @@ type SendFn = dyn Fn(
         String,
         u64,
         Uuid,
-    ) -> Pin<Box<dyn std::future::Future<Output = Result<String, SendPaymentError>> + Send>>
-    + Send
+    ) -> Pin<
+        Box<dyn std::future::Future<Output = Result<SendPaymentResult, SendPaymentError>> + Send>,
+    > + Send
     + Sync;
 
 /// Attempt to load and decrypt wallet.key, derive Sapling DFVK and Orchard FVK.
@@ -3776,13 +3888,31 @@ fn try_load_monero_keys(data_dir: &Path) -> Option<MoneroKeys> {
     let path = data_dir.join("monero.key");
     if path.exists() {
         match std::fs::read(&path) {
-            Ok(bytes) => match serde_json::from_slice::<MoneroKeys>(&bytes) {
-                Ok(keys) => return Some(keys),
-                Err(e) => {
-                    warn!("monero.key is corrupt: {e}");
-                    return None;
+            Ok(bytes) => {
+                // On Unix, warn if the file is readable by group or others.
+                // monero.key is plaintext key material — it must be 0600.
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt as _;
+                    if let Ok(meta) = std::fs::metadata(&path) {
+                        let mode = meta.permissions().mode() & 0o777;
+                        if mode & 0o177 != 0 {
+                            warn!(
+                                "monero.key has permissions {:04o} — should be 0600; \
+                                 key material may be readable by other users",
+                                mode
+                            );
+                        }
+                    }
                 }
-            },
+                match serde_json::from_slice::<MoneroKeys>(&bytes) {
+                    Ok(keys) => return Some(keys),
+                    Err(e) => {
+                        warn!("monero.key is corrupt: {e}");
+                        return None;
+                    }
+                }
+            }
             Err(e) => {
                 warn!("failed to read monero.key: {e}");
                 return None;
@@ -3793,7 +3923,7 @@ fn try_load_monero_keys(data_dir: &Path) -> Option<MoneroKeys> {
     let keys = MoneroKeys::generate(MoneroNetwork::Mainnet);
     match serde_json::to_vec(&keys) {
         Ok(json) => {
-            if let Err(e) = std::fs::write(&path, json) {
+            if let Err(e) = write_secret_file(&path, &json) {
                 warn!("failed to persist monero.key: {e}");
             }
         }
@@ -3867,7 +3997,7 @@ fn encrypt_wallet_key(key_bytes: &[u8; 64], passphrase: &str) -> Result<Vec<u8>>
 }
 
 /// Decrypt an age-encrypted wallet.key and return the 64-byte ZIP-32 master key.
-fn decrypt_wallet_key(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> {
+fn decrypt_wallet_key(ciphertext: &[u8], passphrase: &str) -> Result<Zeroizing<[u8; 64]>> {
     let decryptor = Decryptor::new(ciphertext)
         .map_err(|e| anyhow::anyhow!("wallet.key corrupt or unrecognized format: {e}"))?;
     let pass_decryptor = match decryptor {
@@ -3877,11 +4007,13 @@ fn decrypt_wallet_key(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]> {
     let mut reader = pass_decryptor
         .decrypt(&Secret::new(passphrase.to_owned()), None)
         .map_err(|_| anyhow::anyhow!("wrong passphrase or corrupt wallet.key"))?;
-    let mut plaintext = vec![];
+    let mut plaintext: Zeroizing<Vec<u8>> = Zeroizing::new(vec![]);
     reader.read_to_end(&mut plaintext)?;
-    plaintext
+    let arr: [u8; 64] = plaintext
+        .as_slice()
         .try_into()
-        .map_err(|_| anyhow::anyhow!("wallet.key corrupt: unexpected length after decryption"))
+        .map_err(|_| anyhow::anyhow!("wallet.key corrupt: unexpected length after decryption"))?;
+    Ok(Zeroizing::new(arr))
 }
 
 // ---- Wallet commands ----
@@ -3931,8 +4063,9 @@ pub async fn wallet_init(
         let id_ciphertext = std::fs::read(&identity_key_path)?;
         if let Ok(id_seed) = decrypt_keyfile(&id_ciphertext, "") {
             // Compare only the Ed25519 portion (first 32 bytes of the 64-byte keyfile).
+            let ok = id_seed[0..32] != *master.spending_key_bytes();
             anyhow::ensure!(
-                id_seed[0..32] != *master.spending_key_bytes(),
+                ok,
                 "key separation violation: wallet spending key matches identity key \
                  (catastrophic RNG failure — do not use this wallet)"
             );
@@ -3950,13 +4083,13 @@ pub async fn wallet_init(
     };
 
     let encrypted = encrypt_wallet_key(&seed, &passphrase)?;
-    std::fs::write(&wallet_key_path, &encrypted)?;
+    write_secret_file(&wallet_key_path, &encrypted)?;
 
     // Paranoid write-verify: immediately decrypt and compare.
     // Detects file-system corruption or age bugs before the mnemonic display is dismissed.
     let recovered = decrypt_wallet_key(&encrypted, &passphrase)?;
     anyhow::ensure!(
-        recovered == seed,
+        *recovered == *seed,
         "wallet.key write verification failed — file may be corrupt, do not dismiss the mnemonic"
     );
 
@@ -4040,12 +4173,12 @@ pub async fn wallet_restore(
     };
 
     let encrypted = encrypt_wallet_key(&seed, &passphrase)?;
-    std::fs::write(&wallet_key_path, &encrypted)?;
+    write_secret_file(&wallet_key_path, &encrypted)?;
 
     // Paranoid write-verify.
     let recovered = decrypt_wallet_key(&encrypted, &passphrase)?;
     anyhow::ensure!(
-        recovered == seed,
+        *recovered == *seed,
         "wallet.key write verification failed — file may be corrupt"
     );
 
@@ -4277,7 +4410,7 @@ mod tests {
 
         let ciphertext = encrypt_keyfile(&seed, passphrase).expect("encrypt must succeed");
         let recovered = decrypt_keyfile(&ciphertext, passphrase).expect("decrypt must succeed");
-        assert_eq!(recovered, seed);
+        assert_eq!(*recovered, seed);
     }
 
     #[test]
@@ -4306,7 +4439,7 @@ mod tests {
         let passphrase = "horse-battery-staple-correct";
         let ciphertext = encrypt_wallet_key(&key_bytes, passphrase).expect("encrypt must succeed");
         let recovered = decrypt_wallet_key(&ciphertext, passphrase).expect("decrypt must succeed");
-        assert_eq!(recovered, key_bytes);
+        assert_eq!(*recovered, key_bytes);
     }
 
     #[test]
@@ -5203,8 +5336,18 @@ mod tests {
                        _amt: u64,
                        _sid: Uuid|
          -> Pin<
-            Box<dyn std::future::Future<Output = Result<String, SendPaymentError>> + Send>,
-        > { Box::pin(async { Ok("deadbeef0000cafe".repeat(4)) }) };
+            Box<
+                dyn std::future::Future<Output = Result<SendPaymentResult, SendPaymentError>>
+                    + Send,
+            >,
+        > {
+            Box::pin(async {
+                Ok(SendPaymentResult {
+                    txid: "deadbeef0000cafe".repeat(4),
+                    mark_spent_warning: None,
+                })
+            })
+        };
         let sf: &SendFn = &mock_fn;
 
         let alive = dispatch_payment(
@@ -5295,7 +5438,10 @@ mod tests {
                       _: u64,
                       _: Uuid|
          -> Pin<
-            Box<dyn std::future::Future<Output = Result<String, SendPaymentError>> + Send>,
+            Box<
+                dyn std::future::Future<Output = Result<SendPaymentResult, SendPaymentError>>
+                    + Send,
+            >,
         > {
             Box::pin(async {
                 Err(SendPaymentError::SyncLag(
@@ -5376,7 +5522,10 @@ mod tests {
                         _: u64,
                         _: Uuid|
          -> Pin<
-            Box<dyn std::future::Future<Output = Result<String, SendPaymentError>> + Send>,
+            Box<
+                dyn std::future::Future<Output = Result<SendPaymentResult, SendPaymentError>>
+                    + Send,
+            >,
         > {
             Box::pin(async {
                 Err(SendPaymentError::Build(

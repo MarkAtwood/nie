@@ -124,12 +124,21 @@ pub fn load(data_dir: &Path) -> HashMap<String, String> {
 }
 
 /// Persist own profile fields to `data_dir/profile.json`.
+/// Writes atomically via a temp file + rename (POSIX-atomic).
 /// Logs a warning on write failure; callers do not need to handle errors.
 pub fn save(data_dir: &Path, profile: &HashMap<String, String>) {
     let path = data_dir.join("profile.json");
+    let tmp_path = path.with_extension("json.tmp");
     // serde_json::to_string_pretty on HashMap<String,String> cannot fail
     let json = serde_json::to_string_pretty(profile).unwrap();
-    if let Err(e) = std::fs::write(&path, json) {
-        warn!("failed to save profile.json: {e}");
+    if let Err(e) = std::fs::write(&tmp_path, &json) {
+        warn!("failed to write profile.json.tmp: {e}");
+        return;
+    }
+    if let Err(e) = std::fs::rename(&tmp_path, &path) {
+        warn!("failed to rename profile.json.tmp to profile.json: {e}");
+        if let Err(rm_err) = std::fs::remove_file(&tmp_path) {
+            warn!("failed to remove profile.json.tmp after rename failure: {rm_err}");
+        }
     }
 }

@@ -81,7 +81,10 @@ pub async fn maybe_auto_respond(
 
     // Log only the pub_id prefix — never the full id (64 chars), never session_id.
     let prefix_len = 8.min(from.len());
-    tracing::info!("sent stub payment address to {}", &from[..prefix_len]);
+    tracing::warn!(
+        "sent STUB payment address to {} — real wallet integration required before production use",
+        &from[..prefix_len]
+    );
 
     Ok(())
 }

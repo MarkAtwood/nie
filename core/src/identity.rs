@@ -5,6 +5,7 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use zeroize::{Zeroize, Zeroizing};
 
 /// A user's complete identity: an Ed25519 signing keypair and an X25519 HPKE keypair.
 /// Nothing else. No email, no phone, no name.
@@ -32,14 +33,18 @@ impl Identity {
     pub fn generate() -> Self {
         let signing_key = SigningKey::generate(&mut OsRng);
         // Generate separate entropy for HPKE key (key separation invariant).
-        let hpke_seed: [u8; 32] = rand::random();
+        let mut hpke_seed: [u8; 32] = rand::random();
         // Astronomically unlikely, but the invariant requires it.
+        // Use assert_ne! (not debug_assert_ne!) so a broken RNG that produces equal
+        // seeds causes an explicit panic in release builds rather than a silent
+        // security invariant violation.
         assert_ne!(
-            &hpke_seed,
-            signing_key.to_bytes().as_slice(),
-            "Ed25519 and HPKE seeds must differ"
+            hpke_seed,
+            signing_key.to_bytes(),
+            "RNG produced identical Ed25519 and HPKE seeds — key separation invariant violated"
         );
         let hpke_secret = x25519_dalek::StaticSecret::from(hpke_seed);
+        hpke_seed.zeroize();
         Self {
             signing_key,
             hpke_secret,
@@ -48,31 +53,37 @@ impl Identity {
 
     /// Restore an identity from a 64-byte keyfile blob:
     /// bytes[0..32] = Ed25519 seed, bytes[32..64] = X25519 HPKE seed.
-    pub fn from_secret_bytes(bytes: &[u8; 64]) -> Self {
-        let ed_seed: [u8; 32] = bytes[0..32].try_into().unwrap(); // infallible: slice is exactly 32
-        let hpke_seed_bytes: [u8; 32] = bytes[32..64].try_into().unwrap(); // infallible: slice is exactly 32
-        assert_ne!(
-            &ed_seed, &hpke_seed_bytes,
+    ///
+    /// Returns `Err` if the keyfile is corrupt (e.g. both seeds identical).
+    /// Callers must not panic on this — a corrupt or adversarial keyfile file
+    /// must produce a recoverable error, not a process abort.
+    pub fn from_secret_bytes(bytes: &[u8; 64]) -> Result<Self> {
+        let mut ed_seed: [u8; 32] = bytes[0..32].try_into().unwrap(); // infallible: slice is exactly 32
+        let mut hpke_seed_bytes: [u8; 32] = bytes[32..64].try_into().unwrap(); // infallible: slice is exactly 32
+        anyhow::ensure!(
+            ed_seed != hpke_seed_bytes,
             "keyfile corrupt: Ed25519 and HPKE seeds must not be equal"
         );
         let signing_key = SigningKey::from_bytes(&ed_seed);
         let hpke_secret = x25519_dalek::StaticSecret::from(hpke_seed_bytes);
-        Self {
+        ed_seed.zeroize();
+        hpke_seed_bytes.zeroize();
+        Ok(Self {
             signing_key,
             hpke_secret,
-        }
+        })
     }
 
     /// Raw Ed25519 secret key bytes — used as bytes[0..32] of the keyfile.
     /// SECURITY: Never log this value.
-    pub fn secret_bytes(&self) -> [u8; 32] {
-        self.signing_key.to_bytes()
+    pub fn secret_bytes(&self) -> Zeroizing<[u8; 32]> {
+        Zeroizing::new(self.signing_key.to_bytes())
     }
 
     /// Returns the 32-byte X25519 HPKE secret key bytes.
     /// SECURITY: Never log this value. Used only for keyfile storage and unsealing.
-    pub fn hpke_secret_bytes(&self) -> [u8; 32] {
-        self.hpke_secret.to_bytes()
+    pub fn hpke_secret_bytes(&self) -> Zeroizing<[u8; 32]> {
+        Zeroizing::new(self.hpke_secret.to_bytes())
     }
 
     /// Returns the 32-byte X25519 HPKE public key bytes.
@@ -82,10 +93,13 @@ impl Identity {
     }
 
     /// Returns the full 64-byte keyfile content: Ed25519_seed(32) || X25519_seed(32).
-    pub fn to_secret_bytes_64(&self) -> [u8; 64] {
-        let mut out = [0u8; 64];
-        out[0..32].copy_from_slice(&self.secret_bytes());
-        out[32..64].copy_from_slice(&self.hpke_secret_bytes());
+    ///
+    /// The return value is wrapped in `Zeroizing` so the secret bytes are
+    /// cleared from the stack when the value is dropped.
+    pub fn to_secret_bytes_64(&self) -> Zeroizing<[u8; 64]> {
+        let mut out = Zeroizing::new([0u8; 64]);
+        out[0..32].copy_from_slice(&*self.secret_bytes());
+        out[32..64].copy_from_slice(&*self.hpke_secret_bytes());
         out
     }
 
@@ -171,7 +185,7 @@ mod tests {
     fn export_and_restore() {
         let id = Identity::generate();
         let bytes = id.to_secret_bytes_64();
-        let restored = Identity::from_secret_bytes(&bytes);
+        let restored = Identity::from_secret_bytes(&bytes).unwrap();
         assert_eq!(id.pub_id(), restored.pub_id());
         // HPKE public key must also round-trip.
         assert_eq!(id.hpke_pub_key_bytes(), restored.hpke_pub_key_bytes());
@@ -208,8 +222,8 @@ mod tests {
         let blob = id.to_secret_bytes_64();
         assert_eq!(blob.len(), 64);
         // First 32 bytes are the Ed25519 seed.
-        assert_eq!(&blob[0..32], &id.secret_bytes());
+        assert_eq!(&blob[0..32], &*id.secret_bytes());
         // Second 32 bytes are the HPKE seed.
-        assert_eq!(&blob[32..64], &id.hpke_secret_bytes());
+        assert_eq!(&blob[32..64], &*id.hpke_secret_bytes());
     }
 }

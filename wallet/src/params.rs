@@ -212,17 +212,22 @@ fn ensure_param_file(
     name: &str,
 ) -> Result<()> {
     // Check if the cached file is present and valid.
-    if path.exists() {
-        let data = std::fs::read(path)?;
-        if verify_blake2b(&data, expected_blake2b) {
-            tracing::debug!("{name}: cache hit (hash verified)");
-            return Ok(());
+    // Read directly instead of checking exists() first to avoid TOCTOU: a file
+    // removed between exists() and read() would produce an unexpected NotFound.
+    match std::fs::read(path) {
+        Ok(data) => {
+            if verify_blake2b(&data, expected_blake2b) {
+                tracing::debug!("{name}: cache hit (hash verified)");
+                return Ok(());
+            }
+            tracing::warn!("{name}: cached file hash mismatch — re-downloading");
+            // Remove the corrupt/outdated file before re-fetching.
+            std::fs::remove_file(path)?;
         }
-        tracing::warn!("{name}: cached file hash mismatch — re-downloading");
-        // Remove the corrupt/outdated file before re-fetching.
-        std::fs::remove_file(path)?;
-    } else {
-        tracing::info!("{name}: not cached — downloading");
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::info!("{name}: not cached — downloading");
+        }
+        Err(e) => return Err(e.into()),
     }
 
     // Fetch from CDN (60-second timeout per request).
@@ -237,7 +242,18 @@ fn ensure_param_file(
         );
     }
 
-    std::fs::write(path, &data)?;
+    // Write to a temp path then rename for atomicity: a crash mid-write
+    // leaves the .tmp file, not a partial params file.  On error, clean up
+    // the temp file before propagating.
+    let tmp_path = path.with_extension("params.tmp");
+    if let Err(e) = std::fs::write(&tmp_path, &data) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(e.into());
+    }
+    if let Err(e) = std::fs::rename(&tmp_path, path) {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(e.into());
+    }
     tracing::info!("{name}: downloaded and verified ({} bytes)", data.len());
     Ok(())
 }
@@ -295,14 +311,24 @@ impl ParamsFetcher for HttpFetcher {
         }
         let mut data: Vec<u8> = resp1.into_bytes();
 
-        // Fetch part 2 — optional.  A 404 or network error is silently ignored
-        // because many param files fit entirely in part 1.
+        // Fetch part 2 — optional only in the sense that a 404 means the file
+        // fits entirely in part 1.  Any other non-200 status or network error
+        // is a real failure and must be surfaced rather than silently ignored.
         match minreq::get(url_part2).with_timeout(timeout_secs).send() {
             Ok(resp2) if resp2.status_code == 200 => {
                 data.extend_from_slice(resp2.as_bytes());
             }
-            Ok(_) | Err(_) => {
-                // Non-200 or error on part 2: file fits in part 1, which is fine.
+            Ok(resp2) if resp2.status_code == 404 => {
+                // 404 means the file fits entirely in part 1 — not an error.
+            }
+            Ok(resp2) => {
+                anyhow::bail!(
+                    "params part2 download failed with status {}",
+                    resp2.status_code
+                );
+            }
+            Err(e) => {
+                anyhow::bail!("params part2 download failed: {e}");
             }
         }
 

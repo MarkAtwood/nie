@@ -21,6 +21,12 @@ async fn main() -> anyhow::Result<()> {
     let keepalive_secs: u64 = match std::env::var("KEEPALIVE_SECS") {
         Err(_) => 30,
         Ok(v) => match v.parse() {
+            Ok(0u64) => {
+                anyhow::bail!(
+                    "KEEPALIVE_SECS=0 would panic the write task (tokio interval requires non-zero period); \
+                     set a value >= 1 or unset the variable to use the default (30)"
+                );
+            }
             Ok(n) => n,
             // Warn rather than silently using the default — a misconfigured value
             // (e.g. "five") is an operator error that should surface at startup.
@@ -35,20 +41,23 @@ async fn main() -> anyhow::Result<()> {
         Err(_) => false,
         Ok(v) if v.eq_ignore_ascii_case("true") || v == "1" => true,
         Ok(v) if v.eq_ignore_ascii_case("false") || v == "0" => false,
-        // Warn explicitly: "yes" or "on" silently left subscription gating off,
-        // which is a business-logic error that could allow unpaid access.
         Ok(v) => {
-            tracing::warn!(
-                "REQUIRE_SUBSCRIPTION={v:?} is not recognized (expected true/false/1/0); \
-                 using default false — subscription gating is OFF"
+            anyhow::bail!(
+                "REQUIRE_SUBSCRIPTION={v:?} is not recognized; \
+                 valid values are \"true\", \"false\", \"1\", or \"0\""
             );
-            false
         }
     };
 
     let subscription_price_zatoshi: u64 = match std::env::var("SUBSCRIPTION_PRICE_ZATOSHI") {
         Err(_) => 1_000_000,
         Ok(v) => match v.parse() {
+            Ok(0u64) => {
+                anyhow::bail!(
+                    "SUBSCRIPTION_PRICE_ZATOSHI=0 would grant free subscriptions to any payment; \
+                     set a non-zero value or unset the variable to use the default (1000000)"
+                );
+            }
             Ok(n) => n,
             Err(_) => {
                 tracing::warn!(
@@ -70,10 +79,34 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
-    let rate_limit_per_min: u32 = std::env::var("RATE_LIMIT_MSG_PER_MIN")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(120);
+    // chrono::Duration::days() panics for values > i64::MAX / 86400.
+    const CHRONO_MAX_DAYS: u64 = 106_751_991;
+    if subscription_days > CHRONO_MAX_DAYS {
+        anyhow::bail!(
+            "SUBSCRIPTION_DAYS={subscription_days} exceeds the maximum safe value \
+             {CHRONO_MAX_DAYS} (chrono::Duration::days overflow)"
+        );
+    }
+    if require_subscription && subscription_days == 0 {
+        anyhow::bail!(
+            "SUBSCRIPTION_DAYS=0 with REQUIRE_SUBSCRIPTION=true would prevent any user from \
+             ever subscribing; set SUBSCRIPTION_DAYS to a non-zero value or disable \
+             REQUIRE_SUBSCRIPTION"
+        );
+    }
+
+    let rate_limit_per_min: u32 = match std::env::var("RATE_LIMIT_MSG_PER_MIN") {
+        Err(_) => 120,
+        Ok(v) => match v.parse() {
+            Ok(n) => n,
+            Err(_) => {
+                tracing::warn!(
+                    "RATE_LIMIT_MSG_PER_MIN={v:?} is not a valid integer; using default 120"
+                );
+                120
+            }
+        },
+    };
     tracing::info!(rate_limit_per_min, "rate limit configured");
 
     let state = AppState::new(
@@ -86,10 +119,30 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
-    let pow_difficulty: u8 = std::env::var("POW_DIFFICULTY")
-        .ok()
-        .and_then(|v| v.parse::<u8>().ok())
-        .unwrap_or(0); // 0 = disabled; safe default
+    let pow_difficulty: u8 = match std::env::var("POW_DIFFICULTY") {
+        Err(_) => 0,
+        Ok(v) => match v.parse::<u32>() {
+            Ok(n) if n <= u8::MAX as u32 => n as u8,
+            Ok(_) => {
+                tracing::warn!(
+                    "POW_DIFFICULTY={v:?} overflows u8 (max 255); using default 0 (PoW disabled)"
+                );
+                0
+            }
+            Err(_) => {
+                tracing::warn!(
+                    "POW_DIFFICULTY={v:?} is not a valid integer; using default 0 (PoW disabled)"
+                );
+                0
+            }
+        },
+    }; // 0 = disabled; safe default
+    anyhow::ensure!(
+        pow_difficulty == 0 || pow_difficulty <= nie_core::pow::MAX_DIFFICULTY,
+        "POW_DIFFICULTY={pow_difficulty} exceeds MAX_DIFFICULTY ({}); \
+         clients would permanently fail PoW verification — refusing to start",
+        nie_core::pow::MAX_DIFFICULTY,
+    );
     if pow_difficulty > 0 && pow_difficulty < 20 {
         tracing::warn!(
             pow_difficulty,
@@ -144,7 +197,7 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
-    if let Some(merchant) = load_merchant_wallet() {
+    if let Some(merchant) = load_merchant_wallet()? {
         tracing::info!("merchant wallet loaded, network={:?}", merchant.network);
         state.set_merchant(merchant);
 
@@ -165,6 +218,44 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("MERCHANT_DFVK not set — relay will operate without payment gating");
     }
 
+    // Purge expired subscription invoices once per hour, regardless of whether
+    // a merchant wallet is configured.  Without this, rows accumulate when no
+    // payment watcher is running (which only calls purge_expired_invoices every
+    // 100 blocks, and only when MERCHANT_IVK is set).
+    {
+        let purge_state = state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+            loop {
+                interval.tick().await;
+                if let Err(e) = purge_state.inner.store.purge_expired_invoices().await {
+                    tracing::warn!("purge_expired_invoices failed: {e}");
+                }
+            }
+        });
+    }
+
+    // Evict stale PoW replay tokens every 60 s.
+    // TTL (720 s) must exceed the maximum valid challenge window so a replayed
+    // token cannot sneak through between eviction passes.  Running eviction in
+    // a background task keeps DashMap::retain's O(n) shard-write-lock scan off
+    // the hot enrollment path (nie-r9nx.5).
+    {
+        let replay_state = state.clone();
+        tokio::spawn(async move {
+            const REPLAY_TTL: std::time::Duration = std::time::Duration::from_secs(720);
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                let now = std::time::Instant::now();
+                replay_state
+                    .inner
+                    .pow_replay_set
+                    .retain(|_, accepted_at| now.duration_since(*accepted_at) < REPLAY_TTL);
+            }
+        });
+    }
+
     let app = Router::new()
         .route("/ws", get(nie_relay::ws::ws_handler))
         .route("/health", get(|| async { "ok" }))
@@ -174,8 +265,16 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "0.0.0.0:3210".to_string())
         .parse()?;
 
-    info!("nie-relay listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    let local_addr = listener.local_addr()?;
+    info!("nie-relay listening on {local_addr}");
+    if !local_addr.ip().is_loopback() {
+        tracing::warn!(
+            "relay listening on non-loopback address {} without TLS — \
+             ensure a TLS reverse proxy is in front of this port",
+            local_addr
+        );
+    }
     axum::serve(listener, app).await?;
 
     Ok(())
@@ -184,42 +283,52 @@ async fn main() -> anyhow::Result<()> {
 /// Load the merchant DFVK from environment variables.
 ///
 /// Reads `MERCHANT_DFVK` (256 hex chars = 128 bytes) and `MERCHANT_NETWORK`
-/// ("mainnet" or "testnet", defaulting to "testnet").  Returns `None` if
+/// ("mainnet" or "testnet", defaulting to "testnet").  Returns `Ok(None)` if
 /// `MERCHANT_DFVK` is absent — the relay starts without payment gating.
+/// Returns `Err` if any present value is invalid, aborting startup.
 ///
 /// The DFVK bytes are never logged; only the network is logged on success.
-fn load_merchant_wallet() -> Option<MerchantWallet> {
+fn load_merchant_wallet() -> anyhow::Result<Option<MerchantWallet>> {
     let hex = match std::env::var("MERCHANT_DFVK") {
-        Err(_) => return None,
+        Err(_) => return Ok(None),
         Ok(v) => v,
     };
 
-    let network_str = std::env::var("MERCHANT_NETWORK")
-        .unwrap_or_else(|_| "testnet".to_string())
-        .to_lowercase();
-    let network = if network_str == "mainnet" {
-        ZcashNetwork::Mainnet
-    } else {
-        ZcashNetwork::Testnet
+    let network = match std::env::var("MERCHANT_NETWORK") {
+        Err(_) => {
+            tracing::warn!(
+                "MERCHANT_NETWORK not set, defaulting to testnet \
+                 — set MERCHANT_NETWORK=mainnet for production"
+            );
+            ZcashNetwork::Testnet
+        }
+        Ok(v) => match v.to_lowercase().as_str() {
+            "mainnet" => ZcashNetwork::Mainnet,
+            "testnet" => ZcashNetwork::Testnet,
+            _ => {
+                anyhow::bail!(
+                    "MERCHANT_NETWORK={v:?} is not recognized (expected mainnet or testnet); \
+                     refusing to start with an unknown network"
+                );
+            }
+        },
     };
 
     let bytes: [u8; 128] = match decode_hex_128(&hex) {
         Ok(b) => b,
         Err(e) => {
-            tracing::error!("MERCHANT_DFVK invalid: {e}");
-            return None;
+            anyhow::bail!("MERCHANT_DFVK invalid: {e}");
         }
     };
 
     let dfvk = match SaplingDiversifiableFvk::from_bytes(&bytes) {
         Some(k) => k,
         None => {
-            tracing::error!("MERCHANT_DFVK bytes do not form a valid Sapling DFVK");
-            return None;
+            anyhow::bail!("MERCHANT_DFVK bytes do not form a valid Sapling DFVK");
         }
     };
 
-    Some(MerchantWallet { dfvk, network })
+    Ok(Some(MerchantWallet { dfvk, network }))
 }
 
 /// Decode a 256-character lowercase hex string into exactly 128 bytes.

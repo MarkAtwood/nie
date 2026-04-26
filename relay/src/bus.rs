@@ -81,12 +81,16 @@ impl BusSubscriber {
         match &mut self.inner {
             SubscriberInner::Local(rx) => {
                 // Drain messages or block until one arrives.
-                match rx.recv().await {
-                    Ok(msg) => Some(msg),
-                    Err(broadcast::error::RecvError::Closed) => None,
-                    Err(broadcast::error::RecvError::Lagged(_)) => {
-                        // Lagged: skip dropped messages and try again.
-                        Box::pin(self.recv()).await
+                // Loop instead of recursing on Lagged to prevent unbounded stack growth
+                // in a sustained-lag scenario (e.g. slow consumer on a busy channel).
+                loop {
+                    match rx.recv().await {
+                        Ok(msg) => return Some(msg),
+                        Err(broadcast::error::RecvError::Closed) => return None,
+                        Err(broadcast::error::RecvError::Lagged(n)) => {
+                            tracing::warn!("LocalBus receiver lagged, dropped {} messages", n);
+                            continue;
+                        }
                     }
                 }
             }
@@ -159,6 +163,12 @@ impl MessageBus {
     ///
     /// The returned `BusSubscriber` yields messages published by other relay
     /// instances (or, on the local bus, by `publish` within the same process).
+    ///
+    /// # Note
+    ///
+    /// `main.rs` does not currently spawn a subscriber task — cross-instance
+    /// fan-out via the bus is not yet wired end-to-end.  This method exists for
+    /// the future `redis-bus` multi-instance path and is exercised by unit tests.
     pub async fn subscribe(&self) -> Result<BusSubscriber> {
         match &self.inner {
             BusInner::Local(tx) => Ok(BusSubscriber {
@@ -203,11 +213,14 @@ impl RedisClient {
     }
 
     async fn subscribe(&self) -> Result<RedisSubscriber> {
-        let conn = self
+        let mut conn = self
             .client
             .get_async_pubsub()
             .await
             .map_err(|e| anyhow::anyhow!("Redis pubsub connection error: {e}"))?;
+        conn.subscribe(REDIS_CHANNEL)
+            .await
+            .map_err(|e| anyhow::anyhow!("Redis SUBSCRIBE error: {e}"))?;
         Ok(RedisSubscriber { conn })
     }
 }
@@ -221,10 +234,23 @@ struct RedisSubscriber {
 impl RedisSubscriber {
     async fn recv(&mut self) -> Option<BusMessage> {
         use futures::StreamExt;
-        self.conn.subscribe(REDIS_CHANNEL).await.ok()?;
-        let msg = self.conn.on_message().next().await?;
-        let payload: String = msg.get_payload().ok()?;
-        serde_json::from_str(&payload).ok()
+        loop {
+            let msg = self.conn.on_message().next().await?;
+            let payload: String = match msg.get_payload() {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!("RedisSubscriber: failed to extract payload: {e}");
+                    continue;
+                }
+            };
+            match serde_json::from_str::<BusMessage>(&payload) {
+                Ok(m) => return Some(m),
+                Err(e) => {
+                    tracing::warn!("RedisSubscriber: failed to deserialize bus message: {e}");
+                    continue;
+                }
+            }
+        }
     }
 }
 

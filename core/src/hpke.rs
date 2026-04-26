@@ -5,12 +5,13 @@ use ::hpke::{
     single_shot_seal, Deserializable, Kem as KemTrait, OpModeR, OpModeS, Serializable,
 };
 use rand::rngs::OsRng;
+use zeroize::Zeroizing;
 
 type Kem = X25519HkdfSha256;
 type Kdf = HkdfSha256;
 type Aead = ChaCha20Poly1305;
 
-const INFO: &[u8] = b"nie/sealed/v1";
+const INFO: &[u8] = b"nie/sealed/v2";
 
 /// Encapped key length for X25519HkdfSha256 (an X25519 public key = 32 bytes).
 const ENC_LEN: usize = 32;
@@ -19,8 +20,13 @@ const ENC_LEN: usize = 32;
 const MIN_SEALED_LEN: usize = ENC_LEN + 16;
 
 /// Seal `plaintext` for the recipient identified by `recipient_pub_key_bytes` (32-byte
-/// X25519 public key). Returns `enc (32 B) || ciphertext` — opaque to the relay.
-pub fn seal_message(recipient_pub_key_bytes: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>> {
+/// X25519 public key). `recipient_pub_id` is bound into the AAD, preventing the
+/// ciphertext from being replayed to a different recipient. Returns `enc (32 B) || ciphertext`.
+pub fn seal_message(
+    recipient_pub_key_bytes: &[u8; 32],
+    recipient_pub_id: &str,
+    plaintext: &[u8],
+) -> Result<Vec<u8>> {
     let pk_recip = <Kem as KemTrait>::PublicKey::from_bytes(recipient_pub_key_bytes.as_ref())
         .map_err(|e| anyhow!("invalid recipient public key: {e}"))?;
 
@@ -30,7 +36,7 @@ pub fn seal_message(recipient_pub_key_bytes: &[u8; 32], plaintext: &[u8]) -> Res
         &pk_recip,
         INFO,
         plaintext,
-        &[],
+        recipient_pub_id.as_bytes(),
         &mut rng,
     )
     .map_err(|e| anyhow!("HPKE seal failed: {e}"))?;
@@ -45,8 +51,17 @@ pub fn seal_message(recipient_pub_key_bytes: &[u8; 32], plaintext: &[u8]) -> Res
 }
 
 /// Unseal bytes produced by `seal_message`, using the recipient's X25519 secret key.
+/// `recipient_pub_id` must match the value used during sealing; it is the AAD that
+/// cryptographically binds the ciphertext to the intended recipient.
 /// Returns the original plaintext, or `Err` if decryption or parsing fails.
-pub fn unseal_message(recipient_secret_bytes: &[u8; 32], sealed: &[u8]) -> Result<Vec<u8>> {
+///
+/// The caller is responsible for holding `recipient_secret_bytes` in a
+/// `Zeroizing` wrapper so the key material is wiped from memory on drop.
+pub fn unseal_message(
+    recipient_secret_bytes: &Zeroizing<[u8; 32]>,
+    recipient_pub_id: &str,
+    sealed: &[u8],
+) -> Result<Vec<u8>> {
     if sealed.len() < MIN_SEALED_LEN {
         return Err(anyhow!(
             "sealed message too short: {} bytes (minimum {})",
@@ -69,7 +84,7 @@ pub fn unseal_message(recipient_secret_bytes: &[u8; 32], sealed: &[u8]) -> Resul
         &encapped_key,
         INFO,
         ciphertext,
-        &[],
+        recipient_pub_id.as_bytes(),
     )
     .map_err(|e| anyhow!("HPKE open failed: {e}"))?;
 
@@ -82,31 +97,31 @@ mod tests {
     use ::hpke::{Kem as KemTrait, Serializable};
     use rand::rngs::OsRng;
 
-    fn gen_x25519_keypair() -> ([u8; 32], [u8; 32]) {
+    fn gen_x25519_keypair() -> (Zeroizing<[u8; 32]>, [u8; 32]) {
         let mut rng = OsRng;
         let (sk, pk) = X25519HkdfSha256::gen_keypair(&mut rng);
         let sk_bytes: [u8; 32] = sk.to_bytes().as_slice().try_into().unwrap();
         let pk_bytes: [u8; 32] = pk.to_bytes().as_slice().try_into().unwrap();
-        (sk_bytes, pk_bytes)
+        (Zeroizing::new(sk_bytes), pk_bytes)
     }
 
     #[test]
     fn roundtrip_non_empty() {
         let (sk, pk) = gen_x25519_keypair();
         let plaintext = b"nie encrypted message";
-        let sealed = seal_message(&pk, plaintext).expect("seal failed");
+        let sealed = seal_message(&pk, "test-recipient", plaintext).expect("seal failed");
         // Verify wire format length: 32 (enc) + len + 16 (tag)
         assert_eq!(sealed.len(), ENC_LEN + plaintext.len() + 16);
-        let recovered = unseal_message(&sk, &sealed).expect("unseal failed");
+        let recovered = unseal_message(&sk, "test-recipient", &sealed).expect("unseal failed");
         assert_eq!(recovered, plaintext);
     }
 
     #[test]
     fn roundtrip_empty_plaintext() {
         let (sk, pk) = gen_x25519_keypair();
-        let sealed = seal_message(&pk, b"").expect("seal failed");
+        let sealed = seal_message(&pk, "test-recipient", b"").expect("seal failed");
         assert_eq!(sealed.len(), MIN_SEALED_LEN);
-        let recovered = unseal_message(&sk, &sealed).expect("unseal failed");
+        let recovered = unseal_message(&sk, "test-recipient", &sealed).expect("unseal failed");
         assert!(recovered.is_empty());
     }
 
@@ -114,15 +129,26 @@ mod tests {
     fn wrong_key_fails() {
         let (_sk, pk) = gen_x25519_keypair();
         let (sk2, _pk2) = gen_x25519_keypair();
-        let sealed = seal_message(&pk, b"secret").expect("seal failed");
-        let result = unseal_message(&sk2, &sealed);
+        let sealed = seal_message(&pk, "test-recipient", b"secret").expect("seal failed");
+        let result = unseal_message(&sk2, "test-recipient", &sealed);
         assert!(result.is_err(), "decryption with wrong key must fail");
+    }
+
+    #[test]
+    fn wrong_pub_id_fails() {
+        let (sk, pk) = gen_x25519_keypair();
+        let sealed = seal_message(&pk, "recipient-a", b"secret").expect("seal failed");
+        let result = unseal_message(&sk, "recipient-b", &sealed);
+        assert!(
+            result.is_err(),
+            "mismatched recipient_pub_id must fail AAD verification"
+        );
     }
 
     #[test]
     fn too_short_rejected() {
         let (sk, _pk) = gen_x25519_keypair();
-        let result = unseal_message(&sk, &[0u8; 47]);
+        let result = unseal_message(&sk, "test-recipient", &[0u8; 47]);
         assert!(result.is_err());
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("too short"), "expected 'too short' in: {msg}");
@@ -131,11 +157,11 @@ mod tests {
     #[test]
     fn tampered_ciphertext_fails() {
         let (sk, pk) = gen_x25519_keypair();
-        let mut sealed = seal_message(&pk, b"tamper test").expect("seal failed");
+        let mut sealed = seal_message(&pk, "test-recipient", b"tamper test").expect("seal failed");
         // Flip a byte in the ciphertext portion
         let last = sealed.len() - 1;
         sealed[last] ^= 0xff;
-        let result = unseal_message(&sk, &sealed);
+        let result = unseal_message(&sk, "test-recipient", &sealed);
         assert!(
             result.is_err(),
             "tampered ciphertext must fail verification"
@@ -146,8 +172,8 @@ mod tests {
     fn seal_is_not_deterministic() {
         let (_sk, pk) = gen_x25519_keypair();
         let pt = b"same plaintext";
-        let s1 = seal_message(&pk, pt).expect("seal 1 failed");
-        let s2 = seal_message(&pk, pt).expect("seal 2 failed");
+        let s1 = seal_message(&pk, "test-recipient", pt).expect("seal 1 failed");
+        let s2 = seal_message(&pk, "test-recipient", pt).expect("seal 2 failed");
         assert_ne!(s1, s2, "seal must be probabilistic");
     }
 }

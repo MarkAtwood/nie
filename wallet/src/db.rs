@@ -146,219 +146,269 @@ impl WalletStore {
         // user_version 0 means no schema exists yet.
         // Each migration block checks version < N, applies, then sets version = N.
         // Never modify a migration once shipped — add a new one after it.
-        let version: i64 = sqlx::query_scalar("PRAGMA user_version")
-            .fetch_one(&pool)
-            .await?;
+        //
+        // The entire migration block runs inside a single BEGIN IMMEDIATE transaction.
+        // BEGIN IMMEDIATE acquires a write lock immediately, so concurrent opens
+        // on a fresh DB cannot both read version=0 and both apply the same
+        // migrations.  The second opener blocks on BEGIN IMMEDIATE until the first
+        // commits, then reads the updated user_version and skips already-applied
+        // migrations.  Without this, two processes opening the same fresh DB
+        // simultaneously could both execute every migration and leave the schema
+        // in an inconsistent state (duplicate tables, duplicate columns, etc.).
+        {
+            let mut conn = pool.acquire().await?;
+            sqlx::query("BEGIN IMMEDIATE")
+                .execute(&mut *conn)
+                .await
+                .map_err(|e| anyhow::anyhow!("migration BEGIN IMMEDIATE failed: {e}"))?;
 
-        if version < 1 {
-            sqlx::query(
-                "CREATE TABLE IF NOT EXISTS payment_sessions (
-                    session_id      TEXT PRIMARY KEY,
-                    peer_pub_id     TEXT NOT NULL,
-                    role            TEXT NOT NULL,
-                    state           TEXT NOT NULL,
-                    chain           TEXT NOT NULL,
-                    amount_zatoshi  INTEGER NOT NULL,
-                    tx_hash         TEXT,
-                    address         TEXT,
-                    created_at      INTEGER NOT NULL,
-                    updated_at      INTEGER NOT NULL
-                )",
-            )
-            .execute(&pool)
-            .await?;
-            // PRAGMA user_version does not accept parameterized binding — the
-            // integer literal must be inlined.  This is safe: it is a constant.
-            sqlx::query("PRAGMA user_version = 1")
-                .execute(&pool)
-                .await?;
-        }
+            // Read the current schema version inside the write lock.
+            let version: i64 = match sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&mut *conn)
+                .await
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
+                    return Err(anyhow::anyhow!(
+                        "migration: failed to read user_version: {e}"
+                    ));
+                }
+            };
 
-        if version < 2 {
-            // notes: received Sapling/Orchard outputs, one row per output.
-            // memo is stored as a raw BLOB (up to 512 bytes, ZIP-302).
-            sqlx::query(
-                "CREATE TABLE IF NOT EXISTS notes (
-                    note_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-                    txid          TEXT    NOT NULL,
-                    output_index  INTEGER NOT NULL,
-                    value_zatoshi INTEGER NOT NULL,
-                    memo          BLOB,
-                    spent         INTEGER NOT NULL DEFAULT 0,
-                    spending_txid TEXT,
-                    created_at    INTEGER NOT NULL,
-                    UNIQUE(txid, output_index)
-                )",
-            )
-            .execute(&pool)
-            .await?;
+            let migration_result: Result<()> = async {
+                if version < 1 {
+                    // payment_sessions: tracks Zcash payment negotiation state.
+                    // CREATE TABLE IF NOT EXISTS is idempotent on retry.
+                    // PRAGMA user_version does not accept parameterized binding — the
+                    // integer literal must be inlined.  This is safe: it is a constant.
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS payment_sessions (
+                            session_id      TEXT PRIMARY KEY,
+                            peer_pub_id     TEXT NOT NULL,
+                            role            TEXT NOT NULL,
+                            state           TEXT NOT NULL,
+                            chain           TEXT NOT NULL,
+                            amount_zatoshi  INTEGER NOT NULL,
+                            tx_hash         TEXT,
+                            address         TEXT,
+                            created_at      INTEGER NOT NULL,
+                            updated_at      INTEGER NOT NULL
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    sqlx::query("PRAGMA user_version = 1")
+                        .execute(&mut *conn)
+                        .await?;
+                }
 
-            // witnesses: latest incremental Merkle witness per note.
-            // One row per note; updated on each block scan.
-            // witness_data is the serialized IncrementalWitness bytes from the
-            // scanner (raw BLOB; format is zcash_primitives-compatible).
-            // ON DELETE CASCADE removes the witness when the note is deleted.
-            sqlx::query(
-                "CREATE TABLE IF NOT EXISTS witnesses (
-                    note_id      INTEGER NOT NULL PRIMARY KEY
-                                     REFERENCES notes(note_id) ON DELETE CASCADE,
-                    block_height INTEGER NOT NULL,
-                    witness_data BLOB    NOT NULL
-                )",
-            )
-            .execute(&pool)
-            .await?;
+                if version < 2 {
+                    // notes: received Sapling/Orchard outputs, one row per output.
+                    // memo is stored as a raw BLOB (up to 512 bytes, ZIP-302).
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS notes (
+                            note_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                            txid          TEXT    NOT NULL,
+                            output_index  INTEGER NOT NULL,
+                            value_zatoshi INTEGER NOT NULL,
+                            memo          BLOB,
+                            spent         INTEGER NOT NULL DEFAULT 0,
+                            spending_txid TEXT,
+                            created_at    INTEGER NOT NULL,
+                            UNIQUE(txid, output_index)
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
 
-            // transactions: confirmed wallet transactions (both directions).
-            // direction TEXT is either 'incoming' or 'outgoing'.
-            sqlx::query(
-                "CREATE TABLE IF NOT EXISTS transactions (
-                    txid           TEXT    PRIMARY KEY,
-                    block_height   INTEGER NOT NULL,
-                    direction      TEXT    NOT NULL,
-                    amount_zatoshi INTEGER NOT NULL,
-                    memo           BLOB,
-                    peer_pub_id    TEXT,
-                    created_at     INTEGER NOT NULL
-                )",
-            )
-            .execute(&pool)
-            .await?;
+                    // witnesses: latest incremental Merkle witness per note.
+                    // One row per note; updated on each block scan.
+                    // witness_data is the serialized IncrementalWitness bytes from the
+                    // scanner (raw BLOB; format is zcash_primitives-compatible).
+                    // ON DELETE CASCADE removes the witness when the note is deleted.
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS witnesses (
+                            note_id      INTEGER NOT NULL PRIMARY KEY
+                                             REFERENCES notes(note_id) ON DELETE CASCADE,
+                            block_height INTEGER NOT NULL,
+                            witness_data BLOB    NOT NULL
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
 
-            sqlx::query("PRAGMA user_version = 2")
-                .execute(&pool)
-                .await?;
-        }
+                    // transactions: confirmed wallet transactions (both directions).
+                    // direction TEXT is either 'incoming' or 'outgoing'.
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS transactions (
+                            txid           TEXT    PRIMARY KEY,
+                            block_height   INTEGER NOT NULL,
+                            direction      TEXT    NOT NULL,
+                            amount_zatoshi INTEGER NOT NULL,
+                            memo           BLOB,
+                            peer_pub_id    TEXT,
+                            created_at     INTEGER NOT NULL
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
 
-        if version < 3 {
-            // scan_state: single-row table tracking the last fully-scanned
-            // block height.  id is always 1; the CHECK constraint enforces
-            // the single-row invariant so UPDATE does not need a WHERE clause
-            // that could silently affect zero rows on a fresh DB.
-            sqlx::query(
-                "CREATE TABLE IF NOT EXISTS scan_state (
-                    id         INTEGER PRIMARY KEY CHECK (id = 1),
-                    tip_height INTEGER NOT NULL DEFAULT 0
-                )",
-            )
-            .execute(&pool)
-            .await?;
-            // Seed the row so scan_tip() can always use fetch_one.
-            sqlx::query("INSERT OR IGNORE INTO scan_state (id, tip_height) VALUES (1, 0)")
-                .execute(&pool)
-                .await?;
-            sqlx::query("PRAGMA user_version = 3")
-                .execute(&pool)
-                .await?;
-        }
+                    sqlx::query("PRAGMA user_version = 2")
+                        .execute(&mut *conn)
+                        .await?;
+                }
 
-        if version < 4 {
-            // Add block_height column to notes.  Needed for confirmation-depth
-            // balance queries.  Existing rows (none in practice — scanner was
-            // not yet live) default to 0.
-            sqlx::query("ALTER TABLE notes ADD COLUMN block_height INTEGER NOT NULL DEFAULT 0")
-                .execute(&pool)
-                .await?;
-            sqlx::query("PRAGMA user_version = 4")
-                .execute(&pool)
-                .await?;
-        }
+                if version < 3 {
+                    // scan_state: single-row table tracking the last fully-scanned
+                    // block height.  id is always 1; the CHECK constraint enforces
+                    // the single-row invariant so UPDATE does not need a WHERE clause
+                    // that could silently affect zero rows on a fresh DB.
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS scan_state (
+                            id         INTEGER PRIMARY KEY CHECK (id = 1),
+                            tip_height INTEGER NOT NULL DEFAULT 0
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    // Seed the row so scan_tip() can always use fetch_one.
+                    sqlx::query("INSERT OR IGNORE INTO scan_state (id, tip_height) VALUES (1, 0)")
+                        .execute(&mut *conn)
+                        .await?;
+                    sqlx::query("PRAGMA user_version = 3")
+                        .execute(&mut *conn)
+                        .await?;
+                }
 
-        if version < 5 {
-            // accounts: one row per ZIP-32 account (usually just account 0).
-            //
-            // diversifier_index is stored as TEXT (decimal u128), not INTEGER.
-            // SQLite INTEGER is signed 64-bit; a u128 diversifier index can
-            // exceed i64::MAX in theory, silently wrapping to a negative value.
-            // TEXT avoids that entirely and is still comparable as an ordered
-            // decimal string for display purposes.
-            // DO NOT change this column to INTEGER in a future migration —
-            // the diversifier_index_roundtrip test deliberately writes u128::MAX
-            // to catch exactly that regression.
-            //
-            // The DEFAULT '0' seeds account 0 implicitly when ensure_account()
-            // is called on a fresh wallet — no manual insert is required by callers.
-            sqlx::query(
-                "CREATE TABLE IF NOT EXISTS accounts (
-                    account_index     INTEGER PRIMARY KEY,
-                    diversifier_index TEXT    NOT NULL DEFAULT '0'
-                )",
-            )
-            .execute(&pool)
-            .await?;
-            sqlx::query("PRAGMA user_version = 5")
-                .execute(&pool)
-                .await?;
-        }
+                if version < 4 {
+                    // Add block_height column to notes.  Needed for confirmation-depth
+                    // balance queries.  Existing rows (none in practice — scanner was
+                    // not yet live) default to 0.
+                    // SQLite supports transactional DDL for ALTER TABLE ADD COLUMN.
+                    sqlx::query(
+                        "ALTER TABLE notes ADD COLUMN block_height INTEGER NOT NULL DEFAULT 0",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    sqlx::query("PRAGMA user_version = 4")
+                        .execute(&mut *conn)
+                        .await?;
+                }
 
-        if version < 6 {
-            // Add note-plaintext columns required to reconstruct a spendable sapling::Note
-            // for the transaction builder (nie-wdw).
-            //
-            // Nullable: existing notes from the scan stub have no plaintext yet.
-            // spendable_notes() excludes rows where any column is NULL — it only returns
-            // notes the scanner has fully decrypted.
-            //
-            // note_diversifier (11 bytes) — raw Sapling diversifier d; g_d = GH("Zcash_gd", d)
-            //                              PaymentAddress::from_bytes expects [d(11) | pk_d(32)].
-            // note_pk_d        (32 bytes) — recipient public key pk_d (Jubjub point, compressed)
-            // note_rseed       (32 bytes) — commitment randomness (Rseed or old rcm)
-            // note_rseed_after_zip212 (INTEGER) — 1 if note_rseed is the post-ZIP-212 Rseed,
-            //                                     0 if it is the pre-ZIP-212 rcm field.
-            //                                     DEFAULT 1 biases new notes toward the current
-            //                                     format; old-format notes must set this explicitly.
-            //
-            // All four ALTER TABLEs and the PRAGMA run inside a single SQLite transaction.
-            // SQLite DDL is transactional: a failure or process-kill mid-migration rolls
-            // back all column additions, leaving user_version < 6.  The next open retries
-            // cleanly.  Without the transaction, a partial failure leaves orphaned columns
-            // and makes every subsequent open fail with "duplicate column name".
-            let mut txn = pool.begin().await?;
-            for col in &[
-                "ALTER TABLE notes ADD COLUMN note_diversifier BLOB",
-                "ALTER TABLE notes ADD COLUMN note_pk_d BLOB",
-                "ALTER TABLE notes ADD COLUMN note_rseed BLOB",
-                "ALTER TABLE notes ADD COLUMN note_rseed_after_zip212 INTEGER NOT NULL DEFAULT 1",
-            ] {
-                sqlx::query(col).execute(&mut *txn).await?;
+                if version < 5 {
+                    // accounts: one row per ZIP-32 account (usually just account 0).
+                    //
+                    // diversifier_index is stored as TEXT (decimal u128), not INTEGER.
+                    // SQLite INTEGER is signed 64-bit; a u128 diversifier index can
+                    // exceed i64::MAX in theory, silently wrapping to a negative value.
+                    // TEXT avoids that entirely and is still comparable as an ordered
+                    // decimal string for display purposes.
+                    // DO NOT change this column to INTEGER in a future migration —
+                    // the diversifier_index_roundtrip test deliberately writes u128::MAX
+                    // to catch exactly that regression.
+                    //
+                    // The DEFAULT '0' seeds account 0 implicitly when ensure_account()
+                    // is called on a fresh wallet — no manual insert is required by callers.
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS accounts (
+                            account_index     INTEGER PRIMARY KEY,
+                            diversifier_index TEXT    NOT NULL DEFAULT '0'
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    sqlx::query("PRAGMA user_version = 5")
+                        .execute(&mut *conn)
+                        .await?;
+                }
+
+                if version < 6 {
+                    // Add note-plaintext columns required to reconstruct a spendable sapling::Note
+                    // for the transaction builder (nie-wdw).
+                    //
+                    // Nullable: existing notes from the scan stub have no plaintext yet.
+                    // spendable_notes() excludes rows where any column is NULL — it only returns
+                    // notes the scanner has fully decrypted.
+                    //
+                    // note_diversifier (11 bytes) — raw Sapling diversifier d; g_d = GH("Zcash_gd", d)
+                    //                              PaymentAddress::from_bytes expects [d(11) | pk_d(32)].
+                    // note_pk_d        (32 bytes) — recipient public key pk_d (Jubjub point, compressed)
+                    // note_rseed       (32 bytes) — commitment randomness (Rseed or old rcm)
+                    // note_rseed_after_zip212 (INTEGER, nullable) — 1 if note_rseed is the post-ZIP-212
+                    //                                     Rseed, 0 if it is the pre-ZIP-212 rcm field.
+                    //                                     NULL means the note has not yet been decrypted
+                    //                                     and classified; spendable_notes() excludes NULLs.
+                    //
+                    // SQLite DDL is transactional: a failure or process-kill mid-migration rolls
+                    // back all column additions, leaving user_version < 6.  The next open retries
+                    // cleanly.  Without the transaction, a partial failure leaves orphaned columns
+                    // and makes every subsequent open fail with "duplicate column name".
+                    for col in &[
+                        "ALTER TABLE notes ADD COLUMN note_diversifier BLOB",
+                        "ALTER TABLE notes ADD COLUMN note_pk_d BLOB",
+                        "ALTER TABLE notes ADD COLUMN note_rseed BLOB",
+                        "ALTER TABLE notes ADD COLUMN note_rseed_after_zip212 INTEGER",
+                    ] {
+                        sqlx::query(col).execute(&mut *conn).await?;
+                    }
+                    sqlx::query("PRAGMA user_version = 6")
+                        .execute(&mut *conn)
+                        .await?;
+                }
+
+                if version < 7 {
+                    // Index to accelerate spendable_notes() which filters on spent = 0.
+                    // Without it, every payment does a full table scan of notes — O(n)
+                    // in the number of lifetime notes, which grows unboundedly with scanner use.
+                    //
+                    // Partial index on spent = 0 only — SQLite supports partial indexes
+                    // and this one is selective: in a normal wallet most notes are spent.
+                    // When the notes table gains an account_index column, extend this
+                    // to (account_index, spent) for efficient per-account queries.
+                    //
+                    // CREATE INDEX IF NOT EXISTS is idempotent on retry.
+                    sqlx::query(
+                        "CREATE INDEX IF NOT EXISTS notes_unspent ON notes(spent)
+                         WHERE spent = 0",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    sqlx::query("PRAGMA user_version = 7")
+                        .execute(&mut *conn)
+                        .await?;
+                }
+
+                if version < 8 {
+                    // Add tree_state BLOB to scan_state.  Stores the serialized
+                    // CommitmentTree<sapling::Node, 32> snapshot so the scanner can resume
+                    // without replaying the full chain from genesis on restart.
+                    // NULL means no snapshot yet; scanner falls back to an empty tree.
+                    // SQLite supports transactional DDL for ALTER TABLE ADD COLUMN.
+                    sqlx::query("ALTER TABLE scan_state ADD COLUMN tree_state BLOB")
+                        .execute(&mut *conn)
+                        .await?;
+                    sqlx::query("PRAGMA user_version = 8")
+                        .execute(&mut *conn)
+                        .await?;
+                }
+
+                Ok(())
             }
-            sqlx::query("PRAGMA user_version = 6")
-                .execute(&mut *txn)
-                .await?;
-            txn.commit().await?;
-        }
+            .await;
 
-        if version < 7 {
-            // Index to accelerate spendable_notes() which filters on spent = 0.
-            // Without it, every payment does a full table scan of notes — O(n)
-            // in the number of lifetime notes, which grows unboundedly with scanner use.
-            //
-            // Partial index on spent = 0 only — SQLite supports partial indexes
-            // and this one is selective: in a normal wallet most notes are spent.
-            // When the notes table gains an account_index column, extend this
-            // to (account_index, spent) for efficient per-account queries.
-            sqlx::query(
-                "CREATE INDEX IF NOT EXISTS notes_unspent ON notes(spent)
-                 WHERE spent = 0",
-            )
-            .execute(&pool)
-            .await?;
-            sqlx::query("PRAGMA user_version = 7")
-                .execute(&pool)
-                .await?;
-        }
-
-        if version < 8 {
-            // Add tree_state BLOB to scan_state.  Stores the serialized
-            // CommitmentTree<sapling::Node, 32> snapshot so the scanner can resume
-            // without replaying the full chain from genesis on restart.
-            // NULL means no snapshot yet; scanner falls back to an empty tree.
-            sqlx::query("ALTER TABLE scan_state ADD COLUMN tree_state BLOB")
-                .execute(&pool)
-                .await?;
-            sqlx::query("PRAGMA user_version = 8")
-                .execute(&pool)
-                .await?;
+            match migration_result {
+                Ok(()) => {
+                    sqlx::query("COMMIT")
+                        .execute(&mut *conn)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("migration COMMIT failed: {e}"))?;
+                }
+                Err(e) => {
+                    let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
+                    return Err(anyhow::anyhow!("migration failed (rolled back): {e}"));
+                }
+            }
         }
 
         Ok(Self { pool })
@@ -386,7 +436,8 @@ impl WalletStore {
         // max_age_secs is u64; cast to i64 is safe for any realistic duration
         // (u64::MAX seconds ≈ 585 billion years, far beyond i64::MAX).
         // saturating_sub handles the degenerate case where now_ts < max_age_secs.
-        let cutoff = now_ts.saturating_sub(max_age_secs as i64);
+        let max_age_i64 = i64::try_from(max_age_secs).unwrap_or(i64::MAX);
+        let cutoff = now_ts.saturating_sub(max_age_i64);
         let result = sqlx::query(
             "UPDATE payment_sessions
              SET state = 'expired', updated_at = ?
@@ -437,12 +488,14 @@ impl WalletStore {
         Ok(())
     }
 
-    /// All payment sessions, in no guaranteed order.
+    /// Returns the most recent 1000 payment sessions ordered by creation time,
+    /// newest first.  This is sufficient for CLI `payment-history` display;
+    /// a full unbounded scan would be unsafe in a long-running wallet.
     pub async fn all_sessions(&self) -> Result<Vec<PaymentSession>> {
         sqlx::query_as::<_, SessionRow>(
             "SELECT session_id, peer_pub_id, role, state, chain,
                     amount_zatoshi, tx_hash, address, created_at, updated_at
-             FROM payment_sessions",
+             FROM payment_sessions ORDER BY created_at DESC LIMIT 1000",
         )
         .fetch_all(&self.pool)
         .await?
@@ -489,26 +542,56 @@ impl WalletStore {
     /// Sessions without an address are excluded: they have not yet generated a
     /// receiving address and cannot be matched against incoming transactions.
     pub async fn sessions_to_watch(&self) -> Result<Vec<PaymentSession>> {
-        // These states represent "payee awaiting on-chain confirmation".
-        // If a new PaymentState for in-flight confirmation is added to the enum,
-        // it must also be added to this filter or sessions will be silently dropped
-        // from the watcher on restart.
-        sqlx::query_as::<_, SessionRow>(
+        // Fetch all payee sessions with an address and filter in Rust using an
+        // exhaustive match on PaymentState.  This ensures the compiler flags any
+        // new variant that is added to the enum without a conscious decision about
+        // whether it needs watching — the build will fail rather than silently
+        // dropping sessions from the watcher on restart.
+        let rows = sqlx::query_as::<_, SessionRow>(
             "SELECT session_id, peer_pub_id, role, state, chain,
                     amount_zatoshi, tx_hash, address, created_at, updated_at
              FROM payment_sessions
-             WHERE role   = 'payee'
-               AND state IN ('address_provided', 'sent')
+             WHERE role    = 'payee'
                AND address IS NOT NULL",
         )
         .fetch_all(&self.pool)
-        .await?
-        .into_iter()
-        .map(session_from_row)
-        .collect()
+        .await?;
+
+        let sessions = rows
+            .into_iter()
+            .map(session_from_row)
+            .collect::<Result<Vec<_>>>()?;
+
+        let watchable = sessions
+            .into_iter()
+            .filter(|s| match s.state {
+                PaymentState::AddressProvided | PaymentState::Sent => true,
+                PaymentState::Requested
+                | PaymentState::Confirmed
+                | PaymentState::Failed
+                | PaymentState::Expired => false,
+            })
+            .collect();
+
+        Ok(watchable)
     }
 
     // ---- notes ----
+
+    /// INSERT SQL for a note row with all plaintext fields populated.
+    /// Shared between `insert_note` and `insert_note_with_witness` so a schema
+    /// change only needs one update.
+    const NOTE_INSERT_FULL: &'static str = "INSERT INTO notes
+       (txid, output_index, value_zatoshi, memo, block_height, created_at,
+        note_diversifier, note_pk_d, note_rseed, note_rseed_after_zip212)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     RETURNING note_id";
+
+    /// INSERT SQL for a note row without plaintext fields (trial-decrypt pending).
+    const NOTE_INSERT_PARTIAL: &'static str =
+        "INSERT INTO notes (txid, output_index, value_zatoshi, memo, block_height, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         RETURNING note_id";
 
     /// Insert a received note.  Returns the DB-assigned `note_id`.
     ///
@@ -528,11 +611,8 @@ impl WalletStore {
             )
         })?;
         // Use two different INSERT queries depending on whether plaintext columns are
-        // populated.  `note_rseed_after_zip212` has a NOT NULL DEFAULT 1 constraint:
-        // binding NULL for it would violate the constraint.  When plaintext fields are
-        // absent, omit them from the INSERT and let the DEFAULT apply.
-        // NOTE: This INSERT SQL is duplicated in insert_note_with_witness().
-        // Keep both in sync when the schema changes.
+        // populated.  When plaintext fields are absent, omit them from the INSERT so
+        // note_rseed_after_zip212 stays NULL (meaning unclassified).
         let id = if let (Some(diversifier), Some(pk_d), Some(rseed), Some(after_zip212)) = (
             &note.note_diversifier,
             &note.note_pk_d,
@@ -540,39 +620,29 @@ impl WalletStore {
             note.rseed_after_zip212,
         ) {
             let rseed_after_zip212_int: i64 = if after_zip212 { 1 } else { 0 };
-            sqlx::query_scalar(
-                "INSERT INTO notes
-                   (txid, output_index, value_zatoshi, memo, block_height, created_at,
-                    note_diversifier, note_pk_d, note_rseed, note_rseed_after_zip212)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 RETURNING note_id",
-            )
-            .bind(&note.txid)
-            .bind(note.output_index)
-            .bind(value)
-            .bind(&note.memo)
-            .bind(block_height)
-            .bind(note.created_at)
-            .bind(diversifier)
-            .bind(pk_d)
-            .bind(rseed)
-            .bind(rseed_after_zip212_int)
-            .fetch_one(&self.pool)
-            .await?
+            sqlx::query_scalar(Self::NOTE_INSERT_FULL)
+                .bind(&note.txid)
+                .bind(note.output_index)
+                .bind(value)
+                .bind(&note.memo)
+                .bind(block_height)
+                .bind(note.created_at)
+                .bind(diversifier)
+                .bind(pk_d)
+                .bind(rseed)
+                .bind(rseed_after_zip212_int)
+                .fetch_one(&self.pool)
+                .await?
         } else {
-            sqlx::query_scalar(
-                "INSERT INTO notes (txid, output_index, value_zatoshi, memo, block_height, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 RETURNING note_id",
-            )
-            .bind(&note.txid)
-            .bind(note.output_index)
-            .bind(value)
-            .bind(&note.memo)
-            .bind(block_height)
-            .bind(note.created_at)
-            .fetch_one(&self.pool)
-            .await?
+            sqlx::query_scalar(Self::NOTE_INSERT_PARTIAL)
+                .bind(&note.txid)
+                .bind(note.output_index)
+                .bind(value)
+                .bind(&note.memo)
+                .bind(block_height)
+                .bind(note.created_at)
+                .fetch_one(&self.pool)
+                .await?
         };
         Ok(id)
     }
@@ -655,7 +725,7 @@ impl WalletStore {
             note_diversifier: Vec<u8>,
             note_pk_d: Vec<u8>,
             note_rseed: Vec<u8>,
-            note_rseed_after_zip212: i64,
+            note_rseed_after_zip212: Option<i64>,
             block_height: i64,
             witness_data: Vec<u8>,
         }
@@ -673,9 +743,10 @@ impl WalletStore {
              FROM notes n
              JOIN witnesses w ON n.note_id = w.note_id
              WHERE n.spent = 0
-               AND n.note_diversifier IS NOT NULL
-               AND n.note_pk_d        IS NOT NULL
-               AND n.note_rseed       IS NOT NULL",
+               AND n.note_diversifier          IS NOT NULL
+               AND n.note_pk_d                IS NOT NULL
+               AND n.note_rseed               IS NOT NULL
+               AND n.note_rseed_after_zip212   IS NOT NULL",
         )
         .fetch_all(&self.pool)
         .await?;
@@ -693,7 +764,7 @@ impl WalletStore {
                     note_diversifier: r.note_diversifier,
                     note_pk_d: r.note_pk_d,
                     note_rseed: r.note_rseed,
-                    rseed_after_zip212: r.note_rseed_after_zip212 != 0,
+                    rseed_after_zip212: r.note_rseed_after_zip212.unwrap_or(0) != 0,
                     block_height: u64::try_from(r.block_height).map_err(|_| {
                         anyhow::anyhow!(
                             "note {} has negative block_height {} in DB — data corruption",
@@ -746,6 +817,36 @@ impl WalletStore {
         }
         txn.commit().await?;
         Ok(())
+    }
+
+    /// Return which of the given `note_ids` are marked spent in the DB.
+    ///
+    /// Used by the scanner to prune its in-memory witness map after notes are
+    /// spent by `payment.rs`.  Returns only the IDs that have `spent = 1`; IDs
+    /// that do not exist in the DB are silently excluded from the result.
+    ///
+    /// Uses a single `IN (...)` query rather than one round-trip per note.
+    /// Input is chunked at 900 to stay within SQLite's default
+    /// `SQLITE_LIMIT_VARIABLE_NUMBER` of 999.
+    pub async fn spent_note_ids_in(&self, note_ids: &[i64]) -> Result<Vec<i64>> {
+        if note_ids.is_empty() {
+            return Ok(vec![]);
+        }
+        // Single query with IN (...) rather than one round-trip per note.
+        // SQLite defaults to SQLITE_LIMIT_VARIABLE_NUMBER=999; chunk to stay safe.
+        let mut spent = Vec::new();
+        for chunk in note_ids.chunks(900) {
+            let mut builder =
+                sqlx::QueryBuilder::new("SELECT note_id FROM notes WHERE note_id IN (");
+            let mut sep = builder.separated(", ");
+            for &id in chunk {
+                sep.push_bind(id);
+            }
+            builder.push(") AND spent = 1");
+            let rows: Vec<(i64,)> = builder.build_query_as().fetch_all(&self.pool).await?;
+            spent.extend(rows.into_iter().map(|(id,)| id));
+        }
+        Ok(spent)
     }
 
     // ---- witnesses ----
@@ -811,10 +912,9 @@ impl WalletStore {
         let mut txn = self.pool.begin().await?;
 
         // Insert note — two query variants depending on whether plaintext columns
-        // are populated, matching the logic in insert_note().
-        // NOTE: The INSERT SQL below is intentionally duplicated from insert_note().
-        // If the notes table schema changes (e.g., new columns added in a migration),
-        // BOTH insert_note() and insert_note_with_witness() must be updated together.
+        // are populated, matching the logic in insert_note().  SQL strings shared
+        // via NOTE_INSERT_FULL / NOTE_INSERT_PARTIAL so schema changes only need
+        // one update.
         let note_id: i64 = if let (Some(diversifier), Some(pk_d), Some(rseed), Some(after_zip212)) = (
             &note.note_diversifier,
             &note.note_pk_d,
@@ -822,39 +922,29 @@ impl WalletStore {
             note.rseed_after_zip212,
         ) {
             let rseed_flag: i64 = if after_zip212 { 1 } else { 0 };
-            sqlx::query_scalar(
-                "INSERT INTO notes
-                   (txid, output_index, value_zatoshi, memo, block_height, created_at,
-                    note_diversifier, note_pk_d, note_rseed, note_rseed_after_zip212)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                 RETURNING note_id",
-            )
-            .bind(&note.txid)
-            .bind(note.output_index)
-            .bind(value)
-            .bind(&note.memo)
-            .bind(note_bh)
-            .bind(note.created_at)
-            .bind(diversifier)
-            .bind(pk_d)
-            .bind(rseed)
-            .bind(rseed_flag)
-            .fetch_one(&mut *txn)
-            .await?
+            sqlx::query_scalar(Self::NOTE_INSERT_FULL)
+                .bind(&note.txid)
+                .bind(note.output_index)
+                .bind(value)
+                .bind(&note.memo)
+                .bind(note_bh)
+                .bind(note.created_at)
+                .bind(diversifier)
+                .bind(pk_d)
+                .bind(rseed)
+                .bind(rseed_flag)
+                .fetch_one(&mut *txn)
+                .await?
         } else {
-            sqlx::query_scalar(
-                "INSERT INTO notes (txid, output_index, value_zatoshi, memo, block_height, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 RETURNING note_id",
-            )
-            .bind(&note.txid)
-            .bind(note.output_index)
-            .bind(value)
-            .bind(&note.memo)
-            .bind(note_bh)
-            .bind(note.created_at)
-            .fetch_one(&mut *txn)
-            .await?
+            sqlx::query_scalar(Self::NOTE_INSERT_PARTIAL)
+                .bind(&note.txid)
+                .bind(note.output_index)
+                .bind(value)
+                .bind(&note.memo)
+                .bind(note_bh)
+                .bind(note.created_at)
+                .fetch_one(&mut *txn)
+                .await?
         };
 
         // Insert witness in the same transaction so both succeed or both roll back.
@@ -875,9 +965,34 @@ impl WalletStore {
         Ok(note_id)
     }
 
+    /// Fetch the `note_id` for an existing note by its `(txid, output_index)` pair.
+    ///
+    /// Returns `None` if no row matches.  Used by the scanner on a unique-constraint
+    /// collision during rescan: the note is already in the DB, so look up its primary
+    /// key to populate the in-memory witness map and keep it current.
+    pub(crate) async fn get_note_id_by_output(
+        &self,
+        txid: &str,
+        output_index: i64,
+    ) -> Result<Option<i64>> {
+        let row: Option<(i64,)> =
+            sqlx::query_as("SELECT note_id FROM notes WHERE txid = ?1 AND output_index = ?2")
+                .bind(txid)
+                .bind(output_index)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.map(|(id,)| id))
+    }
+
     // ---- transactions ----
 
-    /// Record a confirmed transaction.  Ignores conflicts (idempotent re-index).
+    /// Record a confirmed transaction.
+    ///
+    /// If a row with the same txid already exists, `peer_pub_id` and `memo`
+    /// are updated so that a retry with richer data (e.g. after a rescan that
+    /// populates the peer identity) is not silently dropped.  Immutable fields
+    /// (`block_height`, `direction`, `amount_zatoshi`, `created_at`) are left
+    /// unchanged on conflict.
     pub async fn insert_tx(&self, tx: &TxRecord) -> Result<()> {
         let value = i64::try_from(tx.amount_zatoshi).map_err(|_| {
             anyhow::anyhow!(
@@ -886,9 +1001,12 @@ impl WalletStore {
             )
         })?;
         sqlx::query(
-            "INSERT OR IGNORE INTO transactions
+            "INSERT INTO transactions
                 (txid, block_height, direction, amount_zatoshi, memo, peer_pub_id, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(txid) DO UPDATE SET
+                peer_pub_id = excluded.peer_pub_id,
+                memo        = excluded.memo",
         )
         .bind(&tx.txid)
         .bind(tx.block_height)
@@ -967,6 +1085,102 @@ impl WalletStore {
         })
     }
 
+    /// Read `scan_tip` and `spendable_notes` atomically in a single read
+    /// transaction.
+    ///
+    /// This prevents the TOCTOU where the compact-block scanner calls
+    /// `save_block_state` (which atomically advances `tip_height` and all
+    /// witness rows) between the two reads: with separate queries, `scan_tip`
+    /// could return height N while `spendable_notes` returns witnesses that
+    /// have already been advanced to N+1, causing the anchor passed to
+    /// `build_shielded_tx` to mismatch the witnesses' Merkle root.
+    ///
+    /// A `BEGIN DEFERRED` transaction (SQLite default for `pool.begin()`)
+    /// is sufficient: it acquires a shared read lock on first read, blocking
+    /// any concurrent `BEGIN IMMEDIATE` write (from `save_block_state`) until
+    /// both reads complete.
+    pub async fn scan_tip_and_spendable_notes(
+        &self,
+        account: u32,
+    ) -> Result<(u64, Vec<SpendableNote>)> {
+        if account != 0 {
+            anyhow::bail!(
+                "multi-account not yet supported; only account 0 is valid — pass account=0"
+            );
+        }
+        let mut txn = self.pool.begin().await?;
+
+        // Read scan_tip inside the transaction.
+        let h: i64 = sqlx::query_scalar("SELECT tip_height FROM scan_state WHERE id = 1")
+            .fetch_one(&mut *txn)
+            .await?;
+        let scan_tip = u64::try_from(h).map_err(|_| {
+            anyhow::anyhow!(
+                "scan_state tip_height {} is negative — DB corruption; \
+                 run `nie wallet sync` to reset the scan tip",
+                h
+            )
+        })?;
+
+        // Read spendable notes inside the same transaction snapshot.
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            note_id: i64,
+            value_zatoshi: i64,
+            note_diversifier: Vec<u8>,
+            note_pk_d: Vec<u8>,
+            note_rseed: Vec<u8>,
+            note_rseed_after_zip212: Option<i64>,
+            block_height: i64,
+            witness_data: Vec<u8>,
+        }
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT n.note_id, n.value_zatoshi, n.note_diversifier, n.note_pk_d, n.note_rseed,
+                    n.note_rseed_after_zip212, n.block_height, w.witness_data
+             FROM notes n
+             JOIN witnesses w ON n.note_id = w.note_id
+             WHERE n.spent = 0
+               AND n.note_diversifier          IS NOT NULL
+               AND n.note_pk_d                IS NOT NULL
+               AND n.note_rseed               IS NOT NULL
+               AND n.note_rseed_after_zip212   IS NOT NULL",
+        )
+        .fetch_all(&mut *txn)
+        .await?;
+
+        txn.commit().await?;
+
+        let notes = rows
+            .into_iter()
+            .map(|r| {
+                Ok(SpendableNote {
+                    note_id: r.note_id,
+                    value_zatoshi: u64::try_from(r.value_zatoshi).map_err(|_| {
+                        anyhow::anyhow!(
+                            "note {} has negative value_zatoshi {} in DB — data corruption",
+                            r.note_id,
+                            r.value_zatoshi
+                        )
+                    })?,
+                    note_diversifier: r.note_diversifier,
+                    note_pk_d: r.note_pk_d,
+                    note_rseed: r.note_rseed,
+                    rseed_after_zip212: r.note_rseed_after_zip212.unwrap_or(0) != 0,
+                    block_height: u64::try_from(r.block_height).map_err(|_| {
+                        anyhow::anyhow!(
+                            "note {} has negative block_height {} in DB — data corruption",
+                            r.note_id,
+                            r.block_height
+                        )
+                    })?,
+                    witness_data: r.witness_data,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok((scan_tip, notes))
+    }
+
     /// Update the last fully-scanned block height.
     ///
     /// Called by the compact-block scanner after each block is processed.
@@ -974,29 +1188,74 @@ impl WalletStore {
         let h = i64::try_from(height).map_err(|_| {
             anyhow::anyhow!("scan tip {height} exceeds i64::MAX; cannot store in SQLite")
         })?;
-        sqlx::query("UPDATE scan_state SET tip_height = ? WHERE id = 1")
+        let result = sqlx::query("UPDATE scan_state SET tip_height = ? WHERE id = 1")
             .bind(h)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-    /// Persist a serialized `CommitmentTree` snapshot.
-    ///
-    /// `tree_data` is the output of `write_commitment_tree()`.  Overwrites any
-    /// previously stored snapshot.  Called by the scanner after each block is
-    /// processed so that restarts do not require replaying the full chain.
-    pub async fn save_tree_state(&self, tree_data: &[u8]) -> Result<()> {
-        let result = sqlx::query("UPDATE scan_state SET tree_state = ? WHERE id = 1")
-            .bind(tree_data)
             .execute(&self.pool)
             .await?;
         if result.rows_affected() != 1 {
             return Err(anyhow::anyhow!(
-                "save_tree_state: scan_state row missing (rows_affected={})",
+                "set_scan_tip: scan_state row missing (rows_affected={}); \
+                 call init_scan_state before scanning",
                 result.rows_affected()
             ));
         }
+        Ok(())
+    }
+
+    /// Atomically persist all per-block scanner state in a single transaction.
+    ///
+    /// Writes the commitment tree snapshot, all updated Merkle witnesses, and the
+    /// new scan tip inside one SQLite transaction.  Either all three writes commit
+    /// or none do, so a crash between writes cannot leave the DB in a state where
+    /// `scan_state.tip_height` is N but some witnesses are missing.
+    ///
+    /// `witnesses` is a slice of `(note_id, block_height, serialized_witness)` tuples.
+    pub async fn save_block_state(
+        &self,
+        tree_data: &[u8],
+        witnesses: &[(i64, i64, Vec<u8>)],
+        tip_height: i64,
+    ) -> Result<()> {
+        let mut txn = self.pool.begin().await?;
+
+        let tree_rows = sqlx::query("UPDATE scan_state SET tree_state = ? WHERE id = 1")
+            .bind(tree_data)
+            .execute(&mut *txn)
+            .await?;
+        if tree_rows.rows_affected() != 1 {
+            return Err(anyhow::anyhow!(
+                "save_block_state: scan_state row missing while saving tree (rows_affected={})",
+                tree_rows.rows_affected()
+            ));
+        }
+
+        for (note_id, block_height, witness_data) in witnesses {
+            sqlx::query(
+                "INSERT INTO witnesses (note_id, block_height, witness_data)
+                 VALUES (?, ?, ?)
+                 ON CONFLICT(note_id) DO UPDATE SET
+                     block_height = excluded.block_height,
+                     witness_data = excluded.witness_data",
+            )
+            .bind(note_id)
+            .bind(block_height)
+            .bind(witness_data.as_slice())
+            .execute(&mut *txn)
+            .await?;
+        }
+
+        let tip_rows = sqlx::query("UPDATE scan_state SET tip_height = ? WHERE id = 1")
+            .bind(tip_height)
+            .execute(&mut *txn)
+            .await?;
+        if tip_rows.rows_affected() != 1 {
+            return Err(anyhow::anyhow!(
+                "save_block_state: scan_state row missing while saving tip (rows_affected={})",
+                tip_rows.rows_affected()
+            ));
+        }
+
+        txn.commit().await?;
         Ok(())
     }
 
@@ -1039,7 +1298,13 @@ impl WalletStore {
         let threshold_i64: i64 = if scan_tip < min_confirmations {
             -1 // No note can be confirmed yet; -1 is below any valid block_height.
         } else {
-            i64::try_from(scan_tip - min_confirmations).unwrap_or(i64::MAX)
+            // scan_tip - min_confirmations is safe (checked above); the result
+            // must fit in i64 (block heights are bounded by the chain length,
+            // far below i64::MAX).  Overflow here would mean every note is
+            // counted as confirmed regardless of depth — return an error instead.
+            (scan_tip - min_confirmations)
+                .try_into()
+                .map_err(|_| anyhow::anyhow!("scan_tip computation overflow: scan_tip={scan_tip} min_confirmations={min_confirmations}"))?
         };
 
         #[derive(sqlx::FromRow)]
@@ -1050,8 +1315,8 @@ impl WalletStore {
 
         let row: Row = sqlx::query_as(
             "SELECT
-               SUM(CASE WHEN block_height <= ? THEN value_zatoshi ELSE 0 END) AS confirmed,
-               SUM(CASE WHEN block_height  > ? THEN value_zatoshi ELSE 0 END) AS pending
+               SUM(CASE WHEN block_height > 0 AND block_height <= ? THEN value_zatoshi ELSE 0 END) AS confirmed,
+               SUM(CASE WHEN block_height = 0 OR block_height  > ? THEN value_zatoshi ELSE 0 END) AS pending
              FROM notes
              WHERE spent = 0",
         )
@@ -1210,7 +1475,9 @@ impl WalletStore {
         // If the row exists and the stored value is already >= idx, nothing to do.
         if let Some(c) = current {
             if idx <= c {
-                // Read-only path: SQLite rolls back the empty transaction on drop.
+                // Read-only path: explicitly roll back rather than relying on
+                // async drop, which may not complete under all executor configs.
+                tx.rollback().await?;
                 return Ok(());
             }
         }
@@ -1354,6 +1621,10 @@ impl WalletStore {
     /// Sets all three plaintext columns and inserts a witness row so that
     /// `spendable_notes()` returns this note immediately.
     ///
+    /// Each call generates a unique (txid, output_index) pair via an atomic
+    /// counter so multiple calls in the same store do not hit the UNIQUE
+    /// constraint on (txid, output_index).
+    ///
     /// The `witness_data` bytes must be a valid serialized `IncrementalWitness`
     /// whose tree state is consistent with `block_height`; otherwise the tx
     /// builder will reject the spend proof.
@@ -1367,27 +1638,46 @@ impl WalletStore {
         rseed_after_zip212: bool,
         witness_data: &[u8],
     ) -> Result<i64> {
+        use std::sync::atomic::{AtomicU32, Ordering};
+        static NEXT_IDX: AtomicU32 = AtomicU32::new(0);
+        let idx = NEXT_IDX.fetch_add(1, Ordering::Relaxed);
+
         let value = i64::try_from(value_zatoshi).map_err(|_| anyhow::anyhow!("value overflow"))?;
         let height =
             i64::try_from(block_height).map_err(|_| anyhow::anyhow!("block_height overflow"))?;
+        // Unique synthetic txid per call: zero-padded decimal index fills 64 hex chars.
+        let txid = format!("{idx:0>64}");
+        let mut txn = self.pool.begin().await?;
         let note_id: i64 = sqlx::query_scalar(
             "INSERT INTO notes
                (txid, output_index, value_zatoshi, block_height, created_at,
                 note_diversifier, note_pk_d, note_rseed, note_rseed_after_zip212)
-             VALUES \
-              ('0000000000000000000000000000000000000000000000000000000000000000',
-               0, ?, ?, 0, ?, ?, ?, ?)
+             VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)
              RETURNING note_id",
         )
+        .bind(&txid)
+        .bind(idx as i64)
         .bind(value)
         .bind(height)
         .bind(note_diversifier)
         .bind(note_pk_d)
         .bind(note_rseed)
         .bind(if rseed_after_zip212 { 1i64 } else { 0i64 })
-        .fetch_one(&self.pool)
+        .fetch_one(&mut *txn)
         .await?;
-        self.upsert_witness(note_id, height, witness_data).await?;
+        sqlx::query(
+            "INSERT INTO witnesses (note_id, block_height, witness_data)
+             VALUES (?, ?, ?)
+             ON CONFLICT(note_id) DO UPDATE SET
+                 block_height = excluded.block_height,
+                 witness_data = excluded.witness_data",
+        )
+        .bind(note_id)
+        .bind(height)
+        .bind(witness_data)
+        .execute(&mut *txn)
+        .await?;
+        txn.commit().await?;
         Ok(note_id)
     }
 }
@@ -2043,9 +2333,12 @@ mod tests {
         assert_eq!(got.peer_pub_id.as_deref(), Some("a".repeat(64).as_str()));
     }
 
-    /// Duplicate insert_tx is silently ignored (INSERT OR IGNORE).
+    /// Duplicate insert_tx does not create a second row and does not error.
+    ///
+    /// Oracle: insert the same TxRecord twice; `recent_txs` must return exactly
+    /// one row.  Verifies the `ON CONFLICT DO UPDATE` path is idempotent.
     #[tokio::test]
-    async fn duplicate_tx_is_ignored() {
+    async fn duplicate_tx_is_idempotent() {
         let (store, _tempfile) = make_store().await;
         let tx = TxRecord {
             txid: "cafebabe".repeat(8),
@@ -2063,6 +2356,67 @@ mod tests {
             store.recent_txs(10).await.unwrap().len(),
             1,
             "duplicate insert must not create a second row"
+        );
+    }
+
+    /// insert_tx with a conflicting txid updates peer_pub_id and memo.
+    ///
+    /// Oracle: first insert has no peer_pub_id/memo; second insert provides
+    /// them.  After the second call the stored row must carry the new values.
+    /// Immutable fields (block_height, amount_zatoshi) must be unchanged.
+    #[tokio::test]
+    async fn duplicate_tx_updates_peer_pub_id_and_memo() {
+        let (store, _tempfile) = make_store().await;
+        let txid = "deadbeef".repeat(8);
+        let tx_first = TxRecord {
+            txid: txid.clone(),
+            block_height: 1_000,
+            direction: TxDirection::Incoming,
+            amount_zatoshi: 50_000,
+            memo: None,
+            peer_pub_id: None,
+            created_at: 1_000,
+        };
+        store.insert_tx(&tx_first).await.unwrap();
+
+        let peer = "b".repeat(64);
+        let tx_second = TxRecord {
+            txid: txid.clone(),
+            block_height: 9_999,              // must NOT overwrite the original
+            direction: TxDirection::Outgoing, // must NOT overwrite the original
+            amount_zatoshi: 99_999,           // must NOT overwrite the original
+            memo: Some(b"hello".to_vec()),
+            peer_pub_id: Some(peer.clone()),
+            created_at: 9_999,
+        };
+        store.insert_tx(&tx_second).await.unwrap();
+
+        let txs = store.recent_txs(10).await.unwrap();
+        assert_eq!(txs.len(), 1, "must still have exactly one row");
+        let got = &txs[0];
+        assert_eq!(
+            got.memo.as_deref(),
+            Some(b"hello".as_slice()),
+            "memo must be updated"
+        );
+        assert_eq!(
+            got.peer_pub_id.as_deref(),
+            Some(peer.as_str()),
+            "peer_pub_id must be updated"
+        );
+        // Immutable fields must not change.
+        assert_eq!(
+            got.block_height, 1_000,
+            "block_height must not change on conflict"
+        );
+        assert_eq!(
+            got.amount_zatoshi, 50_000,
+            "amount must not change on conflict"
+        );
+        assert_eq!(
+            got.direction,
+            TxDirection::Incoming,
+            "direction must not change on conflict"
         );
     }
 
@@ -2253,6 +2607,37 @@ mod tests {
             "block_height=0 note must be pending when scan_tip < min_confirmations"
         );
         assert_eq!(b.pending_zatoshi, 500_000);
+    }
+
+    /// A note with block_height = 0 is pending even when scan_tip >= min_confirmations.
+    ///
+    /// block_height=0 is the migration v4 DEFAULT sentinel meaning "not yet mined".
+    /// It must never be counted as confirmed regardless of how high the scan tip is —
+    /// the confirmed SQL condition `block_height > 0 AND block_height <= threshold`
+    /// rejects it because `0 > 0` is false.
+    ///
+    /// Oracle: setup scan_tip=2_000_000, min_confirmations=10 → threshold=1_999_990.
+    /// block_height=0 fails `0 > 0` → not confirmed.
+    /// block_height=0 matches `block_height = 0` in the pending clause → pending.
+    /// Expected: confirmed=0, pending=500_000.
+    #[tokio::test]
+    async fn balance_height_zero_note_is_always_pending() {
+        let (store, _tempfile) = make_store().await;
+        let mut note = sample_note();
+        note.block_height = 0; // migration v4 DEFAULT sentinel
+        store.insert_note(&note).await.unwrap();
+
+        // scan_tip well above any reasonable threshold — block_height=0 must
+        // still land in pending, not confirmed.
+        let b = store.balance(2_000_000, 10).await.unwrap();
+        assert_eq!(
+            b.confirmed_zatoshi, 0,
+            "block_height=0 (sentinel) must never be confirmed, regardless of scan_tip"
+        );
+        assert_eq!(
+            b.pending_zatoshi, 500_000,
+            "block_height=0 note must appear in pending balance"
+        );
     }
 
     // ---- accounts / diversifier index (nie-0dg) ----

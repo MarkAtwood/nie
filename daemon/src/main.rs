@@ -43,14 +43,20 @@ async fn main() -> Result<()> {
         socket_addr.ip()
     );
 
-    // CORS: allow localhost origins only
+    // CORS: allow localhost origins on the configured port.
+    // Derive the port from LISTEN_ADDR so CORS stays consistent when operators
+    // change the port via the env var.
+    let port = socket_addr.port();
     let cors = CorsLayer::new()
         .allow_origin([
-            "http://localhost:7734".parse::<HeaderValue>()?,
-            "http://127.0.0.1:7734".parse::<HeaderValue>()?,
+            format!("http://localhost:{port}").parse::<HeaderValue>()?,
+            format!("http://127.0.0.1:{port}").parse::<HeaderValue>()?,
         ])
         .allow_methods([Method::GET, Method::POST])
-        .allow_headers(tower_http::cors::Any);
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+        ]);
 
     // Load identity from keyfile to get pub_id.  Default location mirrors nie-cli.
     let keyfile_path = std::env::var("KEYFILE")
@@ -62,7 +68,7 @@ async fn main() -> Result<()> {
             .ok()
             .and_then(|b| <[u8; 64]>::try_from(b.as_slice()).ok())
         {
-            Some(arr) => Identity::from_secret_bytes(&arr).pub_id().0,
+            Some(arr) => Identity::from_secret_bytes(&arr)?.pub_id().0,
             None => {
                 anyhow::bail!(
                     "keyfile {} must be exactly 64 bytes",
@@ -71,12 +77,10 @@ async fn main() -> Result<()> {
             }
         }
     } else {
-        tracing::warn!(
-            "no keyfile at {}; run 'nie init' first or set KEYFILE",
+        anyhow::bail!(
+            "keyfile not found at {}; run 'nie init' first or set KEYFILE",
             keyfile_path.display()
         );
-        // Daemon starts without an identity; /api/whoami will reflect this.
-        "no_identity".to_string()
     };
 
     // Zcash network selection: NETWORK env var, default "mainnet".
@@ -169,7 +173,11 @@ async fn main() -> Result<()> {
         // JMAP Core (RFC 8620)
         .route("/.well-known/jmap", get(jmap::handle_jmap_session))
         .route("/jmap", post(jmap::handle_jmap_request))
-        .route("/jmap/upload/{account_id}", post(jmap::handle_jmap_upload))
+        .route(
+            "/jmap/upload/{account_id}",
+            post(jmap::handle_jmap_upload)
+                .layer(axum::extract::DefaultBodyLimit::max(jmap::UPLOAD_MAX_BYTES)),
+        )
         .route(
             "/jmap/download/{account_id}/{blob_id}/{name}",
             get(jmap::handle_jmap_download),
@@ -179,13 +187,20 @@ async fn main() -> Result<()> {
             token::require_token,
         ));
 
+    // Routes that accept ?token= for browser clients (WebSocket and EventSource APIs
+    // cannot set Authorization headers). The token is extracted from the URI,
+    // stored in request extensions as QueryToken, and the URI is rewritten with
+    // the value replaced by [redacted] so downstream logging sees no real token.
+    let browser_auth_routes = Router::new()
+        .route("/ws/events", get(ws_events::handle_ws_events))
+        .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
+        .route_layer(axum::middleware::from_fn(token::redact_token_query_param));
+
     let app = Router::new()
         .route("/", get(web::handle_index))
         .route("/index.html", get(web::handle_index))
         .route("/health", get(|| async { "ok" }))
-        .route("/ws/events", get(ws_events::handle_ws_events))
-        // EventSource: auth done inline (browser EventSource can't set headers)
-        .route("/jmap/eventsource/", get(jmap::handle_jmap_eventsource))
+        .merge(browser_auth_routes)
         .merge(api_router)
         .layer(cors)
         .with_state(daemon_state.clone());
@@ -218,14 +233,11 @@ async fn main() -> Result<()> {
     if let Ok(relay_url) = std::env::var("RELAY_URL") {
         let insecure = std::env::var("RELAY_INSECURE").is_ok();
         let proxy = std::env::var("RELAY_PROXY").ok();
-        relay::start_relay_connector(
-            keyfile_path.to_str().unwrap_or(""),
-            &relay_url,
-            insecure,
-            proxy,
-            daemon_state,
-        )
-        .await?;
+        let keyfile_str = keyfile_path.to_str().ok_or_else(|| {
+            anyhow::anyhow!("keyfile path contains non-UTF-8 bytes: {keyfile_path:?}")
+        })?;
+        relay::start_relay_connector(keyfile_str, &relay_url, insecure, proxy, daemon_state)
+            .await?;
         tracing::info!("relay connector started for {}", relay_url);
     } else {
         tracing::info!("RELAY_URL not set; daemon running without relay connection");

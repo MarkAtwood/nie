@@ -33,9 +33,20 @@ pub fn release_pid_file(path: &Path) {
 }
 
 fn process_alive(pid: u32) -> bool {
-    // Safety: signal 0 only checks existence, never kills
+    // Safety: signal 0 only checks existence, never kills.
     let result = unsafe { libc::kill(pid as libc::pid_t, 0) };
-    result == 0
+    if result == 0 {
+        return true;
+    }
+    // kill returned -1.  Distinguish "no such process" from "process exists
+    // but is owned by a different user" (nie-201j).
+    //
+    // ESRCH — no process with this PID exists; treat as dead.
+    // EPERM — process exists but we lack permission to signal it; treat as alive.
+    // EINVAL — invalid signal (cannot happen with sig=0, but treat as alive to
+    //          avoid a false "dead" that allows a second daemon to start).
+    let err = std::io::Error::last_os_error();
+    err.raw_os_error() != Some(libc::ESRCH)
 }
 
 #[cfg(test)]

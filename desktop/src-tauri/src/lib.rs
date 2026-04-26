@@ -13,7 +13,7 @@ use nie_core::protocol::{rpc_methods, BroadcastParams, DeliverParams, JsonRpcReq
 use nie_core::transport::{next_request_id, ClientEvent};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 // ---- Shared app state ----
 
@@ -72,7 +72,7 @@ async fn connect_relay(
 
     // Store the send channel in shared state.
     {
-        let mut s = state.lock().unwrap();
+        let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
         s.tx = Some(conn.tx.clone());
         s.pub_id = Some(pub_id.clone());
     }
@@ -94,6 +94,13 @@ async fn connect_relay(
                     tracing::info!("relay reconnecting in {delay_secs}s");
                     let _ = app.emit("nie://status", format!("Reconnecting in {delay_secs}s…"));
                 }
+                ClientEvent::Disconnected => {
+                    tracing::warn!("relay disconnected");
+                    let relay_state = app.state::<Mutex<RelayState>>();
+                    let mut s = relay_state.lock().unwrap_or_else(|e| e.into_inner());
+                    s.tx = None;
+                    break;
+                }
                 _ => {}
             }
         }
@@ -107,7 +114,7 @@ async fn connect_relay(
 #[tauri::command]
 async fn send_chat(text: String, state: State<'_, Mutex<RelayState>>) -> Result<(), String> {
     let tx = {
-        let s = state.lock().unwrap();
+        let s = state.lock().unwrap_or_else(|e| e.into_inner());
         s.tx.clone().ok_or("not connected")?
     };
     let payload = serde_json::to_vec(&ClearMessage::Chat { text }).map_err(|e| e.to_string())?;

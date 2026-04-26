@@ -101,7 +101,23 @@ impl Contacts {
 
     pub fn save(&self, data_dir: &Path) -> Result<()> {
         let path = data_dir.join("contacts.json");
-        std::fs::write(path, serde_json::to_string_pretty(self)?)?;
+        let bytes = serde_json::to_vec_pretty(self)?;
+        #[cfg(unix)]
+        {
+            use std::io::Write as _;
+            use std::os::unix::fs::OpenOptionsExt as _;
+            let mut f = std::fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&path)?;
+            f.write_all(&bytes)?;
+        }
+        #[cfg(not(unix))]
+        {
+            std::fs::write(&path, &bytes)?;
+        }
         Ok(())
     }
 
@@ -119,8 +135,13 @@ impl Contacts {
                 return Some(c.pubkey.clone());
             }
         }
-        // Assume it's a raw pubkey if it's long enough
-        if name_or_key.len() > 20 {
+        // Treat as a raw pubkey only if it is exactly 64 lowercase hex characters.
+        // A pubkey is hex(SHA-256(ed25519_verifying_key)) — always 64 chars.
+        if name_or_key.len() == 64
+            && name_or_key
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && c.is_ascii_lowercase())
+        {
             Some(name_or_key.to_string())
         } else {
             None

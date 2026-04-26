@@ -27,6 +27,7 @@ use openmls_rust_crypto::OpenMlsRustCrypto;
 use sha2::{Digest, Sha256};
 use tls_codec::{DeserializeBytes, Serialize as TlsSerialize};
 use x25519_dalek;
+use zeroize::Zeroize;
 
 /// Fixed group ID for the single broadcast room.
 const GROUP_ID: &[u8] = b"nie-room";
@@ -200,6 +201,10 @@ impl MlsClient {
             _ => anyhow::bail!("expected Welcome message"),
         };
 
+        if self.groups.contains_key(group_id) {
+            anyhow::bail!("group already exists; ignoring replayed Welcome");
+        }
+
         let staged = StagedWelcome::new_from_welcome(
             &self.provider,
             &group_join_config(),
@@ -252,7 +257,10 @@ impl MlsClient {
         let processed = group.process_message(&self.provider, protocol_msg)?;
 
         // Extract the MLS-authenticated sender identity before consuming the message.
-        // processed.credential() returns the sender's BasicCredential, whose
+        // into_content() consumes `processed`, so the credential must be read first.
+        // sender_pub_id is only returned to callers for ApplicationMessage; for Commit
+        // and Proposal it is computed here but not used — this is intentional and
+        // harmless.  processed.credential() returns the sender's BasicCredential, whose
         // serialized_content() bytes are the hex pub_id string set at MlsClient::new.
         let sender_pub_id = String::from_utf8(processed.credential().serialized_content().to_vec())
             .map_err(|_| anyhow::anyhow!("MLS sender credential is not valid UTF-8"))?;
@@ -363,22 +371,38 @@ impl MlsClient {
     /// same epoch derive the same secret key (and therefore the same public key).
     /// The keypair rotates automatically on every epoch change (add/remove commit).
     ///
+    /// # Security model (accepted limitation)
+    ///
+    /// The shared secret means any group member can decrypt sealed-broadcast
+    /// messages addressed to the room key — including those sent by other members.
+    /// This is intentional: `sealed_broadcast` hides sender identity **from the relay**
+    /// only, not from other group members. Any group member can identify any other
+    /// member's messages by attempting HPKE decryption.
+    ///
+    /// This is **not** per-user sealed sender (where only the intended recipient
+    /// can decrypt). For per-user sealed sender, each recipient needs their own
+    /// individual HPKE keypair derived outside this shared-key mechanism.
+    ///
     /// Returns `Err` if no group is active.
-    pub fn room_hpke_keypair(&self) -> Result<([u8; 32], [u8; 32])> {
+    pub fn room_hpke_keypair(&self) -> Result<(zeroize::Zeroizing<[u8; 32]>, [u8; 32])> {
         let group = self
             .groups
             .get(GROUP_ID)
             .ok_or_else(|| anyhow::anyhow!("no group"))?;
 
-        let secret_bytes: [u8; 32] = group
+        let mut secret_bytes: [u8; 32] = group
             .export_secret(self.provider.crypto(), "nie-room-hpke-key", b"", 32)
             .map_err(|e| anyhow::anyhow!("export_secret failed: {e:?}"))?
             .try_into()
             .map_err(|_| anyhow::anyhow!("export_secret returned wrong length"))?;
 
         let secret = x25519_dalek::StaticSecret::from(secret_bytes);
+        secret_bytes.zeroize();
         let public = x25519_dalek::PublicKey::from(&secret);
-        Ok((secret.to_bytes(), public.to_bytes()))
+        Ok((
+            zeroize::Zeroizing::new(secret.to_bytes()),
+            public.to_bytes(),
+        ))
     }
 }
 
@@ -909,5 +933,42 @@ mod tests {
         assert!(!alice.group_contains_id(b"alpha", "carol"));
         assert!(alice.group_contains_id(b"beta", "carol"));
         assert!(!alice.group_contains_id(b"beta", "bob"));
+    }
+
+    /// A replayed Welcome must be rejected, not silently overwrite existing group state.
+    ///
+    /// Oracle: group state (epoch, membership) must be unchanged after a replay
+    /// attempt. The check is cross-state: we verify that Bob's epoch after
+    /// join is 1, and that a second join_from_welcome on the same bytes returns Err.
+    ///
+    /// Before the fix, a replayed Welcome would call self.groups.insert(...) and
+    /// silently overwrite the existing state, resetting the epoch and losing all
+    /// subsequent epoch advances.
+    #[test]
+    fn welcome_replay_is_rejected() {
+        let mut alice = MlsClient::new("alice").expect("alice");
+        let mut bob = MlsClient::new("bob").expect("bob");
+
+        alice.create_group().expect("create_group");
+        let bob_kp = bob.key_package_bytes().expect("bob kp");
+        let (_, welcome_bytes) = alice.add_member(&bob_kp).expect("add_member");
+
+        // First join succeeds.
+        bob.join_from_welcome(&welcome_bytes).expect("first join");
+        assert_eq!(bob.epoch(), Some(1), "bob must be at epoch 1 after join");
+
+        // Replaying the same Welcome must be rejected with an error.
+        let replay_result = bob.join_from_welcome(&welcome_bytes);
+        assert!(
+            replay_result.is_err(),
+            "replayed Welcome must return Err, not silently overwrite group state"
+        );
+
+        // Group state must be unchanged: still at epoch 1.
+        assert_eq!(
+            bob.epoch(),
+            Some(1),
+            "epoch must not be reset by a rejected Welcome replay"
+        );
     }
 }

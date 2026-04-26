@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::Parser;
 use nie_core::identity::Identity;
-use nie_core::messages::ClearMessage;
+use nie_core::messages::{pad, ClearMessage};
 use nie_core::protocol::{rpc_methods, BroadcastParams, JsonRpcRequest, SetNicknameParams};
 use nie_core::transport::{next_request_id, ClientEvent};
 use tokio::sync::mpsc;
@@ -144,7 +144,6 @@ async fn handle_relay_event(
     config: &ResolvedBotConfig,
     my_pub_id: &str,
 ) {
-    let _ = conn_tx; // reserved for future use (e.g. auto-reply)
     match client_event {
         ClientEvent::Message(notif) => {
             // directory_list produces no user-visible event; short-circuit explicitly
@@ -156,10 +155,39 @@ async fn handle_relay_event(
                 // Emit the relay event before running the hook so consumers see the
                 // message before the script output it triggers.
                 ev.emit().ok();
+                if let Err(e) =
+                    payment::maybe_auto_respond(&ev, config.auto_payment_address, conn_tx).await
+                {
+                    BotEvent::error(format!("auto-payment failed: {e}"))
+                        .emit()
+                        .ok();
+                }
                 if let (Some(hook), BotEvent::MessageReceived { from, text, .. }) =
                     (&config.on_message_hook, &ev)
                 {
-                    let env_vars = [("NIE_FROM", from.as_str()), ("NIE_TEXT", text.as_str())];
+                    // Sanitize env var values before passing to the hook.
+                    // NIE_FROM: pub_ids are hex, keep only alphanumeric and hyphens.
+                    let safe_from: String = from
+                        .chars()
+                        .filter(|c| c.is_alphanumeric() || *c == '-')
+                        .collect();
+                    // NIE_TEXT: strip control characters and limit to 1024 bytes.
+                    let safe_text: String = {
+                        let filtered: String = text.chars().filter(|c| !c.is_control()).collect();
+                        let end = filtered
+                            .char_indices()
+                            .take_while(|(i, _)| *i < 1024)
+                            .last()
+                            .map(|(i, c)| i + c.len_utf8())
+                            .unwrap_or(0);
+                        filtered[..end].to_string()
+                    };
+                    let ts = chrono::Utc::now().to_rfc3339();
+                    let env_vars = [
+                        ("NIE_FROM", safe_from.as_str()),
+                        ("NIE_TEXT", safe_text.as_str()),
+                        ("NIE_TS", ts.as_str()),
+                    ];
                     match scripting::run_hook(hook, &env_vars).await {
                         Ok(r) => {
                             BotEvent::ScriptOutput {
@@ -167,7 +195,7 @@ async fn handle_relay_event(
                                 exit_code: r.exit_code,
                                 stdout: r.stdout,
                                 stderr: r.stderr,
-                                ts: chrono::Utc::now().to_rfc3339(),
+                                ts,
                             }
                             .emit()
                             .ok();
@@ -197,8 +225,10 @@ async fn handle_relay_event(
             .ok();
         }
         ClientEvent::Response(_) => {
-            // Request ID tracking not done in Phase 4f
-            tracing::trace!("relay response received (ignored in Phase 4f)");
+            tracing::trace!("relay response received (ignored)");
+        }
+        ClientEvent::Disconnected => {
+            tracing::error!("relay disconnected");
         }
     }
 }
@@ -213,10 +243,11 @@ async fn handle_command(
             let msg = ClearMessage::Chat { text };
             // derived Serialize, infallible
             let payload = serde_json::to_vec(&msg).unwrap();
+            let padded = pad(&payload).map_err(|e| anyhow::anyhow!("pad failed: {e}"))?;
             let req = JsonRpcRequest::new(
                 next_request_id(),
                 rpc_methods::BROADCAST,
-                BroadcastParams { payload },
+                BroadcastParams { payload: padded },
             )?;
             conn_tx.send(req).await.ok(); // ignore if channel closed
         }
@@ -232,9 +263,6 @@ async fn handle_command(
             BotEvent::connected(String::new(), my_pub_id.to_string())
                 .emit()
                 .ok();
-        }
-        BotCommand::Users => {
-            // Directory not tracked in Phase 4f
         }
         BotCommand::Quit => std::process::exit(0),
     }
@@ -295,7 +323,8 @@ async fn run_self_test(
                 }
                 Some(ClientEvent::Reconnecting { .. })
                 | Some(ClientEvent::Reconnected)
-                | Some(ClientEvent::Response(_)) => {}
+                | Some(ClientEvent::Response(_))
+                | Some(ClientEvent::Disconnected) => {}
                 None => anyhow::bail!("relay connection closed before self-test completed"),
             }
         }

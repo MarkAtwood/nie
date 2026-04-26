@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 nie-core.workspace = true
 anyhow.workspace = true
+url.workspace = true
 clap = { version = "4", features = ["derive"] }
 reqwest = { workspace = true, features = ["json"] }
 serde.workspace = true

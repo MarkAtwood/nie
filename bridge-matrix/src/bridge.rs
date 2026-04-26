@@ -1,9 +1,11 @@
 use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use nie_core::messages::ClearMessage;
 use nie_core::protocol::{BroadcastParams, DeliverParams, JsonRpcRequest};
 use nie_core::transport::{next_request_id, ClientEvent};
+use subtle::ConstantTimeEq;
 
 use crate::matrix::{mxid_localpart, MatrixEvent};
 
@@ -21,6 +23,61 @@ impl SentIds {
         Self {
             deque: VecDeque::with_capacity(MAX_SENT_IDS),
             set: HashSet::new(),
+        }
+    }
+
+    /// Load from a JSON file produced by [`persist_to_file`].
+    ///
+    /// Returns an empty `SentIds` if the file does not exist.
+    /// Logs a warning and returns empty on any parse error rather than failing startup.
+    pub fn load_from_file(path: &Path) -> Self {
+        match std::fs::read(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Self::new(),
+            Err(e) => {
+                tracing::warn!(
+                    "cannot read sent_ids file {}: {e}; starting empty",
+                    path.display()
+                );
+                Self::new()
+            }
+            Ok(bytes) => {
+                let ids: Vec<String> = match serde_json::from_slice(&bytes) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::warn!(
+                            "cannot parse sent_ids file {}: {e}; starting empty",
+                            path.display()
+                        );
+                        return Self::new();
+                    }
+                };
+                let mut s = Self::new();
+                for id in ids.into_iter().take(MAX_SENT_IDS) {
+                    s.set.insert(id.clone());
+                    s.deque.push_back(id);
+                }
+                s
+            }
+        }
+    }
+
+    /// Persist the current ring buffer to `path` atomically via a rename.
+    pub fn persist_to_file(&self, path: &Path) {
+        let ids: Vec<&str> = self.deque.iter().map(String::as_str).collect();
+        let json = match serde_json::to_vec(&ids) {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!("cannot serialize sent_ids: {e}");
+                return;
+            }
+        };
+        let tmp = path.with_extension("json.tmp");
+        if let Err(e) = std::fs::write(&tmp, &json) {
+            tracing::warn!("cannot write sent_ids tmp {}: {e}", tmp.display());
+            return;
+        }
+        if let Err(e) = std::fs::rename(&tmp, path) {
+            tracing::warn!("cannot rename sent_ids tmp to {}: {e}", path.display());
         }
     }
 
@@ -63,12 +120,20 @@ pub fn format_for_nie(event: &MatrixEvent, text: &str) -> ClearMessage {
 
 /// Returns true if the Matrix event came from our own bridge bot sender.
 pub fn is_bot_sender(event: &MatrixEvent, bot_localpart: &str, homeserver: &str) -> bool {
-    // Homeserver domain from URL: strip https:// and any trailing path.
-    let domain = homeserver
+    // Homeserver domain from URL: strip http(s):// and any trailing slash,
+    // then strip the standard port for the scheme so that a URL like
+    // https://matrix.example.com:443 and https://matrix.example.com both
+    // produce "matrix.example.com", matching the MXID the homeserver uses.
+    let without_scheme = homeserver
         .trim_start_matches("https://")
-        .split('/')
-        .next()
-        .unwrap_or("");
+        .trim_start_matches("http://")
+        .trim_end_matches('/');
+    let is_https = homeserver.starts_with("https://");
+    let domain = match without_scheme.rsplit_once(':') {
+        Some((host, "443")) if is_https => host,
+        Some((host, "80")) if !is_https => host,
+        _ => without_scheme,
+    };
     let bot_mxid = format!("@{bot_localpart}:{domain}");
     event.sender == bot_mxid
 }
@@ -77,6 +142,7 @@ pub fn is_bot_sender(event: &MatrixEvent, bot_localpart: &str, homeserver: &str)
 #[derive(Clone)]
 struct AsState {
     hs_token: String,
+    room_id: String,
     tx: tokio::sync::mpsc::Sender<MatrixEvent>,
 }
 
@@ -95,13 +161,31 @@ async fn as_transaction(
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.strip_prefix("Bearer "));
-    if bearer != Some(state.hs_token.as_str()) {
+    let authed = bearer.is_some_and(|token| {
+        let expected = state.hs_token.as_bytes();
+        let provided = token.as_bytes();
+        bool::from(expected.ct_eq(provided))
+    });
+    if !authed {
         return axum::http::StatusCode::FORBIDDEN;
     }
     for event in txn.events {
-        // Non-blocking: drop the event if the buffer is full rather than
-        // back-pressuring the homeserver.
-        let _ = state.tx.try_send(event);
+        // Filter: only forward events from the configured room.
+        if event.room_id != state.room_id {
+            tracing::debug!(
+                room_id = %event.room_id,
+                "Matrix event from unconfigured room; skipped"
+            );
+            continue;
+        }
+        // Block until the bridge loop has capacity, so the homeserver only
+        // receives HTTP 200 after the event is actually queued.  If the
+        // channel is closed (bridge loop has died), return 500 so the
+        // homeserver retries the transaction.
+        if state.tx.send(event).await.is_err() {
+            tracing::error!("Matrix→nie channel closed; returning 500 for homeserver retry");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
     }
     axum::http::StatusCode::OK
 }
@@ -159,7 +243,13 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
     let matrix = crate::matrix::MatrixClient::new(&homeserver, &config.as_token);
 
     // Echo-loop prevention: track event_ids of messages we sent to nie.
-    let mut sent_ids = SentIds::new();
+    // Persisted alongside the keyfile so dedup survives restarts.
+    let sent_ids_path: PathBuf = {
+        let kf = Path::new(&config.keyfile);
+        let dir = kf.parent().unwrap_or_else(|| Path::new("."));
+        dir.join("sent_ids.json")
+    };
+    let mut sent_ids = SentIds::load_from_file(&sent_ids_path);
 
     // Channel: axum handler → bridge loop.
     let (matrix_tx, mut matrix_rx) = tokio::sync::mpsc::channel::<MatrixEvent>(64);
@@ -168,17 +258,22 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
     {
         let state = AsState {
             hs_token: config.hs_token.clone(),
+            room_id: room_id.clone(),
             tx: matrix_tx,
         };
         let app = axum::Router::new()
             .route("/transactions/{txn_id}", axum::routing::put(as_transaction))
+            // 64 MiB: homeservers batch many events per AS transaction; 1 MiB
+            // was too small and caused 413 rejections that trigger infinite
+            // homeserver retries.
+            .layer(axum::extract::DefaultBodyLimit::max(64 * 1024 * 1024))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Matrix AS server listening on :{listen_port}");
         tokio::spawn(async move {
-            axum::serve(listener, app)
-                .await
-                .expect("AS HTTP server terminated unexpectedly");
+            if let Err(e) = axum::serve(listener, app).await {
+                tracing::error!("Matrix AS HTTP server error: {e}");
+            }
         });
     }
 
@@ -193,17 +288,26 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
                 let Some(event) = event else {
                     anyhow::bail!("nie relay connection channel closed");
                 };
-                if let ClientEvent::Message(notif) = event {
-                    if notif.method == nie_core::protocol::rpc_methods::DELIVER {
-                        handle_nie_deliver(
-                            notif.params,
-                            &own_pub_id,
-                            &matrix,
-                            &room_id,
-                            bridge_prefix.as_deref(),
-                        )
-                        .await;
+                match event {
+                    ClientEvent::Message(notif) => {
+                        if notif.method == nie_core::protocol::rpc_methods::DELIVER {
+                            handle_nie_deliver(
+                                notif.params,
+                                &own_pub_id,
+                                &matrix,
+                                &room_id,
+                                bridge_prefix.as_deref(),
+                            )
+                            .await;
+                        }
                     }
+                    ClientEvent::Reconnecting { delay_secs } => {
+                        tracing::info!("relay reconnecting in {delay_secs}s");
+                    }
+                    ClientEvent::Disconnected => {
+                        anyhow::bail!("relay permanently disconnected; exiting for systemd restart");
+                    }
+                    _ => {}
                 }
             }
 
@@ -232,6 +336,7 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
                     anyhow::bail!("nie relay send channel closed");
                 }
                 sent_ids.insert(event.event_id.clone());
+                sent_ids.persist_to_file(&sent_ids_path);
             }
         }
     }
@@ -247,6 +352,7 @@ mod tests {
     fn make_event(sender: &str) -> MatrixEvent {
         crate::matrix::MatrixEvent {
             event_type: "m.room.message".to_string(),
+            room_id: "!test:example.com".to_string(),
             sender: sender.to_string(),
             content: json!({"msgtype": "m.text", "body": "hi"}),
             event_id: "$xyz".to_string(),
@@ -292,6 +398,39 @@ mod tests {
             &event,
             "niebridge",
             "https://matrix.example.com"
+        ));
+    }
+
+    #[test]
+    fn is_bot_sender_strips_standard_https_port() {
+        // URL with explicit :443 must match the same MXID as without the port.
+        let event = make_event("@niebridge:matrix.example.com");
+        assert!(is_bot_sender(
+            &event,
+            "niebridge",
+            "https://matrix.example.com:443"
+        ));
+    }
+
+    #[test]
+    fn is_bot_sender_keeps_nonstandard_port() {
+        // Non-standard port (e.g. :8448) must NOT be stripped; the MXID would
+        // include it if the homeserver advertises that port in its server name.
+        // Concretely: sender "@niebridge:matrix.example.com" should NOT match
+        // homeserver "https://matrix.example.com:8448" because the domain
+        // produced is "matrix.example.com:8448".
+        let event = make_event("@niebridge:matrix.example.com");
+        assert!(!is_bot_sender(
+            &event,
+            "niebridge",
+            "https://matrix.example.com:8448"
+        ));
+        // And the correctly-formed MXID for that URL does match.
+        let event2 = make_event("@niebridge:matrix.example.com:8448");
+        assert!(is_bot_sender(
+            &event2,
+            "niebridge",
+            "https://matrix.example.com:8448"
         ));
     }
 

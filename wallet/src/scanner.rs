@@ -40,7 +40,9 @@ use zcash_primitives::merkle_tree::{
     write_incremental_witness,
 };
 
-use crate::client::{CompactBlock, CompactSaplingOutput, CompactTx, LightwalletdClient};
+use crate::client::{
+    connect_with_failover, CompactBlock, CompactSaplingOutput, CompactTx, LightwalletdClient,
+};
 use crate::db::{Note, WalletStore};
 
 // ---- ShieldedOutput adapter ----
@@ -123,18 +125,22 @@ impl NoteDecryptor for NullDecryptor {
 /// A [`NoteDecryptor`] that trial-decrypts Sapling compact outputs using a
 /// Sapling incoming viewing key (IVK).
 ///
-/// Constructed from the raw 32-byte IVK scalar bytes via [`new`].  Holds the
-/// parsed `SaplingIvk` and prepares a fresh `PreparedIncomingViewingKey` on
-/// each `try_decrypt_sapling` call.
+/// Constructed from the raw 32-byte IVK scalar bytes via [`new`].  Stores the
+/// validated scalar bytes in a `Zeroizing` wrapper and reconstructs a fresh
+/// `SaplingIvk` on each `try_decrypt_sapling` call.
 ///
 /// # Key material
 ///
 /// This struct holds the IVK, which is key material.  It deliberately does
 /// not implement `Debug` — see CLAUDE.md §Wallet Security.
 ///
+/// The IVK bytes are zeroized on drop via `zeroize::Zeroizing`.
+///
 /// [`new`]: SaplingIvkDecryptor::new
 pub struct SaplingIvkDecryptor {
-    ivk: SaplingIvk,
+    /// Raw 32-byte little-endian scalar representation of the Sapling IVK.
+    /// Stored as `Zeroizing` so the bytes are overwritten on drop.
+    ivk_bytes: zeroize::Zeroizing<[u8; 32]>,
 }
 
 impl SaplingIvkDecryptor {
@@ -143,10 +149,11 @@ impl SaplingIvkDecryptor {
     /// `ivk_bytes` must be a canonically-encoded `jubjub::Fr` scalar (little-endian).
     /// Returns `None` if the bytes do not represent a valid scalar (out-of-range).
     pub fn new(ivk_bytes: &[u8; 32]) -> Option<Self> {
+        // Validate that the bytes encode a canonical jubjub::Fr scalar before storing.
         // jubjub::Fr::from_repr returns CtOption<Fr>; into() converts to Option.
         let fr: Option<jubjub::Fr> = jubjub::Fr::from_repr(*ivk_bytes).into();
-        fr.map(|fr| Self {
-            ivk: SaplingIvk(fr),
+        fr.map(|_| Self {
+            ivk_bytes: zeroize::Zeroizing::new(*ivk_bytes),
         })
     }
 }
@@ -198,8 +205,14 @@ impl NoteDecryptor for SaplingIvkDecryptor {
                 .expect("ciphertext length checked to be COMPACT_NOTE_SIZE (52)"),
         };
 
-        // Derive a fresh PreparedIncomingViewingKey from the stored IVK on each call.
-        let prepared_ivk = PreparedIncomingViewingKey::new(&self.ivk);
+        // Reconstruct the SaplingIvk from the stored bytes on each call.
+        // The bytes were validated as a canonical jubjub::Fr in new(), so this
+        // conversion is infallible; the expect() is unreachable by construction.
+        let fr: jubjub::Fr = jubjub::Fr::from_repr(*self.ivk_bytes)
+            .into_option()
+            .expect("ivk_bytes validated as canonical Fr in SaplingIvkDecryptor::new");
+        let ivk = SaplingIvk(fr);
+        let prepared_ivk = PreparedIncomingViewingKey::new(&ivk);
 
         // Trial decryption.  GracePeriod accepts both pre-ZIP-212 (lead byte 0x01)
         // and post-ZIP-212 (lead byte 0x02) note formats, so the scanner works
@@ -253,6 +266,12 @@ impl NoteDecryptor for SaplingIvkDecryptor {
 /// [`scan_to_tip`]: CompactBlockScanner::scan_to_tip
 pub struct CompactBlockScanner {
     client: LightwalletdClient,
+    /// All configured lightwalletd endpoints, used for failover on reconnect.
+    /// Contains at least the URL of `client`; may contain additional fallback
+    /// endpoints.  On a scan error, [`spawn_scanner`] calls
+    /// [`connect_with_failover`] with this list, rotating through endpoints
+    /// rather than always reconnecting to the same potentially-dead server.
+    endpoints: Vec<String>,
     store: WalletStore,
     decryptor: Box<dyn NoteDecryptor>,
     /// Set to `true` after the birthday-height warning has been emitted once.
@@ -272,16 +291,49 @@ pub struct CompactBlockScanner {
 }
 
 impl CompactBlockScanner {
-    /// Create a new scanner.
+    /// Create a new scanner connected to a single endpoint.
     ///
     /// `decryptor` is called for each Sapling output in each scanned block.
     /// Pass [`NullDecryptor`] if no IVK is available yet.
+    ///
+    /// On reconnect after an error, [`spawn_scanner`] will retry the same URL.
+    /// To enable failover across multiple endpoints, use [`new_with_endpoints`].
+    ///
+    /// [`new_with_endpoints`]: CompactBlockScanner::new_with_endpoints
     pub fn new(
         client: LightwalletdClient,
         store: WalletStore,
         decryptor: Box<dyn NoteDecryptor>,
     ) -> Self {
+        let url = client.url.clone();
         Self {
+            endpoints: vec![url],
+            client,
+            store,
+            decryptor,
+            birthday_warned: false,
+            tree: CommitmentTree::empty(),
+            witnesses: HashMap::new(),
+        }
+    }
+
+    /// Create a new scanner with a list of fallback endpoints.
+    ///
+    /// `client` is the already-connected client for the initial endpoint.
+    /// `endpoints` is the full list of URLs to rotate through when reconnecting
+    /// after a scan error — including the URL of `client`.  On reconnect,
+    /// [`spawn_scanner`] calls [`connect_with_failover`] with this list,
+    /// trying each endpoint in round-robin order until one succeeds.
+    ///
+    /// Pass [`NullDecryptor`] if no IVK is available yet.
+    pub fn new_with_endpoints(
+        client: LightwalletdClient,
+        endpoints: Vec<String>,
+        store: WalletStore,
+        decryptor: Box<dyn NoteDecryptor>,
+    ) -> Self {
+        Self {
+            endpoints,
             client,
             store,
             decryptor,
@@ -298,6 +350,12 @@ impl CompactBlockScanner {
     /// A brand-new wallet has no snapshot; in that case the empty tree set in
     /// [`new`] is correct and this is a no-op.
     ///
+    /// Returns `Err` if the DB contains a commitment tree snapshot that cannot
+    /// be deserialized.  Loading witnesses against an empty tree (due to a
+    /// silent fallback) would silently produce invalid Merkle proofs, making
+    /// notes permanently unspendable.  An explicit error forces the operator to
+    /// rescan from a valid checkpoint rather than proceeding with corrupt state.
+    ///
     /// Witness deserialization errors are logged and that witness is dropped —
     /// the scanner prefers to continue without a corrupted witness rather than
     /// refusing to start.  The affected note will be unspendable until the
@@ -312,7 +370,17 @@ impl CompactBlockScanner {
                 match read_commitment_tree::<sapling::Node, _, 32>(Cursor::new(&bytes)) {
                     Ok(t) => self.tree = t,
                     Err(e) => {
-                        warn!("scanner: failed to deserialize commitment tree from DB ({e}); starting from empty tree — rescan required");
+                        // The DB contains a tree snapshot but it cannot be
+                        // deserialized.  Do NOT fall back to an empty tree:
+                        // loading witnesses against the wrong tree produces
+                        // silently invalid Merkle proofs that make every
+                        // already-scanned note permanently unspendable.
+                        // Return Err so the caller can halt and the operator
+                        // can rescan from a valid checkpoint.
+                        return Err(anyhow::anyhow!(
+                            "scanner: commitment tree in DB is corrupt and cannot be deserialized ({e}); \
+                             rescan required — do not scan with mismatched witnesses"
+                        ));
                     }
                 }
             }
@@ -322,29 +390,21 @@ impl CompactBlockScanner {
         }
 
         // Load per-note witnesses for all unspent notes that have a witness row.
-        let notes = self.store.spendable_notes(0).await;
-        match notes {
-            Ok(spendable) => {
-                for sn in spendable {
-                    match read_incremental_witness::<sapling::Node, _, 32>(Cursor::new(
-                        &sn.witness_data,
-                    )) {
-                        Ok(w) => {
-                            self.witnesses.insert(sn.note_id, w);
-                        }
-                        Err(e) => {
-                            warn!(
-                                note_id = sn.note_id,
-                                "scanner: failed to deserialize witness ({e}); note will be unspendable until rescan"
-                            );
-                        }
-                    }
+        // spendable_notes() returns Ok(vec![]) on an empty or new wallet — it does
+        // not return Err in the normal "no notes yet" case.  Any Err here is a real
+        // DB error (schema mismatch, I/O failure, etc.) and must be propagated.
+        let spendable = self.store.spendable_notes(0).await?;
+        for sn in spendable {
+            match read_incremental_witness::<sapling::Node, _, 32>(Cursor::new(&sn.witness_data)) {
+                Ok(w) => {
+                    self.witnesses.insert(sn.note_id, w);
                 }
-            }
-            Err(e) => {
-                // spendable_notes() may fail if the plaintext columns are NULL
-                // (notes not yet fully decrypted); that is expected for a new wallet.
-                debug!("scanner: spendable_notes() returned error during load_state: {e}");
+                Err(e) => {
+                    warn!(
+                        note_id = sn.note_id,
+                        "scanner: failed to deserialize witness ({e}); note will be unspendable until rescan"
+                    );
+                }
             }
         }
 
@@ -371,7 +431,9 @@ impl CompactBlockScanner {
             warn!("scanner: scan_tip is 0 — scanning from genesis; call set_scan_tip with wallet birthday height to avoid downloading the full chain");
             self.birthday_warned = true;
         }
-        let start = scan_tip + 1;
+        let start = scan_tip.checked_add(1).ok_or_else(|| {
+            anyhow::anyhow!("scan_tip ({scan_tip}) is u64::MAX; cannot advance scanner")
+        })?;
         let end = self.client.latest_height().await?;
         if start > end {
             // Already at (or ahead of) chain tip.
@@ -379,7 +441,19 @@ impl CompactBlockScanner {
         }
         let mut stream = self.client.get_block_range(start, end).await?;
         let mut scanned = 0u64;
-        while let Some(block) = stream.message().await? {
+        let mut prev_height: Option<u64> = None;
+        loop {
+            let msg = tokio::time::timeout(Duration::from_secs(30), stream.message())
+                .await
+                .map_err(|_| anyhow::anyhow!("get_block_range: timed out waiting for next block"))?
+                .map_err(|e| anyhow::anyhow!("get_block_range stream error: {e}"))?;
+            let Some(block) = msg else { break };
+            // Verify strict height monotonicity before touching the commitment tree.
+            // The Sapling incremental commitment tree relies on commitments being
+            // appended in strictly ascending block order; an out-of-order or
+            // repeated block would corrupt the tree and all witnesses silently.
+            check_block_height_monotonic(block.height, prev_height, start, scan_tip)?;
+            prev_height = Some(block.height);
             self.scan_block(&block).await?;
             scanned += 1;
         }
@@ -391,40 +465,102 @@ impl CompactBlockScanner {
     /// The tip is advanced only after all transactions in the block have been
     /// processed so a partial failure is recoverable by re-scanning the block.
     async fn scan_block(&mut self, block: &CompactBlock) -> Result<()> {
-        for tx in &block.vtx {
-            self.scan_tx(block.height, block.time, tx).await?;
+        // Snapshot in-memory state before mutating it.  If save_block_state
+        // fails below we restore from these snapshots so the next invocation
+        // of scan_to_tip replays the same block against a consistent tree.
+        let tree_snapshot = self.tree.clone();
+        let witnesses_snapshot = self.witnesses.clone();
+
+        // Helper macro: on any error path restore both snapshots so the next
+        // retry of this block starts from a consistent pre-block tree state.
+        macro_rules! restore_and_return {
+            ($err:expr) => {{
+                self.tree = tree_snapshot;
+                self.witnesses = witnesses_snapshot;
+                return Err($err);
+            }};
         }
 
-        // Persist the updated commitment tree snapshot before advancing the tip.
-        // If this write fails the tip is not advanced, so the next scan will
-        // re-process this block and rebuild the tree to the same state.
-        let mut tree_bytes = Vec::new();
-        write_commitment_tree(&self.tree, &mut tree_bytes)
-            .map_err(|e| anyhow::anyhow!("tree serialize failed: {e}"))?;
-        self.store.save_tree_state(&tree_bytes).await?;
-
-        // Persist all updated witnesses for this block height.
-        let block_height = i64::try_from(block.height).map_err(|_| {
-            anyhow::anyhow!(
-                "block height {} exceeds i64::MAX; cannot store in SQLite",
-                block.height
-            )
-        })?;
-        for (note_id, witness) in &self.witnesses {
-            let mut wbytes = Vec::new();
-            write_incremental_witness(witness, &mut wbytes)
-                .map_err(|e| anyhow::anyhow!("witness serialize failed for note {note_id}: {e}"))?;
-            if let Err(e) = self
-                .store
-                .upsert_witness(*note_id, block_height, &wbytes)
-                .await
-            {
-                warn!(note_id, "scanner: upsert_witness failed: {e}");
+        for tx in &block.vtx {
+            if let Err(e) = self.scan_tx(block.height, block.time, tx).await {
+                restore_and_return!(anyhow::anyhow!(
+                    "scan_tx failed at height {}: {e}",
+                    block.height
+                ));
             }
         }
 
-        // Advance tip after the full block is committed.
-        self.store.set_scan_tip(block.height).await?;
+        // Prune witnesses for any notes that were marked spent since the last
+        // block (e.g. by payment.rs calling mark_notes_spent).  Without this,
+        // the map grows unboundedly over a long session: spent notes accumulate
+        // witnesses that are updated and serialised on every block even though
+        // the notes can never be re-spent.
+        //
+        // Collect the current key set before the immutable borrow in the loop.
+        let witness_note_ids: Vec<i64> = self.witnesses.keys().copied().collect();
+        let spent_ids = match self.store.spent_note_ids_in(&witness_note_ids).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                restore_and_return!(anyhow::anyhow!("scanner: spent_note_ids_in failed: {e}"));
+            }
+        };
+        for id in &spent_ids {
+            self.witnesses.remove(id);
+        }
+
+        // Serialize the updated commitment tree.
+        let mut tree_bytes = Vec::new();
+        if let Err(e) = write_commitment_tree(&self.tree, &mut tree_bytes) {
+            restore_and_return!(anyhow::anyhow!("tree serialize failed: {e}"));
+        }
+
+        // Convert block height once for SQLite (i64).
+        let block_height_i64 = match i64::try_from(block.height) {
+            Ok(h) => h,
+            Err(_) => {
+                restore_and_return!(anyhow::anyhow!(
+                    "block height {} exceeds i64::MAX; cannot store in SQLite",
+                    block.height
+                ));
+            }
+        };
+
+        // Serialize all witnesses.  Collect into a Vec first so the borrow of
+        // `self.witnesses` is fully released before any restore_and_return!
+        // invocation that needs to assign to `self.witnesses`.
+        let witness_ser_result: Result<Vec<(i64, i64, Vec<u8>)>> = self
+            .witnesses
+            .iter()
+            .map(|(note_id, witness)| {
+                let mut wbytes = Vec::new();
+                write_incremental_witness(witness, &mut wbytes).map_err(|e| {
+                    anyhow::anyhow!("witness serialize failed for note {note_id}: {e}")
+                })?;
+                Ok((*note_id, block_height_i64, wbytes))
+            })
+            .collect();
+        let witness_rows = match witness_ser_result {
+            Ok(rows) => rows,
+            Err(e) => {
+                restore_and_return!(e);
+            }
+        };
+
+        // Persist tree_state, all witnesses, and the new scan tip atomically.
+        // A crash between any two of these writes would leave the DB inconsistent
+        // (tip advanced but witnesses missing, or witnesses written but tip not).
+        // save_block_state wraps all three in a single SQLite transaction.
+        if let Err(e) = self
+            .store
+            .save_block_state(&tree_bytes, &witness_rows, block_height_i64)
+            .await
+        {
+            // Restore in-memory state to the pre-block snapshot so the next
+            // scan_to_tip invocation replays this block against a consistent
+            // tree rather than double-counting its commitments.
+            restore_and_return!(anyhow::anyhow!("scanner: save_block_state failed: {e}"));
+        }
+
         Ok(())
     }
 
@@ -449,36 +585,25 @@ impl CompactBlockScanner {
             let node = match sapling::Node::from_bytes(cmu_bytes).into_option() {
                 Some(n) => n,
                 None => {
-                    warn!(
-                        height = block_height,
-                        output_index = idx,
-                        "scanner: invalid cmu; skipping output"
-                    );
-                    continue;
+                    return Err(anyhow::anyhow!(
+                        "scanner: invalid cmu at height {block_height} output {idx}; \
+                         cannot skip — would corrupt subsequent witness positions"
+                    ));
                 }
             };
 
             // Step 2: Update ALL existing witnesses with this commitment before
             // appending to the global tree.  Order matters: witnesses track nodes
             // that appear after their fork point.
-            for (note_id, witness) in self.witnesses.iter_mut() {
+            for (_note_id, witness) in self.witnesses.iter_mut() {
                 if witness.append(node).is_err() {
-                    // The Sapling tree has 2^32 leaves; this should not happen in
-                    // practice for any foreseeable chain size.
-                    warn!(
-                        note_id,
-                        height = block_height,
-                        "scanner: witness tree full; this should not happen"
-                    );
+                    return Err(anyhow::anyhow!("Sapling note commitment tree is full"));
                 }
             }
 
             // Step 3: Append to global tree.
             if self.tree.append(node).is_err() {
-                warn!(
-                    height = block_height,
-                    "scanner: commitment tree full at this height"
-                );
+                return Err(anyhow::anyhow!("Sapling note commitment tree is full"));
             }
 
             // Step 4: Trial-decrypt.
@@ -521,11 +646,35 @@ impl CompactBlockScanner {
                     Err(e) if is_unique_constraint(&e) => {
                         // Already indexed — scanner is re-processing a block after a
                         // restart from a tip earlier than the actual last-scanned height.
+                        // Fetch the existing note_id so this note's witness is updated
+                        // for subsequent blocks; without this the note is unspendable
+                        // after a rescan because its witness never advances.
                         debug!(
                             height = block_height,
                             output_index = idx,
                             "scanner: note already in DB"
                         );
+                        match self
+                            .store
+                            .get_note_id_by_output(&note.txid, note.output_index)
+                            .await
+                        {
+                            Ok(Some(existing_id)) => {
+                                self.witnesses.insert(existing_id, witness);
+                            }
+                            Ok(None) => {
+                                warn!(
+                                    height = block_height,
+                                    output_index = idx,
+                                    "scanner: note claimed UNIQUE conflict but not found in DB; skipping witness"
+                                );
+                            }
+                            Err(e) => {
+                                return Err(anyhow::anyhow!(
+                                    "scanner: get_note_id_by_output failed after UNIQUE conflict: {e}"
+                                ));
+                            }
+                        }
                     }
                     Err(e) => return Err(e),
                 }
@@ -554,15 +703,87 @@ pub fn spawn_scanner(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut s = scanner;
+        // Restore the Sapling commitment tree and per-note witnesses from the
+        // DB before entering the scan loop.  Without this, every wallet restart
+        // begins with an empty tree: witnesses built for newly-discovered notes
+        // are rooted in that empty tree and are therefore invalid — the notes
+        // become permanently unspendable.
+        if let Err(e) = s.load_state().await {
+            warn!("scanner: load_state failed ({e}); refusing to scan with empty tree — restart required");
+            return;
+        }
+        // Exponential backoff state for error recovery.
+        // On success the backoff resets; on error it doubles (capped at 60 s).
+        let mut backoff = Duration::from_secs(5);
+        const MAX_BACKOFF: Duration = Duration::from_secs(60);
+
         loop {
             match s.scan_to_tip().await {
-                Ok(n) if n > 0 => debug!("scanner: processed {n} new blocks"),
-                Ok(_) => {}
-                Err(e) => warn!("scanner: scan error (will retry): {e}"),
+                Ok(n) if n > 0 => {
+                    debug!("scanner: processed {n} new blocks");
+                    backoff = Duration::from_secs(5); // reset on success
+                    tokio::time::sleep(poll_interval).await;
+                }
+                Ok(_) => {
+                    tokio::time::sleep(poll_interval).await;
+                }
+                Err(e) => {
+                    warn!("scanner: scan error (will retry after {backoff:?}): {e}");
+                    tokio::time::sleep(backoff).await;
+                    // Double backoff, cap at MAX_BACKOFF.
+                    backoff = (backoff * 2).min(MAX_BACKOFF);
+                    // Reconnect: rotate through all configured endpoints so a
+                    // permanently-dead server does not cause an infinite retry
+                    // loop against the same host.
+                    let endpoint_refs: Vec<&str> = s.endpoints.iter().map(String::as_str).collect();
+                    match connect_with_failover(&endpoint_refs).await {
+                        Ok(new_client) => {
+                            let url = new_client.url.clone();
+                            s.client = new_client;
+                            debug!("scanner: reconnected to {url}");
+                        }
+                        Err(ce) => {
+                            warn!("scanner: all endpoints unreachable ({ce}); will retry");
+                        }
+                    }
+                }
             }
-            tokio::time::sleep(poll_interval).await;
         }
     })
+}
+
+/// Verify that `block_height` is the next expected height in the scan stream.
+///
+/// Returns `Ok(())` when the height is correct.  Returns `Err` with a
+/// descriptive message when the stream delivers a block out of order or
+/// repeats a height — both of which would silently corrupt the Sapling
+/// incremental commitment tree if processed.
+///
+/// # Parameters
+/// - `block_height`: the height reported by the block just received.
+/// - `prev_height`: the height of the previously-processed block, or `None`
+///   if this is the first block in the current stream.
+/// - `expected_start`: the height that the first block must have
+///   (`scan_tip + 1` at the call site).
+/// - `scan_tip`: the stored scan tip, included in the error message for
+///   context.
+fn check_block_height_monotonic(
+    block_height: u64,
+    prev_height: Option<u64>,
+    expected_start: u64,
+    scan_tip: u64,
+) -> Result<()> {
+    let expected = match prev_height {
+        None => expected_start,
+        Some(h) => h + 1,
+    };
+    if block_height != expected {
+        return Err(anyhow::anyhow!(
+            "scanner: block height out of order from lightwalletd: \
+             expected {expected}, got {block_height} (scan_tip={scan_tip})"
+        ));
+    }
+    Ok(())
 }
 
 /// Returns `true` if `e` is a SQLite UNIQUE constraint violation.
@@ -862,5 +1083,83 @@ mod tests {
         // Option::from on CtOption<T> is unambiguous when the result type is named.
         let node: Option<sapling::Node> = Option::from(sapling::Node::from_bytes([0u8; 32]));
         assert!(node.is_some(), "all-zero cmu must parse as a valid Node");
+    }
+
+    // ---- Tests for check_block_height_monotonic ----
+    //
+    // Oracle: the expected height is derived by hand from the inputs — not
+    // from the function under test.  Each case names the property being
+    // checked so failures are self-diagnosing.
+
+    /// First block with the correct starting height is accepted.
+    ///
+    /// Oracle: prev_height=None, expected_start=1_000_000, block_height=1_000_000
+    /// → expected=1_000_000 == block_height → Ok.
+    #[test]
+    fn monotonic_first_block_correct_height_is_ok() {
+        assert!(
+            check_block_height_monotonic(1_000_000, None, 1_000_000, 999_999).is_ok(),
+            "first block at the expected start height must be accepted"
+        );
+    }
+
+    /// First block at the wrong height returns Err.
+    ///
+    /// Oracle: prev_height=None, expected_start=1_000_000, block_height=999_999
+    /// → expected=1_000_000 != 999_999 → Err.
+    #[test]
+    fn monotonic_first_block_wrong_height_is_err() {
+        assert!(
+            check_block_height_monotonic(999_999, None, 1_000_000, 999_998).is_err(),
+            "first block at a height below expected_start must be rejected"
+        );
+    }
+
+    /// Consecutive block after a correct previous height is accepted.
+    ///
+    /// Oracle: prev_height=Some(1_000_000), block_height=1_000_001
+    /// → expected=1_000_001 == block_height → Ok.
+    #[test]
+    fn monotonic_consecutive_block_is_ok() {
+        assert!(
+            check_block_height_monotonic(1_000_001, Some(1_000_000), 1_000_000, 999_999).is_ok(),
+            "block at prev+1 must be accepted"
+        );
+    }
+
+    /// Repeated height (duplicate block) returns Err.
+    ///
+    /// Oracle: prev_height=Some(1_000_000), block_height=1_000_000
+    /// → expected=1_000_001 != 1_000_000 → Err.
+    #[test]
+    fn monotonic_repeated_height_is_err() {
+        assert!(
+            check_block_height_monotonic(1_000_000, Some(1_000_000), 999_999, 999_998).is_err(),
+            "repeated block height must be rejected"
+        );
+    }
+
+    /// Skipped height (gap in sequence) returns Err.
+    ///
+    /// Oracle: prev_height=Some(1_000_000), block_height=1_000_002
+    /// → expected=1_000_001 != 1_000_002 → Err.
+    #[test]
+    fn monotonic_skipped_height_is_err() {
+        assert!(
+            check_block_height_monotonic(1_000_002, Some(1_000_000), 999_999, 999_998).is_err(),
+            "skipped block height must be rejected"
+        );
+    }
+
+    /// Backward step (earlier height than previous) returns Err.
+    ///
+    /// Oracle: prev_height=Some(1_000_005), block_height=1_000_003
+    /// → expected=1_000_006 != 1_000_003 → Err.
+    #[test]
+    fn monotonic_backward_step_is_err() {
+        assert!(
+            check_block_height_monotonic(1_000_003, Some(1_000_005), 999_999, 999_998).is_err(),
+            "out-of-order (backward) block height must be rejected"
+        );
     }
 }

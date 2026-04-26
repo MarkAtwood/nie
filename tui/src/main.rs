@@ -128,7 +128,7 @@ async fn main() -> Result<()> {
     let mls_client = MlsClient::new(&my_pub_id)?;
 
     // Build app state.
-    let mut state = app::AppState::new(my_pub_id, hpke_secret, hpke_pub, mls_client);
+    let mut state = app::AppState::new(my_pub_id, *hpke_secret, hpke_pub, mls_client);
 
     // Try to open wallet DB — optional; payment commands degrade gracefully without it.
     let wallet_path = data_dir.join("wallet.db");

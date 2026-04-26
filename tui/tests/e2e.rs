@@ -202,7 +202,7 @@ fn make_tui_state(identity: &Identity) -> TuiAppState {
     let mls = MlsClient::new(&pub_id).expect("MlsClient::new");
     TuiAppState::new(
         pub_id,
-        identity.hpke_secret_bytes(),
+        *identity.hpke_secret_bytes(),
         identity.hpke_pub_key_bytes(),
         mls,
     )

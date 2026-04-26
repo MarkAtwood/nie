@@ -15,6 +15,7 @@ use uuid::Uuid;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClearMessage {
     Chat {
+        #[serde(deserialize_with = "deserialize_bounded_body")]
         text: String,
     },
     Payment {
@@ -34,21 +35,31 @@ pub enum ClearMessage {
     /// for each peer in memory. Field names and values are user-defined; the
     /// only constraint is size (enforced client-side before sending).
     Profile {
+        #[serde(deserialize_with = "deserialize_profile_fields")]
         fields: HashMap<String, String>,
     },
     /// Initiates a chunked file transfer. Sent before the first FileChunk.
     /// Receiver uses transfer_id to correlate subsequent FileChunk messages.
     FileHeader {
         transfer_id: Uuid,
-        /// Original filename (basename only — no path components).
+        /// Original filename — basename only, no path separators or `..` components.
+        ///
+        /// Enforced at deserialization: names containing `/`, `\`, or equal to
+        /// `..` are rejected with a parse error before the message reaches any
+        /// receiver.  Callers do NOT need to call `safe_name()` on this field.
+        #[serde(deserialize_with = "deserialize_file_name")]
         name: String,
         /// Total file size in bytes.
+        #[serde(deserialize_with = "deserialize_size_bytes")]
         size_bytes: u64,
         /// Lowercase hex-encoded SHA-256 of the complete file bytes.
+        #[serde(deserialize_with = "deserialize_sha256_hex")]
         sha256_hex: String,
         /// Number of FileChunk messages that follow (0-indexed seq 0..total_chunks).
+        #[serde(deserialize_with = "deserialize_total_chunks")]
         total_chunks: u32,
         /// MIME type string (e.g. "image/jpeg", "application/octet-stream").
+        #[serde(deserialize_with = "deserialize_bounded_mime_type")]
         mime_type: String,
     },
     /// One chunk of a chunked file transfer.
@@ -57,7 +68,10 @@ pub enum ClearMessage {
         transfer_id: Uuid,
         /// 0-based chunk sequence number.
         seq: u32,
-        #[serde_as(as = "serde_with::base64::Base64")]
+        #[serde(
+            serialize_with = "serialize_chunk_data",
+            deserialize_with = "deserialize_chunk_data"
+        )]
         data: Vec<u8>,
     },
 
@@ -68,30 +82,46 @@ pub enum ClearMessage {
     /// The `chat_id` is the channel ID in the **receiving** daemon's store.
     PeerDeliver {
         /// Server-assigned message ID (ULID).  Globally unique.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         message_id: String,
         /// Target chat (channel/DM) in the receiving daemon.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         chat_id: String,
+        #[serde(deserialize_with = "deserialize_bounded_body")]
         body: String,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         body_type: String,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         sent_at: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_opt_bounded_id"
+        )]
         reply_to: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_opt_bounded_id"
+        )]
         thread_root_id: Option<String>,
     },
 
     /// Peer/receipt — delivery or read receipt for a previous `PeerDeliver`.
     PeerReceipt {
         /// The `message_id` from the original `PeerDeliver`.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         message_id: String,
-        /// "delivered" | "read"
+        #[serde(deserialize_with = "deserialize_receipt_type")]
         receipt_type: String,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         at: String,
     },
 
     /// Peer/typing — ephemeral typing indicator.
     PeerTyping {
         /// Chat ID in the **receiving** daemon's store.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         chat_id: String,
         /// `true` = started typing; `false` = stopped typing.
         typing: bool,
@@ -100,6 +130,7 @@ pub enum ClearMessage {
     /// Peer/retract — delete a previously delivered message everywhere.
     PeerRetract {
         /// The `message_id` from the original `PeerDeliver`.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         message_id: String,
         /// If `true`, retract for all participants; if `false`, sender only.
         for_all: bool,
@@ -107,14 +138,389 @@ pub enum ClearMessage {
 
     /// Peer/groupUpdate — space membership change notification.
     PeerGroupUpdate {
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         space_id: String,
-        /// "join" | "leave" | "role_change"
+        #[serde(deserialize_with = "deserialize_group_action")]
         action: String,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         contact_id: String,
         /// New role (only set for "role_change").
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_opt_bounded_id"
+        )]
         role: Option<String>,
     },
+}
+
+/// Serialize `FileChunk.data` as standard base64.
+fn serialize_chunk_data<S>(data: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use base64::engine::general_purpose::STANDARD as B64;
+    use base64::Engine;
+    serializer.serialize_str(&B64.encode(data))
+}
+
+/// Deserialize `FileChunk.data` from base64, rejecting payloads larger than 10 MiB.
+///
+/// A hostile MLS peer cannot force the receiver to allocate an unbounded `Vec<u8>`
+/// before any application-layer check runs.  The base64 string length is checked
+/// first to avoid allocating the decoded Vec when the encoded string is already
+/// over-budget.
+fn deserialize_chunk_data<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use base64::engine::general_purpose::STANDARD as B64;
+    use base64::Engine;
+    // base64 encodes every 3 bytes as 4 characters; 10 MiB decoded is at most
+    // ceil(10*1024*1024 * 4/3) + 4 bytes of base64 (padding slack).
+    const MAX_CHUNK_DATA_BASE64_LEN: usize = 10 * 1024 * 1024 * 4 / 3 + 4;
+    let s = String::deserialize(deserializer)?;
+    if s.len() > MAX_CHUNK_DATA_BASE64_LEN {
+        return Err(serde::de::Error::custom("chunk data too large"));
+    }
+    let v = B64
+        .decode(s.as_bytes())
+        .map_err(|e| serde::de::Error::custom(format!("chunk data: invalid base64: {e}")))?;
+    if v.len() > 10 * 1024 * 1024 {
+        return Err(serde::de::Error::custom("chunk data too large"));
+    }
+    Ok(v)
+}
+
+/// Deserialize `receipt_type`, rejecting any value that is not a known variant.
+///
+/// Valid values: `"delivered"`, `"read"`.
+fn deserialize_receipt_type<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    match s.as_str() {
+        "delivered" | "read" => Ok(s),
+        other => Err(serde::de::Error::custom(format!(
+            "unknown receipt_type {:?}; expected \"delivered\" or \"read\"",
+            other
+        ))),
+    }
+}
+
+/// Deserialize `FileHeader.name`, rejecting path-traversal names and overlong values.
+///
+/// Rejected: names longer than 255 bytes, names containing `/` or `\`, names
+/// that are `..`, and empty names.  A hostile peer cannot use a crafted
+/// `FileHeader` to write outside the download directory — the name is rejected
+/// at the protocol boundary before any receiver sees it.
+fn deserialize_file_name<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 255 {
+        return Err(serde::de::Error::custom(format!(
+            "file name too long: {} bytes (max 255)",
+            s.len()
+        )));
+    }
+    if s.is_empty() {
+        return Err(serde::de::Error::custom("file name must not be empty"));
+    }
+    if s.contains('\x00') {
+        return Err(serde::de::Error::custom(format!(
+            "file name contains null byte: {:?}",
+            s
+        )));
+    }
+    if s.contains('/') || s.contains('\\') {
+        return Err(serde::de::Error::custom(format!(
+            "file name contains path separator: {:?}",
+            s
+        )));
+    }
+    if s == ".." || s == "." {
+        return Err(serde::de::Error::custom(format!(
+            "file name {:?} is not allowed",
+            s
+        )));
+    }
+    Ok(s)
+}
+
+/// Deserialize `FileHeader.sha256_hex`, rejecting values that are not 64
+/// lowercase hex characters.
+///
+/// A malicious peer sending a non-hex or wrong-length value would otherwise
+/// cause a panic or confusing error at reassembly time rather than at the
+/// protocol boundary.
+fn deserialize_sha256_hex<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() != 64 {
+        return Err(serde::de::Error::custom(format!(
+            "sha256_hex must be exactly 64 hex characters, got {}",
+            s.len()
+        )));
+    }
+    if !s.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(serde::de::Error::custom(
+            "sha256_hex contains non-hex characters",
+        ));
+    }
+    Ok(s.to_lowercase())
+}
+
+/// Deserialize `FileHeader.total_chunks`, rejecting 0 and values that would
+/// allow chunk delivery to exceed the declared 1 GiB file-size cap.
+///
+/// A malicious peer sending `total_chunks: u32::MAX` would cause the receiver
+/// to allocate a huge reassembly map before any data arrives.  Reject at the
+/// protocol boundary instead.
+///
+/// Cross-check: each chunk may be up to `MAX_CHUNK_SIZE` (10 MiB) bytes.
+/// `total_chunks * MAX_CHUNK_SIZE` must not exceed `MAX_FILE_SIZE_BYTES`
+/// (1 GiB), otherwise a peer could claim `size_bytes: 1` but deliver
+/// `total_chunks * 10 MiB` of actual data.  The derived limit is
+/// `floor(1 GiB / 10 MiB)` = 102 chunks (103 * 10 MiB = 1,030 MiB > 1 GiB).
+fn deserialize_total_chunks<'de, D>(deserializer: D) -> Result<u32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    const MAX_CHUNK_SIZE: u64 = 10 * 1024 * 1024; // 10 MiB per chunk
+    const MAX_FILE_SIZE_BYTES: u64 = 1_073_741_824; // 1 GiB declared-size cap
+                                                    // Floor division: largest chunk count where total delivery stays within the cap.
+                                                    // 102 * 10 MiB = 1,020 MiB ≤ 1 GiB; 103 * 10 MiB = 1,030 MiB > 1 GiB.
+    const MAX_CHUNKS: u32 = (MAX_FILE_SIZE_BYTES / MAX_CHUNK_SIZE) as u32; // = 102
+
+    let n = u32::deserialize(deserializer)?;
+    if n == 0 {
+        return Err(serde::de::Error::custom("total_chunks must be at least 1"));
+    }
+    if n > MAX_CHUNKS {
+        return Err(serde::de::Error::custom(format!(
+            "total_chunks {n} exceeds maximum of {MAX_CHUNKS} \
+             (total_chunks * 10 MiB chunk cap would exceed 1 GiB file size limit)"
+        )));
+    }
+    Ok(n)
+}
+
+/// Deserialize `action` for `PeerGroupUpdate`, rejecting unknown variants.
+///
+/// Valid values: `"add"`, `"update"`, `"remove"`.
+fn deserialize_group_action<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    match s.as_str() {
+        "add" | "update" | "remove" => Ok(s),
+        other => Err(serde::de::Error::custom(format!(
+            "unknown group action {:?}; expected \"add\", \"update\", or \"remove\"",
+            other
+        ))),
+    }
+}
+
+/// Deserialize `Profile.fields`, rejecting maps with more than 64 entries or
+/// keys/values longer than 1024 bytes each.
+///
+/// A hostile MLS peer cannot force unbounded heap allocation by sending a map
+/// with millions of entries or multi-megabyte strings before any application
+/// check runs.
+fn deserialize_profile_fields<'de, D>(deserializer: D) -> Result<HashMap<String, String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{MapAccess, Visitor};
+    use std::fmt;
+
+    struct ProfileFieldsVisitor;
+
+    impl<'de> Visitor<'de> for ProfileFieldsVisitor {
+        type Value = HashMap<String, String>;
+
+        fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            f.write_str("a map of string keys and string values")
+        }
+
+        fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+        where
+            A: MapAccess<'de>,
+        {
+            let mut fields = HashMap::new();
+            while let Some((k, v)) = map.next_entry::<String, String>()? {
+                if fields.len() >= 64 {
+                    return Err(serde::de::Error::custom(
+                        "profile fields: too many entries (max 64)",
+                    ));
+                }
+                if k.len() > 1024 {
+                    return Err(serde::de::Error::custom(format!(
+                        "profile field key too long: {} bytes (max 1024)",
+                        k.len()
+                    )));
+                }
+                if v.len() > 1024 {
+                    return Err(serde::de::Error::custom(format!(
+                        "profile field value too long: {} bytes (max 1024)",
+                        v.len()
+                    )));
+                }
+                fields.insert(k, v);
+            }
+            Ok(fields)
+        }
+    }
+
+    deserializer.deserialize_map(ProfileFieldsVisitor)
+}
+
+/// Deserialize a String field that must not exceed 128 bytes.
+///
+/// Used for ID fields (`message_id`, `chat_id`, `space_id`, `contact_id`, `at`)
+/// where multi-kilobyte values indicate a malformed or hostile message.
+fn deserialize_bounded_id<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 128 {
+        return Err(serde::de::Error::custom(format!(
+            "ID field too long: {} bytes (max 128)",
+            s.len()
+        )));
+    }
+    Ok(s)
+}
+
+/// Deserialize an `Option<String>` ID field that must not exceed 128 bytes when present.
+///
+/// Used for optional ID fields (`reply_to`, `thread_root_id`) in `PeerDeliver`
+/// where the same size cap as `deserialize_bounded_id` applies.
+fn deserialize_opt_bounded_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    if let Some(ref s) = opt {
+        if s.len() > 128 {
+            return Err(serde::de::Error::custom(format!(
+                "ID field too long: {} bytes (max 128)",
+                s.len()
+            )));
+        }
+    }
+    Ok(opt)
+}
+
+/// Deserialize a String reason field that must not exceed 512 bytes.
+///
+/// Used for `PaymentAction::Unknown.reason` and `PaymentAction::Cancelled.reason`
+/// where a slightly larger budget than ID fields is appropriate for user-visible text.
+fn deserialize_bounded_reason<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 512 {
+        return Err(serde::de::Error::custom(format!(
+            "reason too long: {} bytes (max 512)",
+            s.len()
+        )));
+    }
+    Ok(s)
+}
+
+/// Deserialize `FileHeader.mime_type`, rejecting values longer than 255 bytes.
+///
+/// MIME types are at most 255 characters per spec (RFC 4288 §4.2).
+/// A hostile peer cannot force unbounded allocation via an oversized mime_type string.
+fn deserialize_bounded_mime_type<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 255 {
+        return Err(serde::de::Error::custom(format!(
+            "mime_type too long: {} bytes (max 255)",
+            s.len()
+        )));
+    }
+    Ok(s)
+}
+
+/// Deserialize a String body field that must not exceed 64 KiB.
+///
+/// Used for `PeerDeliver.body` where multi-megabyte values indicate a
+/// malformed or hostile message.
+fn deserialize_bounded_body<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 64 * 1024 {
+        return Err(serde::de::Error::custom(format!(
+            "body too long: {} bytes (max 65536)",
+            s.len()
+        )));
+    }
+    Ok(s)
+}
+
+/// Deserialize `FileHeader.size_bytes`, rejecting values above 1 GiB.
+///
+/// A hostile peer sending `size_bytes: u64::MAX` would cause callers that
+/// pre-allocate based on this field to OOM.  Reject at the protocol boundary.
+fn deserialize_size_bytes<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let n = u64::deserialize(deserializer)?;
+    if n > 1_073_741_824 {
+        return Err(serde::de::Error::custom(format!(
+            "size_bytes {n} exceeds maximum of 1 GiB (1073741824)"
+        )));
+    }
+    Ok(n)
+}
+
+/// Deserialize `PaymentAction::Request.amount_zatoshi`, rejecting 0.
+///
+/// A zero-zatoshi payment request is economically nonsensical and indicates
+/// a malformed or hostile message.
+fn deserialize_nonzero_zatoshi<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let n = u64::deserialize(deserializer)?;
+    if n == 0 {
+        return Err(serde::de::Error::custom("amount_zatoshi must be non-zero"));
+    }
+    Ok(n)
+}
+
+/// Deserialize a Zcash payment address, rejecting values longer than 1 KiB.
+///
+/// Zcash Unified Addresses exceed the 128-byte ID limit (testnet UA ≈ 182 bytes).
+/// 1 KiB is a safe upper bound for any current or near-future Zcash address encoding.
+fn deserialize_zcash_address<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 1024 {
+        return Err(serde::de::Error::custom(format!(
+            "address too long: {} bytes (max 1024)",
+            s.len()
+        )));
+    }
+    Ok(s)
 }
 
 /// The four steps of P2P payment negotiation, plus an error response.
@@ -124,17 +530,30 @@ pub enum ClearMessage {
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum PaymentAction {
     /// Payer tells payee: "I want to send you X on chain Y."
-    Request { chain: Chain, amount_zatoshi: u64 },
+    Request {
+        chain: Chain,
+        #[serde(deserialize_with = "deserialize_nonzero_zatoshi")]
+        amount_zatoshi: u64,
+    },
     /// Payee provides a fresh receive address.
-    Address { chain: Chain, address: String },
+    Address {
+        chain: Chain,
+        #[serde(deserialize_with = "deserialize_zcash_address")]
+        address: String,
+    },
     /// Payer confirms broadcast.
     Sent {
         chain: Chain,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         tx_hash: String,
+        #[serde(deserialize_with = "deserialize_nonzero_zatoshi")]
         amount_zatoshi: u64,
     },
     /// Payee confirms receipt detected on chain.
-    Confirmed { tx_hash: String },
+    Confirmed {
+        #[serde(deserialize_with = "deserialize_bounded_id")]
+        tx_hash: String,
+    },
     /// Sent when a PaymentAction arrives for an unrecognized session_id.
     ///
     /// This handles two cases:
@@ -142,10 +561,16 @@ pub enum PaymentAction {
     /// 2. Lost state: peer reconnected and local session state was not persisted.
     ///
     /// The receiver should treat this as a terminal state for the referenced session.
-    Unknown { reason: String },
+    Unknown {
+        #[serde(deserialize_with = "deserialize_bounded_reason")]
+        reason: String,
+    },
     /// Either party cancels an in-progress session.
     /// Receiver should discard the session and surface a cancellation message.
-    Cancelled { reason: String },
+    Cancelled {
+        #[serde(deserialize_with = "deserialize_bounded_reason")]
+        reason: String,
+    },
 }
 
 /// In-memory payment session state.
@@ -439,6 +864,42 @@ mod tests {
         assert_eq!(total_chunks, 3);
     }
 
+    /// Path traversal names are rejected at deserialization, not sanitized.
+    ///
+    /// A hostile peer cannot use a crafted FileHeader to escape the download
+    /// directory.  The oracle is the protocol invariant: basename only.
+    #[test]
+    fn file_header_rejects_path_traversal_names() {
+        use uuid::Uuid;
+        let tid = Uuid::new_v4();
+
+        let cases = [
+            "../evil.sh",
+            "../../etc/passwd",
+            "/etc/passwd",
+            "subdir/evil.sh",
+            "sub\\evil.sh",
+            "..",
+            ".",
+            "",
+            "evil\x00.txt",
+        ];
+
+        for bad_name in cases {
+            let json = format!(
+                r#"{{"type":"file_header","transfer_id":"{tid}","name":{name},"size_bytes":1,"sha256_hex":"{sha}","total_chunks":1,"mime_type":"text/plain"}}"#,
+                name = serde_json::to_string(bad_name).unwrap(),
+                sha = "a".repeat(64),
+            );
+            let result: Result<ClearMessage, _> = serde_json::from_str(&json);
+            assert!(
+                result.is_err(),
+                "name {:?} should be rejected but was accepted",
+                bad_name
+            );
+        }
+    }
+
     #[test]
     fn file_chunk_data_is_base64_in_json() {
         // Oracle: base64 of [0xFF; 3] is "/////w==" is wrong, let's use [0xDE, 0xAD, 0xBE] → "3q2+"
@@ -482,6 +943,118 @@ mod tests {
         assert_eq!(
             got, data,
             "48KB binary data must survive JSON roundtrip via base64"
+        );
+    }
+
+    /// sha256_hex must be exactly 64 hex characters; malformed values are rejected.
+    ///
+    /// Oracle: protocol invariant — SHA-256 produces 32 bytes = 64 hex digits.
+    /// Rejection at deserialization prevents deferred failures at reassembly time.
+    #[test]
+    fn file_header_rejects_invalid_sha256_hex() {
+        use uuid::Uuid;
+        let tid = Uuid::new_v4();
+
+        let bad_cases: &[&str] = &[
+            "",              // empty
+            "abc",           // too short
+            &"a".repeat(63), // 63 chars
+            &"a".repeat(65), // 65 chars
+            &"g".repeat(64), // 64 chars but 'g' is not a hex digit
+        ];
+
+        for bad_sha in bad_cases {
+            let json = format!(
+                r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{bad_sha}","total_chunks":1,"mime_type":"text/plain"}}"#,
+            );
+            let result: Result<ClearMessage, _> = serde_json::from_str(&json);
+            assert!(
+                result.is_err(),
+                "sha256_hex {:?} should be rejected but was accepted",
+                bad_sha
+            );
+        }
+
+        // Valid 64-char hex (lowercase) must be accepted.
+        let good = "a".repeat(64);
+        let json = format!(
+            r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{good}","total_chunks":1,"mime_type":"text/plain"}}"#,
+        );
+        assert!(
+            serde_json::from_str::<ClearMessage>(&json).is_ok(),
+            "valid 64-char lowercase hex must be accepted"
+        );
+    }
+
+    /// total_chunks must be in 1..=102; values outside that range are rejected.
+    ///
+    /// The cap of 102 is derived from the 1 GiB file-size limit divided by the
+    /// 10 MiB per-chunk cap: ceil(1 GiB / 10 MiB) = 102.  This prevents a
+    /// hostile peer from advertising `size_bytes: 1` while delivering
+    /// total_chunks * 10 MiB of actual data (up to 10 GiB).
+    ///
+    /// Oracle: protocol invariant — 0 chunks is nonsensical; values above 102
+    /// allow chunk delivery to exceed the 1 GiB declared-size cap.
+    #[test]
+    fn file_header_rejects_invalid_total_chunks() {
+        use uuid::Uuid;
+        let tid = Uuid::new_v4();
+        let sha = "a".repeat(64);
+
+        // 103 = MAX_CHUNKS + 1; 1025 and u32::MAX are well above the cap.
+        for bad_n in [0u32, 103, 1025, u32::MAX] {
+            let json = format!(
+                r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{sha}","total_chunks":{bad_n},"mime_type":"text/plain"}}"#,
+            );
+            let result: Result<ClearMessage, _> = serde_json::from_str(&json);
+            assert!(
+                result.is_err(),
+                "total_chunks={bad_n} should be rejected but was accepted"
+            );
+        }
+
+        // 1 and 102 are the valid boundary values.
+        for good_n in [1u32, 102] {
+            let json = format!(
+                r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{sha}","total_chunks":{good_n},"mime_type":"text/plain"}}"#,
+            );
+            assert!(
+                serde_json::from_str::<ClearMessage>(&json).is_ok(),
+                "total_chunks={good_n} should be accepted"
+            );
+        }
+    }
+
+    /// total_chunks is cross-checked against the chunk-size cap so that
+    /// `total_chunks * 10 MiB` cannot exceed the 1 GiB file-size limit.
+    ///
+    /// Oracle: arithmetic — ceil(1 GiB / 10 MiB) = 102.  A peer sending
+    /// total_chunks=103 with any size_bytes is rejected regardless of what
+    /// size_bytes claims.
+    #[test]
+    fn file_header_rejects_total_chunks_exceeding_cross_check() {
+        use uuid::Uuid;
+        let tid = Uuid::new_v4();
+        let sha = "a".repeat(64);
+
+        // total_chunks=103 would allow 103 * 10 MiB = 1,030 MiB > 1 GiB.
+        // size_bytes=1 is the minimum allowed, making the discrepancy maximal.
+        let json = format!(
+            r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{sha}","total_chunks":103,"mime_type":"text/plain"}}"#,
+        );
+        let result: Result<ClearMessage, _> = serde_json::from_str(&json);
+        assert!(
+            result.is_err(),
+            "total_chunks=103 should be rejected: 103 * 10 MiB > 1 GiB"
+        );
+
+        // total_chunks=102 is the boundary: 102 * 10 MiB = 1,020 MiB ≤ 1 GiB.
+        let json = format!(
+            r#"{{"type":"file_header","transfer_id":"{tid}","name":"f.txt","size_bytes":1,"sha256_hex":"{sha}","total_chunks":102,"mime_type":"text/plain"}}"#,
+        );
+        assert!(
+            serde_json::from_str::<ClearMessage>(&json).is_ok(),
+            "total_chunks=102 should be accepted: 102 * 10 MiB = 1,020 MiB ≤ 1 GiB"
         );
     }
 }

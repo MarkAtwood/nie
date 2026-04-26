@@ -3,6 +3,18 @@ use chrono::{DateTime, Utc};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use tracing::info;
 
+/// Maximum number of groups returned per user by [`Store::list_groups_for_user`].
+const MAX_GROUPS_PER_USER: i64 = 256;
+
+/// Maximum number of members returned per group by [`Store::list_group_members`].
+const MAX_MEMBERS_PER_GROUP: i64 = 1000;
+
+/// Maximum number of key packages returned per user by [`Store::get_all_key_packages`].
+const MAX_KEY_PACKAGES_PER_USER: i64 = 10;
+
+/// Maximum number of users returned by [`Store::all_users`].
+const MAX_ALL_USERS: i64 = 10_000;
+
 /// A group registry record.
 #[derive(Debug, Clone)]
 pub struct GroupRow {
@@ -22,6 +34,36 @@ pub struct InvoiceRow {
     pub amount_zatoshi: u64,
     /// SQLite-compatible UTC datetime string: `"YYYY-MM-DD HH:MM:SS"`.
     pub expires_at: String,
+    /// Subscription duration promised at invoice-creation time (in days).
+    /// `None` for pre-migration rows; payment watcher falls back to the
+    /// operator setting in that case.
+    pub subscription_days: Option<u64>,
+}
+
+/// Result of GROUP_ADD atomic membership + insert operation.
+#[derive(Debug, PartialEq, Eq)]
+pub enum GroupAddOutcome {
+    /// Member was newly added (rows_affected = 1).
+    Added,
+    /// Member was already present (INSERT OR IGNORE silently skipped).
+    AlreadyMember,
+    /// Caller is no longer a member of the group (race with leave/remove).
+    CallerNotMember,
+    /// Group has reached the member cap.
+    CapExceeded,
+}
+
+/// Result of a [`Store::try_set_nickname`] call.
+#[derive(Debug, PartialEq, Eq)]
+pub enum SetNicknameResult {
+    /// Nickname was successfully stored.
+    Set,
+    /// This user already has a nickname; nicknames are immutable once assigned.
+    HasNickname,
+    /// Another user already holds this nickname (unique constraint violation).
+    NicknameTaken,
+    /// The user row does not exist (pruned between auth and this call).
+    NotFound,
 }
 
 #[derive(Clone)]
@@ -33,6 +75,17 @@ impl Store {
     pub async fn new(db_url: &str) -> Result<Self> {
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
+            // Enable FK enforcement on every connection from the pool.
+            // SQLite disables FK checks by default; this makes group_member →
+            // groups and group_member → users constraints actually enforced.
+            .after_connect(|conn, _meta| {
+                Box::pin(async move {
+                    sqlx::query("PRAGMA foreign_keys = ON")
+                        .execute(&mut *conn)
+                        .await?;
+                    Ok(())
+                })
+            })
             .connect(db_url)
             .await?;
 
@@ -46,45 +99,265 @@ impl Store {
 
         // Migration v0 → v1: key_packages gains device_id column + composite PK.
         // If the old single-column-PK table exists, migrate data with device_id='legacy'.
-        // Runs inside a transaction so a crash mid-migration leaves the DB untouched.
+        // Uses BEGIN IMMEDIATE so that a concurrent startup cannot race through and
+        // corrupt data via non-idempotent DDL (DROP TABLE / RENAME) — nie-qmwv.8.
         if schema_version < 1 {
-            let mut tx = pool.begin().await?;
-            let kp_exists: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='key_packages'",
-            )
-            .fetch_one(&mut *tx)
-            .await?;
-            if kp_exists > 0 {
+            let mut conn = pool.acquire().await?;
+            sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+            let mig_result: anyhow::Result<()> = async {
+                // Re-read inside the IMMEDIATE transaction: if another process
+                // completed this migration between our outer check and now, skip.
+                let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                    .fetch_one(&mut *conn)
+                    .await?;
+                if sv >= 1 {
+                    return Ok(());
+                }
+                let kp_exists: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='key_packages'",
+                )
+                .fetch_one(&mut *conn)
+                .await?;
+                if kp_exists > 0 {
+                    sqlx::query(
+                        "CREATE TABLE key_packages_v1 (
+                            pub_id      TEXT NOT NULL,
+                            device_id   TEXT NOT NULL,
+                            data        BLOB NOT NULL,
+                            updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+                            PRIMARY KEY (pub_id, device_id)
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    sqlx::query(
+                        "INSERT INTO key_packages_v1 (pub_id, device_id, data, updated_at) \
+                         SELECT pub_id, 'legacy', data, updated_at FROM key_packages",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    sqlx::query("DROP TABLE key_packages")
+                        .execute(&mut *conn)
+                        .await?;
+                    sqlx::query("ALTER TABLE key_packages_v1 RENAME TO key_packages")
+                        .execute(&mut *conn)
+                        .await?;
+                }
+                // PRAGMA user_version does not accept parameterized binding — the
+                // integer literal must be inlined.  This is safe: it is a constant.
+                sqlx::query("PRAGMA user_version = 1")
+                    .execute(&mut *conn)
+                    .await?;
+                Ok(())
+            }
+            .await;
+            if mig_result.is_ok() {
+                sqlx::query("COMMIT").execute(&mut *conn).await?;
+            } else {
+                sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                mig_result?;
+            }
+        }
+
+        // Migration v1 → v2: add FK constraints to group_members.
+        //
+        // SQLite does not support ALTER TABLE ADD FOREIGN KEY, so we recreate
+        // the table.  The new table enforces:
+        //   group_id → groups(group_id) ON DELETE CASCADE
+        //   pub_id   → users(pub_id)   ON DELETE CASCADE
+        //
+        // This migration runs AFTER the base CREATE TABLE IF NOT EXISTS blocks
+        // below (by reading schema_version before those blocks run), so it
+        // operates on the already-populated table when upgrading.  On a fresh
+        // install the table does not yet exist, so the migration re-reads
+        // schema_version and only runs if < 2 at that point.
+        {
+            let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await?;
+            if sv < 2 {
+                // Use BEGIN IMMEDIATE + inner re-check to prevent the data-corruption
+                // race (nie-qmwv.8): two concurrent startups both read sv=1, both enter
+                // this block.  With DEFERRED transactions the DROP TABLE + RENAME
+                // sequence is not idempotent, so the second instance would drop the
+                // already-migrated group_members table.  IMMEDIATE blocks until the
+                // first instance commits; the inner re-read then sees sv=2 and skips.
+                let mut conn = pool.acquire().await?;
+                sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+                let mig_result: anyhow::Result<()> = async {
+                    let sv_inner: i64 = sqlx::query_scalar("PRAGMA user_version")
+                        .fetch_one(&mut *conn)
+                        .await?;
+                    if sv_inner >= 2 {
+                        return Ok(());
+                    }
+                    // Ensure the base tables exist first (migration may run before
+                    // the CREATE TABLE IF NOT EXISTS blocks below on a fresh DB).
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS users (
+                            pub_id      TEXT PRIMARY KEY,
+                            nickname    TEXT,
+                            first_seen  TEXT NOT NULL DEFAULT (datetime('now')),
+                            last_seen   TEXT NOT NULL DEFAULT (datetime('now'))
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS groups (
+                            group_id   TEXT PRIMARY KEY,
+                            created_by TEXT NOT NULL,
+                            name       TEXT NOT NULL,
+                            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    // Recreate group_members with FK constraints.
+                    sqlx::query(
+                        "CREATE TABLE IF NOT EXISTS group_members_v2 (
+                            group_id  TEXT NOT NULL REFERENCES groups(group_id) ON DELETE CASCADE,
+                            pub_id    TEXT NOT NULL REFERENCES users(pub_id)  ON DELETE CASCADE,
+                            joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+                            PRIMARY KEY (group_id, pub_id)
+                        )",
+                    )
+                    .execute(&mut *conn)
+                    .await?;
+                    let gm_exists: i64 = sqlx::query_scalar(
+                        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='group_members'",
+                    )
+                    .fetch_one(&mut *conn)
+                    .await?;
+                    if gm_exists > 0 {
+                        // Only migrate rows whose FKs resolve; orphaned rows are dropped
+                        // rather than causing the migration to fail.
+                        sqlx::query(
+                            "INSERT INTO group_members_v2 \
+                             SELECT gm.group_id, gm.pub_id, gm.joined_at \
+                             FROM group_members gm \
+                             WHERE EXISTS (SELECT 1 FROM groups g WHERE g.group_id = gm.group_id) \
+                               AND EXISTS (SELECT 1 FROM users  u WHERE u.pub_id   = gm.pub_id)",
+                        )
+                        .execute(&mut *conn)
+                        .await?;
+                        sqlx::query("DROP TABLE group_members")
+                            .execute(&mut *conn)
+                            .await?;
+                    }
+                    sqlx::query("ALTER TABLE group_members_v2 RENAME TO group_members")
+                        .execute(&mut *conn)
+                        .await?;
+                    sqlx::query("PRAGMA user_version = 2")
+                        .execute(&mut *conn)
+                        .await?;
+                    Ok(())
+                }
+                .await;
+                if mig_result.is_ok() {
+                    sqlx::query("COMMIT").execute(&mut *conn).await?;
+                } else {
+                    sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+                    mig_result?;
+                }
+            }
+        }
+
+        // Migration v2 → v3: add relay_kv table for persistent relay state.
+        {
+            let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await?;
+            if sv < 3 {
+                let mut tx = pool.begin().await?;
                 sqlx::query(
-                    "CREATE TABLE key_packages_v1 (
-                        pub_id      TEXT NOT NULL,
-                        device_id   TEXT NOT NULL,
-                        data        BLOB NOT NULL,
-                        updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-                        PRIMARY KEY (pub_id, device_id)
+                    "CREATE TABLE IF NOT EXISTS relay_kv (
+                        key   TEXT PRIMARY KEY,
+                        value TEXT NOT NULL
                     )",
                 )
                 .execute(&mut *tx)
                 .await?;
+                sqlx::query("PRAGMA user_version = 3")
+                    .execute(&mut *tx)
+                    .await?;
+                tx.commit().await?;
+            }
+        }
+
+        // Migration v3 → v4: add subscription_days column to subscription_invoices.
+        //
+        // Stores the duration promised at invoice-creation time so that the payment
+        // watcher can grant the originally-promised duration even when the operator's
+        // SUBSCRIPTION_DAYS setting has changed between invoice creation and payment
+        // confirmation (late-payment bug nie-jmmd.2).
+        //
+        // NULL means "unknown" (pre-migration rows); the payment watcher falls back
+        // to the operator setting in that case.
+        {
+            let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await?;
+            if sv < 4 {
+                let mut tx = pool.begin().await?;
+                // Only ALTER if the table already exists (upgrade path).
+                // Fresh installs create the table with the column via the
+                // CREATE TABLE IF NOT EXISTS block below, so the ALTER is skipped.
+                let table_exists: i64 = sqlx::query_scalar(
+                    "SELECT COUNT(*) FROM sqlite_master \
+                     WHERE type='table' AND name='subscription_invoices'",
+                )
+                .fetch_one(&mut *tx)
+                .await?;
+                if table_exists > 0 {
+                    // ALTER TABLE ADD COLUMN is safe in SQLite when the column has no
+                    // NOT NULL constraint without a default (NULL is the implicit default).
+                    let col_exists: i64 = sqlx::query_scalar(
+                        "SELECT COUNT(*) FROM pragma_table_info('subscription_invoices') \
+                         WHERE name = 'subscription_days'",
+                    )
+                    .fetch_one(&mut *tx)
+                    .await?;
+                    if col_exists == 0 {
+                        sqlx::query(
+                            "ALTER TABLE subscription_invoices \
+                             ADD COLUMN subscription_days INTEGER",
+                        )
+                        .execute(&mut *tx)
+                        .await?;
+                    }
+                }
+                sqlx::query("PRAGMA user_version = 4")
+                    .execute(&mut *tx)
+                    .await?;
+                tx.commit().await?;
+            }
+        }
+
+        // Migration v4 → v5: add UNIQUE index on users(nickname).
+        //
+        // Prevents two different pub_ids from claiming the same display name.
+        // CREATE UNIQUE INDEX IF NOT EXISTS is idempotent; safe on both fresh
+        // installs (index does not exist yet) and upgrades.  The users table
+        // is guaranteed to exist before this migration block runs because the
+        // v1→v2 migration block above creates it with CREATE TABLE IF NOT EXISTS.
+        {
+            let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await?;
+            if sv < 5 {
+                let mut tx = pool.begin().await?;
                 sqlx::query(
-                    "INSERT INTO key_packages_v1 (pub_id, device_id, data, updated_at) \
-                     SELECT pub_id, 'legacy', data, updated_at FROM key_packages",
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname \
+                     ON users(nickname)",
                 )
                 .execute(&mut *tx)
                 .await?;
-                sqlx::query("DROP TABLE key_packages")
+                sqlx::query("PRAGMA user_version = 5")
                     .execute(&mut *tx)
                     .await?;
-                sqlx::query("ALTER TABLE key_packages_v1 RENAME TO key_packages")
-                    .execute(&mut *tx)
-                    .await?;
+                tx.commit().await?;
             }
-            // PRAGMA user_version does not accept parameterized binding — the
-            // integer literal must be inlined.  This is safe: it is a constant.
-            sqlx::query("PRAGMA user_version = 1")
-                .execute(&mut *tx)
-                .await?;
-            tx.commit().await?;
         }
 
         // Persistent user directory: every pub_id that has ever authenticated.
@@ -162,13 +435,16 @@ impl Store {
         // Subscription invoices: pending payment requests for subscription renewals.
         // invoice_id is caller-supplied (e.g. UUID). address is UNIQUE: one active
         // invoice per Zcash subaddress. expires_at uses YYYY-MM-DD HH:MM:SS UTC.
+        // subscription_days stores the duration promised at creation time so late
+        // payments honour the originally-quoted duration (nie-jmmd.2).
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS subscription_invoices (
-                invoice_id      TEXT PRIMARY KEY,
-                pub_id          TEXT NOT NULL,
-                address         TEXT NOT NULL UNIQUE,
-                amount_zatoshi  INTEGER NOT NULL,
-                expires_at      TEXT NOT NULL
+                invoice_id        TEXT PRIMARY KEY,
+                pub_id            TEXT NOT NULL,
+                address           TEXT NOT NULL UNIQUE,
+                amount_zatoshi    INTEGER NOT NULL,
+                expires_at        TEXT NOT NULL,
+                subscription_days INTEGER
             )",
         )
         .execute(&pool)
@@ -241,34 +517,105 @@ impl Store {
         if expiry_days == 0 {
             return Ok(0);
         }
+        let mut tx = self.pool.begin().await?;
+        // ON DELETE CASCADE removes group_members for pruned users automatically.
         let result =
             sqlx::query("DELETE FROM users WHERE last_seen < datetime('now', ? || ' days')")
                 .bind(format!("-{expiry_days}"))
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await?;
+        // Remove groups that have no remaining members.
+        sqlx::query(
+            "DELETE FROM groups WHERE NOT EXISTS \
+             (SELECT 1 FROM group_members WHERE group_members.group_id = groups.group_id)",
+        )
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
         Ok(result.rows_affected())
     }
 
     /// All known users in order of first appearance, with their nicknames.
+    /// Returns at most [`MAX_ALL_USERS`] rows.
     pub async fn all_users(&self) -> Result<Vec<(String, Option<String>)>> {
         let rows: Vec<(String, Option<String>)> =
-            sqlx::query_as("SELECT pub_id, nickname FROM users ORDER BY first_seen ASC")
+            sqlx::query_as("SELECT pub_id, nickname FROM users ORDER BY first_seen ASC LIMIT ?1")
+                .bind(MAX_ALL_USERS)
                 .fetch_all(&self.pool)
                 .await?;
         Ok(rows)
     }
 
-    /// Attempt to set a nickname for `pub_id`. Succeeds only if no nickname is
-    /// currently set (nicknames are immutable once assigned). Returns `true` if
-    /// the nickname was stored, `false` if one was already set.
-    pub async fn try_set_nickname(&self, pub_id: &str, nickname: &str) -> Result<bool> {
-        let result =
-            sqlx::query("UPDATE users SET nickname = ? WHERE pub_id = ? AND nickname IS NULL")
-                .bind(nickname)
-                .bind(pub_id)
-                .execute(&self.pool)
-                .await?;
-        Ok(result.rows_affected() > 0)
+    /// Return `true` if `pub_id` is in the users table (i.e., has ever enrolled).
+    pub async fn user_exists(&self, pub_id: &str) -> Result<bool> {
+        let row: Option<(String,)> = sqlx::query_as("SELECT pub_id FROM users WHERE pub_id = ?")
+            .bind(pub_id)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row.is_some())
+    }
+
+    /// Attempt to set a nickname for `pub_id`.
+    ///
+    /// Succeeds only if this user has no nickname yet (nicknames are immutable
+    /// once assigned) and no other user already holds this nickname (enforced by
+    /// the UNIQUE index on nickname).
+    ///
+    /// Returns:
+    /// - `Ok(SetNicknameResult::Set)` — nickname stored.
+    /// - `Ok(SetNicknameResult::HasNickname)` — this user already has a nickname.
+    /// - `Ok(SetNicknameResult::NicknameTaken)` — another user holds this nickname.
+    /// - `Ok(SetNicknameResult::NotFound)` — user row not found (pruned between auth and this call).
+    ///
+    /// The SELECT and UPDATE run inside a single `BEGIN IMMEDIATE` transaction,
+    /// eliminating the TOCTOU where two concurrent SET_NICKNAME calls for the
+    /// same pub_id both pass the `existing.is_none()` check and both attempt
+    /// the UPDATE.
+    pub async fn try_set_nickname(
+        &self,
+        pub_id: &str,
+        nickname: &str,
+    ) -> Result<SetNicknameResult> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<SetNicknameResult> = async {
+            // Check whether this user already has a nickname. We do this inside
+            // the write transaction so the check and the UPDATE are atomic.
+            let existing: Option<String> =
+                sqlx::query_scalar("SELECT nickname FROM users WHERE pub_id = ?")
+                    .bind(pub_id)
+                    .fetch_optional(&mut *conn)
+                    .await?
+                    .flatten();
+            if existing.is_some() {
+                return Ok(SetNicknameResult::HasNickname);
+            }
+
+            let update =
+                sqlx::query("UPDATE users SET nickname = ? WHERE pub_id = ? AND nickname IS NULL")
+                    .bind(nickname)
+                    .bind(pub_id)
+                    .execute(&mut *conn)
+                    .await;
+            match update {
+                // rows_affected == 0 here means the user row is gone (pruned
+                // between authentication and this call); the HasNickname case
+                // was handled by the SELECT above.
+                Ok(r) if r.rows_affected() == 0 => Ok(SetNicknameResult::NotFound),
+                Ok(_) => Ok(SetNicknameResult::Set),
+                Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => {
+                    Ok(SetNicknameResult::NicknameTaken)
+                }
+                Err(e) => Err(e.into()),
+            }
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     // ---- MLS key packages ----
@@ -288,6 +635,62 @@ impl Store {
         Ok(())
     }
 
+    /// Store (or replace) the MLS key package for `(pub_id, device_id)`, enforcing a
+    /// per-user row count cap atomically.
+    ///
+    /// Acquires an exclusive write lock (`BEGIN IMMEDIATE`), counts existing rows for
+    /// `pub_id`, and rejects the write if the count is already at or above
+    /// `MAX_KEY_PACKAGES_PER_USER`.  The COUNT and INSERT OR REPLACE execute inside
+    /// a single transaction to prevent TOCTOU races where two concurrent callers
+    /// both read count < cap and both insert.
+    ///
+    /// Returns `Ok(true)` if the package was stored.
+    /// Returns `Ok(false)` if the cap is already reached (caller should send a quota error).
+    /// Returns `Err` only on database failures.
+    pub async fn save_key_package_capped(
+        &self,
+        pub_id: &str,
+        device_id: &str,
+        data: &[u8],
+    ) -> Result<bool> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<bool> = async {
+            // Count packages for *other* devices belonging to this user.
+            // An upsert (same device updating its own package) must not be
+            // blocked even when the cap is full — it doesn't increase the count.
+            // Only reject when other devices have already filled the quota.
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM key_packages WHERE pub_id = ?1 AND device_id != ?2",
+            )
+            .bind(pub_id)
+            .bind(device_id)
+            .fetch_one(&mut *conn)
+            .await?;
+            if count >= MAX_KEY_PACKAGES_PER_USER {
+                return Ok(false);
+            }
+            sqlx::query(
+                "INSERT INTO key_packages (pub_id, device_id, data) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(pub_id, device_id) DO UPDATE SET data = excluded.data,
+                                                              updated_at = datetime('now')",
+            )
+            .bind(pub_id)
+            .bind(device_id)
+            .bind(data)
+            .execute(&mut *conn)
+            .await?;
+            Ok(true)
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
     /// Fetch the stored MLS key package for `(pub_id, device_id)`, or None if not found.
     pub async fn get_key_package(&self, pub_id: &str, device_id: &str) -> Result<Option<Vec<u8>>> {
         let row: Option<(Vec<u8>,)> =
@@ -303,9 +706,10 @@ impl Store {
     /// Returns one entry per device that has published a key package.
     pub async fn get_all_key_packages(&self, pub_id: &str) -> Result<Vec<Vec<u8>>> {
         let rows: Vec<(Vec<u8>,)> = sqlx::query_as(
-            "SELECT data FROM key_packages WHERE pub_id = ?1 ORDER BY updated_at DESC",
+            "SELECT data FROM key_packages WHERE pub_id = ?1 ORDER BY updated_at DESC LIMIT ?2",
         )
         .bind(pub_id)
+        .bind(MAX_KEY_PACKAGES_PER_USER)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows.into_iter().map(|r| r.0).collect())
@@ -354,40 +758,136 @@ impl Store {
     /// Enqueue a JSON-encoded relay message for a recipient who is not currently live.
     /// The payload is the serialized wire message (already a JSON string).
     /// Expires after 72 hours via SQLite's datetime() function.
+    ///
+    /// Silently drops the message (returning `Ok`) if the recipient's queue already
+    /// holds 1000 messages.  This prevents a flood of whispers from growing the
+    /// `offline_messages` table without bound.
+    ///
+    /// Uses `BEGIN IMMEDIATE` so the read-then-write COUNT + INSERT sequence holds
+    /// a write lock from the start, preventing two concurrent callers from both
+    /// reading count < 1000 and both inserting, which would bypass the flood cap.
     pub async fn enqueue(&self, to_pub_id: &str, payload_json: &str) -> Result<()> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<()> = async {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM offline_messages WHERE to_pub_id = ?1")
+                    .bind(to_pub_id)
+                    .fetch_one(&mut *conn)
+                    .await?;
+            if count >= 1000 {
+                tracing::warn!(
+                    to_pub_id,
+                    "offline queue full (1000 messages), dropping message"
+                );
+                return Ok(());
+            }
+            sqlx::query(
+                "INSERT INTO offline_messages (to_pub_id, payload, expires_at) \
+                 VALUES (?1, ?2, datetime('now', '+72 hours'))",
+            )
+            .bind(to_pub_id)
+            .bind(payload_json)
+            .execute(&mut *conn)
+            .await?;
+            Ok(())
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
+    /// Drain up to 100 queued messages for `pub_id` per call.
+    ///
+    /// Returns only non-expired messages (expires_at > datetime('now')), ordered
+    /// by insertion order (id ASC), with a LIMIT 100 cap to bound memory use.
+    /// Deletes the rows that were selected (by id) plus any expired rows, so a
+    /// subsequent call fetches the next batch. The select and delete run inside a
+    /// single transaction for atomicity.
+    ///
+    /// When the batch is empty (no non-expired rows remain), only expired rows
+    /// are purged — valid rows are never touched.
+    ///
+    /// Callers must loop until an empty vec is returned to drain all messages.
+    pub async fn drain(&self, pub_id: &str) -> Result<Vec<String>> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<Vec<String>> = async {
+            let rows: Vec<(i64, String)> = sqlx::query_as(
+                "SELECT id, payload FROM offline_messages \
+                 WHERE to_pub_id = ?1 AND expires_at > datetime('now') \
+                 ORDER BY id ASC \
+                 LIMIT 100",
+            )
+            .bind(pub_id)
+            .fetch_all(&mut *conn)
+            .await?;
+            if let Some((last_id, _)) = rows.last() {
+                // Delete the batch we read, plus any expired rows for this user.
+                sqlx::query(
+                    "DELETE FROM offline_messages \
+                     WHERE to_pub_id = ?1 \
+                     AND (expires_at <= datetime('now') OR id <= ?2)",
+                )
+                .bind(pub_id)
+                .bind(*last_id)
+                .execute(&mut *conn)
+                .await?;
+            } else {
+                // Batch was empty — only purge expired rows; do NOT touch valid ones.
+                sqlx::query(
+                    "DELETE FROM offline_messages \
+                     WHERE to_pub_id = ?1 AND expires_at <= datetime('now')",
+                )
+                .bind(pub_id)
+                .execute(&mut *conn)
+                .await?;
+            }
+            Ok(rows.into_iter().map(|(_, s)| s).collect())
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
+    // ---- Payment watcher state ----
+
+    /// Read the last height fully scanned by the payment watcher, or `None` if
+    /// the watcher has never run on this relay instance.
+    pub async fn get_payment_scan_tip(&self) -> Result<Option<u64>> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT value FROM relay_kv WHERE key = 'payment_watcher_scan_height'")
+                .fetch_optional(&self.pool)
+                .await?;
+        match row {
+            None => Ok(None),
+            Some((s,)) => {
+                let h: u64 = s.parse().map_err(|e| {
+                    anyhow::anyhow!("corrupt payment_watcher_scan_height in DB: {e}")
+                })?;
+                Ok(Some(h))
+            }
+        }
+    }
+
+    /// Persist the last height fully scanned by the payment watcher.
+    pub async fn set_payment_scan_tip(&self, height: u64) -> Result<()> {
         sqlx::query(
-            "INSERT INTO offline_messages (to_pub_id, payload, expires_at) \
-             VALUES (?1, ?2, datetime('now', '+72 hours'))",
+            "INSERT INTO relay_kv (key, value) VALUES ('payment_watcher_scan_height', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         )
-        .bind(to_pub_id)
-        .bind(payload_json)
+        .bind(height.to_string())
         .execute(&self.pool)
         .await?;
         Ok(())
-    }
-
-    /// Drain all queued messages for `pub_id`.
-    ///
-    /// Returns only non-expired messages (expires_at > datetime('now')), ordered
-    /// by insertion order (id ASC). Deletes ALL rows for `pub_id` regardless of
-    /// expiry so stale entries cannot accumulate. The select and delete run inside
-    /// a single transaction for atomicity.
-    pub async fn drain(&self, pub_id: &str) -> Result<Vec<String>> {
-        let mut tx = self.pool.begin().await?;
-        let rows: Vec<(String,)> = sqlx::query_as(
-            "SELECT payload FROM offline_messages \
-             WHERE to_pub_id = ?1 AND expires_at > datetime('now') \
-             ORDER BY id ASC",
-        )
-        .bind(pub_id)
-        .fetch_all(&mut *tx)
-        .await?;
-        sqlx::query("DELETE FROM offline_messages WHERE to_pub_id = ?1")
-            .bind(pub_id)
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
-        Ok(rows.into_iter().map(|(s,)| s).collect())
     }
 
     // ---- Subscriptions (Phase 3) ----
@@ -436,82 +936,111 @@ impl Store {
     ///
     /// Creates the account row on first use (INSERT OR IGNORE + UPDATE pattern
     /// so the row always exists before we read it).
+    ///
+    /// Uses `BEGIN IMMEDIATE` to serialize concurrent callers; a DEFERRED
+    /// transaction would allow two callers to read the same current index before
+    /// either advances it, producing duplicate diversifiers.
     pub async fn next_diversifier(&self, account: u32) -> anyhow::Result<u128> {
         const MAX_DIVERSIFIER: u128 = (1u128 << 88) - 1;
 
-        let mut tx = self.pool.begin().await?;
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
-        // Ensure the row exists.
-        sqlx::query(
-            "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
-             VALUES (?, '0')",
-        )
-        .bind(account as i64)
-        .execute(&mut *tx)
-        .await?;
-
-        let raw: String = sqlx::query_scalar(
-            "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
-        )
-        .bind(account as i64)
-        .fetch_one(&mut *tx)
-        .await?;
-
-        let current: u128 = raw
-            .parse()
-            .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
-
-        if current >= MAX_DIVERSIFIER {
-            anyhow::bail!("diversifier index overflow for account {account}");
-        }
-
-        let next = current + 1;
-        sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
-            .bind(next.to_string())
+        let result: anyhow::Result<u128> = async {
+            // Ensure the row exists.
+            sqlx::query(
+                "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+                 VALUES (?, '0')",
+            )
             .bind(account as i64)
-            .execute(&mut *tx)
+            .execute(&mut *conn)
             .await?;
 
-        tx.commit().await?;
-        Ok(current)
+            let raw: String = sqlx::query_scalar(
+                "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+            )
+            .bind(account as i64)
+            .fetch_one(&mut *conn)
+            .await?;
+
+            let current: u128 = raw
+                .parse()
+                .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+            if current >= MAX_DIVERSIFIER {
+                anyhow::bail!("diversifier index overflow for account {account}");
+            }
+
+            let next = current + 1;
+            sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
+                .bind(next.to_string())
+                .bind(account as i64)
+                .execute(&mut *conn)
+                .await?;
+
+            Ok(current)
+        }
+        .await;
+
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     /// Advance the diversifier index for `account` to at least `idx`.
     ///
     /// Monotonic: ignored if `idx` ≤ the current stored value.
+    ///
+    /// Uses `BEGIN IMMEDIATE` so the SELECT and conditional UPDATE are
+    /// serialised against concurrent `next_diversifier` callers, preserving
+    /// the monotonicity invariant.
     pub async fn advance_diversifier_to(&self, account: u32, idx: u128) -> anyhow::Result<()> {
-        let mut tx = self.pool.begin().await?;
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
-        // Ensure the row exists.
-        sqlx::query(
-            "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
-             VALUES (?, '0')",
-        )
-        .bind(account as i64)
-        .execute(&mut *tx)
-        .await?;
+        let result: anyhow::Result<()> = async {
+            // Ensure the row exists.
+            sqlx::query(
+                "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+                 VALUES (?, '0')",
+            )
+            .bind(account as i64)
+            .execute(&mut *conn)
+            .await?;
 
-        let raw: String = sqlx::query_scalar(
-            "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
-        )
-        .bind(account as i64)
-        .fetch_one(&mut *tx)
-        .await?;
+            let raw: String = sqlx::query_scalar(
+                "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+            )
+            .bind(account as i64)
+            .fetch_one(&mut *conn)
+            .await?;
 
-        let current: u128 = raw
-            .parse()
-            .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+            let current: u128 = raw
+                .parse()
+                .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
 
-        if idx > current {
-            sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
+            if idx > current {
+                sqlx::query(
+                    "UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?",
+                )
                 .bind(idx.to_string())
                 .bind(account as i64)
-                .execute(&mut *tx)
+                .execute(&mut *conn)
                 .await?;
-        }
+            }
 
-        tx.commit().await?;
-        Ok(())
+            Ok(())
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     // ---- Subscription invoices (Phase 3) ----
@@ -523,16 +1052,22 @@ impl Store {
     /// truncated.
     pub async fn create_invoice(&self, row: &InvoiceRow) -> Result<()> {
         let amount_i64 = i64::try_from(row.amount_zatoshi).context("amount_zatoshi overflow")?;
+        let days_i64: Option<i64> = row
+            .subscription_days
+            .map(i64::try_from)
+            .transpose()
+            .context("subscription_days overflow")?;
         sqlx::query(
             "INSERT OR IGNORE INTO subscription_invoices \
-             (invoice_id, pub_id, address, amount_zatoshi, expires_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5)",
+             (invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         )
         .bind(&row.invoice_id)
         .bind(&row.pub_id)
         .bind(&row.address)
         .bind(amount_i64)
         .bind(&row.expires_at)
+        .bind(days_i64)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -540,8 +1075,8 @@ impl Store {
 
     /// Fetch the most recent unexpired invoice for `pub_id`, or None.
     pub async fn get_pending_invoice(&self, pub_id: &str) -> Result<Option<InvoiceRow>> {
-        let row: Option<(String, String, String, i64, String)> = sqlx::query_as(
-            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at \
+        let row: Option<(String, String, String, i64, String, Option<i64>)> = sqlx::query_as(
+            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days \
              FROM subscription_invoices \
              WHERE pub_id = ?1 AND expires_at > datetime('now') \
              ORDER BY expires_at DESC \
@@ -551,7 +1086,7 @@ impl Store {
         .fetch_optional(&self.pool)
         .await?;
         row.map(
-            |(invoice_id, pub_id, address, amount_zatoshi, expires_at)| {
+            |(invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days)| {
                 Ok(InvoiceRow {
                     invoice_id,
                     pub_id,
@@ -559,24 +1094,34 @@ impl Store {
                     amount_zatoshi: u64::try_from(amount_zatoshi)
                         .context("amount_zatoshi negative in DB")?,
                     expires_at,
+                    subscription_days: subscription_days
+                        .map(u64::try_from)
+                        .transpose()
+                        .context("subscription_days negative in DB")?,
                 })
             },
         )
         .transpose()
     }
 
-    /// Fetch an unexpired invoice by its payment address, or None.
+    /// Fetch an invoice by its payment address, or None.
+    ///
+    /// Does NOT filter on `expires_at`: the payment watcher must be able to
+    /// activate a subscription even when a confirmed payment arrives after the
+    /// invoice's nominal expiry (Zcash confirmation latency).  The watcher
+    /// validates the amount independently; finding an expired-but-unpurged
+    /// invoice is strictly better than silently dropping a confirmed payment.
     pub async fn get_invoice_by_address(&self, address: &str) -> Result<Option<InvoiceRow>> {
-        let row: Option<(String, String, String, i64, String)> = sqlx::query_as(
-            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at \
+        let row: Option<(String, String, String, i64, String, Option<i64>)> = sqlx::query_as(
+            "SELECT invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days \
              FROM subscription_invoices \
-             WHERE address = ?1 AND expires_at > datetime('now')",
+             WHERE address = ?1",
         )
         .bind(address)
         .fetch_optional(&self.pool)
         .await?;
         row.map(
-            |(invoice_id, pub_id, address, amount_zatoshi, expires_at)| {
+            |(invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days)| {
                 Ok(InvoiceRow {
                     invoice_id,
                     pub_id,
@@ -584,6 +1129,10 @@ impl Store {
                     amount_zatoshi: u64::try_from(amount_zatoshi)
                         .context("amount_zatoshi negative in DB")?,
                     expires_at,
+                    subscription_days: subscription_days
+                        .map(u64::try_from)
+                        .transpose()
+                        .context("subscription_days negative in DB")?,
                 })
             },
         )
@@ -599,6 +1148,271 @@ impl Store {
         Ok(())
     }
 
+    /// Atomically activate a subscription and delete the fulfilled invoice.
+    ///
+    /// Both writes execute inside a single SQLite transaction so that a crash
+    /// between the two operations cannot leave the invoice present (causing a
+    /// second activation on the next scan) or absent with no subscription
+    /// (causing the payment to be silently lost).
+    pub async fn activate_subscription_atomic(
+        &self,
+        pub_id: &str,
+        expires_at: DateTime<Utc>,
+        invoice_id: &str,
+    ) -> Result<()> {
+        let expires_str = expires_at.format("%Y-%m-%d %H:%M:%S").to_string();
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT INTO subscriptions (pub_id, expires_at) VALUES (?, ?)
+             ON CONFLICT(pub_id) DO UPDATE SET
+                 expires_at = CASE
+                     WHEN excluded.expires_at > subscriptions.expires_at
+                     THEN excluded.expires_at
+                     ELSE subscriptions.expires_at
+                 END",
+        )
+        .bind(pub_id)
+        .bind(&expires_str)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("DELETE FROM subscription_invoices WHERE invoice_id = ?1")
+            .bind(invoice_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Count pending (non-expired) invoices for `pub_id`.
+    ///
+    /// Used by the SUBSCRIBE_REQUEST handler to cap the number of outstanding
+    /// invoices per user, preventing unbounded growth of the subscription_invoices
+    /// table from repeated subscription requests (nie-qgag.4).
+    pub async fn count_pending_invoices(&self, pub_id: &str) -> Result<u64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM subscription_invoices \
+             WHERE pub_id = ?1 AND expires_at > datetime('now')",
+        )
+        .bind(pub_id)
+        .fetch_one(&self.pool)
+        .await?;
+        u64::try_from(count).context("count_pending_invoices overflow")
+    }
+
+    /// Atomically count pending invoices for `pub_id` and, if the count is
+    /// below `cap`, create a new invoice — all inside a single `BEGIN IMMEDIATE`
+    /// transaction.
+    ///
+    /// This eliminates the TOCTOU between `count_pending_invoices` and
+    /// `create_invoice`: two concurrent `SUBSCRIBE_REQUEST` handlers that both
+    /// read count=4 would otherwise both pass the ≥5 check and both insert,
+    /// leaving 6 pending invoices.
+    ///
+    /// Returns `Ok(true)` if the invoice was created.
+    /// Returns `Ok(false)` if the count is already ≥ `cap` (caller should rate-limit).
+    /// Returns `Err` only on database failures.
+    pub async fn count_and_create_invoice(&self, row: &InvoiceRow, cap: u64) -> Result<bool> {
+        let amount_i64 = i64::try_from(row.amount_zatoshi).context("amount_zatoshi overflow")?;
+        let days_i64: Option<i64> = row
+            .subscription_days
+            .map(i64::try_from)
+            .transpose()
+            .context("subscription_days overflow")?;
+
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<bool> = async {
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM subscription_invoices \
+                 WHERE pub_id = ?1 AND expires_at > datetime('now')",
+            )
+            .bind(&row.pub_id)
+            .fetch_one(&mut *conn)
+            .await?;
+
+            if count as u64 >= cap {
+                return Ok(false);
+            }
+
+            let insert_result = sqlx::query(
+                "INSERT OR IGNORE INTO subscription_invoices \
+                 (invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )
+            .bind(&row.invoice_id)
+            .bind(&row.pub_id)
+            .bind(&row.address)
+            .bind(amount_i64)
+            .bind(&row.expires_at)
+            .bind(days_i64)
+            .execute(&mut *conn)
+            .await?;
+
+            if insert_result.rows_affected() == 0 {
+                return Err(anyhow::anyhow!(
+                    "invoice_id collision: row already exists for invoice_id {}",
+                    row.invoice_id
+                ));
+            }
+
+            Ok(true)
+        }
+        .await;
+
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
+    /// Allocate a Sapling diversifier index and create a subscription invoice.
+    ///
+    /// Uses a two-phase approach to avoid holding the SQLite write lock during
+    /// CPU-bound Zcash key derivation:
+    ///
+    /// **Phase 1 (no lock):** Read the current diversifier index with a plain
+    /// SELECT, then call `find_addr` (CPU-bound key derivation) outside any
+    /// transaction.
+    ///
+    /// **Phase 2 (BEGIN IMMEDIATE):** Re-read the diversifier inside the write
+    /// transaction. If it has advanced since Phase 1 (concurrent request), bail
+    /// with an error — the caller can retry. Otherwise check the invoice cap,
+    /// advance the diversifier, and insert the invoice atomically.
+    ///
+    /// `find_addr` is `FnOnce`: it is called exactly once in Phase 1. If the
+    /// Phase 2 re-read detects a concurrent change, the function returns `Err`
+    /// (very rare race; the SUBSCRIBE_REQUEST handler propagates this to the
+    /// client, which retries).
+    ///
+    /// Returns:
+    /// - `Ok(Some(address))` — diversifier advanced, invoice inserted.
+    /// - `Ok(None)` — invoice cap already reached; diversifier NOT advanced.
+    /// - `Err` — DB failure or concurrent diversifier change; diversifier NOT advanced.
+    pub async fn alloc_diversifier_and_create_invoice(
+        &self,
+        account: u32,
+        row: &InvoiceRow,
+        cap: u64,
+        find_addr: impl FnOnce(u128) -> anyhow::Result<(u128, String)>,
+    ) -> Result<Option<String>> {
+        const MAX_DIVERSIFIER: u128 = (1u128 << 88) - 1;
+
+        let amount_i64 = i64::try_from(row.amount_zatoshi).context("amount_zatoshi overflow")?;
+        let days_i64: Option<i64> = row
+            .subscription_days
+            .map(i64::try_from)
+            .transpose()
+            .context("subscription_days overflow")?;
+
+        let mut conn = self.pool.acquire().await?;
+
+        // Phase 1: read diversifier and run CPU-bound key derivation without
+        // holding the write lock.
+        sqlx::query(
+            "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+             VALUES (?, '0')",
+        )
+        .bind(account as i64)
+        .execute(&mut *conn)
+        .await?;
+
+        let raw_start: String = sqlx::query_scalar(
+            "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+        )
+        .bind(account as i64)
+        .fetch_one(&mut *conn)
+        .await?;
+
+        let start: u128 = raw_start
+            .parse()
+            .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+        if start >= MAX_DIVERSIFIER {
+            anyhow::bail!("diversifier index overflow for account {account}");
+        }
+
+        // CPU-bound: no lock held.
+        let (actual, address) = find_addr(start)?;
+
+        // Phase 2: acquire write lock and complete the transaction.
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+
+        let result: Result<Option<String>> = async {
+            // Re-read diversifier; bail if a concurrent request advanced it.
+            let raw_now: String = sqlx::query_scalar(
+                "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+            )
+            .bind(account as i64)
+            .fetch_one(&mut *conn)
+            .await?;
+
+            let now: u128 = raw_now
+                .parse()
+                .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+            if now != start {
+                anyhow::bail!(
+                    "diversifier for account {account} changed concurrently \
+                     (was {start}, now {now}); caller should retry"
+                );
+            }
+
+            // Check invoice cap.
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM subscription_invoices \
+                 WHERE pub_id = ?1 AND expires_at > datetime('now')",
+            )
+            .bind(&row.pub_id)
+            .fetch_one(&mut *conn)
+            .await?;
+
+            if count as u64 >= cap {
+                return Ok(None);
+            }
+
+            // Advance the stored index past the one we just used.
+            let next = actual.saturating_add(1);
+            sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
+                .bind(next.to_string())
+                .bind(account as i64)
+                .execute(&mut *conn)
+                .await?;
+
+            // Insert the invoice row with the allocated address.
+            let r = sqlx::query(
+                "INSERT OR IGNORE INTO subscription_invoices \
+                 (invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )
+            .bind(&row.invoice_id)
+            .bind(&row.pub_id)
+            .bind(&address)
+            .bind(amount_i64)
+            .bind(&row.expires_at)
+            .bind(days_i64)
+            .execute(&mut *conn)
+            .await?;
+            if r.rows_affected() == 0 {
+                anyhow::bail!(
+                    "invoice_id collision: invoice was not inserted (rows_affected=0); \
+                     diversifier advanced — caller should generate a fresh invoice_id"
+                );
+            }
+
+            Ok(Some(address))
+        }
+        .await;
+
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
     /// Delete all invoices whose `expires_at` is in the past. Returns the
     /// number of rows deleted.
     pub async fn purge_expired_invoices(&self) -> Result<u64> {
@@ -611,17 +1425,15 @@ impl Store {
 
     // ---- Groups ----
 
-    /// Create a group record. INSERT OR IGNORE — idempotent; a duplicate
-    /// group_id is silently ignored.
+    /// Create a group record. Returns a unique-constraint error if `group_id`
+    /// already exists — callers must detect duplicate group creation.
     pub async fn create_group(&self, group_id: &str, created_by: &str, name: &str) -> Result<()> {
-        sqlx::query(
-            "INSERT OR IGNORE INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)",
-        )
-        .bind(group_id)
-        .bind(created_by)
-        .bind(name)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)")
+            .bind(group_id)
+            .bind(created_by)
+            .bind(name)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -649,9 +1461,11 @@ impl Store {
             "SELECT g.group_id, g.created_by, g.name, g.created_at \
              FROM groups g \
              JOIN group_members m ON g.group_id = m.group_id \
-             WHERE m.pub_id = ?1",
+             WHERE m.pub_id = ?1 \
+             LIMIT ?2",
         )
         .bind(pub_id)
+        .bind(MAX_GROUPS_PER_USER)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows
@@ -675,6 +1489,63 @@ impl Store {
         Ok(())
     }
 
+    /// Atomically verify caller membership, check the member count cap, and
+    /// add `member_pub_id` to `group_id`.
+    ///
+    /// All checks and the INSERT run inside a single `BEGIN IMMEDIATE`
+    /// transaction, eliminating the TOCTOU where the caller is removed between
+    /// the membership check and the insert, or two concurrent GROUP_ADD callers
+    /// both read count < cap and both insert, exceeding the limit.
+    pub async fn add_group_member_capped(
+        &self,
+        group_id: &str,
+        caller_pub_id: &str,
+        member_pub_id: &str,
+        cap: u64,
+    ) -> Result<GroupAddOutcome> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<GroupAddOutcome> = async {
+            let caller_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM group_members WHERE group_id = ?1 AND pub_id = ?2",
+            )
+            .bind(group_id)
+            .bind(caller_pub_id)
+            .fetch_one(&mut *conn)
+            .await?;
+            if caller_count == 0 {
+                return Ok(GroupAddOutcome::CallerNotMember);
+            }
+            let total: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+                    .bind(group_id)
+                    .fetch_one(&mut *conn)
+                    .await?;
+            if total as u64 >= cap {
+                return Ok(GroupAddOutcome::CapExceeded);
+            }
+            let res = sqlx::query(
+                "INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)",
+            )
+            .bind(group_id)
+            .bind(member_pub_id)
+            .execute(&mut *conn)
+            .await?;
+            if res.rows_affected() == 1 {
+                Ok(GroupAddOutcome::Added)
+            } else {
+                Ok(GroupAddOutcome::AlreadyMember)
+            }
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
     /// Remove `pub_id` from `group_id`. No-op if the membership does not exist.
     pub async fn remove_group_member(&self, group_id: &str, pub_id: &str) -> Result<()> {
         sqlx::query("DELETE FROM group_members WHERE group_id = ?1 AND pub_id = ?2")
@@ -688,8 +1559,9 @@ impl Store {
     /// All member pub_ids for `group_id`.
     pub async fn list_group_members(&self, group_id: &str) -> Result<Vec<String>> {
         let rows: Vec<(String,)> =
-            sqlx::query_as("SELECT pub_id FROM group_members WHERE group_id = ?1")
+            sqlx::query_as("SELECT pub_id FROM group_members WHERE group_id = ?1 LIMIT ?2")
                 .bind(group_id)
+                .bind(MAX_MEMBERS_PER_GROUP)
                 .fetch_all(&self.pool)
                 .await?;
         Ok(rows.into_iter().map(|(s,)| s).collect())
@@ -715,6 +1587,164 @@ impl Store {
                 .fetch_one(&self.pool)
                 .await?;
         u64::try_from(count).context("member_count overflow")
+    }
+
+    /// Return a map of `group_id → member_count` for all groups that `pub_id`
+    /// belongs to, in a single SQL query (avoids N+1 in GROUP_LIST).
+    pub async fn member_counts_for_user(
+        &self,
+        pub_id: &str,
+    ) -> Result<std::collections::HashMap<String, u64>> {
+        // Aggregate counts for only the groups this user belongs to.
+        let rows: Vec<(String, i64)> = sqlx::query_as(
+            "SELECT gm.group_id, COUNT(*) \
+             FROM group_members gm \
+             WHERE gm.group_id IN (SELECT group_id FROM group_members WHERE pub_id = ?1) \
+             GROUP BY gm.group_id",
+        )
+        .bind(pub_id)
+        .fetch_all(&self.pool)
+        .await?;
+        rows.into_iter()
+            .map(|(gid, cnt)| {
+                u64::try_from(cnt)
+                    .context("member_count overflow")
+                    .map(|n| (gid, n))
+            })
+            .collect()
+    }
+
+    /// Atomically remove `pub_id` from `group_id`, then delete the group if it
+    /// has no remaining members.
+    ///
+    /// Returns `true` if the group was deleted (member count dropped to 0),
+    /// `false` if other members remain.
+    ///
+    /// All three operations (DELETE member row, COUNT remaining members,
+    /// conditional DELETE group) run inside a single SQLite transaction,
+    /// eliminating the TOCTOU between a concurrent GROUP_ADD and the final
+    /// delete decision.
+    pub async fn remove_member_and_maybe_delete_group(
+        &self,
+        group_id: &str,
+        pub_id: &str,
+    ) -> Result<bool> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<bool> = async {
+            sqlx::query("DELETE FROM group_members WHERE group_id = ?1 AND pub_id = ?2")
+                .bind(group_id)
+                .bind(pub_id)
+                .execute(&mut *conn)
+                .await?;
+            let remaining: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
+                    .bind(group_id)
+                    .fetch_one(&mut *conn)
+                    .await?;
+            if remaining == 0 {
+                sqlx::query("DELETE FROM groups WHERE group_id = ?1")
+                    .bind(group_id)
+                    .execute(&mut *conn)
+                    .await?;
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
+    /// Atomically create a group and add its creator as the first member.
+    ///
+    /// Both the INSERT into `groups` and the INSERT into `group_members` run
+    /// inside a single SQLite transaction.  If either fails, the transaction
+    /// rolls back and no orphan group row is left behind.
+    ///
+    /// Idempotent on the group row (INSERT OR IGNORE): if the group already
+    /// exists the creator is still added as a member (also idempotent).
+    pub async fn create_group_with_creator(
+        &self,
+        group_id: &str,
+        created_by: &str,
+        name: &str,
+    ) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "INSERT OR IGNORE INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)",
+        )
+        .bind(group_id)
+        .bind(created_by)
+        .bind(name)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
+            .bind(group_id)
+            .bind(created_by)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    /// Atomically check the per-creator group count cap and create the group.
+    ///
+    /// The COUNT and INSERT run inside a single `BEGIN IMMEDIATE` transaction,
+    /// eliminating the TOCTOU where two concurrent GROUP_CREATE callers both read
+    /// count < cap and both insert, exceeding the limit.
+    ///
+    /// Returns `Ok(true)` if the group was created, `Ok(false)` if `created_by`
+    /// already owns `cap` or more groups.
+    pub async fn create_group_with_creator_capped(
+        &self,
+        group_id: &str,
+        created_by: &str,
+        name: &str,
+        cap: u64,
+    ) -> Result<bool> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<bool> = async {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM groups WHERE created_by = ?1")
+                    .bind(created_by)
+                    .fetch_one(&mut *conn)
+                    .await?;
+            if count as u64 >= cap {
+                return Ok(false);
+            }
+            let r = sqlx::query(
+                "INSERT OR IGNORE INTO groups (group_id, created_by, name) VALUES (?1, ?2, ?3)",
+            )
+            .bind(group_id)
+            .bind(created_by)
+            .bind(name)
+            .execute(&mut *conn)
+            .await?;
+            if r.rows_affected() == 0 {
+                // Group already exists (concurrent creation with same group_id).
+                return Ok(false);
+            }
+            sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
+                .bind(group_id)
+                .bind(created_by)
+                .execute(&mut *conn)
+                .await?;
+            Ok(true)
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
     }
 
     /// Delete a group and all its membership rows, atomically.
@@ -990,6 +2020,7 @@ mod tests {
             address: "zs1abc".to_string(),
             amount_zatoshi: 100_000,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
 
@@ -1011,6 +2042,7 @@ mod tests {
             address: "zs1idem".to_string(),
             amount_zatoshi: 50_000,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
         // Second insert with same invoice_id must not fail.
@@ -1032,13 +2064,15 @@ mod tests {
             address: "zs1exp".to_string(),
             amount_zatoshi: 1_000,
             expires_at: past_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
         let got = store.get_pending_invoice("dave").await.unwrap();
         assert!(got.is_none(), "expired invoice must not be returned");
     }
 
-    /// get_invoice_by_address finds an active invoice; expired one is hidden.
+    /// get_invoice_by_address finds an invoice by address (active or expired);
+    /// unknown address returns None.
     #[tokio::test]
     async fn invoice_get_by_address() {
         let (store, _f) = make_store().await;
@@ -1048,6 +2082,7 @@ mod tests {
             address: "zs1addr".to_string(),
             amount_zatoshi: 200_000,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
 
@@ -1071,6 +2106,7 @@ mod tests {
             address: "zs1del".to_string(),
             amount_zatoshi: 9_999,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&row).await.unwrap();
         store.delete_invoice("inv-del").await.unwrap();
@@ -1088,6 +2124,7 @@ mod tests {
             address: "zs1active".to_string(),
             amount_zatoshi: 1_000,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         let expired = InvoiceRow {
             invoice_id: "inv-old".to_string(),
@@ -1096,6 +2133,7 @@ mod tests {
             address: "zs1old".to_string(),
             amount_zatoshi: 1_000,
             expires_at: past_expires_at(),
+            subscription_days: Some(30),
         };
         store.create_invoice(&active).await.unwrap();
         store.create_invoice(&expired).await.unwrap();
@@ -1129,6 +2167,7 @@ mod tests {
             address: "zs1overflow".to_string(),
             amount_zatoshi: u64::MAX,
             expires_at: future_expires_at(),
+            subscription_days: Some(30),
         };
         let result = store.create_invoice(&row).await;
         assert!(
@@ -1166,24 +2205,23 @@ mod tests {
         assert!(got.is_none(), "unknown group_id must return None");
     }
 
-    /// create_group is idempotent: a duplicate insert is silently ignored.
+    /// create_group returns an error on duplicate group_id.
     #[tokio::test]
-    async fn group_create_idempotent() {
+    async fn group_create_duplicate_is_error() {
         let (store, _f) = make_store().await;
         store
-            .create_group("grp-idem", "alice", "original name")
+            .create_group("grp-dup", "alice", "original name")
             .await
             .unwrap();
-        // Second insert with same group_id must not fail, and must not overwrite.
-        store
-            .create_group("grp-idem", "bob", "different name")
-            .await
-            .unwrap();
-        let got = store.get_group("grp-idem").await.unwrap().unwrap();
-        assert_eq!(
-            got.created_by, "alice",
-            "INSERT OR IGNORE must preserve the original row"
+        // Second insert with same group_id must fail with a unique-constraint error.
+        let result = store.create_group("grp-dup", "bob", "different name").await;
+        assert!(
+            result.is_err(),
+            "duplicate group_id must return an error, not silently ignore"
         );
+        // Original row must be unchanged.
+        let got = store.get_group("grp-dup").await.unwrap().unwrap();
+        assert_eq!(got.created_by, "alice", "original row must be preserved");
         assert_eq!(got.name, "original name");
     }
 
@@ -1191,6 +2229,7 @@ mod tests {
     #[tokio::test]
     async fn group_add_and_is_member() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
         store
             .create_group("grp-mem", "alice", "member test")
             .await
@@ -1208,6 +2247,7 @@ mod tests {
     #[tokio::test]
     async fn group_add_member_idempotent() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
         store
             .create_group("grp-idem-mem", "alice", "idempotent member")
             .await
@@ -1225,6 +2265,8 @@ mod tests {
     #[tokio::test]
     async fn group_list_members() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-list", "alice", "list test")
             .await
@@ -1260,6 +2302,8 @@ mod tests {
     #[tokio::test]
     async fn group_member_count() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-count", "alice", "count test")
             .await
@@ -1287,6 +2331,8 @@ mod tests {
     #[tokio::test]
     async fn group_remove_member() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-rm", "alice", "remove test")
             .await
@@ -1329,6 +2375,8 @@ mod tests {
     #[tokio::test]
     async fn group_delete_cascades() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-del", "alice", "delete test")
             .await
@@ -1357,6 +2405,8 @@ mod tests {
     #[tokio::test]
     async fn group_list_for_user() {
         let (store, _f) = make_store().await;
+        store.register_user("bob").await.unwrap();
+        store.register_user("carol").await.unwrap();
         store
             .create_group("grp-a", "alice", "group a")
             .await

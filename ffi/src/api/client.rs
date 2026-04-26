@@ -4,7 +4,7 @@ use base64::Engine;
 use flutter_rust_bridge::frb;
 use nie_core::{
     identity::Identity,
-    messages::ClearMessage,
+    messages::{pad, unpad, ClearMessage},
     protocol::{
         rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcRequest,
         SetNicknameParams, UserJoinedParams, UserLeftParams, UserNicknameParams,
@@ -46,6 +46,12 @@ pub enum NieEvent {
     Reconnecting { delay_secs: u64 },
     /// Successfully reconnected after a previous disconnect.
     Reconnected,
+    /// A fatal internal error occurred (e.g. background task panicked).
+    ///
+    /// `client_next_event` will return this once and then return `None` on the
+    /// next call.  Dart should treat this as a terminal condition and stop the
+    /// event loop.
+    FatalError { message: String },
 }
 
 /// An entry in the online user list (inside `NieEvent::DirectoryUpdated`).
@@ -106,16 +112,23 @@ pub async fn client_connect(
     let arr: [u8; 64] = bytes
         .try_into()
         .map_err(|_| anyhow!("keyfile corrupt: expected 64 bytes"))?;
-    let identity = Identity::from_secret_bytes(&arr);
+    let identity = Identity::from_secret_bytes(&arr)?;
     let pub_id = identity.pub_id().0.clone();
 
     // Synchronous — spawns the background manager, returns channel pair.
+    // RUNTIME REQUIREMENT: connect_with_retry internally uses tokio::task::spawn_blocking
+    // for PoW mining.  The flutter_rust_bridge executor uses a multi-threaded Tokio
+    // runtime by default, which supports spawn_blocking.  Single-threaded runtimes
+    // (tokio::runtime::Builder::new_current_thread) would deadlock during auth on a
+    // PoW-enabled relay.  Do not change the FRB runtime to single-threaded (nie-qmwv.5).
     let conn = transport::connect_with_retry(relay_url, identity, accept_invalid_certs, None);
 
     // Bridge: translate ClientEvent → NieEvent and deliver to the event channel.
     let (event_tx, event_rx) = mpsc::channel::<NieEvent>(256);
     let mut transport_rx = conn.rx;
-    tokio::spawn(async move {
+    let own_pub_id_for_task = pub_id.clone();
+    let event_tx_panic = event_tx.clone();
+    let task_handle = tokio::spawn(async move {
         while let Some(event) = transport_rx.recv().await {
             let nie_event = match event {
                 ClientEvent::Reconnecting { delay_secs } => {
@@ -123,12 +136,27 @@ pub async fn client_connect(
                 }
                 ClientEvent::Reconnected => Some(NieEvent::Reconnected),
                 ClientEvent::Response(_) => None,
-                ClientEvent::Message(notif) => map_notification(notif),
+                ClientEvent::Message(notif) => map_notification(notif, &own_pub_id_for_task),
+                ClientEvent::Disconnected => None,
             };
             if let Some(ev) = nie_event {
                 if event_tx.send(ev).await.is_err() {
                     break; // Dart dropped the client
                 }
+            }
+        }
+    });
+    // Watch the background task: if it panics, the channel sender side is dropped
+    // and `client_next_event` would block forever.  Send a terminal FatalError
+    // event so Dart receives an error instead of hanging.
+    tokio::spawn(async move {
+        if let Err(join_err) = task_handle.await {
+            if join_err.is_panic() {
+                let _ = event_tx_panic
+                    .send(NieEvent::FatalError {
+                        message: "background event task panicked".to_string(),
+                    })
+                    .await;
             }
         }
     });
@@ -157,7 +185,7 @@ pub fn client_pub_id(client: &NieClient) -> String {
 
 /// Broadcast a chat message to all online peers (fire-and-forget).
 pub async fn client_send_message(client: &NieClient, text: String) -> Result<()> {
-    let payload = encode_chat_payload(&text);
+    let payload = encode_chat_payload(&text)?;
     let req = JsonRpcRequest::new(
         transport::next_request_id(),
         rpc_methods::BROADCAST,
@@ -175,7 +203,7 @@ pub async fn client_send_message(client: &NieClient, text: String) -> Result<()>
 ///
 /// `to` is the recipient's pub_id (64 hex chars).
 pub async fn client_send_whisper(client: &NieClient, to: String, text: String) -> Result<()> {
-    let payload = encode_chat_payload(&text);
+    let payload = encode_chat_payload(&text)?;
     let req = JsonRpcRequest::new(
         transport::next_request_id(),
         rpc_methods::WHISPER,
@@ -216,25 +244,46 @@ pub fn client_disconnect(_client: NieClient) {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-fn encode_chat_payload(text: &str) -> Vec<u8> {
-    serde_json::to_vec(&ClearMessage::Chat {
+fn encode_chat_payload(text: &str) -> Result<Vec<u8>> {
+    // ClearMessage::Chat is a derived Serialize with a single String field;
+    // serde_json::to_vec on it is infallible by construction.
+    let bytes = serde_json::to_vec(&ClearMessage::Chat {
         text: text.to_string(),
     })
-    .unwrap()
+    .expect("ClearMessage::Chat serializes infallibly");
+    pad(&bytes).map_err(|e| anyhow!("pad error: {e}"))
 }
 
 fn decode_payload_text(payload: &[u8]) -> String {
-    if let Ok(ClearMessage::Chat { text }) = serde_json::from_slice::<ClearMessage>(payload) {
-        return text;
+    let plaintext = match unpad(payload) {
+        Ok(p) => p,
+        Err(_) => return "(invalid padded payload)".to_string(),
+    };
+    // Match explicitly so non-Chat variants return a readable description
+    // rather than falling through to a raw-bytes display (nie-jq8m.15).
+    match serde_json::from_slice::<ClearMessage>(&plaintext) {
+        Ok(ClearMessage::Chat { text }) => text,
+        Ok(ClearMessage::Payment { .. }) => "(payment message)".to_string(),
+        Ok(ClearMessage::Ack { .. }) => "(ack)".to_string(),
+        Ok(ClearMessage::Profile { .. }) => "(profile update)".to_string(),
+        Ok(ClearMessage::FileHeader { .. }) => "(file transfer)".to_string(),
+        Ok(ClearMessage::FileChunk { .. }) => "(file chunk)".to_string(),
+        Ok(_) => "(system message)".to_string(),
+        Err(_) => "(unrecognized payload)".to_string(),
     }
-    String::from_utf8(payload.to_vec()).unwrap_or_else(|_| "(binary payload)".to_string())
 }
 
-fn map_notification(notif: nie_core::protocol::JsonRpcNotification) -> Option<NieEvent> {
+fn map_notification(
+    notif: nie_core::protocol::JsonRpcNotification,
+    own_pub_id: &str,
+) -> Option<NieEvent> {
     let params = notif.params.unwrap_or(serde_json::Value::Null);
     match notif.method.as_str() {
         rpc_methods::DELIVER => {
             let p: DeliverParams = serde_json::from_value(params).ok()?;
+            if p.from == own_pub_id {
+                return None; // skip own broadcast echo
+            }
             Some(NieEvent::MessageReceived {
                 from: p.from,
                 text: decode_payload_text(&p.payload),

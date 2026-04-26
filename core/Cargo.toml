@@ -17,6 +17,7 @@ ed25519-dalek.workspace = true
 x25519-dalek.workspace = true
 hpke.workspace = true
 sha2.workspace = true
+zeroize.workspace = true
 futures.workspace = true
 rand.workspace = true
 serde.workspace = true

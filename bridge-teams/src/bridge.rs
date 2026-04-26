@@ -83,8 +83,13 @@ async fn teams_webhook(
             .as_ref()
             .and_then(|f| f.name.as_deref())
             .unwrap_or("unknown");
-        let nie_text = format_for_nie(sender, text);
-        let _ = state.tx.try_send(nie_text);
+        let nie_text = format_for_nie(sender, &text);
+        // Block until the message is in the channel.
+        // If send fails (channel closed), return 500 so Teams retries.
+        if state.tx.send(nie_text).await.is_err() {
+            tracing::warn!("Teams→nie channel closed; returning 500 for retry");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     }
 
     Ok(Json(serde_json::json!({})))
@@ -123,7 +128,7 @@ async fn handle_nie_deliver(
 // ---- Main bridge loop ----
 
 pub async fn run(config: &BridgeConfig) -> Result<()> {
-    let identity = nie_core::keyfile::load_identity(&config.keyfile, false)?;
+    let identity = nie_core::keyfile::load_identity(&config.keyfile, true)?;
     let own_pub_id = identity.pub_id().0.clone();
 
     // Connect to the nie relay with transparent reconnection.
@@ -146,6 +151,7 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
         };
         let app = axum::Router::new()
             .route("/teams/webhook", axum::routing::post(teams_webhook))
+            .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Teams webhook server listening on port {listen_port}");
@@ -196,6 +202,10 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                     }
                     ClientEvent::Reconnecting { delay_secs } => {
                         tracing::info!("relay reconnecting in {delay_secs}s");
+                    }
+                    ClientEvent::Disconnected => {
+                        tracing::error!("relay disconnected");
+                        break;
                     }
                     _ => {}
                 }

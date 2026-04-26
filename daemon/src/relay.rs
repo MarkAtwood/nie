@@ -5,9 +5,10 @@ use nie_core::{
     mls::MlsClient,
     protocol::{
         rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcNotification,
-        TypingNotifyParams, UserJoinedParams, UserLeftParams,
+        JsonRpcRequest, PublishHpkeKeyParams, PublishKeyPackageParams, TypingNotifyParams,
+        UserJoinedParams, UserLeftParams,
     },
-    transport::{self, ClientEvent},
+    transport::{self, next_request_id, ClientEvent},
 };
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -30,10 +31,14 @@ pub async fn start_relay_connector(
     let key_bytes: [u8; 64] = key_bytes
         .try_into()
         .map_err(|_| anyhow::anyhow!("keyfile must be exactly 64 bytes"))?;
-    let identity = Identity::from_secret_bytes(&key_bytes);
+    let identity = Identity::from_secret_bytes(&key_bytes)?;
 
     // Log only the public side — never log secret bytes.
     tracing::info!("loaded identity: {}", identity.pub_id());
+
+    // Extract HPKE public key before identity is moved into the transport.
+    // Safe to store: this is the public half only.
+    let hpke_pub_key = identity.hpke_pub_key_bytes();
 
     let mls_client = MlsClient::new(&identity.pub_id().0).context("create MLS client")?;
     let mls_client = Arc::new(Mutex::new(mls_client));
@@ -50,6 +55,7 @@ pub async fn start_relay_connector(
         state,
         relay_url.to_string(),
         mls_client,
+        hpke_pub_key,
     ));
 
     Ok(())
@@ -61,6 +67,7 @@ async fn relay_event_loop(
     state: DaemonState,
     relay_url: String,
     mls: Arc<Mutex<MlsClient>>,
+    hpke_pub_key: [u8; 32],
 ) {
     loop {
         let Some(event) = rx.recv().await else {
@@ -76,6 +83,19 @@ async fn relay_event_loop(
         match event {
             ClientEvent::Reconnecting { delay_secs } => {
                 tracing::warn!("relay disconnected, reconnecting in {}s", delay_secs);
+                // Reset MLS group state — the relay loses all epoch context on disconnect.
+                // Without this reset, all GROUP_DELIVER decryption fails after reconnect
+                // because the daemon's stale epoch won't match the relay's fresh state.
+                {
+                    let mut guard = mls.lock().await;
+                    match MlsClient::new(state.my_pub_id()) {
+                        Ok(fresh) => {
+                            *guard = fresh;
+                            tracing::info!("MLS state reset for reconnect");
+                        }
+                        Err(e) => tracing::error!("failed to reset MLS client on reconnect: {e}"),
+                    }
+                }
                 state.broadcast_event(DaemonEvent::ConnectionStateChanged {
                     status: "reconnecting".to_string(),
                     relay_url: relay_url.clone(),
@@ -89,6 +109,10 @@ async fn relay_event_loop(
                     relay_url: relay_url.clone(),
                     timestamp: utc_now(),
                 });
+                // Re-publish HPKE key and MLS key package — the relay clears these
+                // slots on restart, so other clients cannot send sealed messages until
+                // they are re-published.  Mirror what the CLI does on DIRECTORY_LIST.
+                republish_keys(&state, &mls, hpke_pub_key).await;
             }
             ClientEvent::Message(notif) => {
                 dispatch_notification(notif, &state, &mls).await;
@@ -97,7 +121,67 @@ async fn relay_event_loop(
                 // Responses to our requests — not used in daemon v0.
                 tracing::trace!("relay response received");
             }
+            ClientEvent::Disconnected => {
+                tracing::warn!("relay connection closed");
+                break;
+            }
         }
+    }
+}
+
+/// Re-publish the HPKE public key and a fresh MLS key package to the relay.
+///
+/// Called after every reconnect because the relay clears these slots on restart.
+/// Mirrors the CLI's DIRECTORY_LIST handler.  Failures are logged as warnings —
+/// the connection will reconnect again if needed, and this will be retried.
+async fn republish_keys(state: &DaemonState, mls: &Arc<Mutex<MlsClient>>, hpke_pub_key: [u8; 32]) {
+    let Some(tx) = state.relay_tx().await else {
+        tracing::warn!("republish_keys: relay_tx not available, skipping");
+        return;
+    };
+
+    // Publish a fresh MLS key package so the admin can add us to the group.
+    match mls.lock().await.key_package_and_device_id() {
+        Ok((kp, device_id)) => {
+            match JsonRpcRequest::new(
+                next_request_id(),
+                rpc_methods::PUBLISH_KEY_PACKAGE,
+                PublishKeyPackageParams {
+                    device_id,
+                    data: kp,
+                },
+            ) {
+                Ok(req) => {
+                    if tx.send(req).await.is_err() {
+                        tracing::warn!("republish_keys: relay_tx closed while sending key package");
+                        return;
+                    }
+                    tracing::info!("republished MLS key package after reconnect");
+                }
+                Err(e) => {
+                    tracing::warn!("republish_keys: failed to build key package request: {e}")
+                }
+            }
+        }
+        Err(e) => tracing::warn!("republish_keys: key_package_and_device_id failed: {e}"),
+    }
+
+    // Publish the HPKE public key so peers can send sealed messages.
+    match JsonRpcRequest::new(
+        next_request_id(),
+        rpc_methods::PUBLISH_HPKE_KEY,
+        PublishHpkeKeyParams {
+            public_key: hpke_pub_key.to_vec(),
+        },
+    ) {
+        Ok(req) => {
+            if tx.send(req).await.is_err() {
+                tracing::warn!("republish_keys: relay_tx closed while sending HPKE key");
+                return;
+            }
+            tracing::info!("republished HPKE key after reconnect");
+        }
+        Err(e) => tracing::warn!("republish_keys: failed to build HPKE key request: {e}"),
     }
 }
 
@@ -122,6 +206,27 @@ async fn dispatch_notification(
             };
             let from = p.from;
             let payload = p.payload;
+
+            // When MLS is active the relay should only carry encrypted BROADCAST
+            // messages.  A DELIVER payload that parses as ClearMessage::Chat
+            // means the sender bypassed MLS and the message arrived as plaintext.
+            // Drop it so clients never silently receive unencrypted messages on
+            // the pre-MLS channel while an MLS session is established.
+            //
+            // Release the MLS mutex before parsing: serde_json::from_slice runs
+            // on relay-controlled payload and must not block other MLS operations.
+            let in_group = mls.lock().await.has_group();
+            if in_group
+                && serde_json::from_slice::<ClearMessage>(&payload)
+                    .ok()
+                    .is_some_and(|m| matches!(m, ClearMessage::Chat { .. }))
+            {
+                tracing::warn!(
+                    "deliver: dropping ClearMessage::Chat from {from} \
+                     because MLS group is active (message should arrive as BROADCAST)"
+                );
+                return;
+            }
 
             match serde_json::from_slice::<ClearMessage>(&payload) {
                 Ok(ClearMessage::Chat { text }) => {
@@ -211,7 +316,31 @@ async fn dispatch_notification(
                     message_id,
                     for_all,
                 }) => {
-                    dispatch_peer_retract(state, message_id, for_all).await;
+                    let authorized = if let Some(store) = state.store() {
+                        match store.message_sender_id(&message_id).await {
+                            Ok(Some(stored_sender)) => stored_sender == sender_pub_id,
+                            Ok(None) => false,
+                            Err(e) => {
+                                tracing::warn!("peer_retract: message_sender_id failed: {e}");
+                                false
+                            }
+                        }
+                    } else {
+                        tracing::warn!(
+                            "peer_retract: no store configured; denying retract for message {}",
+                            message_id,
+                        );
+                        false
+                    };
+                    if authorized {
+                        dispatch_peer_retract(state, sender_pub_id, message_id, for_all).await;
+                    } else {
+                        tracing::warn!(
+                            "peer_retract: sender {} does not own message {}",
+                            sender_pub_id,
+                            message_id,
+                        );
+                    }
                 }
                 Ok(ClearMessage::PeerGroupUpdate {
                     space_id,
@@ -219,7 +348,38 @@ async fn dispatch_notification(
                     contact_id,
                     role,
                 }) => {
-                    dispatch_peer_group_update(state, space_id, action, contact_id, role).await;
+                    // Only space admins may add/remove/promote/demote members.
+                    // Mirror the PeerRetract pattern: check authorization before
+                    // dispatching, log and drop on failure.
+                    let authorized = if let Some(store) = state.store() {
+                        match store.get_space_member_role(&space_id, &sender_pub_id).await {
+                            Ok(Some(SpaceRole::Admin)) => true,
+                            Ok(_) => false,
+                            Err(e) => {
+                                tracing::warn!(
+                                    "peer_group_update: get_space_member_role failed: {e}"
+                                );
+                                false
+                            }
+                        }
+                    } else {
+                        tracing::warn!(
+                            "peer_group_update: no store configured; denying group update \
+                             from {} for space {}",
+                            sender_pub_id,
+                            space_id,
+                        );
+                        false
+                    };
+                    if authorized {
+                        dispatch_peer_group_update(state, space_id, action, contact_id, role).await;
+                    } else {
+                        tracing::warn!(
+                            "peer_group_update: sender {} is not an admin in space {}; dropping",
+                            sender_pub_id,
+                            space_id,
+                        );
+                    }
                 }
                 Ok(_) => {
                     tracing::debug!("broadcast: ignoring non-federated ClearMessage type");
@@ -240,8 +400,27 @@ async fn dispatch_notification(
                     }
                 };
 
-            let online: Vec<UserInfo> = params
-                .online
+            const MAX_DIRECTORY_ENTRIES: usize = 10_000;
+            let total = params.online.len() + params.offline.len();
+            let (online_src, offline_src) = if total > MAX_DIRECTORY_ENTRIES {
+                tracing::warn!(
+                    "directory_list: received {} entries (online={}, offline={}), \
+                     truncating to {}",
+                    total,
+                    params.online.len(),
+                    params.offline.len(),
+                    MAX_DIRECTORY_ENTRIES,
+                );
+                let online_count = params.online.len().min(MAX_DIRECTORY_ENTRIES);
+                (
+                    &params.online[..online_count],
+                    &params.offline[..MAX_DIRECTORY_ENTRIES.saturating_sub(online_count)],
+                )
+            } else {
+                (&params.online[..], &params.offline[..])
+            };
+
+            let online: Vec<UserInfo> = online_src
                 .iter()
                 .map(|u| UserInfo {
                     pub_id: u.pub_id.clone(),
@@ -253,8 +432,7 @@ async fn dispatch_notification(
                 })
                 .collect();
 
-            let offline: Vec<UserInfo> = params
-                .offline
+            let offline: Vec<UserInfo> = offline_src
                 .iter()
                 .map(|u| UserInfo {
                     pub_id: u.pub_id.clone(),
@@ -425,6 +603,20 @@ async fn dispatch_peer_deliver(
     thread_root_id: Option<String>,
 ) {
     let stored_id = if let Some(store) = state.store() {
+        // Verify the chat exists before inserting; a nonexistent chat_id would
+        // produce a FK violation that is silently swallowed, and then a phantom
+        // MessageReceived event would still be emitted.
+        match store.get_chats(Some(&[chat_id.as_str()])).await {
+            Ok((_, not_found)) if !not_found.is_empty() => {
+                tracing::warn!("peer_deliver: chat_id {chat_id} does not exist; dropping message");
+                return;
+            }
+            Err(e) => {
+                tracing::warn!("peer_deliver: chat lookup failed: {e}");
+                return;
+            }
+            Ok(_) => {}
+        }
         match store
             .insert_message_ext(
                 &chat_id,
@@ -463,6 +655,20 @@ async fn dispatch_peer_receipt(
     receipt_type: String,
     _at: String,
 ) {
+    // Validate receipt_type before writing: only these two values are legal for
+    // peer-to-peer receipts.  "sent" is set locally by the sender and never
+    // arrives over the wire; an MLS-authenticated peer can supply any string,
+    // so reject anything outside the known set to prevent corruption of the
+    // delivery_state column.
+    let valid = matches!(receipt_type.as_str(), "delivered" | "read");
+    if !valid {
+        tracing::warn!(
+            "peer_receipt: ignoring unknown receipt_type {:?} for message {}",
+            receipt_type,
+            message_id,
+        );
+        return;
+    }
     if let Some(store) = state.store() {
         if let Err(e) = store
             .update_message_delivery_state(&message_id, &receipt_type)
@@ -482,12 +688,25 @@ fn dispatch_peer_typing(state: &DaemonState, from: String, chat_id: String, typi
     });
 }
 
-async fn dispatch_peer_retract(state: &DaemonState, message_id: String, for_all: bool) {
-    if let Some(store) = state.store() {
-        if let Err(e) = store.soft_delete_message(&message_id, for_all).await {
-            tracing::warn!("peer_retract: soft_delete_message failed: {e}");
-        }
+async fn dispatch_peer_retract(
+    state: &DaemonState,
+    from_pub_id: String,
+    message_id: String,
+    for_all: bool,
+) {
+    // Without a store we cannot persist the retraction, so there is nothing to
+    // retract from a JMAP client's perspective — emit no event.
+    let Some(store) = state.store() else { return };
+    if let Err(e) = store.soft_delete_message(&message_id, for_all).await {
+        tracing::warn!("peer_retract: soft_delete_message failed: {e}");
+        return;
     }
+    state.broadcast_event(DaemonEvent::MessageRetracted {
+        message_id,
+        from_pub_id,
+        for_all,
+        timestamp: utc_now(),
+    });
 }
 
 async fn dispatch_peer_group_update(
@@ -665,6 +884,7 @@ mod tests {
             state,
             "ws://test-relay".to_string(),
             mls,
+            [0u8; 32],
         ));
 
         tx.send(ClientEvent::Reconnected).await.unwrap();
@@ -698,6 +918,7 @@ mod tests {
             state,
             "ws://test-relay".to_string(),
             mls,
+            [0u8; 32],
         ));
 
         tx.send(ClientEvent::Reconnecting { delay_secs: 5 })
@@ -729,6 +950,7 @@ mod tests {
             state,
             "ws://test-relay".to_string(),
             mls,
+            [0u8; 32],
         ));
 
         // Dropping the sender causes rx.recv() to return None → loop exits.
@@ -1239,7 +1461,7 @@ mod tests {
             .unwrap();
         let (state, _rx) = make_state_with_store(store);
 
-        dispatch_peer_retract(&state, msg_id, true).await;
+        dispatch_peer_retract(&state, "f".repeat(64), msg_id, true).await;
 
         let store = state.store().unwrap();
         assert_eq!(

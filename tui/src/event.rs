@@ -4,15 +4,17 @@ use crossterm::event::{Event, EventStream, KeyCode, KeyModifiers};
 use futures::StreamExt;
 use nie_core::messages::ClearMessage;
 use nie_core::protocol::{
-    rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcRequest,
-    KeyPackageReadyParams, PublishHpkeKeyParams, PublishKeyPackageParams, SealedDeliverParams,
-    UserJoinedParams, UserLeftParams, UserNicknameParams, WhisperDeliverParams,
+    rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, GroupDeliverParams,
+    JsonRpcRequest, KeyPackageReadyParams, PublishHpkeKeyParams, PublishKeyPackageParams,
+    SealedBroadcastParams, SealedDeliverParams, UserJoinedParams, UserLeftParams,
+    UserNicknameParams, WhisperDeliverParams, WhisperParams,
 };
 use nie_core::transport::{next_request_id, ClientEvent, RelayConnRetry};
 use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::{io::Stdout, time::Duration};
 use tokio::time;
+use zeroize::Zeroizing;
 
 use crate::app::{AppState, ChatLine, ConnectionState, Focus, OnlineUser};
 
@@ -101,16 +103,21 @@ pub async fn handle_relay_event(
             state.mls_active = false;
             state.online.clear();
             state.room_hpke_secret = None;
+            state.room_hpke_pub = None;
             // Reset MLS client so the reconnected session gets a fresh OpenMLS
             // provider.  Without this, create_group() returns GroupAlreadyExists
             // on reconnect (openmls checks its storage before writing).
             let my_pub_id = state.my_pub_id.clone();
-            state.mls_client = nie_core::mls::MlsClient::new(&my_pub_id).unwrap_or_else(|e| {
-                tracing::warn!("failed to reset MLS client on reconnect: {e}");
-                // Return the old client; it may error on create_group but that is
-                // recoverable (mls_active stays false).
-                nie_core::mls::MlsClient::new(&my_pub_id).unwrap()
-            });
+            // Reset MLS client. If init fails, keep the stale client — mls_active
+            // stays false so create_group will not be called on the stale instance.
+            match nie_core::mls::MlsClient::new(&my_pub_id) {
+                Ok(fresh) => state.mls_client = fresh,
+                Err(e) => {
+                    tracing::warn!(
+                        "failed to reset MLS client on reconnect: {e}; keeping stale client"
+                    );
+                }
+            }
             state.push_message(ChatLine::System(format!(
                 "[!] disconnected. reconnecting in {delay_secs}s…"
             )));
@@ -191,6 +198,7 @@ pub async fn handle_relay_event(
                                 match state.mls_client.room_hpke_keypair() {
                                     Ok((room_sk, room_pk)) => {
                                         state.room_hpke_secret = Some(room_sk);
+                                        state.room_hpke_pub = Some(room_pk);
                                         // Publish room HPKE key (overwrites identity key).
                                         let req = JsonRpcRequest::new(
                                             next_request_id(),
@@ -353,20 +361,32 @@ pub async fn handle_relay_event(
 
                     // Choose HPKE key: room key if MLS active and derived, else identity key.
                     let plaintext = {
-                        let active_secret: &[u8; 32] = if state.mls_active {
-                            match state.room_hpke_secret.as_ref() {
-                                Some(sk) => sk,
-                                None => {
-                                    tracing::warn!(
+                        let (active_secret, active_pub_id): (&Zeroizing<[u8; 32]>, String) =
+                            if state.mls_active {
+                                match (
+                                    state.room_hpke_secret.as_ref(),
+                                    state.room_hpke_pub.as_ref(),
+                                ) {
+                                    (Some(sk), Some(pk)) => {
+                                        let pub_id: String =
+                                            pk.iter().map(|b| format!("{b:02x}")).collect();
+                                        (sk, pub_id)
+                                    }
+                                    _ => {
+                                        tracing::warn!(
                                         "sealed_deliver while mls_active but no room_hpke_secret"
                                     );
-                                    return Ok(());
+                                        return Ok(());
+                                    }
                                 }
-                            }
-                        } else {
-                            &state.hpke_identity_secret
-                        };
-                        match nie_core::hpke::unseal_message(active_secret, &p.sealed) {
+                            } else {
+                                (&state.hpke_identity_secret, state.my_pub_id.clone())
+                            };
+                        match nie_core::hpke::unseal_message(
+                            active_secret,
+                            &active_pub_id,
+                            &p.sealed,
+                        ) {
                             Ok(pt) => pt,
                             Err(e) => {
                                 tracing::warn!("sealed_deliver unseal failed: {e}");
@@ -417,50 +437,66 @@ pub async fn handle_relay_event(
                         Err(_) => {
                             // Binary payload → treat as MLS Welcome.
                             if !state.mls_active {
-                                match state.mls_client.join_from_welcome(&p.payload) {
-                                    Ok(()) => {
-                                        state.mls_active = true;
-                                        tracing::debug!(
-                                            "MLS joined group — epoch {}",
-                                            state.mls_client.epoch().unwrap_or(0)
-                                        );
-                                        // Derive and publish room HPKE key.
-                                        match state.mls_client.room_hpke_keypair() {
-                                            Ok((room_sk, room_pk)) => {
-                                                state.room_hpke_secret = Some(room_sk);
-                                                let req = JsonRpcRequest::new(
-                                                    next_request_id(),
-                                                    rpc_methods::PUBLISH_HPKE_KEY,
-                                                    PublishHpkeKeyParams {
-                                                        public_key: room_pk.to_vec(),
-                                                    },
-                                                )
-                                                .map_err(anyhow::Error::from)?;
-                                                if tx.send(req).await.is_err() {
-                                                    tracing::warn!(
+                                // Security: only accept a Welcome from the current MLS admin
+                                // (online[0]).  Any relay-authenticated peer can send a
+                                // whisper; without this check an attacker could whisper a
+                                // crafted Welcome and pull the target into an
+                                // attacker-controlled group.
+                                let admin = state.online.first().map(|u| u.pub_id.as_str());
+                                if admin != Some(p.from.as_str()) {
+                                    tracing::warn!(
+                                        "whisper_deliver: ignoring Welcome from non-admin sender \
+                                         {} (expected {})",
+                                        p.from,
+                                        admin.unwrap_or("<none>")
+                                    );
+                                } else {
+                                    match state.mls_client.join_from_welcome(&p.payload) {
+                                        Ok(()) => {
+                                            state.mls_active = true;
+                                            tracing::debug!(
+                                                "MLS joined group — epoch {}",
+                                                state.mls_client.epoch().unwrap_or(0)
+                                            );
+                                            // Derive and publish room HPKE key.
+                                            match state.mls_client.room_hpke_keypair() {
+                                                Ok((room_sk, room_pk)) => {
+                                                    state.room_hpke_secret = Some(room_sk);
+                                                    state.room_hpke_pub = Some(room_pk);
+                                                    let req = JsonRpcRequest::new(
+                                                        next_request_id(),
+                                                        rpc_methods::PUBLISH_HPKE_KEY,
+                                                        PublishHpkeKeyParams {
+                                                            public_key: room_pk.to_vec(),
+                                                        },
+                                                    )
+                                                    .map_err(anyhow::Error::from)?;
+                                                    if tx.send(req).await.is_err() {
+                                                        tracing::warn!(
                                                         "relay channel closed sending room HPKE key"
                                                     );
+                                                    }
+                                                    tracing::debug!(
+                                                        "published room HPKE key for epoch {}",
+                                                        state.mls_client.epoch().unwrap_or(0)
+                                                    );
                                                 }
-                                                tracing::debug!(
-                                                    "published room HPKE key for epoch {}",
-                                                    state.mls_client.epoch().unwrap_or(0)
-                                                );
+                                                Err(e) => {
+                                                    tracing::warn!(
+                                                        "room_hpke_keypair after Welcome: {e}"
+                                                    );
+                                                }
                                             }
-                                            Err(e) => {
-                                                tracing::warn!(
-                                                    "room_hpke_keypair after Welcome: {e}"
-                                                );
-                                            }
+                                            state.push_message(ChatLine::System(format!(
+                                                "[MLS] joined group — epoch {}",
+                                                state.mls_client.epoch().unwrap_or(0)
+                                            )));
                                         }
-                                        state.push_message(ChatLine::System(format!(
-                                            "[MLS] joined group — epoch {}",
-                                            state.mls_client.epoch().unwrap_or(0)
-                                        )));
+                                        Err(e) => {
+                                            tracing::warn!("join_from_welcome: {e}");
+                                        }
                                     }
-                                    Err(e) => {
-                                        tracing::warn!("join_from_welcome: {e}");
-                                    }
-                                }
+                                } // else (sender is admin)
                             }
                         }
                     }
@@ -515,6 +551,31 @@ pub async fn handle_relay_event(
                     }
                 }
 
+                rpc_methods::GROUP_DELIVER => {
+                    let p: GroupDeliverParams = match serde_json::from_value(
+                        notif.params.unwrap_or(serde_json::Value::Null),
+                    ) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            tracing::warn!("group_deliver parse error: {e}");
+                            return Ok(());
+                        }
+                    };
+                    // Empty payload is the relay's sentinel for "member left".
+                    // Check before MLS decrypt — an empty ciphertext is not valid MLS.
+                    if p.payload.is_empty() {
+                        let short = if p.from.len() > 8 {
+                            format!("{}…", &p.from[..8])
+                        } else {
+                            p.from.clone()
+                        };
+                        state.push_message(ChatLine::System(format!("[group] {short} left")));
+                        // Mirror the USER_LEFT handler: remove the departing member
+                        // from the online panel so the user list stays accurate.
+                        state.online.retain(|u| u.pub_id != p.from);
+                    }
+                }
+
                 other => {
                     tracing::debug!("relay notification (unhandled): {other}");
                 }
@@ -524,6 +585,11 @@ pub async fn handle_relay_event(
         ClientEvent::Response(resp) => {
             // Stub — add-member response correlation is a future issue.
             tracing::debug!("relay response id={}", resp.id);
+        }
+        ClientEvent::Disconnected => {
+            tracing::error!("relay disconnected");
+            state.connection = ConnectionState::Offline;
+            state.push_message(ChatLine::System("[!] relay connection closed".to_string()));
         }
     }
     Ok(())
@@ -687,6 +753,18 @@ async fn decrypt_and_display(
                     amount_zatoshi,
                 } => {
                     // Receiving a Request from a peer creates a new payee session.
+                    // Cap the map to prevent a malicious relay peer from exhausting
+                    // TUI memory with unlimited distinct-UUID entries.
+                    const MAX_SESSIONS: usize = 256;
+                    if state.sessions.len() >= MAX_SESSIONS
+                        && !state.sessions.contains_key(&session_id)
+                    {
+                        tracing::warn!(
+                            "session map full ({MAX_SESSIONS}); dropping PaymentRequest from {}",
+                            effective_from
+                        );
+                        return Ok(());
+                    }
                     let now = chrono::Utc::now().timestamp();
                     let session = nie_core::messages::PaymentSession {
                         id: session_id,
@@ -928,18 +1006,72 @@ async fn send_chat(
     tx: &tokio::sync::mpsc::Sender<JsonRpcRequest>,
     text: &str,
 ) -> Result<()> {
-    // Build plaintext payload (MLS encryption will be added when mls_active)
-    let payload = serde_json::to_vec(&ClearMessage::Chat {
+    // serde_json::to_vec on a derived Serialize cannot fail
+    let plain = serde_json::to_vec(&ClearMessage::Chat {
         text: text.to_string(),
     })
     .expect("ClearMessage::Chat serialization cannot fail");
 
-    let params = BroadcastParams { payload };
-    let req = JsonRpcRequest::new(next_request_id(), rpc_methods::BROADCAST, &params)
+    if state.mls_active {
+        let mls_ciphertext = match state.mls_client.encrypt(&plain) {
+            Ok(ct) => match nie_core::messages::pad(&ct) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!("send_chat: payload padding failed: {e}");
+                    state.push_message(crate::app::ChatLine::System(
+                        "[!] message not sent: payload too large".to_string(),
+                    ));
+                    return Ok(());
+                }
+            },
+            Err(e) => {
+                tracing::warn!("send_chat: MLS encryption failed: {e}");
+                state.push_message(crate::app::ChatLine::System(
+                    "[!] message not sent: MLS encryption failed".to_string(),
+                ));
+                return Ok(());
+            }
+        };
+        match state.room_hpke_pub {
+            Some(pub_key) => {
+                let room_pub_id: String = pub_key.iter().map(|b| format!("{b:02x}")).collect();
+                match nie_core::hpke::seal_message(&pub_key, &room_pub_id, &mls_ciphertext) {
+                    Ok(sealed) => {
+                        let req = JsonRpcRequest::new(
+                            next_request_id(),
+                            rpc_methods::SEALED_BROADCAST,
+                            SealedBroadcastParams { sealed },
+                        )
+                        .map_err(anyhow::Error::from)?;
+                        if tx.send(req).await.is_err() {
+                            tracing::warn!("relay send channel closed while sending sealed chat");
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!("send_chat: HPKE seal failed, dropping message: {e}");
+                    }
+                }
+            }
+            None => {
+                tracing::warn!(
+                    "send_chat: MLS active but room HPKE key not yet available, dropping"
+                );
+                state.push_message(crate::app::ChatLine::System(
+                    "[!] message not sent: sealed channel not ready yet, try again".to_string(),
+                ));
+                return Ok(());
+            }
+        }
+    } else {
+        let req = JsonRpcRequest::new(
+            next_request_id(),
+            rpc_methods::BROADCAST,
+            BroadcastParams { payload: plain },
+        )
         .map_err(anyhow::Error::from)?;
-
-    if tx.send(req).await.is_err() {
-        tracing::warn!("relay send channel closed while sending chat");
+        if tx.send(req).await.is_err() {
+            tracing::warn!("relay send channel closed while sending chat");
+        }
     }
 
     // Append own message to local chat log
@@ -971,7 +1103,7 @@ async fn handle_slash(
         }
         "help" | "h" => {
             state.push_message(ChatLine::System(
-                "Commands: /quit /who /iam <nick> /me <action> /alias <name> <pubid> /dm <handle> <msg> /! <cmd> /cat <path> /set <k> <v> /unset <k> /profile /balance /receive /pay <handle> <amount> /payments /clear /help".to_string(),
+                "Commands: /quit /who /iam <nick> /me <action> /alias <name> <pubid> /dm <handle> <msg> /! <cmd> /cat <path> /set <k> <v> /unset <k> /profile /balance /receive /pay <handle> <amount> /payments /clear /help  [WARNING: /! runs arbitrary local processes; /cat reads local files — both have full filesystem access]".to_string(),
             ));
         }
         "clear" => {
@@ -1023,10 +1155,33 @@ async fn handle_slash(
             state.push_message(ChatLine::System("Usage: /me <action>".to_string()));
         }
         "alias" => {
+            const MAX_ALIAS_ENTRIES: usize = 200;
+            const MAX_ALIAS_NAME_LEN: usize = 64;
+            const MAX_ALIAS_PUBKEY_LEN: usize = 128;
             let parts: Vec<&str> = rest.splitn(2, ' ').collect();
             if parts.len() == 2 {
                 let name = parts[0].trim().to_string();
                 let pubkey = parts[1].trim().to_string();
+                if name.len() > MAX_ALIAS_NAME_LEN {
+                    state.push_message(ChatLine::System(format!(
+                        "Alias name too long (max {MAX_ALIAS_NAME_LEN} chars)"
+                    )));
+                    return Ok(());
+                }
+                if pubkey.len() > MAX_ALIAS_PUBKEY_LEN {
+                    state.push_message(ChatLine::System(format!(
+                        "Alias pubkey too long (max {MAX_ALIAS_PUBKEY_LEN} chars)"
+                    )));
+                    return Ok(());
+                }
+                if state.local_names.len() >= MAX_ALIAS_ENTRIES
+                    && !state.local_names.contains_key(&pubkey)
+                {
+                    state.push_message(ChatLine::System(format!(
+                        "Too many aliases (max {MAX_ALIAS_ENTRIES})"
+                    )));
+                    return Ok(());
+                }
                 state.local_names.insert(pubkey.clone(), name.clone());
                 state.push_message(ChatLine::System(format!("Alias set: {name} → {pubkey}")));
             } else {
@@ -1082,27 +1237,54 @@ async fn handle_slash(
             // SECURITY: shlex split prevents shell injection — do NOT change to sh -c
             match shlex::split(rest) {
                 Some(argv) if !argv.is_empty() => {
-                    match std::process::Command::new(&argv[0])
+                    match tokio::process::Command::new(&argv[0])
                         .args(&argv[1..])
                         .output()
+                        .await
                     {
                         Ok(output) => {
-                            let raw = String::from_utf8_lossy(&output.stdout);
-                            let truncated: &str = if raw.len() > 4096 {
-                                // Find the last char boundary at or before byte 4096
-                                let end = raw
-                                    .char_indices()
-                                    .map(|(i, _)| i)
-                                    .take_while(|&i| i <= 4096)
-                                    .last()
-                                    .unwrap_or(0);
-                                &raw[..end]
+                            if output.status.success() {
+                                let raw = String::from_utf8_lossy(&output.stdout);
+                                let truncated: &str = if raw.len() > 4096 {
+                                    // Find the last char boundary at or before byte 4096
+                                    let end = raw
+                                        .char_indices()
+                                        .map(|(i, _)| i)
+                                        .take_while(|&i| i <= 4096)
+                                        .last()
+                                        .unwrap_or(0);
+                                    &raw[..end]
+                                } else {
+                                    &raw
+                                };
+                                let safe = crate::ui::strip_unsafe(truncated);
+                                if !safe.trim().is_empty() {
+                                    send_chat(state, tx, &safe).await?;
+                                }
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                let stderr_safe = crate::ui::strip_unsafe(stderr.trim());
+                                if !stderr_safe.is_empty() {
+                                    state.push_message(ChatLine::System(format!(
+                                        "[stderr] {stderr_safe}"
+                                    )));
+                                }
                             } else {
-                                &raw
-                            };
-                            let safe = crate::ui::strip_unsafe(truncated);
-                            if !safe.trim().is_empty() {
-                                send_chat(state, tx, &safe).await?;
+                                let code = output
+                                    .status
+                                    .code()
+                                    .map(|c| c.to_string())
+                                    .unwrap_or_else(|| "signal".to_string());
+                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                let stderr_safe = crate::ui::strip_unsafe(stderr.trim());
+                                if stderr_safe.is_empty() {
+                                    state.push_message(ChatLine::System(format!(
+                                        "[error] command failed (exit {code})"
+                                    )));
+                                } else {
+                                    state.push_message(ChatLine::System(format!(
+                                        "[error] command failed (exit {code}): {stderr_safe}"
+                                    )));
+                                }
                             }
                         }
                         Err(e) => {
@@ -1117,12 +1299,35 @@ async fn handle_slash(
         }
         "!" => {
             state.push_message(ChatLine::System(
-                "Usage: /! <command> [args...]".to_string(),
+                "Usage: /! <command> [args...]  [WARNING: runs with full local process and filesystem access]".to_string(),
             ));
         }
         "cat" if !rest.is_empty() => {
-            let path = std::path::Path::new(rest.trim());
-            match std::fs::read(path) {
+            let raw_path = rest.trim();
+            // Reject absolute paths and any path component that is "..".
+            // This prevents reading files outside the working directory.
+            let path = std::path::Path::new(raw_path);
+            let has_dotdot = path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir);
+            if path.is_absolute() || has_dotdot {
+                state.push_message(ChatLine::System(
+                    "[!] /cat only accepts relative paths without '..' components".to_string(),
+                ));
+                return Ok(());
+            }
+            // Reject symlinks: a pre-placed symlink could point outside the
+            // working directory, bypassing the path traversal guard above.
+            match tokio::fs::symlink_metadata(path).await {
+                Ok(meta) if meta.file_type().is_symlink() => {
+                    state.push_message(ChatLine::System(
+                        "[!] /cat does not follow symlinks".to_string(),
+                    ));
+                    return Ok(());
+                }
+                _ => {}
+            }
+            match tokio::fs::read(path).await {
                 Ok(bytes) => {
                     let truncated = if bytes.len() > 4096 {
                         &bytes[..4096]
@@ -1141,19 +1346,38 @@ async fn handle_slash(
             }
         }
         "cat" => {
-            state.push_message(ChatLine::System("Usage: /cat <path>".to_string()));
+            state.push_message(ChatLine::System("Usage: /cat <path>  [WARNING: reads local files; relative paths only, no symlinks]".to_string()));
         }
         "set" => {
+            const MAX_PROFILE_ENTRIES: usize = 50;
+            const MAX_KEY_LEN: usize = 64;
+            const MAX_VALUE_LEN: usize = 256;
             let parts: Vec<&str> = rest.splitn(2, ' ').collect();
             if parts.len() == 2 {
-                state
-                    .own_profile
-                    .insert(parts[0].trim().to_string(), parts[1].trim().to_string());
-                state.push_message(ChatLine::System(format!(
-                    "Profile: {} = {}",
-                    parts[0].trim(),
-                    parts[1].trim()
-                )));
+                let key = parts[0].trim().to_string();
+                let value = parts[1].trim().to_string();
+                if key.len() > MAX_KEY_LEN {
+                    state.push_message(ChatLine::System(format!(
+                        "Key too long (max {MAX_KEY_LEN} chars)"
+                    )));
+                    return Ok(());
+                }
+                if value.len() > MAX_VALUE_LEN {
+                    state.push_message(ChatLine::System(format!(
+                        "Value too long (max {MAX_VALUE_LEN} chars)"
+                    )));
+                    return Ok(());
+                }
+                if state.own_profile.len() >= MAX_PROFILE_ENTRIES
+                    && !state.own_profile.contains_key(&key)
+                {
+                    state.push_message(ChatLine::System(format!(
+                        "Too many profile entries (max {MAX_PROFILE_ENTRIES})"
+                    )));
+                    return Ok(());
+                }
+                state.own_profile.insert(key.clone(), value.clone());
+                state.push_message(ChatLine::System(format!("Profile: {key} = {value}")));
             } else {
                 state.push_message(ChatLine::System("Usage: /set <key> <value>".to_string()));
             }
@@ -1328,8 +1552,11 @@ async fn handle_slash(
             })
             // serde_json::to_vec on a derived Serialize cannot fail
             .expect("ClearMessage serialization cannot fail");
-            let params = BroadcastParams { payload };
-            let req = JsonRpcRequest::new(next_request_id(), rpc_methods::BROADCAST, &params)
+            let params = WhisperParams {
+                to: peer_pub_id.clone(),
+                payload,
+            };
+            let req = JsonRpcRequest::new(next_request_id(), rpc_methods::WHISPER, &params)
                 .map_err(anyhow::Error::from)?;
             if tx.send(req).await.is_err() {
                 tracing::warn!("relay channel closed during /pay");
@@ -2032,7 +2259,8 @@ mod tests {
         state.mls_active = false;
 
         let plaintext = b"some sealed payload";
-        let sealed = nie_core::hpke::seal_message(&hpke_pk, plaintext).unwrap();
+        let my_pub_id = "a".repeat(64);
+        let sealed = nie_core::hpke::seal_message(&hpke_pk, &my_pub_id, plaintext).unwrap();
 
         let p = SealedDeliverParams { sealed };
         let (tx, _rx) = tokio::sync::mpsc::channel(16);

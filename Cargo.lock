@@ -714,6 +714,7 @@ dependencies = [
  "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -753,6 +754,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "subtle",
  "tempfile",
  "tokio",
  "toml 0.8.23",
@@ -4503,6 +4505,7 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "subtle",
  "tempfile",
  "tokio",
  "toml 0.8.23",
@@ -4543,6 +4546,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -4577,6 +4581,7 @@ dependencies = [
  "tracing",
  "uuid",
  "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]
@@ -4655,6 +4660,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -4717,6 +4723,7 @@ dependencies = [
  "tracing-subscriber",
  "unicode-width",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]
@@ -4750,6 +4757,7 @@ dependencies = [
  "zcash_primitives",
  "zcash_protocol",
  "zcash_transparent",
+ "zeroize",
  "zip32",
 ]
 

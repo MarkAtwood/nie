@@ -90,8 +90,10 @@ pub async fn handle_send(
         ));
     }
 
+    // Keep the text for JMAP store insertion after relay send.
+    let text = req.text;
     // serde_json::to_vec on a derived Serialize cannot fail
-    let payload: Vec<u8> = serde_json::to_vec(&ClearMessage::Chat { text: req.text }).unwrap();
+    let payload: Vec<u8> = serde_json::to_vec(&ClearMessage::Chat { text: text.clone() }).unwrap();
 
     let Some(tx) = state.relay_tx().await else {
         return Err((
@@ -121,9 +123,33 @@ pub async fn handle_send(
         )
     })?;
 
-    Ok(Json(SendResponse {
-        message_id: Uuid::new_v4().to_string(),
-    }))
+    // Use the JMAP store ID so the caller can correlate the sent message with
+    // what appears in their mailbox.  Fall back to a random UUID only when no
+    // store or default channel is configured (daemon started without --db).
+    let message_id =
+        if let (Some(store), Some(channel_id)) = (state.store(), state.default_channel_id()) {
+            let sent_at = chrono::Utc::now().to_rfc3339();
+            match store
+                .insert_message(channel_id, state.my_pub_id(), &text, &sent_at)
+                .await
+            {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::error!("handle_send: insert_message failed: {e}");
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ApiError {
+                            code: "db_error".to_string(),
+                            message: "message sent but could not be recorded".to_string(),
+                        }),
+                    ));
+                }
+            }
+        } else {
+            Uuid::new_v4().to_string()
+        };
+
+    Ok(Json(SendResponse { message_id }))
 }
 
 #[derive(Debug, Serialize)]
@@ -158,11 +184,12 @@ pub async fn handle_wallet_balance(
         ));
     };
     let balance = wallet.balance_with_confirmations(1).await.map_err(|e| {
+        tracing::error!("wallet balance query failed: {e}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 code: "wallet_error".to_string(),
-                message: format!("balance query failed: {e}"),
+                message: "internal error".to_string(),
             }),
         )
     })?;
@@ -180,6 +207,22 @@ pub async fn handle_wallet_pay(
     State(state): State<DaemonState>,
     Json(req): Json<PayRequest>,
 ) -> Result<Json<PayResponse>, (StatusCode, Json<ApiError>)> {
+    // Validate to_pub_id: must be exactly 64 lowercase hex chars (SHA-256 of verifying key).
+    if req.to_pub_id.len() != 64
+        || !req
+            .to_pub_id
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase())
+    {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ApiError {
+                code: "invalid_pub_id".to_string(),
+                message: "to_pub_id must be 64 lowercase hex characters".to_string(),
+            }),
+        ));
+    }
+
     // Validate amount.
     let amount = i64::try_from(req.amount_zatoshi).map_err(|_| {
         (
@@ -210,13 +253,22 @@ pub async fn handle_wallet_pay(
         ));
     };
 
+    // wallet_pay_lock prevents duplicate sessions for the same payment amount.
+    // It covers the balance-check + session-creation window only.
+    // The actual Zcash spend is initiated when the peer responds with
+    // PaymentAction::Address (in the payment_event handler); that path
+    // does not re-acquire this lock because a session already exists at
+    // that point — the session creation is the idempotency gate.
+    let _pay_guard = state.wallet_pay_lock().await;
+
     // Check available balance.
     let balance = wallet.balance_with_confirmations(1).await.map_err(|e| {
+        tracing::error!("wallet balance query failed: {e}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 code: "wallet_error".to_string(),
-                message: format!("balance query failed: {e}"),
+                message: "internal error".to_string(),
             }),
         )
     })?;
@@ -247,17 +299,9 @@ pub async fn handle_wallet_pay(
         tx_hash: None,
         address: None,
     };
-    wallet.upsert_session(&session).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError {
-                code: "wallet_error".to_string(),
-                message: format!("session persist failed: {e}"),
-            }),
-        )
-    })?;
 
-    // Broadcast PaymentAction::Request to the relay.
+    // Send to relay first; persist session only on success so a relay failure
+    // cannot leave an orphaned session row in the DB.
     let payload = serde_json::to_vec(&ClearMessage::Payment {
         session_id,
         action: PaymentAction::Request {
@@ -282,6 +326,19 @@ pub async fn handle_wallet_pay(
         BroadcastParams { payload },
     )
     .unwrap();
+    // Persist the session before broadcasting so that if the relay send
+    // succeeds the local record already exists to match the peer's response.
+    wallet.upsert_session(&session).await.map_err(|e| {
+        tracing::error!("wallet session persist failed: {e}");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError {
+                code: "wallet_error".to_string(),
+                message: "internal error".to_string(),
+            }),
+        )
+    })?;
+
     tx.send(rpc_req).await.map_err(|_| {
         (
             StatusCode::SERVICE_UNAVAILABLE,

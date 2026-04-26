@@ -140,52 +140,114 @@ pub fn strip_unsafe(s: &str) -> String {
 
 fn strip_unsafe_chars(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
-    let mut in_escape = false;
-    let mut escape_len: usize = 0;
+
+    // Escape-sequence parser state.
+    enum EscState {
+        Normal,
+        // ESC seen; waiting for the byte that identifies the sequence type.
+        EscSeen,
+        // Inside a CSI (ESC [) or other non-OSC escape sequence.
+        // Terminates on any ASCII letter.
+        Csi { len: usize },
+        // Inside an OSC sequence (ESC ]). Terminates on BEL (\x07), ST (ESC \),
+        // or after 128 chars — beyond that a peer is trying to swallow content.
+        Osc { last_was_esc: bool, len: usize },
+    }
+
+    let mut state = EscState::Normal;
+
     for ch in s.chars() {
-        if ch == '\x1b' {
-            in_escape = true;
-            escape_len = 0;
-            continue;
-        }
-        if in_escape {
-            escape_len += 1;
-            // End of ANSI escape is a letter (a-zA-Z)
-            if ch.is_ascii_alphabetic() {
-                in_escape = false;
-                escape_len = 0;
+        match state {
+            EscState::Normal => {
+                if ch == '\x1b' {
+                    state = EscState::EscSeen;
+                    continue;
+                }
+                // Strip Unicode bidi controls and zero-width chars (Unicode category Cf).
+                // is_control() returns false for these — they must be checked explicitly.
+                // A malicious peer can use these to reverse or reorder rendered text.
+                let is_bidi_or_zw = matches!(
+                    ch,
+                    '\u{200B}'..='\u{200D}' // zero-width space / non-joiner / joiner
+                        | '\u{200E}'        // left-to-right mark
+                        | '\u{200F}'        // right-to-left mark
+                        | '\u{202A}'..='\u{202E}' // LRE, RLE, PDF, LRO, RLO
+                        | '\u{2060}'        // word joiner
+                        | '\u{2066}'..='\u{2069}' // LRI, RLI, FSI, PDI
+                        | '\u{FEFF}'        // BOM / zero-width no-break space
+                );
+                if is_bidi_or_zw {
+                    continue;
+                }
+                // Allow printable chars and newlines; strip other control chars.
+                if !ch.is_control() || ch == '\n' || ch == '\t' {
+                    out.push(ch);
+                }
+            }
+
+            EscState::EscSeen => {
+                if ch == ']' {
+                    // OSC sequence: ESC ] ... BEL  or  ESC ] ... ESC \
+                    state = EscState::Osc {
+                        last_was_esc: false,
+                        len: 0,
+                    };
+                } else {
+                    // All other sequences (CSI = '[', plus single-char Fe sequences).
+                    state = EscState::Csi { len: 0 };
+                    // If this char is already a terminator (a letter), close immediately.
+                    if ch.is_ascii_alphabetic() {
+                        state = EscState::Normal;
+                    }
+                }
                 continue;
             }
-            // Cap: a real ANSI escape never exceeds 64 chars; beyond this,
-            // the peer is malicious and trying to swallow message content.
-            // Reset escape mode and emit the current char normally.
-            if escape_len > 64 {
-                in_escape = false;
-                escape_len = 0;
-                // Fall through to the normal char handling below.
-            } else {
-                continue;
+
+            EscState::Csi { ref mut len } => {
+                *len += 1;
+                // End of CSI/ANSI escape is an ASCII letter.
+                if ch.is_ascii_alphabetic() {
+                    state = EscState::Normal;
+                    continue;
+                }
+                // Cap: a real ANSI escape never exceeds 64 chars; beyond this,
+                // the peer is malicious and trying to swallow message content.
+                // Reset escape mode and emit the current char normally.
+                if *len > 64 {
+                    state = EscState::Normal;
+                    // Fall through — emit ch as a normal character below by
+                    // reprocessing it. Since we're in a match arm, we push directly.
+                    if !ch.is_control() || ch == '\n' || ch == '\t' {
+                        out.push(ch);
+                    }
+                }
+                // Otherwise still inside the escape — swallow the char.
             }
-        }
-        // Strip Unicode bidi controls and zero-width chars (Unicode category Cf).
-        // is_control() returns false for these — they must be checked explicitly.
-        // A malicious peer can use these to reverse or reorder rendered text.
-        let is_bidi_or_zw = matches!(
-            ch,
-            '\u{200B}'..='\u{200D}' // zero-width space / non-joiner / joiner
-                | '\u{200E}'        // left-to-right mark
-                | '\u{200F}'        // right-to-left mark
-                | '\u{202A}'..='\u{202E}' // LRE, RLE, PDF, LRO, RLO
-                | '\u{2060}'        // word joiner
-                | '\u{2066}'..='\u{2069}' // LRI, RLI, FSI, PDI
-                | '\u{FEFF}'        // BOM / zero-width no-break space
-        );
-        if is_bidi_or_zw {
-            continue;
-        }
-        // Allow printable chars and newlines; strip other control chars.
-        if !ch.is_control() || ch == '\n' || ch == '\t' {
-            out.push(ch);
+
+            EscState::Osc {
+                ref mut last_was_esc,
+                ref mut len,
+            } => {
+                *len += 1;
+                if ch == '\x07' {
+                    // BEL terminates an OSC sequence.
+                    state = EscState::Normal;
+                } else if *last_was_esc && ch == '\\' {
+                    // ST = ESC \ terminates an OSC sequence.
+                    state = EscState::Normal;
+                } else if *len > 128 {
+                    // Cap: a real OSC never exceeds 128 chars; beyond this the
+                    // peer is malicious and trying to swallow subsequent content.
+                    // Reset and emit the current char normally.
+                    state = EscState::Normal;
+                    if !ch.is_control() || ch == '\n' || ch == '\t' {
+                        out.push(ch);
+                    }
+                } else {
+                    *last_was_esc = ch == '\x1b';
+                    // Swallow chars inside the OSC payload.
+                }
+            }
         }
     }
     out
@@ -368,5 +430,36 @@ mod tests {
             strip_unsafe_chars("héllo\u{2019}s café 日本語"),
             "héllo\u{2019}s café 日本語"
         );
+    }
+
+    #[test]
+    fn strip_unsafe_chars_caps_overlong_osc() {
+        // An unterminated ESC ] with no BEL or ST must not swallow all subsequent
+        // content. After the 128-char cap the rest of the string must be preserved.
+        let osc_body = "X".repeat(200);
+        let input = format!("\x1b]{osc_body}hello");
+        let result = strip_unsafe_chars(&input);
+        assert!(
+            result.ends_with("hello"),
+            "content after overlong OSC must be preserved: {result:?}"
+        );
+        assert!(
+            !result.starts_with('\x1b'),
+            "ESC must not appear in output: {result:?}"
+        );
+    }
+
+    #[test]
+    fn strip_unsafe_chars_osc_terminated_by_bel() {
+        // ESC ] <payload> BEL — BEL terminates; following text is preserved.
+        let input = "\x1b]0;window title\x07visible text";
+        assert_eq!(strip_unsafe_chars(input), "visible text");
+    }
+
+    #[test]
+    fn strip_unsafe_chars_osc_terminated_by_st() {
+        // ESC ] <payload> ESC \ — ST terminates; following text is preserved.
+        let input = "\x1b]0;window title\x1b\\visible text";
+        assert_eq!(strip_unsafe_chars(input), "visible text");
     }
 }

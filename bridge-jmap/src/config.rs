@@ -27,10 +27,20 @@ pub struct BridgeConfig {
     /// Poll interval in seconds (default 30).
     #[serde(default = "default_poll_interval")]
     pub poll_interval_secs: u64,
+    /// Path to the file used to persist seen JMAP email IDs across restarts.
+    ///
+    /// Defaults to `seen_ids.json` in the current working directory.
+    /// Set this to an absolute path if the bridge is run from a varying CWD.
+    #[serde(default = "default_seen_ids_path")]
+    pub seen_ids_path: String,
 }
 
 fn default_poll_interval() -> u64 {
     30
+}
+
+fn default_seen_ids_path() -> String {
+    "seen_ids.json".to_string()
 }
 
 impl BridgeConfig {
@@ -51,10 +61,14 @@ impl BridgeConfig {
                 self.relay_url
             );
         }
-        if !self.jmap_session_url.starts_with("https://")
-            && !self.jmap_session_url.starts_with("http://")
-        {
-            bail!("jmap_session_url must start with http:// or https://");
+        if self.jmap_session_url.starts_with("http://") {
+            bail!(
+                "JMAP_SESSION_URL uses http:// which would send the bearer token in cleartext; \
+                 use https:// instead"
+            );
+        }
+        if !self.jmap_session_url.starts_with("https://") {
+            bail!("jmap_session_url must start with https://");
         }
         if self.jmap_bearer_token.is_empty() {
             bail!("jmap_bearer_token must not be empty");
@@ -117,6 +131,24 @@ poll_interval_secs = 60
         );
         let cfg = BridgeConfig::from_toml(f.path()).unwrap();
         assert_eq!(cfg.poll_interval_secs, 60);
+    }
+
+    #[test]
+    fn validate_rejects_http_jmap_session_url() {
+        let f = write_config(
+            r#"
+relay_url = "wss://relay.example.com/ws"
+keyfile = "/tmp/bridge.key"
+jmap_session_url = "http://jmap.example.com/.well-known/jmap"
+jmap_bearer_token = "secret"
+jmap_account_id = "acct-123"
+jmap_mailbox_id = "mbox-456"
+"#,
+        );
+        let Err(e) = BridgeConfig::from_toml(f.path()) else {
+            panic!("expected error for http:// jmap_session_url")
+        };
+        assert!(e.to_string().contains("cleartext"));
     }
 
     #[test]

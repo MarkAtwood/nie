@@ -107,8 +107,8 @@ async fn test_two_daemon_message_exchange() {
     let alice_keyfile = alice_tmpdir.path().join("identity.key");
     let bob_keyfile = bob_tmpdir.path().join("identity.key");
 
-    std::fs::write(&alice_keyfile, alice_id.to_secret_bytes_64()).unwrap();
-    std::fs::write(&bob_keyfile, bob_id.to_secret_bytes_64()).unwrap();
+    std::fs::write(&alice_keyfile, &*alice_id.to_secret_bytes_64()).unwrap();
+    std::fs::write(&bob_keyfile, &*bob_id.to_secret_bytes_64()).unwrap();
 
     let alice_pub_id = alice_id.pub_id().0.clone();
     let bob_pub_id = bob_id.pub_id().0.clone();

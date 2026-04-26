@@ -87,9 +87,9 @@ pub enum CoinSelectError {
         shortfall: u64,
     },
 
-    /// `target + fee` overflows u64 — the caller passed an invalid combination.
-    #[error("amount overflow: target {target} + fee {fee} overflows u64")]
-    AmountOverflow { target: u64, fee: u64 },
+    /// Running sum overflowed u64 while accumulating note values.
+    #[error("amount overflow: running_sum {running_sum} + note_value {note_value} overflows u64")]
+    AmountOverflow { running_sum: u64, note_value: u64 },
 }
 
 /// Select the minimum set of notes needed to fund a payment of `target_zatoshi`
@@ -122,8 +122,8 @@ pub fn select_notes(
     let total_needed = target_zatoshi
         .checked_add(fee)
         .ok_or(CoinSelectError::AmountOverflow {
-            target: target_zatoshi,
-            fee,
+            running_sum: target_zatoshi,
+            note_value: fee,
         })?;
 
     // Sort oldest-first (lowest block_height) — FIFO minimises witness depth.
@@ -135,9 +135,18 @@ pub fn select_notes(
 
     for note in candidates {
         selected.push(note.clone());
-        // Saturating add: real Zcash supply cap is ~21M ZEC = ~2.1e15 zatoshi,
-        // far below u64::MAX, so this can only saturate with synthetic inputs.
-        sum = sum.saturating_add(note.value_zatoshi);
+        // checked_add: real Zcash supply cap is ~21M ZEC = ~2.1e15 zatoshi, far
+        // below u64::MAX, so overflow is unreachable with real inputs.  Using
+        // checked_add rather than saturating_add makes overflow an explicit Err
+        // instead of a silent wrong result that could fool the InsufficientFunds
+        // check below (a saturated sum would compare >= total_needed and return
+        // a falsely-truncated selection).
+        sum = sum
+            .checked_add(note.value_zatoshi)
+            .ok_or(CoinSelectError::AmountOverflow {
+                running_sum: sum,
+                note_value: note.value_zatoshi,
+            })?;
         if sum >= total_needed {
             break;
         }

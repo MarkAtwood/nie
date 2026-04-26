@@ -1,18 +1,15 @@
 //! DB integration test for nie-7766: tree_state_migration.
 //!
-//! Separated from witness_tracking.rs because save_tree_state / load_tree_state
-//! are not yet implemented on WalletStore.  This file will fail to compile until
-//! those methods exist.
-//!
 //! Oracle: round-trip correctness — bytes written must equal bytes read.
+//!
+//! save_tree_state was removed (nie-kef6.12) because it was dead code
+//! superseded by save_block_state, which wraps tree_state + witnesses + tip
+//! in a single atomic transaction.  This test now exercises save_block_state
+//! (with an empty witness list) + load_tree_state.
 
-/// DB integration test: save_tree_state / load_tree_state round-trip.
+/// DB integration test: save_block_state / load_tree_state round-trip.
 ///
 /// Oracle: round-trip correctness — bytes written must equal bytes read.
-///
-/// NOTE: This test exercises save_tree_state and load_tree_state methods that
-/// are planned but not yet implemented on WalletStore (nie-7766).
-/// It is expected to fail to compile until those methods are added.
 #[tokio::test]
 async fn tree_state_migration() {
     let tmpfile = tempfile::NamedTempFile::new().unwrap();
@@ -22,9 +19,9 @@ async fn tree_state_migration() {
 
     let state_bytes: &[u8] = &[1, 2, 3, 4];
     store
-        .save_tree_state(state_bytes)
+        .save_block_state(state_bytes, &[], 0)
         .await
-        .expect("save_tree_state must not fail");
+        .expect("save_block_state must not fail");
 
     let loaded = store
         .load_tree_state()
