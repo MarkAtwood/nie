@@ -955,7 +955,7 @@ async fn space_get(args: Value, state: &DaemonState) -> (String, Value) {
         Ok(t) => t,
         Err(e) => return db_error(e),
     };
-    let (spaces, not_found) = match store.get_spaces(id_strs.as_deref()).await {
+    let (spaces, not_found) = match store.get_spaces(id_strs.as_deref(), &account_id).await {
         Ok(v) => v,
         Err(e) => return db_error(e),
     };
@@ -1453,7 +1453,7 @@ async fn space_query(args: Value, state: &DaemonState) -> (String, Value) {
         Ok(t) => t,
         Err(e) => return db_error(e),
     };
-    let ids = match store.query_spaces().await {
+    let ids = match store.query_spaces(&account_id).await {
         Ok(v) => v,
         Err(e) => return db_error(e),
     };
@@ -1487,7 +1487,7 @@ async fn space_query_changes(args: Value, state: &DaemonState) -> (String, Value
         Ok(t) => t,
         Err(e) => return db_error(e),
     };
-    let ids = match store.query_spaces().await {
+    let ids = match store.query_spaces(&account_id).await {
         Ok(v) => v,
         Err(e) => return db_error(e),
     };
@@ -3180,7 +3180,11 @@ mod tests {
             .expect("in-memory store");
         let space_id = "01SPACE0000000000000000000";
         let channel_id = "01CHAN00000000000000000000";
-        store.create_space(space_id, "test").await.unwrap();
+        let owner_pub_id = "a".repeat(64);
+        store
+            .create_space_full(space_id, "test", None, &owner_pub_id)
+            .await
+            .unwrap();
         store
             .create_channel(channel_id, "general", space_id)
             .await

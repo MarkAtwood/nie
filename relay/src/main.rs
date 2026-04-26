@@ -213,6 +213,23 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("MERCHANT_DFVK not set — relay will operate without payment gating");
     }
 
+    // Purge expired subscription invoices once per hour, regardless of whether
+    // a merchant wallet is configured.  Without this, rows accumulate when no
+    // payment watcher is running (which only calls purge_expired_invoices every
+    // 100 blocks, and only when MERCHANT_IVK is set).
+    {
+        let purge_state = state.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+            loop {
+                interval.tick().await;
+                if let Err(e) = purge_state.inner.store.purge_expired_invoices().await {
+                    tracing::warn!("purge_expired_invoices failed: {e}");
+                }
+            }
+        });
+    }
+
     let app = Router::new()
         .route("/ws", get(nie_relay::ws::ws_handler))
         .route("/health", get(|| async { "ok" }))

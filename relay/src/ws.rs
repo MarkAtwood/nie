@@ -968,6 +968,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        // Validate target pub_id: must be exactly 64 lowercase hex chars.
+                        if params.pub_id.len() != 64
+                            || !params
+                                .pub_id
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "invalid pub_id",
+                            )
+                            .await;
+                            continue;
+                        }
                         let data = if let Some(did) = params.device_id {
                             // Targeted request: return only this device's package.
                             match state
@@ -1108,6 +1124,22 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        // Validate target pub_id: must be exactly 64 lowercase hex chars.
+                        if params.pub_id.len() != 64
+                            || !params
+                                .pub_id
+                                .chars()
+                                .all(|c| matches!(c, '0'..='9' | 'a'..='f'))
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::INVALID_PARAMS,
+                                "invalid pub_id",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Unauthenticated lookup: no subscription check required.
                         // Any connected peer may fetch another user's HPKE public key.
                         let key_data = match state.inner.store.get_hpke_key(&params.pub_id).await {
@@ -1646,6 +1678,18 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 req.id,
                                 rpc_errors::RATE_LIMITED,
                                 "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to list groups",
                             )
                             .await;
                             continue;

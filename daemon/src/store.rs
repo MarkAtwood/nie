@@ -602,14 +602,25 @@ impl Store {
         Ok(())
     }
 
-    /// Fetch spaces by IDs.  Pass `None` to return all spaces.
+    /// Fetch spaces by IDs, filtered to those the caller is a member of.
+    /// Pass `None` for `ids` to return all spaces the caller belongs to.
     /// Returns `(found_rows, not_found_ids)`.
-    pub async fn get_spaces(&self, ids: Option<&[&str]>) -> Result<(Vec<SpaceRow>, Vec<String>)> {
+    pub async fn get_spaces(
+        &self,
+        ids: Option<&[&str]>,
+        account_id: &str,
+    ) -> Result<(Vec<SpaceRow>, Vec<String>)> {
         match ids {
             None => {
                 let rows = sqlx::query_as::<_, (String, String, Option<String>, String)>(
-                    "SELECT id, name, description, created_at FROM space ORDER BY created_at ASC",
+                    "SELECT s.id, s.name, s.description, s.created_at FROM space s
+                     WHERE EXISTS (
+                         SELECT 1 FROM space_member sm
+                         WHERE sm.space_id = s.id AND sm.contact_id = ?
+                     )
+                     ORDER BY s.created_at ASC",
                 )
+                .bind(account_id)
                 .fetch_all(&self.pool)
                 .await?;
                 let spaces = rows
@@ -628,9 +639,15 @@ impl Store {
                 let mut not_found = Vec::new();
                 for &id in ids {
                     let row = sqlx::query_as::<_, (String, String, Option<String>, String)>(
-                        "SELECT id, name, description, created_at FROM space WHERE id = ?",
+                        "SELECT s.id, s.name, s.description, s.created_at FROM space s
+                         WHERE s.id = ?
+                         AND EXISTS (
+                             SELECT 1 FROM space_member sm
+                             WHERE sm.space_id = s.id AND sm.contact_id = ?
+                         )",
                     )
                     .bind(id)
+                    .bind(account_id)
                     .fetch_optional(&self.pool)
                     .await?;
                     match row {
@@ -648,13 +665,19 @@ impl Store {
         }
     }
 
-    /// Return all space IDs ordered by creation time.
-    pub async fn query_spaces(&self) -> Result<Vec<String>> {
-        Ok(
-            sqlx::query_scalar::<_, String>("SELECT id FROM space ORDER BY created_at ASC")
-                .fetch_all(&self.pool)
-                .await?,
+    /// Return space IDs the caller is a member of, ordered by creation time.
+    pub async fn query_spaces(&self, account_id: &str) -> Result<Vec<String>> {
+        Ok(sqlx::query_scalar::<_, String>(
+            "SELECT s.id FROM space s
+             WHERE EXISTS (
+                 SELECT 1 FROM space_member sm
+                 WHERE sm.space_id = s.id AND sm.contact_id = ?
+             )
+             ORDER BY s.created_at ASC",
         )
+        .bind(account_id)
+        .fetch_all(&self.pool)
+        .await?)
     }
 
     /// Permanently delete a space row.  Returns `true` if a row was deleted.
