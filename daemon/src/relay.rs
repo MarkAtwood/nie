@@ -134,11 +134,7 @@ async fn relay_event_loop(
 /// Called after every reconnect because the relay clears these slots on restart.
 /// Mirrors the CLI's DIRECTORY_LIST handler.  Failures are logged as warnings —
 /// the connection will reconnect again if needed, and this will be retried.
-async fn republish_keys(
-    state: &DaemonState,
-    mls: &Arc<Mutex<MlsClient>>,
-    hpke_pub_key: [u8; 32],
-) {
+async fn republish_keys(state: &DaemonState, mls: &Arc<Mutex<MlsClient>>, hpke_pub_key: [u8; 32]) {
     let Some(tx) = state.relay_tx().await else {
         tracing::warn!("republish_keys: relay_tx not available, skipping");
         return;
@@ -150,7 +146,10 @@ async fn republish_keys(
             match JsonRpcRequest::new(
                 next_request_id(),
                 rpc_methods::PUBLISH_KEY_PACKAGE,
-                PublishKeyPackageParams { device_id, data: kp },
+                PublishKeyPackageParams {
+                    device_id,
+                    data: kp,
+                },
             ) {
                 Ok(req) => {
                     if tx.send(req).await.is_err() {
@@ -159,7 +158,9 @@ async fn republish_keys(
                     }
                     tracing::info!("republished MLS key package after reconnect");
                 }
-                Err(e) => tracing::warn!("republish_keys: failed to build key package request: {e}"),
+                Err(e) => {
+                    tracing::warn!("republish_keys: failed to build key package request: {e}")
+                }
             }
         }
         Err(e) => tracing::warn!("republish_keys: key_package_and_device_id failed: {e}"),
@@ -169,7 +170,9 @@ async fn republish_keys(
     match JsonRpcRequest::new(
         next_request_id(),
         rpc_methods::PUBLISH_HPKE_KEY,
-        PublishHpkeKeyParams { public_key: hpke_pub_key.to_vec() },
+        PublishHpkeKeyParams {
+            public_key: hpke_pub_key.to_vec(),
+        },
     ) {
         Ok(req) => {
             if tx.send(req).await.is_err() {

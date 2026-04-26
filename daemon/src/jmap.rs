@@ -1816,6 +1816,10 @@ async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
             return invalid_args("too many ids");
         }
     }
+    let chat_id_opt: Option<String> = args
+        .get("chatId")
+        .and_then(|v| v.as_str())
+        .map(String::from);
     let state_tok = match store.state_token("Message").await {
         Ok(t) => t,
         Err(e) => return db_error(e),
@@ -1828,11 +1832,20 @@ async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
             Err(e) => return db_error(e),
         }
     } else {
-        // ids=null: return all messages (capped)
-        let Some(channel_id) = state.default_channel_id() else {
-            return server_fail("no default channel");
+        // ids=null: a chatId argument is required to scope the query.
+        let channel_id = match chat_id_opt.as_deref() {
+            Some(id) => id.to_string(),
+            None => {
+                return (
+                    "error".to_string(),
+                    serde_json::json!({
+                        "type": "urn:ietf:params:jmap:error:unsupportedFilter",
+                        "description": "Message/get with ids=null requires a chatId argument"
+                    }),
+                );
+            }
         };
-        match store.query_messages(channel_id, 0, MAX_GET_ALL).await {
+        match store.query_messages(&channel_id, 0, MAX_GET_ALL).await {
             Ok(ids) => {
                 let id_strs: Vec<&str> = ids.iter().map(|s| s.as_str()).collect();
                 match store.get_messages(&id_strs).await {

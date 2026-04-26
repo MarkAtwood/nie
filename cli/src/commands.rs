@@ -686,7 +686,10 @@ pub async fn chat(
                                         }
                                     }
                                 }
-                                Err(e) => warn!("create_group: {e}"),
+                                Err(e) => {
+                                    warn!("create_group: {e}");
+                                    println!("\r[MLS] group creation failed ({e}); reconnect to retry");
+                                }
                             }
                         }
                     }
@@ -1183,8 +1186,15 @@ pub async fn chat(
                                     )
                                 };
                                 println!("\r[{ts}] {formatted}");
+                                let capped = if text.len() > MAX_HISTORY_TEXT_BYTES {
+                                    let mut end = MAX_HISTORY_TEXT_BYTES;
+                                    while end > 0 && !text.is_char_boundary(end) { end -= 1; }
+                                    &text[..end]
+                                } else {
+                                    &text
+                                };
                                 if let Err(e) =
-                                    history.append_received(&from, text.as_bytes()).await
+                                    history.append_received(&from, capped.as_bytes()).await
                                 {
                                     warn!("history write failed: {e}");
                                 }
@@ -1317,8 +1327,9 @@ pub async fn chat(
                                     )
                                 };
                                 println!("\r[{ts}] {formatted}");
+                                let capped_bytes = &plaintext_bytes[..plaintext_bytes.len().min(MAX_HISTORY_TEXT_BYTES)];
                                 if let Err(e) =
-                                    history.append_received(&from, &plaintext_bytes).await
+                                    history.append_received(&from, capped_bytes).await
                                 {
                                     warn!("history write failed: {e}");
                                 }
@@ -1416,8 +1427,15 @@ pub async fn chat(
                                     )
                                 };
                                 println!("\r[{ts}] {formatted}");
+                                let capped = if text.len() > MAX_HISTORY_TEXT_BYTES {
+                                    let mut end = MAX_HISTORY_TEXT_BYTES;
+                                    while end > 0 && !text.is_char_boundary(end) { end -= 1; }
+                                    &text[..end]
+                                } else {
+                                    &text
+                                };
                                 if let Err(e) =
-                                    history.append_received(&from, text.as_bytes()).await
+                                    history.append_received(&from, capped.as_bytes()).await
                                 {
                                     warn!("history write failed: {e}");
                                 }
@@ -1550,8 +1568,9 @@ pub async fn chat(
                                     )
                                 };
                                 println!("\r[{ts}] {formatted}");
+                                let capped_bytes = &plaintext_bytes[..plaintext_bytes.len().min(MAX_HISTORY_TEXT_BYTES)];
                                 if let Err(e) =
-                                    history.append_received(&from, &plaintext_bytes).await
+                                    history.append_received(&from, capped_bytes).await
                                 {
                                     warn!("history write failed: {e}");
                                 }
@@ -1597,8 +1616,15 @@ pub async fn chat(
                                                 text
                                             );
                                             println!("\r[{ts}] {formatted}");
+                                            let capped = if text.len() > MAX_HISTORY_TEXT_BYTES {
+                                                let mut end = MAX_HISTORY_TEXT_BYTES;
+                                                while end > 0 && !text.is_char_boundary(end) { end -= 1; }
+                                                &text[..end]
+                                            } else {
+                                                &text
+                                            };
                                             if let Err(e) =
-                                                history.append_received(&from, text.as_bytes()).await
+                                                history.append_received(&from, capped.as_bytes()).await
                                             {
                                                 warn!("history write failed: {e}");
                                             }
@@ -3131,6 +3157,10 @@ async fn generate_fresh_address(
 /// ZIP-32 account index used for all payment address derivation.
 /// nie uses a single-account wallet; all payment operations share account 0.
 const PAYMENT_ACCOUNT: u32 = 0;
+
+/// Maximum bytes written to history for a single received chat message.
+/// Protects the history DB against oversized messages from malicious peers.
+const MAX_HISTORY_TEXT_BYTES: usize = 65536;
 
 /// Route an incoming `ClearMessage::Payment` to the correct session handler.
 ///

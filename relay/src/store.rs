@@ -40,6 +40,19 @@ pub struct InvoiceRow {
     pub subscription_days: Option<u64>,
 }
 
+/// Result of GROUP_ADD atomic membership + insert operation.
+#[derive(Debug, PartialEq, Eq)]
+pub enum GroupAddOutcome {
+    /// Member was newly added (rows_affected = 1).
+    Added,
+    /// Member was already present (INSERT OR IGNORE silently skipped).
+    AlreadyMember,
+    /// Caller is no longer a member of the group (race with leave/remove).
+    CallerNotMember,
+    /// Group has reached the member cap.
+    CapExceeded,
+}
+
 /// Result of a [`Store::try_set_nickname`] call.
 #[derive(Debug, PartialEq, Eq)]
 pub enum SetNicknameResult {
@@ -1382,37 +1395,52 @@ impl Store {
         Ok(())
     }
 
-    /// Atomically check the member count cap and add `pub_id` to `group_id`.
+    /// Atomically verify caller membership, check the member count cap, and
+    /// add `member_pub_id` to `group_id`.
     ///
-    /// The COUNT and INSERT run inside a single `BEGIN IMMEDIATE` transaction,
-    /// eliminating the TOCTOU where two concurrent GROUP_ADD callers both read
-    /// count < cap and then both insert, exceeding the limit.
-    ///
-    /// Returns `Ok(true)` if the member was added (or was already a member),
-    /// `Ok(false)` if the group already has `cap` or more members.
+    /// All checks and the INSERT run inside a single `BEGIN IMMEDIATE`
+    /// transaction, eliminating the TOCTOU where the caller is removed between
+    /// the membership check and the insert, or two concurrent GROUP_ADD callers
+    /// both read count < cap and both insert, exceeding the limit.
     pub async fn add_group_member_capped(
         &self,
         group_id: &str,
-        pub_id: &str,
+        caller_pub_id: &str,
+        member_pub_id: &str,
         cap: u64,
-    ) -> Result<bool> {
+    ) -> Result<GroupAddOutcome> {
         let mut conn = self.pool.acquire().await?;
         sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
-        let result: Result<bool> = async {
-            let count: i64 =
+        let result: Result<GroupAddOutcome> = async {
+            let caller_count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM group_members WHERE group_id = ?1 AND pub_id = ?2",
+            )
+            .bind(group_id)
+            .bind(caller_pub_id)
+            .fetch_one(&mut *conn)
+            .await?;
+            if caller_count == 0 {
+                return Ok(GroupAddOutcome::CallerNotMember);
+            }
+            let total: i64 =
                 sqlx::query_scalar("SELECT COUNT(*) FROM group_members WHERE group_id = ?1")
                     .bind(group_id)
                     .fetch_one(&mut *conn)
                     .await?;
-            if count as u64 >= cap {
-                return Ok(false);
+            if total as u64 >= cap {
+                return Ok(GroupAddOutcome::CapExceeded);
             }
-            sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
-                .bind(group_id)
-                .bind(pub_id)
-                .execute(&mut *conn)
-                .await?;
-            Ok(true)
+            let res =
+                sqlx::query("INSERT OR IGNORE INTO group_members (group_id, pub_id) VALUES (?1, ?2)")
+                    .bind(group_id)
+                    .bind(member_pub_id)
+                    .execute(&mut *conn)
+                    .await?;
+            if res.rows_affected() == 1 {
+                Ok(GroupAddOutcome::Added)
+            } else {
+                Ok(GroupAddOutcome::AlreadyMember)
+            }
         }
         .await;
         if result.is_ok() {

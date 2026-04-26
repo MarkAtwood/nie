@@ -17,7 +17,7 @@ use uuid::Uuid;
 use unicode_normalization::UnicodeNormalization;
 
 use crate::state::AppState;
-use crate::store::{InvoiceRow, SetNicknameResult};
+use crate::store::{GroupAddOutcome, InvoiceRow, SetNicknameResult};
 use nie_core::auth::{new_challenge, verify_challenge};
 use nie_core::protocol::{
     rpc_errors, rpc_methods, AuthenticateParams, AuthenticateResult, BroadcastParams,
@@ -1783,63 +1783,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                             }
                         };
 
-                        // Caller must be a member of the group to add others.
-                        match state
-                            .inner
-                            .store
-                            .is_group_member(&params.group_id, &pub_id.0)
-                            .await
-                        {
-                            Ok(true) => {}
-                            Ok(false) => {
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::NOT_A_MEMBER,
-                                    "not a member of this group",
-                                )
-                                .await;
-                                continue;
-                            }
-                            Err(e) => {
-                                error!("is_group_member for {pub_id}: {e}");
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INTERNAL_ERROR,
-                                    "internal error",
-                                )
-                                .await;
-                                continue;
-                            }
-                        }
-
-                        // Enforce group size cap and add the new member atomically.
-                        // COUNT + INSERT run inside a single transaction so two concurrent
-                        // GROUP_ADD callers cannot both read count < cap and both insert,
-                        // exceeding the limit.
+                        // Atomically verify caller membership, check cap, and add new member.
+                        // All three steps run inside a single BEGIN IMMEDIATE transaction.
                         const MAX_GROUP_MEMBERS: u64 = 100;
                         match state
                             .inner
                             .store
                             .add_group_member_capped(
                                 &params.group_id,
+                                &pub_id.0,
                                 &params.member_pub_id,
                                 MAX_GROUP_MEMBERS,
                             )
                             .await
                         {
-                            Ok(false) => {
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INVALID_PARAMS,
-                                    "group has reached the maximum member limit",
-                                )
-                                .await;
-                                continue;
-                            }
-                            Ok(true) => {}
                             Err(e) => {
                                 error!("add_group_member_capped failed: {e}");
                                 send_client_error(
@@ -1851,37 +1808,61 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .await;
                                 continue;
                             }
-                        }
-
-                        // Notify new member: GROUP_DELIVER with group name as payload.
-                        // `from` is relay-set from authenticated pub_id — never from params.
-                        // serde_json::to_string on a derived Serialize cannot fail
-                        let notif = serde_json::to_string(
-                            &JsonRpcNotification::new(
-                                rpc_methods::GROUP_DELIVER,
-                                GroupDeliverParams {
-                                    from: pub_id.0.clone(),
-                                    group_id: params.group_id.clone(),
-                                    payload: group_row.name.into_bytes(),
-                                },
-                            )
-                            .unwrap(),
-                        )
-                        .unwrap();
-                        let delivered = state
-                            .deliver_live(&params.member_pub_id, notif.clone())
-                            .await;
-                        if !delivered {
-                            if let Err(e) = state
-                                .inner
-                                .store
-                                .enqueue(&params.member_pub_id, &notif)
-                                .await
-                            {
-                                warn!(
-                                    "group_add notify enqueue failed for {}: {e}",
-                                    params.member_pub_id
-                                );
+                            Ok(GroupAddOutcome::CallerNotMember) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::NOT_A_MEMBER,
+                                    "not a member of this group",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Ok(GroupAddOutcome::CapExceeded) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INVALID_PARAMS,
+                                    "group has reached the maximum member limit",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Ok(GroupAddOutcome::AlreadyMember) => {
+                                // Idempotent: member already present, no notification needed.
+                            }
+                            Ok(GroupAddOutcome::Added) => {
+                                // Notify new member: GROUP_DELIVER with group name as payload.
+                                // `from` is relay-set from authenticated pub_id — never from params.
+                                // serde_json::to_string on a derived Serialize cannot fail
+                                let notif = serde_json::to_string(
+                                    &JsonRpcNotification::new(
+                                        rpc_methods::GROUP_DELIVER,
+                                        GroupDeliverParams {
+                                            from: pub_id.0.clone(),
+                                            group_id: params.group_id.clone(),
+                                            payload: group_row.name.into_bytes(),
+                                        },
+                                    )
+                                    .unwrap(),
+                                )
+                                .unwrap();
+                                let delivered = state
+                                    .deliver_live(&params.member_pub_id, notif.clone())
+                                    .await;
+                                if !delivered {
+                                    if let Err(e) = state
+                                        .inner
+                                        .store
+                                        .enqueue(&params.member_pub_id, &notif)
+                                        .await
+                                    {
+                                        warn!(
+                                            "group_add notify enqueue failed for {}: {e}",
+                                            params.member_pub_id
+                                        );
+                                    }
+                                }
                             }
                         }
 

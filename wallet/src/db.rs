@@ -836,18 +836,14 @@ impl WalletStore {
         // SQLite defaults to SQLITE_LIMIT_VARIABLE_NUMBER=999; chunk to stay safe.
         let mut spent = Vec::new();
         for chunk in note_ids.chunks(900) {
-            let mut builder = sqlx::QueryBuilder::new(
-                "SELECT note_id FROM notes WHERE note_id IN (",
-            );
+            let mut builder =
+                sqlx::QueryBuilder::new("SELECT note_id FROM notes WHERE note_id IN (");
             let mut sep = builder.separated(", ");
             for &id in chunk {
                 sep.push_bind(id);
             }
             builder.push(") AND spent = 1");
-            let rows: Vec<(i64,)> = builder
-                .build_query_as()
-                .fetch_all(&self.pool)
-                .await?;
+            let rows: Vec<(i64,)> = builder.build_query_as().fetch_all(&self.pool).await?;
             spent.extend(rows.into_iter().map(|(id,)| id));
         }
         Ok(spent)

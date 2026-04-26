@@ -163,6 +163,12 @@ impl MessageBus {
     ///
     /// The returned `BusSubscriber` yields messages published by other relay
     /// instances (or, on the local bus, by `publish` within the same process).
+    ///
+    /// # Note
+    ///
+    /// `main.rs` does not currently spawn a subscriber task — cross-instance
+    /// fan-out via the bus is not yet wired end-to-end.  This method exists for
+    /// the future `redis-bus` multi-instance path and is exercised by unit tests.
     pub async fn subscribe(&self) -> Result<BusSubscriber> {
         match &self.inner {
             BusInner::Local(tx) => Ok(BusSubscriber {
