@@ -46,6 +46,12 @@ pub enum NieEvent {
     Reconnecting { delay_secs: u64 },
     /// Successfully reconnected after a previous disconnect.
     Reconnected,
+    /// A fatal internal error occurred (e.g. background task panicked).
+    ///
+    /// `client_next_event` will return this once and then return `None` on the
+    /// next call.  Dart should treat this as a terminal condition and stop the
+    /// event loop.
+    FatalError { message: String },
 }
 
 /// An entry in the online user list (inside `NieEvent::DirectoryUpdated`).
@@ -116,7 +122,8 @@ pub async fn client_connect(
     let (event_tx, event_rx) = mpsc::channel::<NieEvent>(256);
     let mut transport_rx = conn.rx;
     let own_pub_id_for_task = pub_id.clone();
-    tokio::spawn(async move {
+    let event_tx_panic = event_tx.clone();
+    let task_handle = tokio::spawn(async move {
         while let Some(event) = transport_rx.recv().await {
             let nie_event = match event {
                 ClientEvent::Reconnecting { delay_secs } => {
@@ -131,6 +138,20 @@ pub async fn client_connect(
                 if event_tx.send(ev).await.is_err() {
                     break; // Dart dropped the client
                 }
+            }
+        }
+    });
+    // Watch the background task: if it panics, the channel sender side is dropped
+    // and `client_next_event` would block forever.  Send a terminal FatalError
+    // event so Dart receives an error instead of hanging.
+    tokio::spawn(async move {
+        if let Err(join_err) = task_handle.await {
+            if join_err.is_panic() {
+                let _ = event_tx_panic
+                    .send(NieEvent::FatalError {
+                        message: "background event task panicked".to_string(),
+                    })
+                    .await;
             }
         }
     });

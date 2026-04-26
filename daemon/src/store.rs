@@ -1149,6 +1149,17 @@ impl Store {
                     return Ok(SpaceJoinOutcome::NotFound);
                 }
             }
+            // Verify the referenced space still exists.  A space can be deleted
+            // after an invite is created; without this check, redeeming the invite
+            // would insert a dangling space_member row (no parent in space table).
+            let space_exists: Option<(i32,)> = sqlx::query_as("SELECT 1 FROM space WHERE id = ?")
+                .bind(&space_id)
+                .fetch_optional(&mut *conn)
+                .await?;
+            if space_exists.is_none() {
+                tracing::warn!("use_space_invite_code: space {space_id} no longer exists");
+                return Ok(SpaceJoinOutcome::NotFound);
+            }
             // Reject if already a member — do not consume the invite.
             let existing: Option<(String,)> = sqlx::query_as(
                 "SELECT role FROM space_member WHERE space_id = ? AND contact_id = ?",

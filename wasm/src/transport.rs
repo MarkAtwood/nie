@@ -211,3 +211,12 @@ impl WasmTransport {
         let _ = self.ws.close();
     }
 }
+
+impl Drop for WasmTransport {
+    /// Close the underlying WebSocket with a normal closure code (1000) when
+    /// the transport is dropped.  Without this, the browser keeps the socket
+    /// open after the Rust side releases the handle, leaking the connection.
+    fn drop(&mut self) {
+        let _ = self.ws.close_with_code(1000);
+    }
+}

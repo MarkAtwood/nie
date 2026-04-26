@@ -30,6 +30,9 @@ struct Inner {
     events_tx: broadcast::Sender<DaemonEvent>,
     default_space_id: tokio::sync::OnceCell<String>,
     default_channel_id: tokio::sync::OnceCell<String>,
+    /// Serialises concurrent wallet payment operations (balance-check + send).
+    /// Payments are infrequent; a single global lock avoids TOCTOU over-spend.
+    wallet_pay_lock: Mutex<()>,
 }
 
 #[derive(Clone)]
@@ -58,6 +61,7 @@ impl DaemonState {
             events_tx,
             default_space_id: tokio::sync::OnceCell::new(),
             default_channel_id: tokio::sync::OnceCell::new(),
+            wallet_pay_lock: Mutex::new(()),
         }))
     }
 
@@ -153,5 +157,12 @@ impl DaemonState {
     /// Return the default channel ID, or None if bootstrap has not yet run.
     pub fn default_channel_id(&self) -> Option<&str> {
         self.0.default_channel_id.get().map(|s| s.as_str())
+    }
+
+    /// Acquire the wallet payment lock.  Hold the returned guard across the
+    /// entire balance-check + send_payment sequence to prevent concurrent
+    /// calls from over-spending on a stale balance read.
+    pub async fn wallet_pay_lock(&self) -> tokio::sync::MutexGuard<'_, ()> {
+        self.0.wallet_pay_lock.lock().await
     }
 }

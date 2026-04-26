@@ -244,13 +244,15 @@ impl NieRelayClient {
                 serde_json::to_string(&event).expect("serde_json::Value serializes infallibly");
             // Parse the JSON string into a native JS object so JS receives an
             // object directly rather than a string (nie-7bv6.4).
+            // If parse fails, skip this event rather than delivering null/undefined
+            // to the callback, which would look like a valid (but empty) event.
             let event_jsval = match js_sys::JSON::parse(&event_str) {
                 Ok(obj) => obj,
                 Err(_) => {
                     web_sys::console::warn_1(&JsValue::from_str(
-                        "nie-wasm: failed to convert event to JS object",
+                        "nie-wasm: failed to convert event to JS object; skipping",
                     ));
-                    JsValue::NULL
+                    return;
                 }
             };
             if let Err(err) = js_cb.call1(&JsValue::NULL, &event_jsval) {

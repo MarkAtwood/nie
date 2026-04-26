@@ -20,6 +20,7 @@ use nie_core::protocol::{rpc_methods, BroadcastParams, DeliverParams, JsonRpcReq
 use nie_core::transport::{next_request_id, ClientEvent};
 use serde_json::Value;
 use std::collections::{HashSet, VecDeque};
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use tokio::time::{interval, Duration};
 
@@ -31,17 +32,46 @@ use crate::jmap::JmapClient;
 /// Capped at 1000 entries; the oldest entry is evicted when the cap is reached.
 /// Each poll fetches at most 50 IDs, so 1000 entries covers 20 full-scan
 /// cycles before the first eviction.
+///
+/// Persisted to a JSON file so that seen IDs survive process restarts and
+/// emails are not replayed on the next startup.
 struct SeenIds {
     ids: VecDeque<String>,
     set: HashSet<String>,
+    /// Path to the JSON file used for persistence. `None` means no persistence.
+    persist_path: Option<std::path::PathBuf>,
 }
 
 impl SeenIds {
-    fn new() -> Self {
-        Self {
+    /// Load seen IDs from `path`, creating the set from scratch if the file
+    /// does not exist yet.  Logs a warning and returns an empty set on any
+    /// parse error to avoid blocking startup.
+    fn load_or_new(path: &Path) -> Self {
+        let mut s = Self {
             ids: VecDeque::new(),
             set: HashSet::new(),
+            persist_path: Some(path.to_path_buf()),
+        };
+        match std::fs::read(path) {
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // First run — no state file yet; start fresh.
+            }
+            Err(e) => {
+                tracing::warn!("seen_ids: failed to read {:?}: {e}; starting fresh", path);
+            }
+            Ok(bytes) => match serde_json::from_slice::<Vec<String>>(&bytes) {
+                Ok(loaded) => {
+                    for id in loaded {
+                        s.set.insert(id.clone());
+                        s.ids.push_back(id);
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("seen_ids: failed to parse {:?}: {e}; starting fresh", path);
+                }
+            },
         }
+        s
     }
 
     fn contains(&self, id: &str) -> bool {
@@ -57,6 +87,40 @@ impl SeenIds {
         }
         self.set.insert(id.clone());
         self.ids.push_back(id);
+        self.persist();
+    }
+
+    /// Write the current ID list to the persistence file.
+    ///
+    /// Writes to a `.tmp` sibling first, then renames atomically so that a
+    /// crash mid-write never leaves a truncated file.  Logs a warning on error
+    /// rather than propagating — persistence failures are non-fatal.
+    fn persist(&self) {
+        let Some(path) = &self.persist_path else {
+            return;
+        };
+        let ids: Vec<&str> = self.ids.iter().map(String::as_str).collect();
+        let json = match serde_json::to_vec(&ids) {
+            Ok(j) => j,
+            Err(e) => {
+                tracing::warn!("seen_ids: failed to serialize: {e}");
+                return;
+            }
+        };
+        // Write to a tmp file then rename for atomicity.
+        let mut tmp_path = path.to_path_buf();
+        tmp_path.set_extension("json.tmp");
+        if let Err(e) = std::fs::write(&tmp_path, &json) {
+            tracing::warn!("seen_ids: failed to write {:?}: {e}", tmp_path);
+            return;
+        }
+        if let Err(e) = std::fs::rename(&tmp_path, path) {
+            tracing::warn!(
+                "seen_ids: failed to rename {:?} → {:?}: {e}",
+                tmp_path,
+                path
+            );
+        }
     }
 }
 
@@ -99,7 +163,9 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
     let poll_interval_secs = config.poll_interval_secs;
 
     // Track seen email IDs to avoid reprocessing on each poll (bounded at 1000).
-    let seen_ids: Arc<Mutex<SeenIds>> = Arc::new(Mutex::new(SeenIds::new()));
+    // Load from disk so IDs seen before a restart are not replayed.
+    let seen_ids_path = std::path::Path::new(&config.seen_ids_path);
+    let seen_ids: Arc<Mutex<SeenIds>> = Arc::new(Mutex::new(SeenIds::load_or_new(seen_ids_path)));
 
     // Channel: JMAP poll → nie broadcast.
     let (jmap_tx, mut jmap_rx) = tokio::sync::mpsc::channel::<String>(64);

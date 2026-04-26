@@ -249,6 +249,12 @@ impl JmapClient {
         let _ = since_state;
 
         const PAGE_SIZE: u64 = 50;
+        /// Maximum number of pages fetched per `email_query` call.
+        ///
+        /// With PAGE_SIZE=50 this caps `all_ids` at 10,000 entries and the loop
+        /// at 200 iterations, preventing both OOM and infinite loops against a
+        /// malicious JMAP server.
+        const MAX_PAGES: u64 = 200;
         let mut all_ids: Vec<String> = Vec::new();
         let mut position: u64 = 0;
         let mut query_state = String::new();
@@ -300,6 +306,17 @@ impl JmapClient {
                 .unwrap_or(position);
 
             if page_len < PAGE_SIZE || position >= total {
+                break;
+            }
+
+            // Safety cap: stop paginating after MAX_PAGES to bound both loop
+            // count and all_ids size against a malicious or unusually large server.
+            if position / PAGE_SIZE >= MAX_PAGES {
+                tracing::warn!(
+                    "email_query: reached MAX_PAGES ({MAX_PAGES}) pagination cap; \
+                     stopping early (fetched {} IDs so far)",
+                    all_ids.len()
+                );
                 break;
             }
         }

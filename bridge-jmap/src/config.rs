@@ -27,10 +27,20 @@ pub struct BridgeConfig {
     /// Poll interval in seconds (default 30).
     #[serde(default = "default_poll_interval")]
     pub poll_interval_secs: u64,
+    /// Path to the file used to persist seen JMAP email IDs across restarts.
+    ///
+    /// Defaults to `seen_ids.json` in the current working directory.
+    /// Set this to an absolute path if the bridge is run from a varying CWD.
+    #[serde(default = "default_seen_ids_path")]
+    pub seen_ids_path: String,
 }
 
 fn default_poll_interval() -> u64 {
     30
+}
+
+fn default_seen_ids_path() -> String {
+    "seen_ids.json".to_string()
 }
 
 impl BridgeConfig {

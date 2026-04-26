@@ -90,8 +90,10 @@ pub async fn handle_send(
         ));
     }
 
+    // Keep the text for JMAP store insertion after relay send.
+    let text = req.text;
     // serde_json::to_vec on a derived Serialize cannot fail
-    let payload: Vec<u8> = serde_json::to_vec(&ClearMessage::Chat { text: req.text }).unwrap();
+    let payload: Vec<u8> = serde_json::to_vec(&ClearMessage::Chat { text: text.clone() }).unwrap();
 
     let Some(tx) = state.relay_tx().await else {
         return Err((
@@ -121,9 +123,27 @@ pub async fn handle_send(
         )
     })?;
 
-    Ok(Json(SendResponse {
-        message_id: Uuid::new_v4().to_string(),
-    }))
+    // Use the JMAP store ID so the caller can correlate the sent message with
+    // what appears in their mailbox.  Fall back to a random UUID only when no
+    // store or default channel is configured (daemon started without --db).
+    let message_id =
+        if let (Some(store), Some(channel_id)) = (state.store(), state.default_channel_id()) {
+            let sent_at = chrono::Utc::now().to_rfc3339();
+            match store
+                .insert_message(channel_id, state.my_pub_id(), &text, &sent_at)
+                .await
+            {
+                Ok(id) => id,
+                Err(e) => {
+                    tracing::warn!("handle_send: insert_message failed: {e}");
+                    Uuid::new_v4().to_string()
+                }
+            }
+        } else {
+            Uuid::new_v4().to_string()
+        };
+
+    Ok(Json(SendResponse { message_id }))
 }
 
 #[derive(Debug, Serialize)]
@@ -226,6 +246,11 @@ pub async fn handle_wallet_pay(
         ));
     };
 
+    // Hold the payment lock across balance-check + relay send to prevent two
+    // concurrent requests from both passing the balance check on the same
+    // stale read and then both spending (TOCTOU over-spend).
+    let _pay_guard = state.wallet_pay_lock().await;
+
     // Check available balance.
     let balance = wallet.balance_with_confirmations(1).await.map_err(|e| {
         (
@@ -263,17 +288,9 @@ pub async fn handle_wallet_pay(
         tx_hash: None,
         address: None,
     };
-    wallet.upsert_session(&session).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ApiError {
-                code: "wallet_error".to_string(),
-                message: format!("session persist failed: {e}"),
-            }),
-        )
-    })?;
 
-    // Broadcast PaymentAction::Request to the relay.
+    // Send to relay first; persist session only on success so a relay failure
+    // cannot leave an orphaned session row in the DB.
     let payload = serde_json::to_vec(&ClearMessage::Payment {
         session_id,
         action: PaymentAction::Request {
@@ -304,6 +321,17 @@ pub async fn handle_wallet_pay(
             Json(ApiError {
                 code: "relay_unavailable".to_string(),
                 message: "relay send failed".to_string(),
+            }),
+        )
+    })?;
+
+    // Relay send succeeded; now persist the session.
+    wallet.upsert_session(&session).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiError {
+                code: "wallet_error".to_string(),
+                message: format!("session persist failed: {e}"),
             }),
         )
     })?;
