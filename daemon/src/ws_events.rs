@@ -67,8 +67,19 @@ async fn ws_client_loop(socket: WebSocket, state: DaemonState) {
                         }
                     }
                     Err(RecvError::Lagged(n)) => {
-                        tracing::warn!("ws client lagged {} events", n);
-                        // Continue — don't disconnect on lag
+                        tracing::warn!("WS event stream lagged, dropped {} events", n);
+                        // Notify client that events were dropped so it can refetch state.
+                        let notice = serde_json::json!({
+                            "type": "events_dropped",
+                            "count": n,
+                        });
+                        if sink
+                            .send(Message::Text(notice.to_string().into()))
+                            .await
+                            .is_err()
+                        {
+                            break;
+                        }
                     }
                     Err(RecvError::Closed) => {
                         // Broadcast channel shut down (daemon exiting)

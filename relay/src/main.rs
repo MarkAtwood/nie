@@ -41,14 +41,11 @@ async fn main() -> anyhow::Result<()> {
         Err(_) => false,
         Ok(v) if v.eq_ignore_ascii_case("true") || v == "1" => true,
         Ok(v) if v.eq_ignore_ascii_case("false") || v == "0" => false,
-        // Warn explicitly: "yes" or "on" silently left subscription gating off,
-        // which is a business-logic error that could allow unpaid access.
         Ok(v) => {
-            tracing::warn!(
-                "REQUIRE_SUBSCRIPTION={v:?} is not recognized (expected true/false/1/0); \
-                 using default false — subscription gating is OFF"
+            anyhow::bail!(
+                "REQUIRE_SUBSCRIPTION={v:?} is not recognized; \
+                 valid values are \"true\", \"false\", \"1\", or \"0\""
             );
-            false
         }
     };
 
@@ -239,8 +236,16 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| "0.0.0.0:3210".to_string())
         .parse()?;
 
-    info!("nie-relay listening on {addr}");
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    let local_addr = listener.local_addr()?;
+    info!("nie-relay listening on {local_addr}");
+    if !local_addr.ip().is_loopback() {
+        tracing::warn!(
+            "relay listening on non-loopback address {} without TLS — \
+             ensure a TLS reverse proxy is in front of this port",
+            local_addr
+        );
+    }
     axum::serve(listener, app).await?;
 
     Ok(())

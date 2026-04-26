@@ -110,8 +110,7 @@ fn write_secret_file(path: impl AsRef<std::path::Path>, data: &[u8]) -> std::io:
         use std::os::unix::fs::OpenOptionsExt as _;
         let mut file = std::fs::OpenOptions::new()
             .write(true)
-            .create(true)
-            .truncate(true)
+            .create_new(true)
             .mode(0o600)
             .open(path)?;
         std::io::Write::write_all(&mut file, data)?;
@@ -126,9 +125,6 @@ fn write_secret_file(path: impl AsRef<std::path::Path>, data: &[u8]) -> std::io:
 // ---- Identity management ----
 
 pub async fn init(keyfile: &str, no_passphrase: bool) -> Result<()> {
-    if std::path::Path::new(keyfile).exists() {
-        bail!("keyfile already exists at {keyfile}. Delete it to start fresh.");
-    }
     let id = Identity::generate();
     let mut seed = id.to_secret_bytes_64();
 
@@ -144,7 +140,13 @@ pub async fn init(keyfile: &str, no_passphrase: bool) -> Result<()> {
 
     let encrypted = encrypt_keyfile(&seed, &passphrase)?;
     seed.zeroize();
-    write_secret_file(keyfile, &encrypted)?;
+    write_secret_file(keyfile, &encrypted).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AlreadyExists {
+            anyhow::anyhow!("keyfile already exists at {keyfile}. Delete it to start fresh.")
+        } else {
+            anyhow::anyhow!(e)
+        }
+    })?;
 
     println!("identity created");
     println!("public id  : {}", id.pub_id().0);
@@ -375,6 +377,10 @@ pub async fn chat(
     // In-flight file transfers being received: transfer_id → assembly state.
     let mut file_transfers: HashMap<Uuid, FileReceiveState> = HashMap::new();
 
+    // Directory for received files — created once at startup.
+    let dl_dir = data_dir.join("downloads");
+    tokio::fs::create_dir_all(&dl_dir).await.ok();
+
     // Expire sessions that have not advanced within 24 hours (nie-0bj).
     // Terminal sessions (Confirmed/Failed/Expired) are unchanged.
     // One bulk SQL UPDATE instead of N individual upsert_session calls.
@@ -495,6 +501,8 @@ pub async fn chat(
                         online.clear();
                         online_seq.clear();
                         active_groups.clear();
+                        file_transfers.clear();
+                        peer_profiles.clear();
                         // Reset MLS client so the reconnected session gets a fresh OpenMLS
                         // provider.  Without this, create_group() returns GroupAlreadyExists
                         // on reconnect (openmls checks its storage before writing) and the
@@ -1226,6 +1234,8 @@ pub async fn chat(
                                     warn!("ignoring file transfer {transfer_id}: size {size_bytes} exceeds 10 MB");
                                 } else if total_chunks == 0 || total_chunks > FILE_MAX_CHUNKS {
                                     warn!("ignoring file transfer {transfer_id}: total_chunks={total_chunks} out of range");
+                                } else if file_transfers.len() >= 16 {
+                                    warn!("ignoring file transfer {transfer_id}: too many in-flight transfers");
                                 } else {
                                     match file_transfers.entry(transfer_id) {
                                         std::collections::hash_map::Entry::Occupied(_) => {
@@ -1267,9 +1277,10 @@ pub async fn chat(
                                                 println!("\r[recv] ERROR: hash mismatch for {} — discarding", state.name);
                                             } else {
                                                 let safe = safe_name(&state.name);
-                                                match tokio::fs::write(&safe, &assembled).await {
-                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", safe, assembled.len()),
-                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", safe),
+                                                let dest = dl_dir.join(&safe);
+                                                match tokio::fs::write(&dest, &assembled).await {
+                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", dest.display(), assembled.len()),
+                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", dest.display()),
                                                 }
                                             }
                                         }
@@ -1456,6 +1467,8 @@ pub async fn chat(
                                     warn!("ignoring file transfer {transfer_id}: size {size_bytes} exceeds 10 MB");
                                 } else if total_chunks == 0 || total_chunks > FILE_MAX_CHUNKS {
                                     warn!("ignoring file transfer {transfer_id}: total_chunks={total_chunks} out of range");
+                                } else if file_transfers.len() >= 16 {
+                                    warn!("ignoring file transfer {transfer_id}: too many in-flight transfers");
                                 } else {
                                     match file_transfers.entry(transfer_id) {
                                         std::collections::hash_map::Entry::Occupied(_) => {
@@ -1497,9 +1510,10 @@ pub async fn chat(
                                                 println!("\r[recv] ERROR: hash mismatch for {} — discarding", state.name);
                                             } else {
                                                 let safe = safe_name(&state.name);
-                                                match tokio::fs::write(&safe, &assembled).await {
-                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", safe, assembled.len()),
-                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", safe),
+                                                let dest = dl_dir.join(&safe);
+                                                match tokio::fs::write(&dest, &assembled).await {
+                                                    Ok(()) => println!("\r[recv] saved: {} ({} bytes)", dest.display(), assembled.len()),
+                                                    Err(e) => println!("\r[recv] failed to write {}: {e}", dest.display()),
                                                 }
                                             }
                                         }
@@ -1606,64 +1620,15 @@ pub async fn chat(
                                 }
                             }
                         } else {
-                            // Not yet in MLS group — treat plaintext as a raw MLS Welcome
-                            // (same as WhisperDeliver before MLS is active).
-                            // Security: SealedWhisperDeliverParams carries no `from` field
-                            // (the relay strips it).  Require a non-empty online list so we
-                            // at least know a directory has been received before accepting
-                            // any Welcome.  The WhisperDeliver path enforces the stricter
-                            // sender == admin[0] check where the sender is known.
-                            if online.is_empty() {
-                                warn!(
-                                    "sealed_whisper_deliver: ignoring Welcome before \
-                                     directory is known"
-                                );
-                            } else {
-                            match mls.join_from_welcome(&plaintext) {
-                                Ok(()) => {
-                                    mls_active = true;
-                                    println!(
-                                        "\r[MLS] joined group (sealed welcome) — epoch {}",
-                                        mls.epoch().unwrap_or(0)
-                                    );
-                                    match mls.room_hpke_keypair() {
-                                        Ok((room_sk, room_pk)) => {
-                                            room_hpke_secret = Some(room_sk);
-                                            room_hpke_pub = Some(room_pk);
-                                            let req = JsonRpcRequest::new(
-                                                next_request_id(),
-                                                rpc_methods::PUBLISH_HPKE_KEY,
-                                                PublishHpkeKeyParams { public_key: room_pk.to_vec() },
-                                            )
-                                            .unwrap();
-                                            if tx.send(req).await.is_err() {
-                                                eprintln!("connection lost.");
-                                                break;
-                                            }
-                                            tracing::debug!(
-                                                "published room HPKE key for epoch {}",
-                                                mls.epoch().unwrap_or(0)
-                                            );
-                                        }
-                                        Err(e) => {
-                                            tracing::warn!("failed to derive room HPKE keypair: {e}");
-                                        }
-                                    }
-                                    if !send_profile_broadcast(&tx, &own_profile, mls_active, &mut mls).await {
-                                        eprintln!("connection lost.");
-                                        break;
-                                    }
-                                    if !sessions_resynced {
-                                        sessions_resynced = true;
-                                        if !resync_sessions(&sessions, &online, &tx, &mut mls).await {
-                                            eprintln!("connection lost.");
-                                            break;
-                                        }
-                                    }
-                                }
-                                Err(e) => warn!("sealed_whisper_deliver join_from_welcome: {e}"),
-                            }
-                            } // else (online directory known)
+                            // Security: reject Welcome messages arriving via sealed whisper.
+                            // Sealed whispers carry no verified sender identity (the relay strips `from`),
+                            // so we cannot verify the sender is the MLS admin.  Welcomes must arrive via
+                            // WhisperDeliver where sender identity is relay-authenticated and checked
+                            // against online[0].
+                            tracing::warn!(
+                                "sealed_whisper_deliver: rejecting Welcome — \
+                                 Welcome delivery requires authenticated WhisperDeliver"
+                            );
                         }
                     }
 
