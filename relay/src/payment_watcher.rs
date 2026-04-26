@@ -195,6 +195,22 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                     }
                 }
             }
+
+            // Persist the tip one final time after the stream is exhausted.
+            // Per-block persist above may have been skipped due to a transient DB
+            // error (logged as warn and execution continued); this ensures the
+            // tip is durable so the next run starts from the right block rather
+            // than re-scanning from an earlier height.
+            if last_scanned_height > 0 {
+                if let Err(e) = state
+                    .inner
+                    .store
+                    .set_payment_scan_tip(last_scanned_height)
+                    .await
+                {
+                    warn!("payment_watcher: failed to persist final scan tip {last_scanned_height} after stream exhaustion: {e}");
+                }
+            }
         }
 
         // Connection broke or stream error — sleep before reconnecting.

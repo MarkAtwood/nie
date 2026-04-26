@@ -910,10 +910,10 @@ async fn handle(socket: WebSocket, state: AppState) {
                         match state
                             .inner
                             .store
-                            .save_key_package(&pub_id.0, &params.device_id, &params.data)
+                            .save_key_package_capped(&pub_id.0, &params.device_id, &params.data)
                             .await
                         {
-                            Ok(()) => {
+                            Ok(true) => {
                                 // Track device_id so we can delete the package on disconnect.
                                 // Push rather than replace: a connection may publish multiple
                                 // device IDs; all must be cleaned up at disconnect.
@@ -945,8 +945,17 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .unwrap();
                                 client_tx.send(ok).await.ok();
                             }
+                            Ok(false) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RESOURCE_EXHAUSTED,
+                                    "too many key packages",
+                                )
+                                .await;
+                            }
                             Err(e) => {
-                                error!("save_key_package for {pub_id}: {e}");
+                                error!("save_key_package_capped for {pub_id}: {e}");
                                 send_client_error(
                                     &client_tx,
                                     req.id,
@@ -973,6 +982,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                     continue;
                                 }
                             };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Validate target pub_id: must be exactly 64 lowercase hex chars.
                         if params.pub_id.len() != 64
                             || !params
@@ -1129,6 +1152,20 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         };
+                        if !check_rate_limit(
+                            &state.inner.rate_limits,
+                            &pub_id.0,
+                            state.inner.rate_limit_per_min,
+                        ) {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::RATE_LIMITED,
+                                "rate limit exceeded",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Validate target pub_id: must be exactly 64 lowercase hex chars.
                         if params.pub_id.len() != 64
                             || !params

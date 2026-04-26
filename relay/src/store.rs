@@ -526,6 +526,56 @@ impl Store {
         Ok(())
     }
 
+    /// Store (or replace) the MLS key package for `(pub_id, device_id)`, enforcing a
+    /// per-user row count cap atomically.
+    ///
+    /// Acquires an exclusive write lock (`BEGIN IMMEDIATE`), counts existing rows for
+    /// `pub_id`, and rejects the write if the count is already at or above
+    /// `MAX_KEY_PACKAGES_PER_USER`.  The COUNT and INSERT OR REPLACE execute inside
+    /// a single transaction to prevent TOCTOU races where two concurrent callers
+    /// both read count < cap and both insert.
+    ///
+    /// Returns `Ok(true)` if the package was stored.
+    /// Returns `Ok(false)` if the cap is already reached (caller should send a quota error).
+    /// Returns `Err` only on database failures.
+    pub async fn save_key_package_capped(
+        &self,
+        pub_id: &str,
+        device_id: &str,
+        data: &[u8],
+    ) -> Result<bool> {
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+        let result: Result<bool> = async {
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM key_packages WHERE pub_id = ?1")
+                    .bind(pub_id)
+                    .fetch_one(&mut *conn)
+                    .await?;
+            if count >= MAX_KEY_PACKAGES_PER_USER {
+                return Ok(false);
+            }
+            sqlx::query(
+                "INSERT INTO key_packages (pub_id, device_id, data) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(pub_id, device_id) DO UPDATE SET data = excluded.data,
+                                                              updated_at = datetime('now')",
+            )
+            .bind(pub_id)
+            .bind(device_id)
+            .bind(data)
+            .execute(&mut *conn)
+            .await?;
+            Ok(true)
+        }
+        .await;
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
     /// Fetch the stored MLS key package for `(pub_id, device_id)`, or None if not found.
     pub async fn get_key_package(&self, pub_id: &str, device_id: &str) -> Result<Option<Vec<u8>>> {
         let row: Option<(Vec<u8>,)> =

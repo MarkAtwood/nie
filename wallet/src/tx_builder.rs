@@ -298,7 +298,8 @@ pub fn build_shielded_tx(
     }
 
     // 2. Parse recipient address → Sapling PaymentAddress.
-    let recipient = parse_sapling_address(to_address)?;
+    // Pass the wallet network so a mainnet address is rejected when using a testnet wallet.
+    let recipient = parse_sapling_address(to_address, network)?;
 
     // 3–4. Fee-aware coin selection (2-pass):
     //   Pass 1: estimate fee assuming 1 spend and 2 outputs (pay + change).
@@ -463,39 +464,57 @@ pub fn build_shielded_tx(
 /// - Unified Addresses that contain a Sapling receiver
 ///
 /// Returns `UnsupportedAddressType` for transparent, Sprout, and UA-Orchard-only.
+/// Returns `InvalidRecipient` if the address encodes a different network than `wallet_network`.
 // pub(crate) for direct testing of error variants (nie-wdw.9).
-pub(crate) fn parse_sapling_address(address: &str) -> Result<PaymentAddress, TxBuildError> {
+pub(crate) fn parse_sapling_address(
+    address: &str,
+    wallet_network: ZcashNetwork,
+) -> Result<PaymentAddress, TxBuildError> {
     /// Local extractor type implementing `TryFromAddress`.
     ///
-    /// Only the Sapling and Unified variants are overridden; all others use the
-    /// default implementation which returns `ConversionError::Unsupported`.
-    struct SaplingExtractor([u8; 43]);
+    /// Captures the network encoded in the address so the caller can compare it
+    /// against the wallet's configured network.  Only the Sapling and Unified
+    /// variants are overridden; all others use the default implementation which
+    /// returns `ConversionError::Unsupported`.
+    struct SaplingExtractor {
+        bytes: [u8; 43],
+        /// Network encoded in the address (Mainnet, Testnet, or Regtest).
+        addr_network: zcash_protocol::consensus::NetworkType,
+    }
 
     impl TryFromAddress for SaplingExtractor {
         type Error = String; // not used; all paths return Ok or Unsupported
 
         fn try_from_sapling(
-            _net: zcash_protocol::consensus::NetworkType,
+            net: zcash_protocol::consensus::NetworkType,
             data: [u8; 43],
         ) -> Result<Self, ConversionError<Self::Error>> {
-            Ok(SaplingExtractor(data))
+            Ok(SaplingExtractor {
+                bytes: data,
+                addr_network: net,
+            })
         }
 
         fn try_from_unified(
-            _net: zcash_protocol::consensus::NetworkType,
+            net: zcash_protocol::consensus::NetworkType,
             ua: zcash_address::unified::Address,
         ) -> Result<Self, ConversionError<Self::Error>> {
             let sapling_bytes = ua.items().into_iter().find_map(|r| match r {
                 UaReceiver::Sapling(b) => Some(b),
                 _ => None,
             });
-            sapling_bytes.map(SaplingExtractor).ok_or_else(|| {
-                // ConversionError::User carries the message; UnsupportedAddress
-                // cannot be constructed from outside zcash_address (private field).
-                ConversionError::User(
-                    "Unified Address has no Sapling receiver (Orchard-only)".to_string(),
-                )
-            })
+            sapling_bytes
+                .map(|bytes| SaplingExtractor {
+                    bytes,
+                    addr_network: net,
+                })
+                .ok_or_else(|| {
+                    // ConversionError::User carries the message; UnsupportedAddress
+                    // cannot be constructed from outside zcash_address (private field).
+                    ConversionError::User(
+                        "Unified Address has no Sapling receiver (Orchard-only)".to_string(),
+                    )
+                })
         }
     }
 
@@ -520,7 +539,25 @@ pub(crate) fn parse_sapling_address(address: &str) -> Result<PaymentAddress, TxB
                 ConversionError::User(s) => TxBuildError::UnsupportedAddressType(s),
             })?;
 
-    PaymentAddress::from_bytes(&extractor.0)
+    // Check that the network encoded in the address matches the wallet's network.
+    // A mainnet address must not be accepted by a testnet wallet and vice versa.
+    let expected_net = wallet_network.to_zcash_network();
+    if extractor.addr_network != expected_net {
+        let addr_net_name = match extractor.addr_network {
+            zcash_protocol::consensus::NetworkType::Main => "mainnet",
+            zcash_protocol::consensus::NetworkType::Test => "testnet",
+            zcash_protocol::consensus::NetworkType::Regtest => "regtest",
+        };
+        let wallet_net_name = match wallet_network {
+            ZcashNetwork::Mainnet => "mainnet",
+            ZcashNetwork::Testnet => "testnet",
+        };
+        return Err(TxBuildError::InvalidRecipient(format!(
+            "address is for {addr_net_name} but wallet is configured for {wallet_net_name}"
+        )));
+    }
+
+    PaymentAddress::from_bytes(&extractor.bytes)
         .ok_or_else(|| TxBuildError::InvalidRecipient("Sapling address bytes are invalid".into()))
 }
 
@@ -1113,7 +1150,7 @@ mod tests {
     /// Empty address string → InvalidRecipient.
     #[test]
     fn parse_address_empty_string_returns_invalid_recipient() {
-        let err = parse_sapling_address("").unwrap_err();
+        let err = parse_sapling_address("", ZcashNetwork::Testnet).unwrap_err();
         assert!(
             matches!(err, TxBuildError::InvalidRecipient(_)),
             "expected InvalidRecipient, got: {err:?}"
@@ -1123,7 +1160,8 @@ mod tests {
     /// Non-address string → InvalidRecipient.
     #[test]
     fn parse_address_garbage_returns_invalid_recipient() {
-        let err = parse_sapling_address("not_an_address_at_all").unwrap_err();
+        let err =
+            parse_sapling_address("not_an_address_at_all", ZcashNetwork::Testnet).unwrap_err();
         assert!(
             matches!(err, TxBuildError::InvalidRecipient(_)),
             "expected InvalidRecipient, got: {err:?}"
@@ -1137,7 +1175,9 @@ mod tests {
     #[test]
     fn parse_address_transparent_returns_unsupported_type() {
         // From zcash_address crate's own encoding test vectors (encoding.rs line 333).
-        let err = parse_sapling_address("tm9ofD7kHR7AF8MsJomEzLqGcrLCBkD9gDj").unwrap_err();
+        let err =
+            parse_sapling_address("tm9ofD7kHR7AF8MsJomEzLqGcrLCBkD9gDj", ZcashNetwork::Testnet)
+                .unwrap_err();
         assert!(
             matches!(err, TxBuildError::UnsupportedAddressType(_)),
             "expected UnsupportedAddressType, got: {err:?}"
@@ -1168,7 +1208,7 @@ mod tests {
             .expect("Orchard-only UA must be valid");
         let ua_str = ua.encode(&NetworkType::Test);
 
-        let err = parse_sapling_address(&ua_str).unwrap_err();
+        let err = parse_sapling_address(&ua_str, ZcashNetwork::Testnet).unwrap_err();
         assert!(
             matches!(err, TxBuildError::UnsupportedAddressType(_)),
             "Orchard-only UA must return UnsupportedAddressType, not InvalidRecipient: {err:?}"
@@ -1186,8 +1226,72 @@ mod tests {
     #[test]
     fn parse_address_valid_sapling_testnet_succeeds() {
         let addr_str = testnet_sapling_ua_str();
-        let result = parse_sapling_address(&addr_str);
+        let result = parse_sapling_address(&addr_str, ZcashNetwork::Testnet);
         assert!(result.is_ok(), "expected Ok, got: {result:?}");
+    }
+
+    /// Mainnet Sapling address rejected by testnet wallet → InvalidRecipient.
+    ///
+    /// Oracle: a raw Sapling mainnet address (zs1…) must be rejected when the
+    /// wallet is configured for testnet.  The error must name both the address
+    /// network and the wallet network so the user can diagnose the mismatch.
+    ///
+    /// Address: default address from ZIP-32 seed [0u8;64] on mainnet account 0.
+    /// Derived via SaplingExtendedSpendingKey::from_seed with ZcashNetwork::Mainnet.
+    #[test]
+    fn parse_address_mainnet_addr_rejected_by_testnet_wallet() {
+        use crate::address::SaplingExtendedSpendingKey;
+        use zcash_address::ToAddress;
+
+        // Derive the default mainnet Sapling address from a known seed.
+        let sk = SaplingExtendedSpendingKey::from_seed(&[0u8; 64], ZcashNetwork::Mainnet, 0);
+        let (_, addr) = sk.default_address();
+        // Encode as a mainnet raw Sapling bech32 address (zs1…).
+        let mainnet_addr_str = zcash_address::ZcashAddress::from_sapling(
+            zcash_protocol::consensus::NetworkType::Main,
+            addr.to_bytes(),
+        )
+        .encode();
+        assert!(
+            mainnet_addr_str.starts_with("zs"),
+            "mainnet Sapling address must start with 'zs': {mainnet_addr_str}"
+        );
+
+        // A testnet wallet must reject a mainnet address.
+        let err = parse_sapling_address(&mainnet_addr_str, ZcashNetwork::Testnet).unwrap_err();
+        assert!(
+            matches!(err, TxBuildError::InvalidRecipient(ref msg) if msg.contains("mainnet") && msg.contains("testnet")),
+            "expected InvalidRecipient naming mainnet and testnet, got: {err:?}"
+        );
+    }
+
+    /// Testnet Sapling address rejected by mainnet wallet → InvalidRecipient.
+    ///
+    /// Symmetric counterpart to parse_address_mainnet_addr_rejected_by_testnet_wallet.
+    ///
+    /// Oracle: testnet address from ZIP-32 seed [0u8;64] on testnet account 0.
+    #[test]
+    fn parse_address_testnet_addr_rejected_by_mainnet_wallet() {
+        use crate::address::SaplingExtendedSpendingKey;
+        use zcash_address::ToAddress;
+
+        let sk = SaplingExtendedSpendingKey::from_seed(&[0u8; 64], ZcashNetwork::Testnet, 0);
+        let (_, addr) = sk.default_address();
+        let testnet_addr_str = zcash_address::ZcashAddress::from_sapling(
+            zcash_protocol::consensus::NetworkType::Test,
+            addr.to_bytes(),
+        )
+        .encode();
+        assert!(
+            testnet_addr_str.starts_with("ztestsapling"),
+            "testnet Sapling address must start with 'ztestsapling': {testnet_addr_str}"
+        );
+
+        let err = parse_sapling_address(&testnet_addr_str, ZcashNetwork::Mainnet).unwrap_err();
+        assert!(
+            matches!(err, TxBuildError::InvalidRecipient(ref msg) if msg.contains("testnet") && msg.contains("mainnet")),
+            "expected InvalidRecipient naming testnet and mainnet, got: {err:?}"
+        );
     }
 
     // ---- InsufficientFunds ----

@@ -75,6 +75,9 @@ pub mod rpc_errors {
     pub const NOT_AUTHENTICATED: i32 = -32002;
     pub const SPOOFED_SENDER: i32 = -32003;
     pub const NICKNAME_TAKEN: i32 = -32004;
+    /// Per-user resource quota exceeded (e.g. too many key packages).
+    /// Stable wire contract; value must never change.
+    pub const RESOURCE_EXHAUSTED: i32 = -32008;
     pub const SUBSCRIPTION_REQUIRED: i32 = -32010;
     pub const GROUP_NOT_FOUND: i32 = -32011;
     pub const NOT_A_MEMBER: i32 = -32012;
