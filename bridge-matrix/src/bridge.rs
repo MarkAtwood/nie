@@ -120,11 +120,20 @@ pub fn format_for_nie(event: &MatrixEvent, text: &str) -> ClearMessage {
 
 /// Returns true if the Matrix event came from our own bridge bot sender.
 pub fn is_bot_sender(event: &MatrixEvent, bot_localpart: &str, homeserver: &str) -> bool {
-    // Homeserver domain from URL: strip http(s):// and any trailing slash.
-    let domain = homeserver
+    // Homeserver domain from URL: strip http(s):// and any trailing slash,
+    // then strip the standard port for the scheme so that a URL like
+    // https://matrix.example.com:443 and https://matrix.example.com both
+    // produce "matrix.example.com", matching the MXID the homeserver uses.
+    let without_scheme = homeserver
         .trim_start_matches("https://")
         .trim_start_matches("http://")
         .trim_end_matches('/');
+    let is_https = homeserver.starts_with("https://");
+    let domain = match without_scheme.rsplit_once(':') {
+        Some((host, "443")) if is_https => host,
+        Some((host, "80")) if !is_https => host,
+        _ => without_scheme,
+    };
     let bot_mxid = format!("@{bot_localpart}:{domain}");
     event.sender == bot_mxid
 }
@@ -169,9 +178,14 @@ async fn as_transaction(
             );
             continue;
         }
-        // Non-blocking: drop the event if the buffer is full rather than
-        // back-pressuring the homeserver.
-        let _ = state.tx.try_send(event);
+        // Block until the bridge loop has capacity, so the homeserver only
+        // receives HTTP 200 after the event is actually queued.  If the
+        // channel is closed (bridge loop has died), return 500 so the
+        // homeserver retries the transaction.
+        if state.tx.send(event).await.is_err() {
+            tracing::error!("Matrix→nie channel closed; returning 500 for homeserver retry");
+            return axum::http::StatusCode::INTERNAL_SERVER_ERROR;
+        }
     }
     axum::http::StatusCode::OK
 }
@@ -372,6 +386,39 @@ mod tests {
             &event,
             "niebridge",
             "https://matrix.example.com"
+        ));
+    }
+
+    #[test]
+    fn is_bot_sender_strips_standard_https_port() {
+        // URL with explicit :443 must match the same MXID as without the port.
+        let event = make_event("@niebridge:matrix.example.com");
+        assert!(is_bot_sender(
+            &event,
+            "niebridge",
+            "https://matrix.example.com:443"
+        ));
+    }
+
+    #[test]
+    fn is_bot_sender_keeps_nonstandard_port() {
+        // Non-standard port (e.g. :8448) must NOT be stripped; the MXID would
+        // include it if the homeserver advertises that port in its server name.
+        // Concretely: sender "@niebridge:matrix.example.com" should NOT match
+        // homeserver "https://matrix.example.com:8448" because the domain
+        // produced is "matrix.example.com:8448".
+        let event = make_event("@niebridge:matrix.example.com");
+        assert!(!is_bot_sender(
+            &event,
+            "niebridge",
+            "https://matrix.example.com:8448"
+        ));
+        // And the correctly-formed MXID for that URL does match.
+        let event2 = make_event("@niebridge:matrix.example.com:8448");
+        assert!(is_bot_sender(
+            &event2,
+            "niebridge",
+            "https://matrix.example.com:8448"
         ));
     }
 

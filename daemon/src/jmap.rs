@@ -1511,19 +1511,23 @@ async fn space_query_changes(args: Value, state: &DaemonState) -> (String, Value
         Ok(t) => t,
         Err(e) => return db_error(e),
     };
+    if since != new_state {
+        // The daemon has no per-object change log.  Space/query already
+        // advertises canCalculateChanges:false; returning cannotCalculateChanges
+        // here is the correct RFC 8620 §5.4 response when clients call anyway.
+        // Returning all IDs as `added` would be wrong — the client would treat
+        // every space as newly added on every poll after any mutation.
+        return (
+            "error".to_string(),
+            serde_json::json!({"type": "cannotCalculateChanges", "newState": new_state}),
+        );
+    }
+    // State unchanged — nothing added or removed.
     let ids = match store.query_spaces(&account_id).await {
         Ok(v) => v,
         Err(e) => return db_error(e),
     };
     let total = ids.len() as i64;
-    let added: Vec<Value> = if since == new_state {
-        vec![]
-    } else {
-        ids.into_iter()
-            .enumerate()
-            .map(|(i, id)| serde_json::json!({ "index": i as i64, "id": id }))
-            .collect()
-    };
     method_ok(
         "Space/queryChanges",
         serde_json::json!({
@@ -1531,7 +1535,7 @@ async fn space_query_changes(args: Value, state: &DaemonState) -> (String, Value
             "oldQueryState": since,
             "newQueryState": new_state,
             "removed": [],
-            "added": added,
+            "added": [],
             "total": total,
         }),
     )
@@ -2133,23 +2137,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
     // ── update ──────────────────────────────────────────────────────────────
     if let Some(Value::Object(updates)) = args.get("update") {
         for (msg_id, patch) in updates {
-            // Pre-validate: the message must exist and belong to this account
-            // before we apply any patch fields (RFC 8620 §5.3).
-            match store.get_messages(&[msg_id.as_str()]).await {
-                Err(e) => return db_error(e),
-                Ok((rows, _)) => {
-                    if rows.is_empty() {
-                        not_updated.insert(msg_id.clone(), serde_json::json!({"type": "notFound"}));
-                        continue;
-                    }
-                    // Ownership check: only the sender may mutate their message.
-                    let sender = &rows[0].sender_id;
-                    if sender != state.my_pub_id() {
-                        not_updated.insert(msg_id.clone(), serde_json::json!({"type": "notFound"}));
-                        continue;
-                    }
-                }
-            }
+            // Note: no outer existence/ownership pre-check here.  Each store
+            // call in Phase 2 returns its own not-found or forbidden result.
+            // edit_message_body has an internal ownership check (EditBodyResult::Forbidden).
+            // A redundant outer check creates a TOCTOU window and was removed.
             if let Some(Value::Object(patch_map)) = Some(patch) {
                 // Phase 1: validate all patch paths and value types before
                 // writing anything to the DB.  This prevents partial-state
@@ -2157,13 +2148,35 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // type validation, leaving the message in an inconsistent state.
                 let mut validate_err: Option<Value> = None;
                 for (path, value) in patch_map.iter() {
-                    if let Some(_reaction_id) = path.strip_prefix("reactions/") {
+                    if let Some(reaction_id) = path.strip_prefix("reactions/") {
+                        // reaction_id: max 64 chars, ASCII printable only (0x20–0x7E).
+                        if reaction_id.len() > 64
+                            || !reaction_id.bytes().all(|b| (0x20..=0x7e).contains(&b))
+                        {
+                            validate_err = Some(serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "reaction_id must be 1–64 ASCII printable characters"
+                            }));
+                            break;
+                        }
                         if !value.is_null() && !value.is_object() {
                             validate_err = Some(serde_json::json!({
                                 "type": "invalidArguments",
                                 "description": "reaction value must be null (to remove) or an object"
                             }));
                             break;
+                        }
+                        // When adding a reaction (value is an object), validate emoji length.
+                        if value.is_object() {
+                            if let Some(emoji_str) = value.get("emoji").and_then(|v| v.as_str()) {
+                                if emoji_str.len() > 32 {
+                                    validate_err = Some(serde_json::json!({
+                                        "type": "invalidArguments",
+                                        "description": "emoji must not exceed 32 bytes"
+                                    }));
+                                    break;
+                                }
+                            }
                         }
                     } else if path == "body" {
                         if value.as_str().is_none() {
@@ -2182,12 +2195,23 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                             break;
                         }
                     } else if path == "readAt" {
-                        if value.as_str().is_none() {
-                            validate_err = Some(serde_json::json!({
-                                "type": "invalidArguments",
-                                "description": "readAt must be a string"
-                            }));
-                            break;
+                        match value.as_str() {
+                            None => {
+                                validate_err = Some(serde_json::json!({
+                                    "type": "invalidArguments",
+                                    "description": "readAt must be a string"
+                                }));
+                                break;
+                            }
+                            Some(s) => {
+                                if chrono::DateTime::parse_from_rfc3339(s).is_err() {
+                                    validate_err = Some(serde_json::json!({
+                                        "type": "invalidArguments",
+                                        "description": "readAt must be a valid RFC 3339 timestamp"
+                                    }));
+                                    break;
+                                }
+                            }
                         }
                     } else {
                         // nie-u966.11: JMAP spec requires unknown patch paths to
@@ -2544,11 +2568,18 @@ pub async fn handle_jmap_upload(
     if body.len() > UPLOAD_MAX_BYTES {
         return (StatusCode::PAYLOAD_TOO_LARGE, "upload exceeds limit").into_response();
     }
-    let content_type = headers
+    let content_type_raw = headers
         .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("application/octet-stream")
-        .to_string();
+        .unwrap_or("application/octet-stream");
+    if content_type_raw.len() > 256 {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Content-Type header exceeds maximum length",
+        )
+            .into_response();
+    }
+    let content_type = content_type_raw.to_string();
 
     let blob_id = format!("{:x}", Sha256::digest(&body));
     let size = body.len();

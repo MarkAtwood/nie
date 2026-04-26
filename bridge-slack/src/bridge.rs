@@ -98,8 +98,16 @@ async fn slack_events(
                 );
                 return Ok(Json(serde_json::json!({})));
             }
-            if let Some(text) = inner.text_body() {
+            if let Some(raw_text) = inner.text_body() {
                 let user = inner.user.as_deref().unwrap_or("unknown");
+                // Cap incoming Slack text to prevent the MLS-padded payload
+                // from exceeding the relay's WebSocket frame size limit.
+                const MAX_SLACK_TEXT: usize = 8192;
+                let text = if raw_text.len() > MAX_SLACK_TEXT {
+                    &raw_text[..MAX_SLACK_TEXT]
+                } else {
+                    raw_text
+                };
                 let nie_text = format_for_nie(user, text);
                 // Return 200 only after the message is in the channel.
                 // If send fails (channel closed), return 500 so Slack retries.
@@ -192,7 +200,9 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
         tokio::select! {
             // Slack message → nie broadcast.
             maybe_text = slack_rx.recv() => {
-                let Some(text) = maybe_text else { break };
+                let Some(text) = maybe_text else {
+                    anyhow::bail!("Slack event channel closed; exiting for systemd restart");
+                };
                 let payload = serde_json::to_vec(&ClearMessage::Chat { text }).unwrap();
                 let Ok(padded) = pad(&payload) else {
                     tracing::warn!("Slack message too large to pad; dropped");
@@ -206,13 +216,14 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                     continue;
                 };
                 if conn.tx.send(rpc).await.is_err() {
-                    tracing::warn!("relay disconnected while sending");
-                    break;
+                    anyhow::bail!("relay send channel closed; exiting for systemd restart");
                 }
             }
             // nie relay event → Slack post.
             maybe_event = conn.rx.recv() => {
-                let Some(event) = maybe_event else { break };
+                let Some(event) = maybe_event else {
+                    anyhow::bail!("relay event channel closed; exiting for systemd restart");
+                };
                 match event {
                     ClientEvent::Message(notif) => {
                         if notif.method == rpc_methods::DELIVER {
@@ -230,15 +241,13 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                         tracing::info!("relay reconnecting in {delay_secs}s");
                     }
                     ClientEvent::Disconnected => {
-                        tracing::error!("relay disconnected");
-                        break;
+                        anyhow::bail!("relay permanently disconnected; exiting for systemd restart");
                     }
                     _ => {}
                 }
             }
         }
     }
-    Ok(())
 }
 
 #[cfg(test)]

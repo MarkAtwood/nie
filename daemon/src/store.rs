@@ -1069,7 +1069,7 @@ impl Store {
                              SELECT 1 FROM space_member sm
                              WHERE sm.space_id = si.space_id AND sm.contact_id = ?
                          )
-                         ORDER BY si.created_at ASC",
+                         ORDER BY si.created_at ASC LIMIT 1000",
                     )
                     .bind(account_id)
                     .fetch_all(&self.pool)
@@ -1250,7 +1250,7 @@ impl Store {
     pub async fn get_categories(&self, space_id: &str) -> Result<Vec<CategoryRow>> {
         let rows = sqlx::query_as::<_, (String, String, String, i64)>(
             "SELECT id, space_id, name, sort_order FROM category WHERE space_id = ?
-             ORDER BY sort_order ASC",
+             ORDER BY sort_order ASC LIMIT 500",
         )
         .bind(space_id)
         .fetch_all(&self.pool)
@@ -1665,7 +1665,7 @@ impl Store {
             None => {
                 let rows = sqlx::query_as::<_, ChatTuple>(
                     "SELECT id, kind, name, space_id, contact_id, created_at, last_message_at, unread_count, muted
-                     FROM chat ORDER BY created_at ASC",
+                     FROM chat ORDER BY created_at ASC LIMIT 1000",
                 )
                 .fetch_all(&self.pool)
                 .await?;
