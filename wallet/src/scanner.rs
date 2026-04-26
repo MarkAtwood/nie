@@ -401,7 +401,12 @@ impl CompactBlockScanner {
         let mut stream = self.client.get_block_range(start, end).await?;
         let mut scanned = 0u64;
         let mut prev_height: Option<u64> = None;
-        while let Some(block) = stream.message().await? {
+        loop {
+            let msg = tokio::time::timeout(Duration::from_secs(30), stream.message())
+                .await
+                .map_err(|_| anyhow::anyhow!("get_block_range: timed out waiting for next block"))?
+                .map_err(|e| anyhow::anyhow!("get_block_range stream error: {e}"))?;
+            let Some(block) = msg else { break };
             // Verify strict height monotonicity before touching the commitment tree.
             // The Sapling incremental commitment tree relies on commitments being
             // appended in strictly ascending block order; an out-of-order or

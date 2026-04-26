@@ -158,14 +158,19 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
 
             // Process each block.
             loop {
-                let block = match stream.message().await {
-                    Ok(Some(b)) => b,
-                    Ok(None) => break, // Stream exhausted normally.
-                    Err(e) => {
-                        warn!("payment_watcher: block stream error: {e}");
-                        break;
-                    }
-                };
+                let block =
+                    match tokio::time::timeout(Duration::from_secs(30), stream.message()).await {
+                        Ok(Ok(Some(b))) => b,
+                        Ok(Ok(None)) => break, // Stream exhausted normally.
+                        Ok(Err(e)) => {
+                            warn!("payment_watcher: block stream error: {e}");
+                            break;
+                        }
+                        Err(_elapsed) => {
+                            warn!("payment_watcher: block stream timed out after 30s");
+                            break;
+                        }
+                    };
 
                 if block.height == 0 {
                     warn!("payment_watcher: received CompactBlock with height=0; skipping to avoid scan-height reset");

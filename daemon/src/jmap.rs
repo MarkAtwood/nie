@@ -417,6 +417,11 @@ async fn contact_get(args: Value, state: &DaemonState) -> (String, Value) {
         ),
         _ => return method_error("invalidArguments"),
     };
+    if let Some(ref ids) = ids_opt {
+        if ids.len() > 4096 {
+            return invalid_args("too many ids");
+        }
+    }
     let id_strs: Option<Vec<&str>> = ids_opt
         .as_ref()
         .map(|v| v.iter().map(|s| s.as_str()).collect());
@@ -1761,6 +1766,11 @@ async fn message_get(args: Value, state: &DaemonState) -> (String, Value) {
         ),
         _ => return method_error("invalidArguments"),
     };
+    if let Some(ref ids) = ids_opt {
+        if ids.len() > 4096 {
+            return invalid_args("too many ids");
+        }
+    }
     let state_tok = match store.state_token("Message").await {
         Ok(t) => t,
         Err(e) => return db_error(e),
@@ -2512,6 +2522,30 @@ pub async fn handle_jmap_upload(
         .into_response()
 }
 
+/// Return a safe Content-Type for a stored blob.
+///
+/// Allows `image/*`, `audio/*`, `video/*`, and `application/octet-stream`
+/// through unchanged.  Everything else — including `text/html` and
+/// `text/javascript` — is coerced to `application/octet-stream` to prevent
+/// the browser from rendering or executing the blob as active content.
+fn sanitize_blob_content_type(stored: &str) -> String {
+    let mime = stored
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_ascii_lowercase();
+    let safe = mime.starts_with("image/")
+        || mime.starts_with("audio/")
+        || mime.starts_with("video/")
+        || mime == "application/octet-stream";
+    if safe {
+        stored.to_string()
+    } else {
+        "application/octet-stream".to_string()
+    }
+}
+
 /// GET /jmap/download/:account_id/:blob_id/:name
 ///
 /// Download a blob.  The `:name` segment is ignored (used by clients as the
@@ -2528,7 +2562,15 @@ pub async fn handle_jmap_download(
     };
     match store.get_blob(&blob_id).await {
         Ok(Some((content_type, data))) => {
-            ([(header::CONTENT_TYPE, content_type)], data).into_response()
+            let safe_ct = sanitize_blob_content_type(&content_type);
+            (
+                [
+                    (header::CONTENT_TYPE, safe_ct),
+                    (header::CONTENT_DISPOSITION, "attachment".to_string()),
+                ],
+                data,
+            )
+                .into_response()
         }
         Ok(None) => StatusCode::NOT_FOUND.into_response(),
         Err(e) => {

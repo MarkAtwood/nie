@@ -1935,23 +1935,36 @@ impl Store {
     /// and returns `true`.  Otherwise sets a `read_at` marker and returns `false`.
     /// Returns `Ok(false)` if the message is not found (not a database error).
     pub async fn read_message(&self, msg_id: &str, read_at: &str) -> Result<bool> {
-        let row: Option<(i64,)> = sqlx::query_as("SELECT burn_on_read FROM message WHERE id = ?")
-            .bind(msg_id)
-            .fetch_optional(&self.pool)
-            .await?;
-        let Some((burn,)) = row else {
-            return Ok(false);
-        };
-        if burn != 0 {
-            self.hard_delete_message(msg_id).await?;
-            return Ok(true); // burned
+        // Atomically delete the message if burn_on_read is set, returning its id
+        // if a row was actually deleted.  This collapses the previous SELECT +
+        // DELETE into a single statement so there is no window in which a
+        // concurrent reader can observe the message between the two operations.
+        let deleted: Option<(String,)> =
+            sqlx::query_as("DELETE FROM message WHERE id = ? AND burn_on_read = 1 RETURNING id")
+                .bind(msg_id)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        if deleted.is_some() {
+            // Row was burned — bump state so subscribers see the deletion.
+            self.bump_state_seq("Message").await?;
+            return Ok(true);
         }
-        sqlx::query("UPDATE message SET delivery_state = 'read', read_at = ? WHERE id = ?")
-            .bind(read_at)
-            .bind(msg_id)
-            .execute(&self.pool)
-            .await?;
-        self.bump_state_seq("Message").await?;
+
+        // burn_on_read was 0 (or the message does not exist): update delivery
+        // state.  rows_affected == 0 means not found; that is not an error.
+        let rows = sqlx::query(
+            "UPDATE message SET delivery_state = 'read', read_at = ? WHERE id = ? AND burn_on_read = 0",
+        )
+        .bind(read_at)
+        .bind(msg_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+
+        if rows > 0 {
+            self.bump_state_seq("Message").await?;
+        }
         Ok(false)
     }
 

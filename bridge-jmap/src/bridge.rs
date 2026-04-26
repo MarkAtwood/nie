@@ -242,6 +242,17 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                         }
                         Err(e) => {
                             tracing::warn!("JMAP email_get failed: {e}");
+                            // Mark all requested IDs as seen so a persistently
+                            // malformed or undecodable response is not retried
+                            // forever.  The warn above records the IDs via the
+                            // new_ids value logged in context.
+                            let mut seen = seen_ids.lock().unwrap_or_else(|e| e.into_inner());
+                            for id in &new_ids {
+                                tracing::warn!(
+                                    "skipping email {id} after fetch error; will not retry"
+                                );
+                                seen.insert(id.clone());
+                            }
                         }
                     }
                 }
