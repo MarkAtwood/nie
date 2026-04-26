@@ -5,7 +5,12 @@ use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use futures::channel::oneshot;
 use js_sys::Function;
-use nie_core::{auth, identity::Identity, messages::{pad, unpad, ClearMessage}, protocol::UserInfo};
+use nie_core::{
+    auth,
+    identity::Identity,
+    messages::{pad, unpad, ClearMessage},
+    protocol::UserInfo,
+};
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
 

@@ -1,12 +1,12 @@
 use chrono::{DateTime, Utc};
 use nie_core::messages::PaymentSession;
-use zeroize::Zeroizing;
 use nie_core::mls::MlsClient;
 use nie_wallet::db::WalletStore;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
+use zeroize::Zeroizing;
 
 /// A single line in the chat history
 #[derive(Debug, Clone)]

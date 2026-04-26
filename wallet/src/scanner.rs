@@ -375,9 +375,7 @@ impl CompactBlockScanner {
             self.birthday_warned = true;
         }
         let start = scan_tip.checked_add(1).ok_or_else(|| {
-            anyhow::anyhow!(
-                "scan_tip ({scan_tip}) is u64::MAX; cannot advance scanner"
-            )
+            anyhow::anyhow!("scan_tip ({scan_tip}) is u64::MAX; cannot advance scanner")
         })?;
         let end = self.client.latest_height().await?;
         if start > end {
@@ -405,7 +403,14 @@ impl CompactBlockScanner {
         let witnesses_snapshot = self.witnesses.clone();
 
         for tx in &block.vtx {
-            self.scan_tx(block.height, block.time, tx).await?;
+            if let Err(e) = self.scan_tx(block.height, block.time, tx).await {
+                self.tree = tree_snapshot;
+                self.witnesses = witnesses_snapshot;
+                return Err(anyhow::anyhow!(
+                    "scan_tx failed at height {}: {e}",
+                    block.height
+                ));
+            }
         }
 
         // Serialize the updated commitment tree.
@@ -483,17 +488,13 @@ impl CompactBlockScanner {
             // that appear after their fork point.
             for (_note_id, witness) in self.witnesses.iter_mut() {
                 if witness.append(node).is_err() {
-                    return Err(anyhow::anyhow!(
-                        "Sapling note commitment tree is full"
-                    ));
+                    return Err(anyhow::anyhow!("Sapling note commitment tree is full"));
                 }
             }
 
             // Step 3: Append to global tree.
             if self.tree.append(node).is_err() {
-                return Err(anyhow::anyhow!(
-                    "Sapling note commitment tree is full"
-                ));
+                return Err(anyhow::anyhow!("Sapling note commitment tree is full"));
             }
 
             // Step 4: Trial-decrypt.

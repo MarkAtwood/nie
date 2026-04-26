@@ -220,9 +220,7 @@ async fn dispatch_notification(
                             Ok(Some(stored_sender)) => stored_sender == sender_pub_id,
                             Ok(None) => false,
                             Err(e) => {
-                                tracing::warn!(
-                                    "peer_retract: message_sender_id failed: {e}"
-                                );
+                                tracing::warn!("peer_retract: message_sender_id failed: {e}");
                                 false
                             }
                         }

@@ -1222,10 +1222,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                     created.insert(client_id.clone(), serde_json::json!({ "id": id }));
                 }
                 Err(e) => {
-                    not_created.insert(
-                        client_id.clone(),
-                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                    );
+                    not_created.insert(client_id.clone(), {
+                        tracing::error!("database error: {e}");
+                        serde_json::json!({"type":"serverFail","description":"database error"})
+                    });
                 }
             }
         }
@@ -1239,17 +1239,15 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // notFound (RFC 8620 §7.1) rather than leaking forbidden.
                 match store.space_exists(space_id).await {
                     Ok(false) => {
-                        not_updated.insert(
-                            space_id.clone(),
-                            serde_json::json!({"type": "notFound"}),
-                        );
+                        not_updated
+                            .insert(space_id.clone(), serde_json::json!({"type": "notFound"}));
                         continue;
                     }
                     Err(e) => {
-                        not_updated.insert(
-                            space_id.clone(),
-                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                        );
+                        not_updated.insert(space_id.clone(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                         continue;
                     }
                     Ok(true) => {}
@@ -1260,17 +1258,15 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                 match store.get_space_member_role(space_id, &account_id).await {
                     Ok(Some(crate::store::SpaceRole::Admin)) => {} // allowed
                     Ok(_) => {
-                        not_updated.insert(
-                            space_id.clone(),
-                            serde_json::json!({"type": "forbidden"}),
-                        );
+                        not_updated
+                            .insert(space_id.clone(), serde_json::json!({"type": "forbidden"}));
                         continue;
                     }
                     Err(e) => {
-                        not_updated.insert(
-                            space_id.clone(),
-                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                        );
+                        not_updated.insert(space_id.clone(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                         continue;
                     }
                 }
@@ -1383,10 +1379,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                         continue;
                     }
                     Err(e) => {
-                        not_destroyed.insert(
-                            id.to_string(),
-                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                        );
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                         continue;
                     }
                     Ok(true) => {}
@@ -1401,10 +1397,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                         continue;
                     }
                     Err(e) => {
-                        not_destroyed.insert(
-                            id.to_string(),
-                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                        );
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                         continue;
                     }
                 }
@@ -1415,10 +1411,10 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
                             .insert(id.to_string(), serde_json::json!({"type":"notFound"}));
                     }
                     Err(e) => {
-                        not_destroyed.insert(
-                            id.to_string(),
-                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                        );
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                     }
                 }
             }
@@ -1533,9 +1529,19 @@ async fn space_join(args: Value, state: &DaemonState) -> (String, Value) {
         Some(c) => c.to_string(),
         None => return method_error("invalidArguments"),
     };
+    use crate::store::SpaceJoinOutcome;
     match store.use_space_invite_code(&code, &account_id).await {
-        Ok(Some(space_id)) => method_ok("Space/join", serde_json::json!({ "spaceId": space_id })),
-        Ok(None) => (
+        Ok(SpaceJoinOutcome::Joined(space_id)) => {
+            method_ok("Space/join", serde_json::json!({ "spaceId": space_id }))
+        }
+        Ok(SpaceJoinOutcome::AlreadyMember(_)) => (
+            "error".to_string(),
+            serde_json::json!({
+                "type": "alreadyMember",
+                "description": "already a member of this space"
+            }),
+        ),
+        Ok(SpaceJoinOutcome::NotFound) => (
             "error".to_string(),
             serde_json::json!({
                 "type": "notFound",
@@ -1655,10 +1661,10 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                     continue;
                 }
                 Err(e) => {
-                    not_created.insert(
-                        client_id.clone(),
-                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                    );
+                    not_created.insert(client_id.clone(), {
+                        tracing::error!("database error: {e}");
+                        serde_json::json!({"type":"serverFail","description":"database error"})
+                    });
                     continue;
                 }
                 Ok(Some(_)) => {} // caller is a member, proceed
@@ -1679,10 +1685,10 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
                     );
                 }
                 Err(e) => {
-                    not_created.insert(
-                        client_id.clone(),
-                        { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                    );
+                    not_created.insert(client_id.clone(), {
+                        tracing::error!("database error: {e}");
+                        serde_json::json!({"type":"serverFail","description":"database error"})
+                    });
                 }
             }
         }
@@ -1821,10 +1827,7 @@ async fn message_changes(args: Value, state: &DaemonState) -> (String, Value) {
         match state.default_channel_id() {
             Some(chan) => match store.query_messages(chan, 0, MAX_CHANGES).await {
                 Ok(ids) => {
-                    let total = store
-                        .count_messages_in_chat(chan)
-                        .await
-                        .unwrap_or(0);
+                    let total = store.count_messages_in_chat(chan).await.unwrap_or(0);
                     let has_more = total > MAX_CHANGES;
                     (ids, has_more)
                 }
@@ -1991,24 +1994,22 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 let payload_bytes = serde_json::to_vec(&clear).unwrap();
                 let encrypted = mls.lock().await.encrypt(&payload_bytes);
                 match encrypted {
-                    Ok(cipher) => {
-                        match pad(&cipher) {
-                            Ok(padded) => {
-                                if let Some(tx) = state.relay_tx().await {
-                                    let rpc = JsonRpcRequest::new(
-                                        next_request_id(),
-                                        rpc_methods::BROADCAST,
-                                        BroadcastParams { payload: padded },
-                                    )
-                                    .unwrap();
-                                    let _ = tx.send(rpc).await;
-                                }
-                            }
-                            Err(e) => {
-                                tracing::warn!("Message/set: MLS payload too large to pad: {e}");
+                    Ok(cipher) => match pad(&cipher) {
+                        Ok(padded) => {
+                            if let Some(tx) = state.relay_tx().await {
+                                let rpc = JsonRpcRequest::new(
+                                    next_request_id(),
+                                    rpc_methods::BROADCAST,
+                                    BroadcastParams { payload: padded },
+                                )
+                                .unwrap();
+                                let _ = tx.send(rpc).await;
                             }
                         }
-                    }
+                        Err(e) => {
+                            tracing::warn!("Message/set: MLS payload too large to pad: {e}");
+                        }
+                    },
                     Err(e) => {
                         tracing::warn!("Message/set: MLS encrypt failed: {e}");
                         // Message stored locally — continue without relay send.
@@ -2029,17 +2030,13 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 Err(e) => return db_error(e),
                 Ok((rows, _)) => {
                     if rows.is_empty() {
-                        not_updated
-                            .insert(msg_id.clone(), serde_json::json!({"type": "notFound"}));
+                        not_updated.insert(msg_id.clone(), serde_json::json!({"type": "notFound"}));
                         continue;
                     }
                     // Ownership check: only the sender may mutate their message.
                     let sender = &rows[0].sender_id;
                     if sender != state.my_pub_id() {
-                        not_updated.insert(
-                            msg_id.clone(),
-                            serde_json::json!({"type": "notFound"}),
-                        );
+                        not_updated.insert(msg_id.clone(), serde_json::json!({"type": "notFound"}));
                         continue;
                     }
                 }
@@ -2144,9 +2141,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                 break;
                             }
                             Err(e) => {
-                                update_err = Some(
-                                    { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                                );
+                                update_err = Some({
+                                    tracing::error!("database error: {e}");
+                                    serde_json::json!({"type":"serverFail","description":"database error"})
+                                });
                                 break;
                             }
                             Ok(true) => {}
@@ -2161,9 +2159,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                                 break;
                             }
                             Err(e) => {
-                                update_err = Some(
-                                    { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                                );
+                                update_err = Some({
+                                    tracing::error!("database error: {e}");
+                                    serde_json::json!({"type":"serverFail","description":"database error"})
+                                });
                                 break;
                             }
                             Ok(true) => {}
@@ -2172,9 +2171,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                         // value.as_str() is Some — validated above
                         let ts = value.as_str().unwrap();
                         if let Err(e) = store.read_message(msg_id, ts).await {
-                            update_err = Some(
-                                { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                            );
+                            update_err = Some({
+                                tracing::error!("database error: {e}");
+                                serde_json::json!({"type":"serverFail","description":"database error"})
+                            });
                             break;
                         }
                     }
@@ -2207,10 +2207,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 // Fetch the message first to check existence and ownership.
                 match store.get_messages(&[id]).await {
                     Err(e) => {
-                        not_destroyed.insert(
-                            id.to_string(),
-                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                        );
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                         continue;
                     }
                     Ok((rows, _)) => {
@@ -2235,10 +2235,10 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                             .insert(id.to_string(), serde_json::json!({"type":"notFound"}));
                     }
                     Err(e) => {
-                        not_destroyed.insert(
-                            id.to_string(),
-                            { tracing::error!("database error: {e}"); serde_json::json!({"type":"serverFail","description":"database error"}) },
-                        );
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
                     }
                 }
             }

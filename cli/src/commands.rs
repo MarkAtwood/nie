@@ -1609,7 +1609,7 @@ pub async fn chat(
                             // at least know a directory has been received before accepting
                             // any Welcome.  The WhisperDeliver path enforces the stricter
                             // sender == admin[0] check where the sender is known.
-                            if online.first().is_none() {
+                            if online.is_empty() {
                                 warn!(
                                     "sealed_whisper_deliver: ignoring Welcome before \
                                      directory is known"
@@ -2061,6 +2061,7 @@ pub async fn chat(
                     }
                     // Send chunks.
                     println!("[send] sending {} ({} bytes, {} chunks)", file_name, bytes.len(), total_chunks);
+                    let mut send_ok = true;
                     for (seq, chunk) in chunks.iter().enumerate() {
                         let chunk_bytes = serde_json::to_vec(&ClearMessage::FileChunk {
                             transfer_id,
@@ -2075,12 +2076,14 @@ pub async fn chat(
                                     Ok(p) => p,
                                     Err(e) => {
                                         eprintln!("\r[send] pad failed for chunk {seq}: {e}");
-                                        continue;
+                                        send_ok = false;
+                                        break;
                                     }
                                 },
                                 Err(e) => {
                                     eprintln!("\r[send] MLS encrypt failed for chunk {seq}: {e}");
-                                    continue;
+                                    send_ok = false;
+                                    break;
                                 }
                             }
                         } else {
@@ -2094,13 +2097,16 @@ pub async fn chat(
                         .unwrap();
                         if tx.send(chunk_req).await.is_err() {
                             eprintln!("connection lost.");
+                            send_ok = false;
                             break;
                         }
                         if (seq + 1) % 10 == 0 || seq + 1 == total_chunks as usize {
                             println!("\r[send] {}/{} chunks", seq + 1, total_chunks);
                         }
                     }
-                    println!("[send] done: {file_name}");
+                    if send_ok {
+                        println!("[send] done: {file_name}");
+                    }
                     continue;
                 }
 
@@ -4022,7 +4028,7 @@ pub async fn wallet_init(
         p
     };
 
-    let encrypted = encrypt_wallet_key(&*seed, &passphrase)?;
+    let encrypted = encrypt_wallet_key(&seed, &passphrase)?;
     write_secret_file(&wallet_key_path, &encrypted)?;
 
     // Paranoid write-verify: immediately decrypt and compare.
@@ -4112,7 +4118,7 @@ pub async fn wallet_restore(
         p
     };
 
-    let encrypted = encrypt_wallet_key(&*seed, &passphrase)?;
+    let encrypted = encrypt_wallet_key(&seed, &passphrase)?;
     write_secret_file(&wallet_key_path, &encrypted)?;
 
     // Paranoid write-verify.

@@ -88,11 +88,21 @@ pub enum ClearMessage {
         chat_id: String,
         #[serde(deserialize_with = "deserialize_bounded_body")]
         body: String,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         body_type: String,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         sent_at: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_opt_bounded_id"
+        )]
         reply_to: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            deserialize_with = "deserialize_opt_bounded_id"
+        )]
         thread_root_id: Option<String>,
     },
 
@@ -110,6 +120,7 @@ pub enum ClearMessage {
     /// Peer/typing — ephemeral typing indicator.
     PeerTyping {
         /// Chat ID in the **receiving** daemon's store.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         chat_id: String,
         /// `true` = started typing; `false` = stopped typing.
         typing: bool,
@@ -118,6 +129,7 @@ pub enum ClearMessage {
     /// Peer/retract — delete a previously delivered message everywhere.
     PeerRetract {
         /// The `message_id` from the original `PeerDeliver`.
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         message_id: String,
         /// If `true`, retract for all participants; if `false`, sender only.
         for_all: bool,
@@ -150,14 +162,22 @@ where
 /// Deserialize `FileChunk.data` from base64, rejecting payloads larger than 10 MiB.
 ///
 /// A hostile MLS peer cannot force the receiver to allocate an unbounded `Vec<u8>`
-/// before any application-layer check runs.
+/// before any application-layer check runs.  The base64 string length is checked
+/// first to avoid allocating the decoded Vec when the encoded string is already
+/// over-budget.
 fn deserialize_chunk_data<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
     use base64::engine::general_purpose::STANDARD as B64;
     use base64::Engine;
+    // base64 encodes every 3 bytes as 4 characters; 10 MiB decoded is at most
+    // ceil(10*1024*1024 * 4/3) + 4 bytes of base64 (padding slack).
+    const MAX_CHUNK_DATA_BASE64_LEN: usize = 10 * 1024 * 1024 * 4 / 3 + 4;
     let s = String::deserialize(deserializer)?;
+    if s.len() > MAX_CHUNK_DATA_BASE64_LEN {
+        return Err(serde::de::Error::custom("chunk data too large"));
+    }
     let v = B64
         .decode(s.as_bytes())
         .map_err(|e| serde::de::Error::custom(format!("chunk data: invalid base64: {e}")))?;
@@ -255,9 +275,7 @@ where
 {
     let n = u32::deserialize(deserializer)?;
     if n == 0 {
-        return Err(serde::de::Error::custom(
-            "total_chunks must be at least 1",
-        ));
+        return Err(serde::de::Error::custom("total_chunks must be at least 1"));
     }
     if n > 1024 {
         return Err(serde::de::Error::custom(format!(
@@ -356,6 +374,44 @@ where
     Ok(s)
 }
 
+/// Deserialize an `Option<String>` ID field that must not exceed 128 bytes when present.
+///
+/// Used for optional ID fields (`reply_to`, `thread_root_id`) in `PeerDeliver`
+/// where the same size cap as `deserialize_bounded_id` applies.
+fn deserialize_opt_bounded_id<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let opt = Option::<String>::deserialize(deserializer)?;
+    if let Some(ref s) = opt {
+        if s.len() > 128 {
+            return Err(serde::de::Error::custom(format!(
+                "ID field too long: {} bytes (max 128)",
+                s.len()
+            )));
+        }
+    }
+    Ok(opt)
+}
+
+/// Deserialize a String reason field that must not exceed 512 bytes.
+///
+/// Used for `PaymentAction::Unknown.reason` and `PaymentAction::Cancelled.reason`
+/// where a slightly larger budget than ID fields is appropriate for user-visible text.
+fn deserialize_bounded_reason<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 512 {
+        return Err(serde::de::Error::custom(format!(
+            "reason too long: {} bytes (max 512)",
+            s.len()
+        )));
+    }
+    Ok(s)
+}
+
 /// Deserialize `FileHeader.mime_type`, rejecting values longer than 255 bytes.
 ///
 /// MIME types are at most 255 characters per spec (RFC 4288 §4.2).
@@ -419,11 +475,27 @@ where
 {
     let n = u64::deserialize(deserializer)?;
     if n == 0 {
-        return Err(serde::de::Error::custom(
-            "amount_zatoshi must be non-zero",
-        ));
+        return Err(serde::de::Error::custom("amount_zatoshi must be non-zero"));
     }
     Ok(n)
+}
+
+/// Deserialize a Zcash payment address, rejecting values longer than 1 KiB.
+///
+/// Zcash Unified Addresses exceed the 128-byte ID limit (testnet UA ≈ 182 bytes).
+/// 1 KiB is a safe upper bound for any current or near-future Zcash address encoding.
+fn deserialize_zcash_address<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    if s.len() > 1024 {
+        return Err(serde::de::Error::custom(format!(
+            "address too long: {} bytes (max 1024)",
+            s.len()
+        )));
+    }
+    Ok(s)
 }
 
 /// The four steps of P2P payment negotiation, plus an error response.
@@ -439,15 +511,23 @@ pub enum PaymentAction {
         amount_zatoshi: u64,
     },
     /// Payee provides a fresh receive address.
-    Address { chain: Chain, address: String },
+    Address {
+        chain: Chain,
+        #[serde(deserialize_with = "deserialize_zcash_address")]
+        address: String,
+    },
     /// Payer confirms broadcast.
     Sent {
         chain: Chain,
+        #[serde(deserialize_with = "deserialize_bounded_id")]
         tx_hash: String,
         amount_zatoshi: u64,
     },
     /// Payee confirms receipt detected on chain.
-    Confirmed { tx_hash: String },
+    Confirmed {
+        #[serde(deserialize_with = "deserialize_bounded_id")]
+        tx_hash: String,
+    },
     /// Sent when a PaymentAction arrives for an unrecognized session_id.
     ///
     /// This handles two cases:
@@ -455,10 +535,16 @@ pub enum PaymentAction {
     /// 2. Lost state: peer reconnected and local session state was not persisted.
     ///
     /// The receiver should treat this as a terminal state for the referenced session.
-    Unknown { reason: String },
+    Unknown {
+        #[serde(deserialize_with = "deserialize_bounded_reason")]
+        reason: String,
+    },
     /// Either party cancels an in-progress session.
     /// Receiver should discard the session and surface a cancellation message.
-    Cancelled { reason: String },
+    Cancelled {
+        #[serde(deserialize_with = "deserialize_bounded_reason")]
+        reason: String,
+    },
 }
 
 /// In-memory payment session state.

@@ -175,7 +175,12 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                 scan_block(&block, &decryptor, network_type, &state).await;
 
                 last_scanned_height = block.height;
-                if let Err(e) = state.inner.store.set_payment_scan_tip(last_scanned_height).await {
+                if let Err(e) = state
+                    .inner
+                    .store
+                    .set_payment_scan_tip(last_scanned_height)
+                    .await
+                {
                     warn!("payment_watcher: failed to persist scan tip {last_scanned_height}: {e}");
                 }
                 blocks_since_purge += 1;
@@ -249,10 +254,9 @@ async fn scan_block(
             // we still activate rather than silently drop the confirmed payment.
             {
                 use chrono::Utc;
-                if let Ok(exp) = chrono::NaiveDateTime::parse_from_str(
-                    &invoice.expires_at,
-                    "%Y-%m-%d %H:%M:%S",
-                ) {
+                if let Ok(exp) =
+                    chrono::NaiveDateTime::parse_from_str(&invoice.expires_at, "%Y-%m-%d %H:%M:%S")
+                {
                     if exp.and_utc() < Utc::now() {
                         tracing::warn!(
                             invoice_id = invoice.invoice_id,
@@ -324,19 +328,30 @@ async fn activate_subscription(state: &AppState, invoice: &InvoiceRow) -> anyhow
     // rather than recomputing from the current runtime subscription_days.
     // If the operator changes SUBSCRIPTION_DAYS after the invoice was created,
     // the subscriber still gets the duration they were promised.
-    let parsed_expires_at = chrono::NaiveDateTime::parse_from_str(&invoice.expires_at, "%Y-%m-%d %H:%M:%S")
-        .map_err(|e| anyhow::anyhow!("invoice expires_at parse error ({:?}): {e}", invoice.expires_at))?
-        .and_utc();
+    let fallback_days = invoice
+        .subscription_days
+        .unwrap_or(state.inner.subscription_days);
+    let parsed_expires_at = match chrono::NaiveDateTime::parse_from_str(
+        &invoice.expires_at,
+        "%Y-%m-%d %H:%M:%S",
+    ) {
+        Ok(dt) => dt.and_utc(),
+        Err(e) => {
+            tracing::error!(
+                invoice_id = invoice.invoice_id,
+                address = invoice.address,
+                expires_at = %invoice.expires_at,
+                "activate_subscription: expires_at parse failed ({e}); using now + {fallback_days}d as fallback"
+            );
+            chrono::Utc::now() + chrono::Duration::days(fallback_days as i64)
+        }
+    };
     // If the invoice expired before the confirmed payment arrived, grant a
     // fresh subscription from now using the duration originally promised in the
     // invoice (stored as subscription_days at creation time), falling back to the
     // current operator setting only for pre-migration invoices that lack it.
-    let fallback_days = invoice
-        .subscription_days
-        .unwrap_or(state.inner.subscription_days);
-    let expires_at = parsed_expires_at.max(
-        chrono::Utc::now() + chrono::Duration::days(fallback_days as i64),
-    );
+    let expires_at =
+        parsed_expires_at.max(chrono::Utc::now() + chrono::Duration::days(fallback_days as i64));
 
     // 1. Write subscription and delete invoice atomically so a crash between
     //    the two operations cannot trigger a double-activation or silent loss.

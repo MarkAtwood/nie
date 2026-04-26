@@ -2,10 +2,10 @@ use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use subtle::ConstantTimeEq;
 use nie_core::messages::ClearMessage;
 use nie_core::protocol::{BroadcastParams, DeliverParams, JsonRpcRequest};
 use nie_core::transport::{next_request_id, ClientEvent};
+use subtle::ConstantTimeEq;
 
 use crate::matrix::{mxid_localpart, MatrixEvent};
 
@@ -34,14 +34,20 @@ impl SentIds {
         match std::fs::read(path) {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Self::new(),
             Err(e) => {
-                tracing::warn!("cannot read sent_ids file {}: {e}; starting empty", path.display());
+                tracing::warn!(
+                    "cannot read sent_ids file {}: {e}; starting empty",
+                    path.display()
+                );
                 Self::new()
             }
             Ok(bytes) => {
                 let ids: Vec<String> = match serde_json::from_slice(&bytes) {
                     Ok(v) => v,
                     Err(e) => {
-                        tracing::warn!("cannot parse sent_ids file {}: {e}; starting empty", path.display());
+                        tracing::warn!(
+                            "cannot parse sent_ids file {}: {e}; starting empty",
+                            path.display()
+                        );
                         return Self::new();
                     }
                 };

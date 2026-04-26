@@ -187,7 +187,9 @@ fn strip_unsafe_chars(s: &str) -> String {
             EscState::EscSeen => {
                 if ch == ']' {
                     // OSC sequence: ESC ] ... BEL  or  ESC ] ... ESC \
-                    state = EscState::Osc { last_was_esc: false };
+                    state = EscState::Osc {
+                        last_was_esc: false,
+                    };
                 } else {
                     // All other sequences (CSI = '[', plus single-char Fe sequences).
                     state = EscState::Csi { len: 0 };
@@ -220,7 +222,9 @@ fn strip_unsafe_chars(s: &str) -> String {
                 // Otherwise still inside the escape — swallow the char.
             }
 
-            EscState::Osc { ref mut last_was_esc } => {
+            EscState::Osc {
+                ref mut last_was_esc,
+            } => {
                 if ch == '\x07' {
                     // BEL terminates an OSC sequence.
                     state = EscState::Normal;

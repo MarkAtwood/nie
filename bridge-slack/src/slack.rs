@@ -108,7 +108,10 @@ pub fn verify_slack_signature(
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    if now.saturating_sub(ts).saturating_abs() > 300 {
+    // Reject future timestamps beyond clock-skew tolerance (prevents replay with
+    // a captured request re-stamped far in the future), and timestamps more than
+    // 5 minutes old (prevents replay of old requests).
+    if ts > now + 60 || now - ts > 300 {
         return Err(anyhow!("Slack request timestamp too old"));
     }
 

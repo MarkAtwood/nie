@@ -584,29 +584,26 @@ fn relay_socket_addr(relay_url: &str) -> Result<String> {
 /// Returns an error if the connection closes before a text frame arrives,
 /// or if 30 seconds elapse without a text frame (guards against ping floods).
 async fn recv_text_frame(stream: &mut WsStream, context: &str) -> Result<String> {
-    tokio::time::timeout(
-        std::time::Duration::from_secs(30),
-        async {
-            loop {
-                match stream.next().await {
-                    Some(Ok(Message::Text(t))) => return Ok(t.to_string()),
-                    Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
-                        // Ignore ping/pong frames and keep waiting.
-                        continue;
-                    }
-                    Some(Ok(other)) => {
-                        anyhow::bail!("expected text frame for {context}, got: {other:?}");
-                    }
-                    Some(Err(e)) => {
-                        return Err(e).with_context(|| format!("reading {context} frame"));
-                    }
-                    None => {
-                        anyhow::bail!("relay closed connection before {context}");
-                    }
+    tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        loop {
+            match stream.next().await {
+                Some(Ok(Message::Text(t))) => return Ok(t.to_string()),
+                Some(Ok(Message::Ping(_))) | Some(Ok(Message::Pong(_))) => {
+                    // Ignore ping/pong frames and keep waiting.
+                    continue;
+                }
+                Some(Ok(other)) => {
+                    anyhow::bail!("expected text frame for {context}, got: {other:?}");
+                }
+                Some(Err(e)) => {
+                    return Err(e).with_context(|| format!("reading {context} frame"));
+                }
+                None => {
+                    anyhow::bail!("relay closed connection before {context}");
                 }
             }
-        },
-    )
+        }
+    })
     .await
     .map_err(|_| anyhow::anyhow!("timeout waiting for relay response ({context})"))?
 }
@@ -786,7 +783,8 @@ mod tests {
         // then the error was silently dropped.
         // After the fix, "id": null falls through to the null-id handler which
         // logs the error and returns None — the correct behaviour.
-        let null_id_error = r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"parse error"}}"#;
+        let null_id_error =
+            r#"{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"parse error"}}"#;
         let result = parse_incoming(null_id_error);
         assert!(
             result.is_none(),
@@ -794,7 +792,8 @@ mod tests {
         );
 
         // A frame with a real integer id must still be parsed as a Response.
-        let real_id_error = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"invalid request"}}"#;
+        let real_id_error =
+            r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"invalid request"}}"#;
         let result = parse_incoming(real_id_error);
         assert!(
             matches!(result, Some(ClientEvent::Response(_))),

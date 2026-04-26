@@ -932,13 +932,12 @@ impl WalletStore {
         txid: &str,
         output_index: i64,
     ) -> Result<Option<i64>> {
-        let row: Option<(i64,)> = sqlx::query_as(
-            "SELECT note_id FROM notes WHERE txid = ?1 AND output_index = ?2",
-        )
-        .bind(txid)
-        .bind(output_index)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row: Option<(i64,)> =
+            sqlx::query_as("SELECT note_id FROM notes WHERE txid = ?1 AND output_index = ?2")
+                .bind(txid)
+                .bind(output_index)
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(row.map(|(id,)| id))
     }
 
@@ -1328,7 +1327,9 @@ impl WalletStore {
         // If the row exists and the stored value is already >= idx, nothing to do.
         if let Some(c) = current {
             if idx <= c {
-                // Read-only path: SQLite rolls back the empty transaction on drop.
+                // Read-only path: explicitly roll back rather than relying on
+                // async drop, which may not complete under all executor configs.
+                tx.rollback().await?;
                 return Ok(());
             }
         }

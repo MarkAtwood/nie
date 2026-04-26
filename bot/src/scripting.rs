@@ -77,11 +77,7 @@ pub async fn run_hook(cmd_str: &str, env_vars: &[(&str, &str)]) -> Result<HookRe
         buf
     });
 
-    let wait_result = timeout(
-        Duration::from_secs(HOOK_TIMEOUT_SECS),
-        child.wait(),
-    )
-    .await;
+    let wait_result = timeout(Duration::from_secs(HOOK_TIMEOUT_SECS), child.wait()).await;
 
     let status = match wait_result {
         Ok(Ok(s)) => s,
@@ -102,14 +98,12 @@ pub async fn run_hook(cmd_str: &str, env_vars: &[(&str, &str)]) -> Result<HookRe
     let raw_stderr = stderr_task.await.unwrap_or_default();
 
     // Step 4: Cap stdout and stderr
-    let stdout = String::from_utf8_lossy(
-        &raw_stdout[..raw_stdout.len().min(HOOK_STDOUT_MAX_BYTES)],
-    )
-    .into_owned();
-    let stderr = String::from_utf8_lossy(
-        &raw_stderr[..raw_stderr.len().min(HOOK_STDERR_MAX_BYTES)],
-    )
-    .into_owned();
+    let stdout =
+        String::from_utf8_lossy(&raw_stdout[..raw_stdout.len().min(HOOK_STDOUT_MAX_BYTES)])
+            .into_owned();
+    let stderr =
+        String::from_utf8_lossy(&raw_stderr[..raw_stderr.len().min(HOOK_STDERR_MAX_BYTES)])
+            .into_owned();
     let exit_code = status.code().unwrap_or(-1);
 
     Ok(HookResult {

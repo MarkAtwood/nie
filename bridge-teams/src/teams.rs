@@ -98,8 +98,7 @@ pub fn verify_teams_signature(security_token: &str, body: &[u8], auth_header: &s
     // Constant-time comparison.
     let computed_bytes = computed.as_bytes();
     let header_bytes = auth_header.as_bytes();
-    if computed_bytes.len() != header_bytes.len()
-        || !bool::from(computed_bytes.ct_eq(header_bytes))
+    if computed_bytes.len() != header_bytes.len() || !bool::from(computed_bytes.ct_eq(header_bytes))
     {
         return Err(anyhow!("Teams signature mismatch"));
     }

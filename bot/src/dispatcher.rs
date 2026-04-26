@@ -45,7 +45,7 @@ fn dispatch_payload(from: &str, payload: &[u8]) -> Option<BotEvent> {
     let msg: ClearMessage = match serde_json::from_slice(payload) {
         Ok(m) => m,
         Err(e) => {
-            tracing::warn!("payload not a ClearMessage (unexpected pre-MLS): {e}");
+            tracing::debug!("payload not a ClearMessage (expected with MLS): {e}");
             return None;
         }
     };

@@ -20,8 +20,8 @@ use ff::PrimeField;
 use sapling::zip32::{DiversifiableFullViewingKey, ExtendedSpendingKey};
 pub use sapling::PaymentAddress;
 use zcash_address::{ToAddress, ZcashAddress};
-use zip32::{ChildIndex, DiversifierIndex, Scope};
 use zeroize::Zeroizing;
+use zip32::{ChildIndex, DiversifierIndex, Scope};
 
 use crate::db::WalletStore;
 
@@ -114,7 +114,10 @@ impl SaplingExtendedSpendingKey {
     /// `add_sapling_spend`.  This is the non-diversifiable FVK; derive it fresh each
     /// time rather than caching to avoid accidental key material persistence.
     pub(crate) fn full_viewing_key(&self) -> sapling::keys::FullViewingKey {
-        self.extsk().to_diversifiable_full_viewing_key().fvk().clone()
+        self.extsk()
+            .to_diversifiable_full_viewing_key()
+            .fvk()
+            .clone()
     }
 
     /// Returns the inner [`ExtendedSpendingKey`] for passing to

@@ -17,10 +17,7 @@ pub fn load_identity(keyfile_path: &str, no_passphrase: bool) -> Result<Identity
     }
     let meta = std::fs::metadata(keyfile_path)?;
     if meta.len() > 1024 * 1024 {
-        anyhow::bail!(
-            "keyfile too large: {} bytes (expected < 1 MiB)",
-            meta.len()
-        );
+        anyhow::bail!("keyfile too large: {} bytes (expected < 1 MiB)", meta.len());
     }
     let ciphertext = std::fs::read(keyfile_path)?;
 
@@ -96,8 +93,8 @@ mod tests {
 
         // Decrypt and reconstruct
         let recovered_seed = decrypt_keyfile(&ciphertext, "").expect("decrypt_keyfile failed");
-        let recovered = Identity::from_secret_bytes(&recovered_seed).expect("recovered seed must be valid");
-
+        let recovered =
+            Identity::from_secret_bytes(&recovered_seed).expect("recovered seed must be valid");
 
         assert_eq!(
             original_pub_id.0,

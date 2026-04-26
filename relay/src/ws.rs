@@ -347,13 +347,7 @@ async fn handle(socket: WebSocket, state: AppState) {
         Ok(id) => id,
         Err(e) => {
             tracing::debug!("auth verification failed: {e}");
-            send_error_response(
-                &mut sink,
-                req.id,
-                rpc_errors::AUTH_FAILED,
-                "auth failed",
-            )
-            .await;
+            send_error_response(&mut sink, req.id, rpc_errors::AUTH_FAILED, "auth failed").await;
             return;
         }
     };
@@ -1260,6 +1254,18 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to send messages",
+                            )
+                            .await;
+                            continue;
+                        }
                         // Verify the recipient is a known enrolled user to prevent
                         // phantom-recipient flooding of the offline_messages table.
                         match state.inner.store.user_exists(&params.to).await {
@@ -1285,18 +1291,6 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 .await;
                                 continue;
                             }
-                        }
-                        if state.inner.require_subscription
-                            && !subscribed_flag.load(Ordering::Relaxed)
-                        {
-                            send_client_error(
-                                &client_tx,
-                                req.id,
-                                rpc_errors::SUBSCRIPTION_REQUIRED,
-                                "an active subscription is required to send messages",
-                            )
-                            .await;
-                            continue;
                         }
                         // SEALED SENDER: relay forwards opaque bytes to `to` with NO `from` field.
                         // Sender identity is hidden inside the encrypted sealed bytes.
@@ -1643,11 +1637,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             }
                         };
                         // Fetch all member counts in one query rather than one per group.
-                        let counts = match state
-                            .inner
-                            .store
-                            .member_counts_for_user(&pub_id.0)
-                            .await
+                        let counts = match state.inner.store.member_counts_for_user(&pub_id.0).await
                         {
                             Ok(m) => m,
                             Err(e) => {

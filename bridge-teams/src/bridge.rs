@@ -84,9 +84,11 @@ async fn teams_webhook(
             .and_then(|f| f.name.as_deref())
             .unwrap_or("unknown");
         let nie_text = format_for_nie(sender, text);
-        // Back-pressure: drop the message rather than block the HTTP handler.
-        if state.tx.try_send(nie_text).is_err() {
-            tracing::warn!("Teams→nie channel full; message dropped");
+        // Block until the message is in the channel.
+        // If send fails (channel closed), return 500 so Teams retries.
+        if state.tx.send(nie_text).await.is_err() {
+            tracing::warn!("Teams→nie channel closed; returning 500 for retry");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
     }
 

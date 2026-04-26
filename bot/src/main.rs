@@ -159,7 +159,24 @@ async fn handle_relay_event(
                 if let (Some(hook), BotEvent::MessageReceived { from, text, .. }) =
                     (&config.on_message_hook, &ev)
                 {
-                    let env_vars = [("NIE_FROM", from.as_str()), ("NIE_TEXT", text.as_str())];
+                    // Sanitize env var values before passing to the hook.
+                    // NIE_FROM: pub_ids are hex, keep only alphanumeric and hyphens.
+                    let safe_from: String = from
+                        .chars()
+                        .filter(|c| c.is_alphanumeric() || *c == '-')
+                        .collect();
+                    // NIE_TEXT: strip control characters and limit to 1024 bytes.
+                    let safe_text: String = text
+                        .chars()
+                        .filter(|c| !c.is_control())
+                        .collect::<String>()
+                        .chars()
+                        .take(1024)
+                        .collect();
+                    let env_vars = [
+                        ("NIE_FROM", safe_from.as_str()),
+                        ("NIE_TEXT", safe_text.as_str()),
+                    ];
                     match scripting::run_hook(hook, &env_vars).await {
                         Ok(r) => {
                             BotEvent::ScriptOutput {

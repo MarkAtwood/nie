@@ -117,10 +117,7 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
             loop {
                 ticker.tick().await;
 
-                let (ids, _) = match jmap
-                    .email_query(&account_id, &mailbox_id, None)
-                    .await
-                {
+                let (ids, _) = match jmap.email_query(&account_id, &mailbox_id, None).await {
                     Ok(v) => v,
                     Err(e) => {
                         tracing::warn!("JMAP email_query failed: {e}");
@@ -182,7 +179,6 @@ pub async fn run(config: &BridgeConfig) -> Result<()> {
                         }
                     }
                 }
-
             }
         });
     }

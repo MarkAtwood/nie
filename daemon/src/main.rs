@@ -53,7 +53,10 @@ async fn main() -> Result<()> {
             format!("http://127.0.0.1:{port}").parse::<HeaderValue>()?,
         ])
         .allow_methods([Method::GET, Method::POST])
-        .allow_headers([axum::http::header::AUTHORIZATION, axum::http::header::CONTENT_TYPE]);
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+        ]);
 
     // Load identity from keyfile to get pub_id.  Default location mirrors nie-cli.
     let keyfile_path = std::env::var("KEYFILE")
@@ -228,17 +231,11 @@ async fn main() -> Result<()> {
     if let Ok(relay_url) = std::env::var("RELAY_URL") {
         let insecure = std::env::var("RELAY_INSECURE").is_ok();
         let proxy = std::env::var("RELAY_PROXY").ok();
-        let keyfile_str = keyfile_path
-            .to_str()
-            .ok_or_else(|| anyhow::anyhow!("keyfile path contains non-UTF-8 bytes: {keyfile_path:?}"))?;
-        relay::start_relay_connector(
-            keyfile_str,
-            &relay_url,
-            insecure,
-            proxy,
-            daemon_state,
-        )
-        .await?;
+        let keyfile_str = keyfile_path.to_str().ok_or_else(|| {
+            anyhow::anyhow!("keyfile path contains non-UTF-8 bytes: {keyfile_path:?}")
+        })?;
+        relay::start_relay_connector(keyfile_str, &relay_url, insecure, proxy, daemon_state)
+            .await?;
         tracing::info!("relay connector started for {}", relay_url);
     } else {
         tracing::info!("RELAY_URL not set; daemon running without relay connection");

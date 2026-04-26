@@ -268,5 +268,4 @@ mod tests {
         let result = format_for_nie("U123456", "hello world");
         assert_eq!(result, "[Slack/U123456] hello world");
     }
-
 }

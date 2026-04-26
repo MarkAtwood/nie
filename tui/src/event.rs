@@ -6,8 +6,8 @@ use nie_core::messages::ClearMessage;
 use nie_core::protocol::{
     rpc_methods, BroadcastParams, DeliverParams, DirectoryListParams, JsonRpcRequest,
     KeyPackageReadyParams, PublishHpkeKeyParams, PublishKeyPackageParams, SealedBroadcastParams,
-    SealedDeliverParams, UserJoinedParams, UserLeftParams, UserNicknameParams, WhisperDeliverParams,
-    WhisperParams,
+    SealedDeliverParams, UserJoinedParams, UserLeftParams, UserNicknameParams,
+    WhisperDeliverParams, WhisperParams,
 };
 use nie_core::transport::{next_request_id, ClientEvent, RelayConnRetry};
 use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};
@@ -362,7 +362,7 @@ pub async fn handle_relay_event(
                     let plaintext = {
                         let active_secret: &[u8; 32] = if state.mls_active {
                             match state.room_hpke_secret.as_ref() {
-                                Some(sk) => &**sk,
+                                Some(sk) => sk,
                                 None => {
                                     tracing::warn!(
                                         "sealed_deliver while mls_active but no room_hpke_secret"
@@ -371,7 +371,7 @@ pub async fn handle_relay_event(
                                 }
                             }
                         } else {
-                            &*state.hpke_identity_secret
+                            &state.hpke_identity_secret
                         };
                         match nie_core::hpke::unseal_message(active_secret, &p.sealed) {
                             Ok(pt) => pt,
@@ -438,51 +438,51 @@ pub async fn handle_relay_event(
                                         admin.unwrap_or("<none>")
                                     );
                                 } else {
-                                match state.mls_client.join_from_welcome(&p.payload) {
-                                    Ok(()) => {
-                                        state.mls_active = true;
-                                        tracing::debug!(
-                                            "MLS joined group — epoch {}",
-                                            state.mls_client.epoch().unwrap_or(0)
-                                        );
-                                        // Derive and publish room HPKE key.
-                                        match state.mls_client.room_hpke_keypair() {
-                                            Ok((room_sk, room_pk)) => {
-                                                state.room_hpke_secret = Some(room_sk);
-                                                state.room_hpke_pub = Some(room_pk);
-                                                let req = JsonRpcRequest::new(
-                                                    next_request_id(),
-                                                    rpc_methods::PUBLISH_HPKE_KEY,
-                                                    PublishHpkeKeyParams {
-                                                        public_key: room_pk.to_vec(),
-                                                    },
-                                                )
-                                                .map_err(anyhow::Error::from)?;
-                                                if tx.send(req).await.is_err() {
-                                                    tracing::warn!(
+                                    match state.mls_client.join_from_welcome(&p.payload) {
+                                        Ok(()) => {
+                                            state.mls_active = true;
+                                            tracing::debug!(
+                                                "MLS joined group — epoch {}",
+                                                state.mls_client.epoch().unwrap_or(0)
+                                            );
+                                            // Derive and publish room HPKE key.
+                                            match state.mls_client.room_hpke_keypair() {
+                                                Ok((room_sk, room_pk)) => {
+                                                    state.room_hpke_secret = Some(room_sk);
+                                                    state.room_hpke_pub = Some(room_pk);
+                                                    let req = JsonRpcRequest::new(
+                                                        next_request_id(),
+                                                        rpc_methods::PUBLISH_HPKE_KEY,
+                                                        PublishHpkeKeyParams {
+                                                            public_key: room_pk.to_vec(),
+                                                        },
+                                                    )
+                                                    .map_err(anyhow::Error::from)?;
+                                                    if tx.send(req).await.is_err() {
+                                                        tracing::warn!(
                                                         "relay channel closed sending room HPKE key"
                                                     );
+                                                    }
+                                                    tracing::debug!(
+                                                        "published room HPKE key for epoch {}",
+                                                        state.mls_client.epoch().unwrap_or(0)
+                                                    );
                                                 }
-                                                tracing::debug!(
-                                                    "published room HPKE key for epoch {}",
-                                                    state.mls_client.epoch().unwrap_or(0)
-                                                );
+                                                Err(e) => {
+                                                    tracing::warn!(
+                                                        "room_hpke_keypair after Welcome: {e}"
+                                                    );
+                                                }
                                             }
-                                            Err(e) => {
-                                                tracing::warn!(
-                                                    "room_hpke_keypair after Welcome: {e}"
-                                                );
-                                            }
+                                            state.push_message(ChatLine::System(format!(
+                                                "[MLS] joined group — epoch {}",
+                                                state.mls_client.epoch().unwrap_or(0)
+                                            )));
                                         }
-                                        state.push_message(ChatLine::System(format!(
-                                            "[MLS] joined group — epoch {}",
-                                            state.mls_client.epoch().unwrap_or(0)
-                                        )));
+                                        Err(e) => {
+                                            tracing::warn!("join_from_welcome: {e}");
+                                        }
                                     }
-                                    Err(e) => {
-                                        tracing::warn!("join_from_welcome: {e}");
-                                    }
-                                }
                                 } // else (sender is admin)
                             }
                         }
@@ -983,35 +983,28 @@ async fn send_chat(
             }
         };
         match state.room_hpke_pub {
-            Some(pub_key) => {
-                match nie_core::hpke::seal_message(&pub_key, &mls_ciphertext) {
-                    Ok(sealed) => {
-                        let req = JsonRpcRequest::new(
-                            next_request_id(),
-                            rpc_methods::SEALED_BROADCAST,
-                            SealedBroadcastParams { sealed },
-                        )
-                        .map_err(anyhow::Error::from)?;
-                        if tx.send(req).await.is_err() {
-                            tracing::warn!(
-                                "relay send channel closed while sending sealed chat"
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            "send_chat: HPKE seal failed, dropping message: {e}"
-                        );
+            Some(pub_key) => match nie_core::hpke::seal_message(&pub_key, &mls_ciphertext) {
+                Ok(sealed) => {
+                    let req = JsonRpcRequest::new(
+                        next_request_id(),
+                        rpc_methods::SEALED_BROADCAST,
+                        SealedBroadcastParams { sealed },
+                    )
+                    .map_err(anyhow::Error::from)?;
+                    if tx.send(req).await.is_err() {
+                        tracing::warn!("relay send channel closed while sending sealed chat");
                     }
                 }
-            }
+                Err(e) => {
+                    tracing::warn!("send_chat: HPKE seal failed, dropping message: {e}");
+                }
+            },
             None => {
                 tracing::warn!(
                     "send_chat: MLS active but room HPKE key not yet available, dropping"
                 );
                 state.push_message(crate::app::ChatLine::System(
-                    "[!] message not sent: sealed channel not ready yet, try again"
-                        .to_string(),
+                    "[!] message not sent: sealed channel not ready yet, try again".to_string(),
                 ));
                 return Ok(());
             }
@@ -1212,7 +1205,9 @@ async fn handle_slash(
             // Reject absolute paths and any path component that is "..".
             // This prevents reading files outside the working directory.
             let path = std::path::Path::new(raw_path);
-            let has_dotdot = path.components().any(|c| c == std::path::Component::ParentDir);
+            let has_dotdot = path
+                .components()
+                .any(|c| c == std::path::Component::ParentDir);
             if path.is_absolute() || has_dotdot {
                 state.push_message(ChatLine::System(
                     "[!] /cat only accepts relative paths without '..' components".to_string(),
@@ -1425,7 +1420,10 @@ async fn handle_slash(
             })
             // serde_json::to_vec on a derived Serialize cannot fail
             .expect("ClearMessage serialization cannot fail");
-            let params = WhisperParams { to: peer_pub_id.clone(), payload };
+            let params = WhisperParams {
+                to: peer_pub_id.clone(),
+                payload,
+            };
             let req = JsonRpcRequest::new(next_request_id(), rpc_methods::WHISPER, &params)
                 .map_err(anyhow::Error::from)?;
             if tx.send(req).await.is_err() {

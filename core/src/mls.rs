@@ -396,7 +396,10 @@ impl MlsClient {
         let secret = x25519_dalek::StaticSecret::from(secret_bytes);
         secret_bytes.zeroize();
         let public = x25519_dalek::PublicKey::from(&secret);
-        Ok((zeroize::Zeroizing::new(secret.to_bytes()), public.to_bytes()))
+        Ok((
+            zeroize::Zeroizing::new(secret.to_bytes()),
+            public.to_bytes(),
+        ))
     }
 }
 

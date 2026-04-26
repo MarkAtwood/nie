@@ -35,8 +35,8 @@ pub fn pub_id_from_secret(secret_b64: &str) -> Result<String, JsValue> {
     let arr: [u8; 64] = bytes
         .try_into()
         .map_err(|_| JsValue::from_str("keyfile corrupt: expected 64 bytes"))?;
-    let identity = Identity::from_secret_bytes(&arr)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let identity =
+        Identity::from_secret_bytes(&arr).map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(identity.pub_id().0)
 }
 
@@ -152,8 +152,15 @@ impl NieClient {
             let arr: [u8; 64] = bytes
                 .try_into()
                 .map_err(|_| JsValue::from_str("keyfile corrupt: expected 64 bytes"))?;
-            let identity = Identity::from_secret_bytes(&arr)
-                .map_err(|e| JsValue::from_str(&e.to_string()))?;
+            let identity =
+                Identity::from_secret_bytes(&arr).map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+            // Close any existing connection before opening a new one.
+            // This prevents the relay from seeing two concurrent authenticated
+            // sessions for the same identity.
+            if let Some(existing) = inner.borrow().as_ref() {
+                existing.close();
+            }
 
             let client = crate::client::NieRelayClient::connect(&relay_url, identity)
                 .await

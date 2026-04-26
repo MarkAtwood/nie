@@ -421,11 +421,9 @@ impl Store {
         // Remove group_members rows for users that were just deleted.
         // The v2 migration adds ON DELETE CASCADE, but we delete explicitly here
         // so the cleanup is correct regardless of whether FK enforcement is active.
-        sqlx::query(
-            "DELETE FROM group_members WHERE pub_id NOT IN (SELECT pub_id FROM users)",
-        )
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("DELETE FROM group_members WHERE pub_id NOT IN (SELECT pub_id FROM users)")
+            .execute(&mut *tx)
+            .await?;
         // Remove groups that have no remaining members.
         sqlx::query(
             "DELETE FROM groups WHERE NOT EXISTS \
@@ -563,12 +561,11 @@ impl Store {
         let mut conn = self.pool.acquire().await?;
         sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
         let result: Result<()> = async {
-            let count: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM offline_messages WHERE to_pub_id = ?1",
-            )
-            .bind(to_pub_id)
-            .fetch_one(&mut *conn)
-            .await?;
+            let count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM offline_messages WHERE to_pub_id = ?1")
+                    .bind(to_pub_id)
+                    .fetch_one(&mut *conn)
+                    .await?;
             if count >= 1000 {
                 tracing::warn!(
                     to_pub_id,
@@ -624,11 +621,10 @@ impl Store {
     /// Read the last height fully scanned by the payment watcher, or `None` if
     /// the watcher has never run on this relay instance.
     pub async fn get_payment_scan_tip(&self) -> Result<Option<u64>> {
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT value FROM relay_kv WHERE key = 'payment_watcher_scan_height'",
-        )
-        .fetch_optional(&self.pool)
-        .await?;
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT value FROM relay_kv WHERE key = 'payment_watcher_scan_height'")
+                .fetch_optional(&self.pool)
+                .await?;
         match row {
             None => Ok(None),
             Some((s,)) => {

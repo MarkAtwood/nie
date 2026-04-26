@@ -18,8 +18,8 @@
 use anyhow::Result;
 use orchard::keys::{FullViewingKey, Scope, SpendingKey};
 use orchard::Address;
-use zip32::{AccountId, DiversifierIndex};
 use zeroize::Zeroizing;
+use zip32::{AccountId, DiversifierIndex};
 
 /// Zcash network for ZIP-32 coin-type selection.
 ///

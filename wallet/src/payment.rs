@@ -209,14 +209,11 @@ pub async fn send_payment<C: WalletClient>(
         .next_diversifier(PAYMENT_ACCOUNT)
         .await
         .map_err(SendPaymentError::Db)?;
-    let (actual_di, _) = sk
-        .to_dfvk()
-        .find_address(change_di_start)
-        .map_err(|e| {
-            SendPaymentError::Build(TxBuildError::BuilderError(format!(
-                "change address diversifier derivation: {e}"
-            )))
-        })?;
+    let (actual_di, _) = sk.to_dfvk().find_address(change_di_start).map_err(|e| {
+        SendPaymentError::Build(TxBuildError::BuilderError(format!(
+            "change address diversifier derivation: {e}"
+        )))
+    })?;
     let actual_u128 = u128::from(actual_di);
     if actual_u128 > change_di_start {
         store
@@ -273,6 +270,7 @@ pub async fn send_payment<C: WalletClient>(
     if let Err(e) = store.mark_notes_spent(&selected_ids, &txid).await {
         error!(
             txid = %txid,
+            note_ids = ?selected_ids,
             error = %e,
             "mark_notes_spent failed after successful broadcast — \
              notes remain unspent in DB; rescan required to recover"

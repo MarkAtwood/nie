@@ -116,6 +116,17 @@ pub enum SpaceMemberOp<'a> {
     Remove { contact_id: &'a str },
 }
 
+/// Outcome of [`Store::use_space_invite_code`].
+#[derive(Debug)]
+pub enum SpaceJoinOutcome {
+    /// User was added as a new member; contains the space ID.
+    Joined(String),
+    /// User was already a member; invite was not consumed.
+    AlreadyMember(String),
+    /// Invite code not found or expired.
+    NotFound,
+}
+
 #[derive(Debug)]
 pub struct SpaceInviteRow {
     pub id: String,
@@ -474,14 +485,12 @@ impl Store {
     // ── ChatContact ──────────────────────────────────────────────────────
 
     pub async fn upsert_chat_contact(&self, pub_id: &str) -> Result<()> {
-        let rows = sqlx::query(
-            "INSERT OR IGNORE INTO chat_contact (id, login) VALUES (?, ?)",
-        )
-        .bind(pub_id)
-        .bind(pub_id)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
+        let rows = sqlx::query("INSERT OR IGNORE INTO chat_contact (id, login) VALUES (?, ?)")
+            .bind(pub_id)
+            .bind(pub_id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
         if rows > 0 {
             self.bump_state_seq("ChatContact").await?;
         }
@@ -567,13 +576,14 @@ impl Store {
         creator_pub_id: &str,
     ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        let space_rows = sqlx::query("INSERT OR IGNORE INTO space (id, name, description) VALUES (?, ?, ?)")
-            .bind(id)
-            .bind(name)
-            .bind(description)
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
+        let space_rows =
+            sqlx::query("INSERT OR IGNORE INTO space (id, name, description) VALUES (?, ?, ?)")
+                .bind(id)
+                .bind(name)
+                .bind(description)
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
         let member_rows = sqlx::query(
             "INSERT OR IGNORE INTO space_member (space_id, contact_id, role) VALUES (?, ?, 'admin')",
         )
@@ -978,13 +988,15 @@ impl Store {
 
     /// Accept an invite by its user-shareable code.
     /// Looks up the invite, adds `user_pub_id` as a member of the space, and
-    /// returns the `space_id` on success, or `None` if the code is invalid /
-    /// expired.
+    /// returns [`SpaceJoinOutcome::Joined`] on success,
+    /// [`SpaceJoinOutcome::AlreadyMember`] if the user is already a member
+    /// (invite is NOT consumed), or [`SpaceJoinOutcome::NotFound`] if the
+    /// code is invalid / expired.
     pub async fn use_space_invite_code(
         &self,
         code: &str,
         user_pub_id: &str,
-    ) -> Result<Option<String>> {
+    ) -> Result<SpaceJoinOutcome> {
         // Use a raw connection with BEGIN IMMEDIATE so the write lock is
         // acquired at transaction start (nie-jtbr).  pool.begin() issues
         // BEGIN DEFERRED; issuing BEGIN IMMEDIATE on top creates a nested
@@ -992,14 +1004,14 @@ impl Store {
         let mut conn = self.pool.acquire().await?;
         sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
 
-        let result: Result<Option<String>> = async {
+        let result: Result<SpaceJoinOutcome> = async {
             let row: Option<(String, Option<String>)> =
                 sqlx::query_as("SELECT space_id, expires_at FROM space_invite WHERE code = ?")
                     .bind(code)
                     .fetch_optional(&mut *conn)
                     .await?;
             let Some((space_id, expires_at)) = row else {
-                return Ok(None);
+                return Ok(SpaceJoinOutcome::NotFound);
             };
             // Reject expired invites.
             if let Some(exp) = &expires_at {
@@ -1012,13 +1024,23 @@ impl Store {
                     })
                     .unwrap_or(true);
                 if expired {
-                    return Ok(None);
+                    return Ok(SpaceJoinOutcome::NotFound);
                 }
+            }
+            // Reject if already a member — do not consume the invite.
+            let existing: Option<(String,)> = sqlx::query_as(
+                "SELECT role FROM space_member WHERE space_id = ? AND contact_id = ?",
+            )
+            .bind(&space_id)
+            .bind(user_pub_id)
+            .fetch_optional(&mut *conn)
+            .await?;
+            if existing.is_some() {
+                return Ok(SpaceJoinOutcome::AlreadyMember(space_id));
             }
             sqlx::query(
                 "INSERT INTO space_member (space_id, contact_id, role)
-                 VALUES (?, ?, ?)
-                 ON CONFLICT(space_id, contact_id) DO UPDATE SET role = excluded.role",
+                 VALUES (?, ?, ?)",
             )
             .bind(&space_id)
             .bind(user_pub_id)
@@ -1030,13 +1052,13 @@ impl Store {
                 .execute(&mut *conn)
                 .await?;
             sqlx::query("COMMIT").execute(&mut *conn).await?;
-            Ok(Some(space_id))
+            Ok(SpaceJoinOutcome::Joined(space_id))
         }
         .await;
 
-        // Rollback on any error or early Ok(None) — COMMIT was only issued on
-        // Ok(Some(_)), so this is safe to call unconditionally on other paths.
-        if !matches!(&result, Ok(Some(_))) {
+        // Rollback on any error or non-Joined outcome — COMMIT was only issued
+        // on Joined, so this is safe to call unconditionally on other paths.
+        if !matches!(&result, Ok(SpaceJoinOutcome::Joined(_))) {
             let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
         }
 
@@ -1067,13 +1089,14 @@ impl Store {
 
     /// Create a category in a space.
     pub async fn create_category(&self, id: &str, space_id: &str, name: &str) -> Result<()> {
-        let rows = sqlx::query("INSERT OR IGNORE INTO category (id, space_id, name) VALUES (?, ?, ?)")
-            .bind(id)
-            .bind(space_id)
-            .bind(name)
-            .execute(&self.pool)
-            .await?
-            .rows_affected();
+        let rows =
+            sqlx::query("INSERT OR IGNORE INTO category (id, space_id, name) VALUES (?, ?, ?)")
+                .bind(id)
+                .bind(space_id)
+                .bind(name)
+                .execute(&self.pool)
+                .await?
+                .rows_affected();
         if rows > 0 {
             self.bump_state_seq("Category").await?;
         }
@@ -1110,12 +1133,13 @@ impl Store {
     // ── SpaceMember ──────────────────────────────────────────────────────
 
     pub async fn upsert_space_member(&self, space_id: &str, contact_id: &str) -> Result<()> {
-        let rows = sqlx::query("INSERT OR IGNORE INTO space_member (space_id, contact_id) VALUES (?, ?)")
-            .bind(space_id)
-            .bind(contact_id)
-            .execute(&self.pool)
-            .await?
-            .rows_affected();
+        let rows =
+            sqlx::query("INSERT OR IGNORE INTO space_member (space_id, contact_id) VALUES (?, ?)")
+                .bind(space_id)
+                .bind(contact_id)
+                .execute(&self.pool)
+                .await?
+                .rows_affected();
         if rows > 0 {
             self.bump_state_seq("SpaceMember").await?;
         }
@@ -1207,12 +1231,11 @@ impl Store {
         let mut tx = self.pool.begin().await?;
         let mut tokens = Vec::with_capacity(type_names.len());
         for &type_name in type_names {
-            let seq: i64 =
-                sqlx::query_scalar("SELECT seq FROM state_version WHERE type_name = ?")
-                    .bind(type_name)
-                    .fetch_optional(&mut *tx)
-                    .await?
-                    .unwrap_or(1);
+            let seq: i64 = sqlx::query_scalar("SELECT seq FROM state_version WHERE type_name = ?")
+                .bind(type_name)
+                .fetch_optional(&mut *tx)
+                .await?
+                .unwrap_or(1);
             tokens.push(seq.to_string());
         }
         tx.commit().await?;
@@ -1563,11 +1586,10 @@ impl Store {
 
     /// Return the `sender_id` of a message, or `None` if the message does not exist.
     pub async fn message_sender_id(&self, msg_id: &str) -> Result<Option<String>> {
-        let row: Option<(String,)> =
-            sqlx::query_as("SELECT sender_id FROM message WHERE id = ?")
-                .bind(msg_id)
-                .fetch_optional(&self.pool)
-                .await?;
+        let row: Option<(String,)> = sqlx::query_as("SELECT sender_id FROM message WHERE id = ?")
+            .bind(msg_id)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(row.map(|(s,)| s))
     }
 

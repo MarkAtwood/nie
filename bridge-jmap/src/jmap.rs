@@ -191,10 +191,7 @@ impl JmapClient {
             .map_err(|e| anyhow!("JMAP request error: {e}"))?;
         if !resp.status().is_success() {
             let status = resp.status();
-            let err_bytes = resp
-                .bytes()
-                .await
-                .unwrap_or_default();
+            let err_bytes = resp.bytes().await.unwrap_or_default();
             let err_body = if err_bytes.len() > 64 * 1024 {
                 format!("(error body too large: {} bytes)", err_bytes.len())
             } else {
