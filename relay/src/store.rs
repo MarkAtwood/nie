@@ -264,6 +264,32 @@ impl Store {
             }
         }
 
+        // Migration v4 → v5: add UNIQUE index on users(nickname).
+        //
+        // Prevents two different pub_ids from claiming the same display name.
+        // CREATE UNIQUE INDEX IF NOT EXISTS is idempotent; safe on both fresh
+        // installs (index does not exist yet) and upgrades.  The users table
+        // is guaranteed to exist before this migration block runs because the
+        // v1→v2 migration block above creates it with CREATE TABLE IF NOT EXISTS.
+        {
+            let sv: i64 = sqlx::query_scalar("PRAGMA user_version")
+                .fetch_one(&pool)
+                .await?;
+            if sv < 5 {
+                let mut tx = pool.begin().await?;
+                sqlx::query(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_nickname \
+                     ON users(nickname)",
+                )
+                .execute(&mut *tx)
+                .await?;
+                sqlx::query("PRAGMA user_version = 5")
+                    .execute(&mut *tx)
+                    .await?;
+                tx.commit().await?;
+            }
+        }
+
         // Persistent user directory: every pub_id that has ever authenticated.
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS users (
@@ -465,16 +491,22 @@ impl Store {
     }
 
     /// Attempt to set a nickname for `pub_id`. Succeeds only if no nickname is
-    /// currently set (nicknames are immutable once assigned). Returns `true` if
-    /// the nickname was stored, `false` if one was already set.
+    /// currently set (nicknames are immutable once assigned) and no other user
+    /// already holds this nickname (enforced by the UNIQUE index on nickname).
+    /// Returns `true` if the nickname was stored, `false` if one was already set
+    /// for this pub_id or the nickname is already taken by another user.
     pub async fn try_set_nickname(&self, pub_id: &str, nickname: &str) -> Result<bool> {
         let result =
             sqlx::query("UPDATE users SET nickname = ? WHERE pub_id = ? AND nickname IS NULL")
                 .bind(nickname)
                 .bind(pub_id)
                 .execute(&self.pool)
-                .await?;
-        Ok(result.rows_affected() > 0)
+                .await;
+        match result {
+            Ok(r) => Ok(r.rows_affected() > 0),
+            Err(sqlx::Error::Database(db_err)) if db_err.is_unique_violation() => Ok(false),
+            Err(e) => Err(e.into()),
+        }
     }
 
     // ---- MLS key packages ----

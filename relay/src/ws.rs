@@ -581,9 +581,6 @@ async fn handle(socket: WebSocket, state: AppState) {
     // so peers don't see a phantom "is typing…" that never resolves.
     let mut connection_is_typing = false;
 
-    // Per-connection rate limit for SET_NICKNAME: at most one change per 5 s.
-    let mut last_nickname_change: Option<Instant> = None;
-
     // Main read loop
     while let Some(frame) = stream.next().await {
         match frame {
@@ -752,8 +749,13 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
-                        if let Some(last) = last_nickname_change {
-                            if last.elapsed() < Duration::from_secs(5) {
+                        {
+                            let rate_limited = state
+                                .inner
+                                .nickname_rate_limits
+                                .get(&pub_id.0)
+                                .is_some_and(|last| last.elapsed() < Duration::from_secs(5));
+                            if rate_limited {
                                 send_client_error(
                                     &client_tx,
                                     req.id,
@@ -812,7 +814,10 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 )
                                 .unwrap();
                                 state.broadcast(None, notif).await;
-                                last_nickname_change = Some(Instant::now());
+                                state
+                                    .inner
+                                    .nickname_rate_limits
+                                    .insert(pub_id.0.clone(), Instant::now());
                                 let ok = serde_json::to_string(
                                     &JsonRpcResponse::success(req.id, OkResult { ok: true })
                                         .unwrap(),

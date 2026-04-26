@@ -58,6 +58,10 @@ pub struct Inner {
     /// Per-pub_id broadcast rate limit counters: (message_count, window_start).
     /// Key: pub_id. Value: (count in current window, when window started).
     pub rate_limits: dashmap::DashMap<String, (u32, Instant)>,
+    /// Per-pub_id SET_NICKNAME rate limit: records when the identity last changed
+    /// its nickname, enforcing the 5-second cooldown across all connections from
+    /// the same pub_id.  Keyed by pub_id string.
+    pub nickname_rate_limits: dashmap::DashMap<String, Instant>,
     /// Max broadcasts per 60-second window per pub_id. 0 = unlimited.
     pub rate_limit_per_min: u32,
     /// Random 32-byte salt generated at startup.  Never persisted, never logged.
@@ -105,6 +109,7 @@ impl AppState {
                 subscription_days,
                 merchant: OnceLock::new(),
                 rate_limits: dashmap::DashMap::new(),
+                nickname_rate_limits: dashmap::DashMap::new(),
                 rate_limit_per_min,
                 pow_server_salt: {
                     let mut salt = [0u8; 32];

@@ -253,8 +253,7 @@ impl NieClient {
             None => return JsValue::NULL,
         };
         let users = client.online_users();
-        // Vec<UserInfo> is a derived Serialize containing only strings — infallible.
-        let json_str = serde_json::to_string(&users).expect("Vec<UserInfo> serializes infallibly");
+        let json_str = serde_json::to_string(&users).unwrap_or_else(|_| "[]".to_string());
         // js_sys::JSON::parse converts a JSON string into a native JS value.
         js_sys::JSON::parse(&json_str).unwrap_or(JsValue::NULL)
     }

@@ -1240,40 +1240,34 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Object(updates)) = args.get("update") {
         for (space_id, patch) in updates {
             if let Value::Object(patch_map) = patch {
-                // Check existence first so non-existent space IDs return
-                // notFound (RFC 8620 §7.1) rather than leaking forbidden.
-                match store.space_exists(space_id).await {
-                    Ok(false) => {
+                // Single query: check existence and role atomically to avoid
+                // a TOCTOU gap between separate space_exists / get_space_member_role
+                // calls that could leak space existence via the forbidden path.
+                match store.get_space_role_if_exists(space_id, &account_id).await {
+                    Err(e) => {
+                        not_updated.insert(space_id.clone(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
+                        continue;
+                    }
+                    Ok(None) => {
                         not_updated
                             .insert(space_id.clone(), serde_json::json!({"type": "notFound"}));
                         continue;
                     }
-                    Err(e) => {
-                        not_updated.insert(space_id.clone(), {
-                            tracing::error!("database error: {e}");
-                            serde_json::json!({"type":"serverFail","description":"database error"})
-                        });
-                        continue;
-                    }
-                    Ok(true) => {}
-                }
-                // Require the caller to be an admin of the space.  Without
-                // this check, any authenticated user can rename or modify
-                // membership of spaces they do not own.
-                match store.get_space_member_role(space_id, &account_id).await {
-                    Ok(Some(crate::store::SpaceRole::Admin)) => {} // allowed
-                    Ok(_) => {
+                    Ok(Some(None)) => {
+                        // Space exists but caller is not a member.
                         not_updated
                             .insert(space_id.clone(), serde_json::json!({"type": "forbidden"}));
                         continue;
                     }
-                    Err(e) => {
-                        not_updated.insert(space_id.clone(), {
-                            tracing::error!("database error: {e}");
-                            serde_json::json!({"type":"serverFail","description":"database error"})
-                        });
+                    Ok(Some(Some(role))) if role != crate::store::SpaceRole::Admin => {
+                        not_updated
+                            .insert(space_id.clone(), serde_json::json!({"type": "forbidden"}));
                         continue;
                     }
+                    Ok(Some(Some(_))) => {} // admin — allowed
                 }
                 let mut update_err: Option<Value> = None;
                 let mut simple_ops: Vec<SimplePropPatch<'_>> = Vec::new();
@@ -1375,39 +1369,34 @@ async fn space_set(args: Value, state: &DaemonState) -> (String, Value) {
     if let Some(Value::Array(ids)) = args.get("destroy") {
         for id_val in ids {
             if let Some(id) = id_val.as_str() {
-                // Check existence first so non-existent IDs return notFound
-                // (RFC 8620 §7.1) rather than leaking forbidden.
-                match store.space_exists(id).await {
-                    Ok(false) => {
+                // Single query: check existence and role atomically to avoid
+                // a TOCTOU gap between separate space_exists / get_space_member_role
+                // calls that could leak space existence via the forbidden path.
+                match store.get_space_role_if_exists(id, &account_id).await {
+                    Err(e) => {
+                        not_destroyed.insert(id.to_string(), {
+                            tracing::error!("database error: {e}");
+                            serde_json::json!({"type":"serverFail","description":"database error"})
+                        });
+                        continue;
+                    }
+                    Ok(None) => {
                         not_destroyed
                             .insert(id.to_string(), serde_json::json!({"type": "notFound"}));
                         continue;
                     }
-                    Err(e) => {
-                        not_destroyed.insert(id.to_string(), {
-                            tracing::error!("database error: {e}");
-                            serde_json::json!({"type":"serverFail","description":"database error"})
-                        });
-                        continue;
-                    }
-                    Ok(true) => {}
-                }
-                // Require the caller to be an admin of the space before
-                // allowing deletion.
-                match store.get_space_member_role(id, &account_id).await {
-                    Ok(Some(crate::store::SpaceRole::Admin)) => {} // allowed
-                    Ok(_) => {
+                    Ok(Some(None)) => {
+                        // Space exists but caller is not a member.
                         not_destroyed
                             .insert(id.to_string(), serde_json::json!({"type": "forbidden"}));
                         continue;
                     }
-                    Err(e) => {
-                        not_destroyed.insert(id.to_string(), {
-                            tracing::error!("database error: {e}");
-                            serde_json::json!({"type":"serverFail","description":"database error"})
-                        });
+                    Ok(Some(Some(role))) if role != crate::store::SpaceRole::Admin => {
+                        not_destroyed
+                            .insert(id.to_string(), serde_json::json!({"type": "forbidden"}));
                         continue;
                     }
+                    Ok(Some(Some(_))) => {} // admin — allowed
                 }
                 match store.delete_space(id).await {
                     Ok(true) => destroyed.push(Value::String(id.to_string())),
@@ -1998,6 +1987,48 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                         continue;
                     }
                     Ok(Some(_)) => {}
+                }
+            }
+
+            // Validate replyTo and threadRootId reference real messages in
+            // this chat.  Storing arbitrary strings would let clients fake
+            // thread structure pointing at non-existent messages.
+            if let Some(ref reply_id) = reply_to {
+                match store.message_exists_in_chat(reply_id, &chat_id).await {
+                    Err(e) => {
+                        not_created.insert(client_id.clone(), db_error(e).1);
+                        continue;
+                    }
+                    Ok(false) => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "replyTo message not found in this chat"
+                            }),
+                        );
+                        continue;
+                    }
+                    Ok(true) => {}
+                }
+            }
+            if let Some(ref root_id) = thread_root_id {
+                match store.message_exists_in_chat(root_id, &chat_id).await {
+                    Err(e) => {
+                        not_created.insert(client_id.clone(), db_error(e).1);
+                        continue;
+                    }
+                    Ok(false) => {
+                        not_created.insert(
+                            client_id.clone(),
+                            serde_json::json!({
+                                "type": "invalidArguments",
+                                "description": "threadRootId message not found in this chat"
+                            }),
+                        );
+                        continue;
+                    }
+                    Ok(true) => {}
                 }
             }
 

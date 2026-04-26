@@ -853,6 +853,36 @@ impl Store {
         Ok(row.and_then(|(r,)| SpaceRole::parse(&r)))
     }
 
+    /// Combined existence + membership check in a single query to avoid TOCTOU.
+    ///
+    /// Returns:
+    /// - `Err(_)` — database error
+    /// - `Ok(None)` — space does not exist
+    /// - `Ok(Some(None))` — space exists but `account_id` is not a member
+    /// - `Ok(Some(Some(role)))` — space exists and caller holds `role`
+    pub async fn get_space_role_if_exists(
+        &self,
+        space_id: &str,
+        account_id: &str,
+    ) -> Result<Option<Option<SpaceRole>>> {
+        // LEFT JOIN: returns one row when the space exists (sm.role is NULL
+        // when the caller is not a member), and no row when the space is absent.
+        // sqlx SQLite binds `?` placeholders positionally left-to-right; the
+        // subquery form avoids duplicating the bind while keeping a single
+        // round-trip.  space_id is first, account_id is second.
+        let row: Option<(Option<String>,)> = sqlx::query_as(
+            "SELECT sm.role
+             FROM space s
+             LEFT JOIN space_member sm ON s.id = sm.space_id AND sm.contact_id = ?
+             WHERE s.id = ?",
+        )
+        .bind(account_id)
+        .bind(space_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|(role_opt,)| role_opt.and_then(|r| SpaceRole::parse(&r))))
+    }
+
     /// Remove a member from a space.  Returns `true` if a row was deleted.
     pub async fn remove_space_member(&self, space_id: &str, contact_id: &str) -> Result<bool> {
         let rows = sqlx::query("DELETE FROM space_member WHERE space_id = ? AND contact_id = ?")
@@ -1654,6 +1684,20 @@ impl Store {
     }
 
     // ── Message read/query ────────────────────────────────────────────────────
+
+    /// Check whether a message exists in a specific chat.
+    ///
+    /// Returns `true` if a message with `message_id` exists in `chat_id`.
+    /// Used to validate `replyTo` and `threadRootId` references before insert.
+    pub async fn message_exists_in_chat(&self, message_id: &str, chat_id: &str) -> Result<bool> {
+        let row: Option<(i32,)> =
+            sqlx::query_as("SELECT 1 FROM message WHERE id = ? AND chat_id = ?")
+                .bind(message_id)
+                .bind(chat_id)
+                .fetch_optional(&self.pool)
+                .await?;
+        Ok(row.is_some())
+    }
 
     /// Fetch messages by IDs.  Returns `(found_rows, not_found_ids)`.
     pub async fn get_messages(&self, ids: &[&str]) -> Result<(Vec<MessageRow>, Vec<String>)> {
