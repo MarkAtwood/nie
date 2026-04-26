@@ -72,7 +72,7 @@ async fn connect_relay(
 
     // Store the send channel in shared state.
     {
-        let mut s = state.lock().unwrap();
+        let mut s = state.lock().unwrap_or_else(|e| e.into_inner());
         s.tx = Some(conn.tx.clone());
         s.pub_id = Some(pub_id.clone());
     }
@@ -111,7 +111,7 @@ async fn connect_relay(
 #[tauri::command]
 async fn send_chat(text: String, state: State<'_, Mutex<RelayState>>) -> Result<(), String> {
     let tx = {
-        let s = state.lock().unwrap();
+        let s = state.lock().unwrap_or_else(|e| e.into_inner());
         s.tx.clone().ok_or("not connected")?
     };
     let payload = serde_json::to_vec(&ClearMessage::Chat { text }).map_err(|e| e.to_string())?;

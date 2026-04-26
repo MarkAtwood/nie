@@ -25,6 +25,7 @@ use nie_core::messages::Chain;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Which Monero network to use.
 ///
@@ -55,15 +56,21 @@ impl From<MoneroNetwork> for Network {
 /// scalars.  Both are sensitive — store them encrypted and never log them.
 /// This type intentionally does NOT implement `Debug` to prevent accidental
 /// logging of key material.
-#[derive(Clone, Serialize, Deserialize)]
+///
+/// `Serialize`/`Deserialize` are retained because the CLI persists and loads
+/// keys as JSON on disk (`~/.config/nie/monero-keys.json`).  Callers are
+/// responsible for storing that file with restrictive permissions.
+#[derive(Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct MoneroKeys {
     /// 32-byte spend key scalar (secret — never log).
     pub spend_key_bytes: [u8; 32],
     /// 32-byte view key scalar (secret).
     pub view_key_bytes: [u8; 32],
     /// Primary address for this wallet (public — safe to share).
+    #[zeroize(skip)]
     pub primary_address: String,
     /// Network these keys belong to.
+    #[zeroize(skip)]
     pub network: MoneroNetwork,
 }
 

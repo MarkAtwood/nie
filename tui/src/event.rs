@@ -727,6 +727,18 @@ async fn decrypt_and_display(
                     amount_zatoshi,
                 } => {
                     // Receiving a Request from a peer creates a new payee session.
+                    // Cap the map to prevent a malicious relay peer from exhausting
+                    // TUI memory with unlimited distinct-UUID entries.
+                    const MAX_SESSIONS: usize = 256;
+                    if state.sessions.len() >= MAX_SESSIONS
+                        && !state.sessions.contains_key(&session_id)
+                    {
+                        tracing::warn!(
+                            "session map full ({MAX_SESSIONS}); dropping PaymentRequest from {}",
+                            effective_from
+                        );
+                        return Ok(());
+                    }
                     let now = chrono::Utc::now().timestamp();
                     let session = nie_core::messages::PaymentSession {
                         id: session_id,
@@ -1117,10 +1129,33 @@ async fn handle_slash(
             state.push_message(ChatLine::System("Usage: /me <action>".to_string()));
         }
         "alias" => {
+            const MAX_ALIAS_ENTRIES: usize = 200;
+            const MAX_ALIAS_NAME_LEN: usize = 64;
+            const MAX_ALIAS_PUBKEY_LEN: usize = 128;
             let parts: Vec<&str> = rest.splitn(2, ' ').collect();
             if parts.len() == 2 {
                 let name = parts[0].trim().to_string();
                 let pubkey = parts[1].trim().to_string();
+                if name.len() > MAX_ALIAS_NAME_LEN {
+                    state.push_message(ChatLine::System(format!(
+                        "Alias name too long (max {MAX_ALIAS_NAME_LEN} chars)"
+                    )));
+                    return Ok(());
+                }
+                if pubkey.len() > MAX_ALIAS_PUBKEY_LEN {
+                    state.push_message(ChatLine::System(format!(
+                        "Alias pubkey too long (max {MAX_ALIAS_PUBKEY_LEN} chars)"
+                    )));
+                    return Ok(());
+                }
+                if state.local_names.len() >= MAX_ALIAS_ENTRIES
+                    && !state.local_names.contains_key(&pubkey)
+                {
+                    state.push_message(ChatLine::System(format!(
+                        "Too many aliases (max {MAX_ALIAS_ENTRIES})"
+                    )));
+                    return Ok(());
+                }
                 state.local_names.insert(pubkey.clone(), name.clone());
                 state.push_message(ChatLine::System(format!("Alias set: {name} → {pubkey}")));
             } else {
@@ -1251,16 +1286,35 @@ async fn handle_slash(
             state.push_message(ChatLine::System("Usage: /cat <path>".to_string()));
         }
         "set" => {
+            const MAX_PROFILE_ENTRIES: usize = 50;
+            const MAX_KEY_LEN: usize = 64;
+            const MAX_VALUE_LEN: usize = 256;
             let parts: Vec<&str> = rest.splitn(2, ' ').collect();
             if parts.len() == 2 {
-                state
-                    .own_profile
-                    .insert(parts[0].trim().to_string(), parts[1].trim().to_string());
-                state.push_message(ChatLine::System(format!(
-                    "Profile: {} = {}",
-                    parts[0].trim(),
-                    parts[1].trim()
-                )));
+                let key = parts[0].trim().to_string();
+                let value = parts[1].trim().to_string();
+                if key.len() > MAX_KEY_LEN {
+                    state.push_message(ChatLine::System(format!(
+                        "Key too long (max {MAX_KEY_LEN} chars)"
+                    )));
+                    return Ok(());
+                }
+                if value.len() > MAX_VALUE_LEN {
+                    state.push_message(ChatLine::System(format!(
+                        "Value too long (max {MAX_VALUE_LEN} chars)"
+                    )));
+                    return Ok(());
+                }
+                if state.own_profile.len() >= MAX_PROFILE_ENTRIES
+                    && !state.own_profile.contains_key(&key)
+                {
+                    state.push_message(ChatLine::System(format!(
+                        "Too many profile entries (max {MAX_PROFILE_ENTRIES})"
+                    )));
+                    return Ok(());
+                }
+                state.own_profile.insert(key.clone(), value.clone());
+                state.push_message(ChatLine::System(format!("Profile: {key} = {value}")));
             } else {
                 state.push_message(ChatLine::System("Usage: /set <key> <value>".to_string()));
             }

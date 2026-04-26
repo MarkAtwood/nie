@@ -184,6 +184,11 @@ impl WasmTransport {
             "params": params,
         });
 
+        const MAX_PENDING: usize = 256;
+        if self.pending.borrow().len() >= MAX_PENDING {
+            return Err("too many pending requests".to_string());
+        }
+
         let (tx, rx) = oneshot::channel();
         self.pending.borrow_mut().insert(id, tx);
 
