@@ -65,6 +65,11 @@ pub enum DaemonEvent {
         typing: bool,
         timestamp: String,
     },
+    MessageRetracted {
+        message_id: String,
+        for_all: bool,
+        timestamp: String,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]

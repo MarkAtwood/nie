@@ -382,10 +382,42 @@ pub struct UserNicknameParams {
     pub nickname: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// Maximum total number of [`UserInfo`] entries across `online` and `offline`
+/// in a single [`DirectoryListParams`] message.
+///
+/// A rogue or compromised relay cannot cause client OOM by sending a
+/// directory_list with millions of entries: deserialization returns an error
+/// before the Vec is materialised in memory if the combined length exceeds
+/// this cap.  10 000 covers realistic relay deployments (a relay would need
+/// 10 000 simultaneous users before hitting this limit).
+pub const MAX_USERS_IN_DIRECTORY: usize = 10_000;
+
+#[derive(Debug, Clone, Serialize)]
 pub struct DirectoryListParams {
     pub online: Vec<UserInfo>,
     pub offline: Vec<UserInfo>,
+}
+
+impl<'de> serde::Deserialize<'de> for DirectoryListParams {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Deserialize into a temporary struct with plain Vecs, then enforce the cap.
+        #[derive(serde::Deserialize)]
+        struct Raw {
+            online: Vec<UserInfo>,
+            offline: Vec<UserInfo>,
+        }
+        let raw = Raw::deserialize(deserializer)?;
+        let total = raw.online.len().saturating_add(raw.offline.len());
+        if total > MAX_USERS_IN_DIRECTORY {
+            return Err(serde::de::Error::custom(format!(
+                "directory_list contains {total} entries, exceeding the cap of {MAX_USERS_IN_DIRECTORY}"
+            )));
+        }
+        Ok(DirectoryListParams {
+            online: raw.online,
+            offline: raw.offline,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

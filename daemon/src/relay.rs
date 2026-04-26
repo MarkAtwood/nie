@@ -281,8 +281,27 @@ async fn dispatch_notification(
                     }
                 };
 
-            let online: Vec<UserInfo> = params
-                .online
+            const MAX_DIRECTORY_ENTRIES: usize = 10_000;
+            let total = params.online.len() + params.offline.len();
+            let (online_src, offline_src) = if total > MAX_DIRECTORY_ENTRIES {
+                tracing::warn!(
+                    "directory_list: received {} entries (online={}, offline={}), \
+                     truncating to {}",
+                    total,
+                    params.online.len(),
+                    params.offline.len(),
+                    MAX_DIRECTORY_ENTRIES,
+                );
+                let online_count = params.online.len().min(MAX_DIRECTORY_ENTRIES);
+                (
+                    &params.online[..online_count],
+                    &params.offline[..MAX_DIRECTORY_ENTRIES.saturating_sub(online_count)],
+                )
+            } else {
+                (&params.online[..], &params.offline[..])
+            };
+
+            let online: Vec<UserInfo> = online_src
                 .iter()
                 .map(|u| UserInfo {
                     pub_id: u.pub_id.clone(),
@@ -294,8 +313,7 @@ async fn dispatch_notification(
                 })
                 .collect();
 
-            let offline: Vec<UserInfo> = params
-                .offline
+            let offline: Vec<UserInfo> = offline_src
                 .iter()
                 .map(|u| UserInfo {
                     pub_id: u.pub_id.clone(),
@@ -553,8 +571,14 @@ async fn dispatch_peer_retract(state: &DaemonState, message_id: String, for_all:
     if let Some(store) = state.store() {
         if let Err(e) = store.soft_delete_message(&message_id, for_all).await {
             tracing::warn!("peer_retract: soft_delete_message failed: {e}");
+            return;
         }
     }
+    state.broadcast_event(DaemonEvent::MessageRetracted {
+        message_id,
+        for_all,
+        timestamp: utc_now(),
+    });
 }
 
 async fn dispatch_peer_group_update(

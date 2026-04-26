@@ -8,7 +8,10 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_socks::tcp::Socks5Stream;
 use tokio_tungstenite::{
-    client_async_tls_with_config, tungstenite::Error as WsError, tungstenite::Message, Connector,
+    client_async_tls_with_config,
+    tungstenite::protocol::WebSocketConfig,
+    tungstenite::{Error as WsError, Message},
+    Connector,
 };
 use tracing::{debug, error, info, warn};
 
@@ -362,7 +365,8 @@ async fn ws_upgrade_and_auth<S: AsyncRW>(
     identity: &Identity,
     connector: Option<Connector>,
 ) -> Result<(WsSink, WsStream)> {
-    let (ws, _) = client_async_tls_with_config(url, stream, None, connector)
+    let ws_config = WebSocketConfig::default().max_message_size(Some(1024 * 1024));
+    let (ws, _) = client_async_tls_with_config(url, stream, Some(ws_config), connector)
         .await
         .with_context(|| format!("WebSocket upgrade to {url} failed"))?;
 

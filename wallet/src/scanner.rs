@@ -40,7 +40,9 @@ use zcash_primitives::merkle_tree::{
     write_incremental_witness,
 };
 
-use crate::client::{CompactBlock, CompactSaplingOutput, CompactTx, LightwalletdClient};
+use crate::client::{
+    connect_with_failover, CompactBlock, CompactSaplingOutput, CompactTx, LightwalletdClient,
+};
 use crate::db::{Note, WalletStore};
 
 // ---- ShieldedOutput adapter ----
@@ -264,6 +266,12 @@ impl NoteDecryptor for SaplingIvkDecryptor {
 /// [`scan_to_tip`]: CompactBlockScanner::scan_to_tip
 pub struct CompactBlockScanner {
     client: LightwalletdClient,
+    /// All configured lightwalletd endpoints, used for failover on reconnect.
+    /// Contains at least the URL of `client`; may contain additional fallback
+    /// endpoints.  On a scan error, [`spawn_scanner`] calls
+    /// [`connect_with_failover`] with this list, rotating through endpoints
+    /// rather than always reconnecting to the same potentially-dead server.
+    endpoints: Vec<String>,
     store: WalletStore,
     decryptor: Box<dyn NoteDecryptor>,
     /// Set to `true` after the birthday-height warning has been emitted once.
@@ -283,16 +291,49 @@ pub struct CompactBlockScanner {
 }
 
 impl CompactBlockScanner {
-    /// Create a new scanner.
+    /// Create a new scanner connected to a single endpoint.
     ///
     /// `decryptor` is called for each Sapling output in each scanned block.
     /// Pass [`NullDecryptor`] if no IVK is available yet.
+    ///
+    /// On reconnect after an error, [`spawn_scanner`] will retry the same URL.
+    /// To enable failover across multiple endpoints, use [`new_with_endpoints`].
+    ///
+    /// [`new_with_endpoints`]: CompactBlockScanner::new_with_endpoints
     pub fn new(
         client: LightwalletdClient,
         store: WalletStore,
         decryptor: Box<dyn NoteDecryptor>,
     ) -> Self {
+        let url = client.url.clone();
         Self {
+            endpoints: vec![url],
+            client,
+            store,
+            decryptor,
+            birthday_warned: false,
+            tree: CommitmentTree::empty(),
+            witnesses: HashMap::new(),
+        }
+    }
+
+    /// Create a new scanner with a list of fallback endpoints.
+    ///
+    /// `client` is the already-connected client for the initial endpoint.
+    /// `endpoints` is the full list of URLs to rotate through when reconnecting
+    /// after a scan error — including the URL of `client`.  On reconnect,
+    /// [`spawn_scanner`] calls [`connect_with_failover`] with this list,
+    /// trying each endpoint in round-robin order until one succeeds.
+    ///
+    /// Pass [`NullDecryptor`] if no IVK is available yet.
+    pub fn new_with_endpoints(
+        client: LightwalletdClient,
+        endpoints: Vec<String>,
+        store: WalletStore,
+        decryptor: Box<dyn NoteDecryptor>,
+    ) -> Self {
+        Self {
+            endpoints,
             client,
             store,
             decryptor,
@@ -668,15 +709,18 @@ pub fn spawn_scanner(
                     tokio::time::sleep(backoff).await;
                     // Double backoff, cap at MAX_BACKOFF.
                     backoff = (backoff * 2).min(MAX_BACKOFF);
-                    // Reconnect: drop the broken client and open a fresh connection.
-                    let url = s.client.url.clone();
-                    match LightwalletdClient::connect(&url).await {
+                    // Reconnect: rotate through all configured endpoints so a
+                    // permanently-dead server does not cause an infinite retry
+                    // loop against the same host.
+                    let endpoint_refs: Vec<&str> = s.endpoints.iter().map(String::as_str).collect();
+                    match connect_with_failover(&endpoint_refs).await {
                         Ok(new_client) => {
+                            let url = new_client.url.clone();
                             s.client = new_client;
                             debug!("scanner: reconnected to {url}");
                         }
                         Err(ce) => {
-                            warn!("scanner: reconnect to {url} failed ({ce}); will retry");
+                            warn!("scanner: all endpoints unreachable ({ce}); will retry");
                         }
                     }
                 }

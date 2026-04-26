@@ -1076,6 +1076,102 @@ impl WalletStore {
         })
     }
 
+    /// Read `scan_tip` and `spendable_notes` atomically in a single read
+    /// transaction.
+    ///
+    /// This prevents the TOCTOU where the compact-block scanner calls
+    /// `save_block_state` (which atomically advances `tip_height` and all
+    /// witness rows) between the two reads: with separate queries, `scan_tip`
+    /// could return height N while `spendable_notes` returns witnesses that
+    /// have already been advanced to N+1, causing the anchor passed to
+    /// `build_shielded_tx` to mismatch the witnesses' Merkle root.
+    ///
+    /// A `BEGIN DEFERRED` transaction (SQLite default for `pool.begin()`)
+    /// is sufficient: it acquires a shared read lock on first read, blocking
+    /// any concurrent `BEGIN IMMEDIATE` write (from `save_block_state`) until
+    /// both reads complete.
+    pub async fn scan_tip_and_spendable_notes(
+        &self,
+        account: u32,
+    ) -> Result<(u64, Vec<SpendableNote>)> {
+        if account != 0 {
+            anyhow::bail!(
+                "multi-account not yet supported; only account 0 is valid — pass account=0"
+            );
+        }
+        let mut txn = self.pool.begin().await?;
+
+        // Read scan_tip inside the transaction.
+        let h: i64 = sqlx::query_scalar("SELECT tip_height FROM scan_state WHERE id = 1")
+            .fetch_one(&mut *txn)
+            .await?;
+        let scan_tip = u64::try_from(h).map_err(|_| {
+            anyhow::anyhow!(
+                "scan_state tip_height {} is negative — DB corruption; \
+                 run `nie wallet sync` to reset the scan tip",
+                h
+            )
+        })?;
+
+        // Read spendable notes inside the same transaction snapshot.
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            note_id: i64,
+            value_zatoshi: i64,
+            note_diversifier: Vec<u8>,
+            note_pk_d: Vec<u8>,
+            note_rseed: Vec<u8>,
+            note_rseed_after_zip212: Option<i64>,
+            block_height: i64,
+            witness_data: Vec<u8>,
+        }
+        let rows: Vec<Row> = sqlx::query_as(
+            "SELECT n.note_id, n.value_zatoshi, n.note_diversifier, n.note_pk_d, n.note_rseed,
+                    n.note_rseed_after_zip212, n.block_height, w.witness_data
+             FROM notes n
+             JOIN witnesses w ON n.note_id = w.note_id
+             WHERE n.spent = 0
+               AND n.note_diversifier          IS NOT NULL
+               AND n.note_pk_d                IS NOT NULL
+               AND n.note_rseed               IS NOT NULL
+               AND n.note_rseed_after_zip212   IS NOT NULL",
+        )
+        .fetch_all(&mut *txn)
+        .await?;
+
+        txn.commit().await?;
+
+        let notes = rows
+            .into_iter()
+            .map(|r| {
+                Ok(SpendableNote {
+                    note_id: r.note_id,
+                    value_zatoshi: u64::try_from(r.value_zatoshi).map_err(|_| {
+                        anyhow::anyhow!(
+                            "note {} has negative value_zatoshi {} in DB — data corruption",
+                            r.note_id,
+                            r.value_zatoshi
+                        )
+                    })?,
+                    note_diversifier: r.note_diversifier,
+                    note_pk_d: r.note_pk_d,
+                    note_rseed: r.note_rseed,
+                    rseed_after_zip212: r.note_rseed_after_zip212.unwrap_or(0) != 0,
+                    block_height: u64::try_from(r.block_height).map_err(|_| {
+                        anyhow::anyhow!(
+                            "note {} has negative block_height {} in DB — data corruption",
+                            r.note_id,
+                            r.block_height
+                        )
+                    })?,
+                    witness_data: r.witness_data,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok((scan_tip, notes))
+    }
+
     /// Update the last fully-scanned block height.
     ///
     /// Called by the compact-block scanner after each block is processed.

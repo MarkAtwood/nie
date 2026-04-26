@@ -2636,7 +2636,7 @@ async fn daemon_event_to_jmap_event(
     }
 
     let changed_type: &str = match event {
-        DaemonEvent::MessageReceived { .. } => "Message",
+        DaemonEvent::MessageReceived { .. } | DaemonEvent::MessageRetracted { .. } => "Message",
         DaemonEvent::UserJoined { .. }
         | DaemonEvent::UserLeft { .. }
         | DaemonEvent::DirectoryUpdated { .. } => "ChatContact",

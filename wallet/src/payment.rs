@@ -176,24 +176,28 @@ pub async fn send_payment<C: WalletClient>(
     // scan_tip is also the anchor height for Sapling witnesses (witnesses in
     // spendable_notes() are all valid at the scan_tip).
     //
-    // TOCTOU: chain_tip is fetched here; spendable_notes is fetched below.
-    // The real chain tip can advance between these two awaits.  The
-    // MAX_SYNC_LAG buffer absorbs 1-2 new blocks during the window.  See the
-    // MAX_SYNC_LAG constant in sync_guard.rs for the full race analysis.
-    // Do not restructure these two fetches into a single await without
-    // re-reading that comment.
-    let scan_tip = store.scan_tip().await.map_err(SendPaymentError::Db)?;
+    // scan_tip and spendable_notes are read together in one DB transaction to
+    // prevent the TOCTOU where the scanner's save_block_state advances both
+    // tip_height and witness rows atomically between two separate reads.
+    // Without the transaction, scan_tip could return N while spendable_notes
+    // returns witnesses already at N+1, making the anchor mismatch the
+    // witnesses' Merkle root.
+    //
+    // The chain_tip (network call) and the sync-lag check run after the DB
+    // snapshot is taken.  The MAX_SYNC_LAG buffer absorbs 1-2 new blocks
+    // during the window between the DB reads and the network call.  See
+    // sync_guard.rs for the full race analysis.
+    let (scan_tip, all_notes) = store
+        .scan_tip_and_spendable_notes(PAYMENT_ACCOUNT)
+        .await
+        .map_err(SendPaymentError::Db)?;
     let chain_tip = client
         .latest_height()
         .await
         .map_err(SendPaymentError::Connect)?;
     check_lag(scan_tip, chain_tip, MAX_SYNC_LAG).map_err(SendPaymentError::SyncLag)?;
 
-    // Step 2: Fetch spendable notes.
-    let all_notes = store
-        .spendable_notes(PAYMENT_ACCOUNT)
-        .await
-        .map_err(SendPaymentError::Db)?;
+    // Step 2: Check for spendable notes.
     if all_notes.is_empty() {
         return Err(SendPaymentError::Build(TxBuildError::NoSpendableNotes));
     }
