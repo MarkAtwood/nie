@@ -1529,6 +1529,9 @@ async fn space_join(args: Value, state: &DaemonState) -> (String, Value) {
         Some(c) => c.to_string(),
         None => return method_error("invalidArguments"),
     };
+    if code.len() > 128 {
+        return method_error("invalidArguments");
+    }
     use crate::store::SpaceJoinOutcome;
     match store.use_space_invite_code(&code, &account_id).await {
         Ok(SpaceJoinOutcome::Joined(space_id)) => {
@@ -1906,10 +1909,24 @@ async fn message_set(args: Value, state: &DaemonState) -> (String, Value) {
                 .get("replyTo")
                 .and_then(|v| v.as_str())
                 .map(String::from);
+            if reply_to.as_deref().map(|s| s.len()).unwrap_or(0) > 128 {
+                not_created.insert(
+                    client_id.clone(),
+                    serde_json::json!({"type":"invalidArguments","description":"replyTo exceeds 128 bytes"}),
+                );
+                continue;
+            }
             let thread_root_id = props
                 .get("threadRootId")
                 .and_then(|v| v.as_str())
                 .map(String::from);
+            if thread_root_id.as_deref().map(|s| s.len()).unwrap_or(0) > 128 {
+                not_created.insert(
+                    client_id.clone(),
+                    serde_json::json!({"type":"invalidArguments","description":"threadRootId exceeds 128 bytes"}),
+                );
+                continue;
+            }
             // Normalize senderExpiresAt to SQLite datetime format so that the
             // expires_at <= datetime('now') comparison in hard_delete_expired_messages
             // works correctly.  RFC 3339 "T" separators compare incorrectly against

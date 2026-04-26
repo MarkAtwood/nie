@@ -581,6 +581,9 @@ async fn handle(socket: WebSocket, state: AppState) {
     // so peers don't see a phantom "is typing…" that never resolves.
     let mut connection_is_typing = false;
 
+    // Per-connection rate limit for SET_NICKNAME: at most one change per 5 s.
+    let mut last_nickname_change: Option<Instant> = None;
+
     // Main read loop
     while let Some(frame) = stream.next().await {
         match frame {
@@ -737,6 +740,30 @@ async fn handle(socket: WebSocket, state: AppState) {
                     }
 
                     rpc_methods::SET_NICKNAME => {
+                        if state.inner.require_subscription
+                            && !subscribed_flag.load(Ordering::Relaxed)
+                        {
+                            send_client_error(
+                                &client_tx,
+                                req.id,
+                                rpc_errors::SUBSCRIPTION_REQUIRED,
+                                "an active subscription is required to set a nickname",
+                            )
+                            .await;
+                            continue;
+                        }
+                        if let Some(last) = last_nickname_change {
+                            if last.elapsed() < Duration::from_secs(5) {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::RATE_LIMITED,
+                                    "nickname changes are rate limited to once per 5 seconds",
+                                )
+                                .await;
+                                continue;
+                            }
+                        }
                         let params: SetNicknameParams =
                             match deserialize_params(req.params.as_ref()) {
                                 Ok(p) => p,
@@ -785,6 +812,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 )
                                 .unwrap();
                                 state.broadcast(None, notif).await;
+                                last_nickname_change = Some(Instant::now());
                                 let ok = serde_json::to_string(
                                     &JsonRpcResponse::success(req.id, OkResult { ok: true })
                                         .unwrap(),

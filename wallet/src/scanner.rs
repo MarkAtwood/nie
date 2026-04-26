@@ -309,6 +309,12 @@ impl CompactBlockScanner {
     /// A brand-new wallet has no snapshot; in that case the empty tree set in
     /// [`new`] is correct and this is a no-op.
     ///
+    /// Returns `Err` if the DB contains a commitment tree snapshot that cannot
+    /// be deserialized.  Loading witnesses against an empty tree (due to a
+    /// silent fallback) would silently produce invalid Merkle proofs, making
+    /// notes permanently unspendable.  An explicit error forces the operator to
+    /// rescan from a valid checkpoint rather than proceeding with corrupt state.
+    ///
     /// Witness deserialization errors are logged and that witness is dropped —
     /// the scanner prefers to continue without a corrupted witness rather than
     /// refusing to start.  The affected note will be unspendable until the
@@ -323,7 +329,17 @@ impl CompactBlockScanner {
                 match read_commitment_tree::<sapling::Node, _, 32>(Cursor::new(&bytes)) {
                     Ok(t) => self.tree = t,
                     Err(e) => {
-                        warn!("scanner: failed to deserialize commitment tree from DB ({e}); starting from empty tree — rescan required");
+                        // The DB contains a tree snapshot but it cannot be
+                        // deserialized.  Do NOT fall back to an empty tree:
+                        // loading witnesses against the wrong tree produces
+                        // silently invalid Merkle proofs that make every
+                        // already-scanned note permanently unspendable.
+                        // Return Err so the caller can halt and the operator
+                        // can rescan from a valid checkpoint.
+                        return Err(anyhow::anyhow!(
+                            "scanner: commitment tree in DB is corrupt and cannot be deserialized ({e}); \
+                             rescan required — do not scan with mismatched witnesses"
+                        ));
                     }
                 }
             }
