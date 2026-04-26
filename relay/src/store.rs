@@ -6,6 +6,9 @@ use tracing::info;
 /// Maximum number of groups returned per user by [`Store::list_groups_for_user`].
 const MAX_GROUPS_PER_USER: i64 = 256;
 
+/// Maximum number of members returned per group by [`Store::list_group_members`].
+const MAX_MEMBERS_PER_GROUP: i64 = 1000;
+
 /// Maximum number of key packages returned per user by [`Store::get_all_key_packages`].
 const MAX_KEY_PACKAGES_PER_USER: i64 = 10;
 
@@ -1083,6 +1086,119 @@ impl Store {
         result
     }
 
+    /// Atomically allocate a Sapling diversifier index and create a subscription
+    /// invoice in a single `BEGIN IMMEDIATE` transaction.
+    ///
+    /// This eliminates the TOCTOU window in the previous two-step sequence
+    /// (`next_diversifier` → `find_address` → `count_and_create_invoice`) where
+    /// the diversifier was advanced before the invoice write, meaning a failure
+    /// in `count_and_create_invoice` (cap hit or DB error) would burn the
+    /// address: any payment sent to it would be silently ignored.
+    ///
+    /// The `find_addr` closure receives the current diversifier start index and
+    /// returns `(actual_diversifier_used, bech32_address_string)`.  It runs
+    /// inside the transaction window (but is pure computation — no I/O).
+    ///
+    /// Returns:
+    /// - `Ok(Some(address))` — diversifier advanced, invoice inserted.
+    /// - `Ok(None)` — invoice cap already reached; diversifier NOT advanced.
+    /// - `Err` — DB failure; diversifier NOT advanced.
+    pub async fn alloc_diversifier_and_create_invoice(
+        &self,
+        account: u32,
+        row: &InvoiceRow,
+        cap: u64,
+        find_addr: impl FnOnce(u128) -> anyhow::Result<(u128, String)>,
+    ) -> Result<Option<String>> {
+        const MAX_DIVERSIFIER: u128 = (1u128 << 88) - 1;
+
+        let amount_i64 = i64::try_from(row.amount_zatoshi).context("amount_zatoshi overflow")?;
+        let days_i64: Option<i64> = row
+            .subscription_days
+            .map(i64::try_from)
+            .transpose()
+            .context("subscription_days overflow")?;
+
+        let mut conn = self.pool.acquire().await?;
+        sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
+
+        let result: Result<Option<String>> = async {
+            // Ensure the diversifier row exists.
+            sqlx::query(
+                "INSERT OR IGNORE INTO merchant_diversifier (account, diversifier_idx) \
+                 VALUES (?, '0')",
+            )
+            .bind(account as i64)
+            .execute(&mut *conn)
+            .await?;
+
+            // Check invoice cap.
+            let count: i64 = sqlx::query_scalar(
+                "SELECT COUNT(*) FROM subscription_invoices \
+                 WHERE pub_id = ?1 AND expires_at > datetime('now')",
+            )
+            .bind(&row.pub_id)
+            .fetch_one(&mut *conn)
+            .await?;
+
+            if count as u64 >= cap {
+                return Ok(None);
+            }
+
+            // Read the current diversifier index.
+            let raw: String = sqlx::query_scalar(
+                "SELECT diversifier_idx FROM merchant_diversifier WHERE account = ?",
+            )
+            .bind(account as i64)
+            .fetch_one(&mut *conn)
+            .await?;
+
+            let start: u128 = raw
+                .parse()
+                .map_err(|e| anyhow::anyhow!("corrupt diversifier_idx in DB: {e}"))?;
+
+            if start >= MAX_DIVERSIFIER {
+                anyhow::bail!("diversifier index overflow for account {account}");
+            }
+
+            // Pure computation: find the address for this diversifier start.
+            let (actual, address) = find_addr(start)?;
+
+            // Advance the stored index past the one we just used.
+            let next = actual.saturating_add(1);
+            sqlx::query("UPDATE merchant_diversifier SET diversifier_idx = ? WHERE account = ?")
+                .bind(next.to_string())
+                .bind(account as i64)
+                .execute(&mut *conn)
+                .await?;
+
+            // Insert the invoice row with the allocated address.
+            sqlx::query(
+                "INSERT OR IGNORE INTO subscription_invoices \
+                 (invoice_id, pub_id, address, amount_zatoshi, expires_at, subscription_days) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            )
+            .bind(&row.invoice_id)
+            .bind(&row.pub_id)
+            .bind(&address)
+            .bind(amount_i64)
+            .bind(&row.expires_at)
+            .bind(days_i64)
+            .execute(&mut *conn)
+            .await?;
+
+            Ok(Some(address))
+        }
+        .await;
+
+        if result.is_ok() {
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+        } else {
+            sqlx::query("ROLLBACK").execute(&mut *conn).await.ok();
+        }
+        result
+    }
+
     /// Delete all invoices whose `expires_at` is in the past. Returns the
     /// number of rows deleted.
     pub async fn purge_expired_invoices(&self) -> Result<u64> {
@@ -1213,8 +1329,9 @@ impl Store {
     /// All member pub_ids for `group_id`.
     pub async fn list_group_members(&self, group_id: &str) -> Result<Vec<String>> {
         let rows: Vec<(String,)> =
-            sqlx::query_as("SELECT pub_id FROM group_members WHERE group_id = ?1")
+            sqlx::query_as("SELECT pub_id FROM group_members WHERE group_id = ?1 LIMIT ?2")
                 .bind(group_id)
+                .bind(MAX_MEMBERS_PER_GROUP)
                 .fetch_all(&self.pool)
                 .await?;
         Ok(rows.into_iter().map(|(s,)| s).collect())

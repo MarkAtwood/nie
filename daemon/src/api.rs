@@ -135,8 +135,14 @@ pub async fn handle_send(
             {
                 Ok(id) => id,
                 Err(e) => {
-                    tracing::warn!("handle_send: insert_message failed: {e}");
-                    Uuid::new_v4().to_string()
+                    tracing::error!("handle_send: insert_message failed: {e}");
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ApiError {
+                            code: "db_error".to_string(),
+                            message: "message sent but could not be recorded".to_string(),
+                        }),
+                    ));
                 }
             }
         } else {

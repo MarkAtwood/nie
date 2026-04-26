@@ -245,7 +245,7 @@ async fn dispatch_notification(
                         true
                     };
                     if authorized {
-                        dispatch_peer_retract(state, message_id, for_all).await;
+                        dispatch_peer_retract(state, sender_pub_id, message_id, for_all).await;
                     } else {
                         tracing::warn!(
                             "peer_retract: sender {} does not own message {}",
@@ -567,15 +567,22 @@ fn dispatch_peer_typing(state: &DaemonState, from: String, chat_id: String, typi
     });
 }
 
-async fn dispatch_peer_retract(state: &DaemonState, message_id: String, for_all: bool) {
-    if let Some(store) = state.store() {
-        if let Err(e) = store.soft_delete_message(&message_id, for_all).await {
-            tracing::warn!("peer_retract: soft_delete_message failed: {e}");
-            return;
-        }
+async fn dispatch_peer_retract(
+    state: &DaemonState,
+    from_pub_id: String,
+    message_id: String,
+    for_all: bool,
+) {
+    // Without a store we cannot persist the retraction, so there is nothing to
+    // retract from a JMAP client's perspective — emit no event.
+    let Some(store) = state.store() else { return };
+    if let Err(e) = store.soft_delete_message(&message_id, for_all).await {
+        tracing::warn!("peer_retract: soft_delete_message failed: {e}");
+        return;
     }
     state.broadcast_event(DaemonEvent::MessageRetracted {
         message_id,
+        from_pub_id,
         for_all,
         timestamp: utc_now(),
     });
@@ -1330,7 +1337,7 @@ mod tests {
             .unwrap();
         let (state, _rx) = make_state_with_store(store);
 
-        dispatch_peer_retract(&state, msg_id, true).await;
+        dispatch_peer_retract(&state, "f".repeat(64), msg_id, true).await;
 
         let store = state.store().unwrap();
         assert_eq!(

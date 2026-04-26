@@ -156,18 +156,22 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                 }
             };
 
-            // Process each block.
+            // Process each block.  Track whether the stream ended normally
+            // (Ok(None)) so we can choose the right sleep below.
+            let mut stream_error = false;
             loop {
                 let block =
                     match tokio::time::timeout(Duration::from_secs(30), stream.message()).await {
                         Ok(Ok(Some(b))) => b,
-                        Ok(Ok(None)) => break, // Stream exhausted normally.
+                        Ok(Ok(None)) => break, // Stream exhausted normally; stream_error stays false.
                         Ok(Err(e)) => {
                             warn!("payment_watcher: block stream error: {e}");
+                            stream_error = true;
                             break;
                         }
                         Err(_elapsed) => {
                             warn!("payment_watcher: block stream timed out after 30s");
+                            stream_error = true;
                             break;
                         }
                     };
@@ -215,6 +219,14 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                 {
                     warn!("payment_watcher: failed to persist final scan tip {last_scanned_height} after stream exhaustion: {e}");
                 }
+            }
+
+            // On stream error or timeout, break the scan loop so we reconnect
+            // after RECONNECT_DELAY.  On normal exhaustion (Ok(None)) the scan
+            // loop continues: on the next iteration last_scanned_height >= scan_end
+            // is true and we sleep POLL_INTERVAL before checking again.
+            if stream_error {
+                break;
             }
         }
 

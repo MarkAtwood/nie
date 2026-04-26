@@ -2264,79 +2264,82 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
-                        // Allocate a fresh Sapling payment address using the relay
-                        // store's diversifier counter (the same two-step advance as
-                        // alloc_fresh_address in nie-wallet, inlined here because the
-                        // relay's Store is not a WalletStore).
-                        let address_str = match alloc_subscription_address(
-                            &merchant.dfvk,
-                            &state.inner.store,
-                            &merchant.network,
-                            &state.inner.subscription_alloc_lock,
-                        )
-                        .await
-                        {
-                            Ok(a) => a,
-                            Err(e) => {
-                                error!("alloc_subscription_address failed: {e}");
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INTERNAL_ERROR,
-                                    "internal error",
-                                )
-                                .await;
-                                continue;
-                            }
-                        };
                         let days = params.duration_days as i64;
                         let expires_at = (chrono::Utc::now() + chrono::Duration::days(days))
                             .format("%Y-%m-%d %H:%M:%S")
                             .to_string();
                         let invoice_id = Uuid::new_v4().to_string();
-                        let invoice = InvoiceRow {
+                        // Construct the invoice row without an address; the address
+                        // is filled in by alloc_diversifier_and_create_invoice.
+                        let invoice_template = InvoiceRow {
                             invoice_id: invoice_id.clone(),
                             pub_id: pub_id.0.clone(),
-                            address: address_str.clone(),
+                            address: String::new(),
                             amount_zatoshi: state.inner.subscription_price_zatoshi,
                             expires_at: expires_at.clone(),
                             subscription_days: Some(params.duration_days as u64),
                         };
-                        // SECURITY (nie-qgag.4 / nie-ozqt.3): atomically count
-                        // outstanding invoices and insert the new one inside a single
-                        // BEGIN IMMEDIATE transaction.  Without this, two concurrent
-                        // SUBSCRIBE_REQUEST handlers can both read count=4, both pass
-                        // the ≥5 check, and both insert — leaving 6 pending invoices.
+                        // SECURITY (nie-tb8e.1 / nie-qgag.4 / nie-ozqt.3):
+                        // Atomically check the invoice cap, advance the Sapling
+                        // diversifier, and insert the invoice row in a single
+                        // BEGIN IMMEDIATE transaction.  This prevents the previous
+                        // two-step bug where the diversifier was advanced before the
+                        // invoice write: a cap hit or DB error would burn the address,
+                        // causing payments sent to it to be silently ignored.
                         const MAX_PENDING_INVOICES: u64 = 5;
-                        match state
-                            .inner
-                            .store
-                            .count_and_create_invoice(&invoice, MAX_PENDING_INVOICES)
-                            .await
-                        {
-                            Ok(true) => {}
-                            Ok(false) => {
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::RATE_LIMITED,
-                                    "too many pending invoices; pay or wait for existing ones to expire",
+                        let network = merchant.network;
+                        let address_str = {
+                            use zcash_address::{ToAddress, ZcashAddress};
+                            use zcash_protocol::consensus::NetworkType;
+                            let network_type = match network {
+                                nie_wallet::address::ZcashNetwork::Mainnet => NetworkType::Main,
+                                nie_wallet::address::ZcashNetwork::Testnet => NetworkType::Test,
+                            };
+                            let _guard = state.inner.subscription_alloc_lock.lock().await;
+                            match state
+                                .inner
+                                .store
+                                .alloc_diversifier_and_create_invoice(
+                                    0,
+                                    &invoice_template,
+                                    MAX_PENDING_INVOICES,
+                                    |start| {
+                                        let (actual_di, addr) =
+                                            merchant.dfvk.find_address(start)?;
+                                        let actual_u128 = u128::from(actual_di);
+                                        let addr_bytes: [u8; 43] = addr.to_bytes();
+                                        let bech32 =
+                                            ZcashAddress::from_sapling(network_type, addr_bytes)
+                                                .encode();
+                                        Ok((actual_u128, bech32))
+                                    },
                                 )
-                                .await;
-                                continue;
+                                .await
+                            {
+                                Ok(Some(addr)) => addr,
+                                Ok(None) => {
+                                    send_client_error(
+                                        &client_tx,
+                                        req.id,
+                                        rpc_errors::RATE_LIMITED,
+                                        "too many pending invoices; pay or wait for existing ones to expire",
+                                    )
+                                    .await;
+                                    continue;
+                                }
+                                Err(e) => {
+                                    error!("alloc_diversifier_and_create_invoice failed: {e}");
+                                    send_client_error(
+                                        &client_tx,
+                                        req.id,
+                                        rpc_errors::INTERNAL_ERROR,
+                                        "internal error",
+                                    )
+                                    .await;
+                                    continue;
+                                }
                             }
-                            Err(e) => {
-                                error!("count_and_create_invoice failed: {e}");
-                                send_client_error(
-                                    &client_tx,
-                                    req.id,
-                                    rpc_errors::INTERNAL_ERROR,
-                                    "internal error",
-                                )
-                                .await;
-                                continue;
-                            }
-                        }
+                        };
                         let result = SubscribeInvoiceResult {
                             invoice_id,
                             address: address_str,
@@ -2532,42 +2535,6 @@ fn deserialize_params<T: for<'de> serde::Deserialize<'de>>(
         Some(v) => serde_json::from_value(v.clone()),
         None => Err(serde::de::Error::custom("missing params")),
     }
-}
-
-/// Allocate a fresh Sapling payment address for subscription invoices.
-///
-/// Mirrors the two-step diversifier advance in `nie_wallet::address::alloc_fresh_address`
-/// but uses the relay store's `merchant_diversifier` table instead of a `WalletStore`,
-/// since the relay does not hold a full wallet database.
-///
-/// Returns the bech32-encoded payment address string.
-async fn alloc_subscription_address(
-    dfvk: &nie_wallet::address::SaplingDiversifiableFvk,
-    store: &crate::store::Store,
-    network: &nie_wallet::address::ZcashNetwork,
-    lock: &tokio::sync::Mutex<()>,
-) -> anyhow::Result<String> {
-    use zcash_address::{ToAddress, ZcashAddress};
-    use zcash_protocol::consensus::NetworkType;
-
-    // Serialize the entire next_diversifier → find_address → advance_diversifier_to
-    // sequence so concurrent SUBSCRIBE_REQUEST handlers cannot race and allocate the
-    // same Sapling diversifier index when find_address() skips ahead past invalid indices.
-    let _guard = lock.lock().await;
-
-    let start: u128 = store.next_diversifier(0).await?;
-    let (actual_di, addr) = dfvk.find_address(start)?;
-    let actual_u128 = u128::from(actual_di);
-    if actual_u128 > start {
-        store.advance_diversifier_to(0, actual_u128 + 1).await?;
-    }
-    let network_type = match network {
-        nie_wallet::address::ZcashNetwork::Mainnet => NetworkType::Main,
-        nie_wallet::address::ZcashNetwork::Testnet => NetworkType::Test,
-    };
-    let sapling_bytes = addr.to_bytes();
-    let bech32 = ZcashAddress::from_sapling(network_type, sapling_bytes).encode();
-    Ok(bech32)
 }
 
 #[cfg(test)]
