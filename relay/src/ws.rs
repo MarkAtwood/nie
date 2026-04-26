@@ -1832,6 +1832,26 @@ async fn handle(socket: WebSocket, state: AppState) {
                                 continue;
                             }
                         }
+                        // Fetch remaining members before removal so we can
+                        // notify them after the member has left.
+                        let remaining_before =
+                            match state.inner.store.list_group_members(&params.group_id).await {
+                                Ok(m) => m,
+                                Err(e) => {
+                                    error!(
+                                        "list_group_members before leave for {}: {e}",
+                                        params.group_id
+                                    );
+                                    send_client_error(
+                                        &client_tx,
+                                        req.id,
+                                        rpc_errors::INTERNAL_ERROR,
+                                        "internal error",
+                                    )
+                                    .await;
+                                    continue;
+                                }
+                            };
                         // Atomically remove member and delete the group if empty.
                         // This is a single transaction to eliminate the TOCTOU
                         // between remove, count, and delete.
@@ -1851,6 +1871,30 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .await;
                             continue;
                         }
+                        // Notify remaining members that this user has left.
+                        // Remaining members are those who were in the group
+                        // before removal, excluding the departing user.
+                        // serde_json::to_string on a derived Serialize cannot fail
+                        let leave_notif = serde_json::to_string(
+                            &JsonRpcNotification::new(
+                                rpc_methods::GROUP_DELIVER,
+                                GroupDeliverParams {
+                                    from: pub_id.0.clone(),
+                                    group_id: params.group_id.clone(),
+                                    payload: Vec::new(),
+                                },
+                            )
+                            .unwrap(),
+                        )
+                        .unwrap();
+                        state
+                            .broadcast_to_group(
+                                &remaining_before,
+                                Some(&pub_id.0),
+                                leave_notif,
+                                None,
+                            )
+                            .await;
                         // serde_json::to_string on a derived Serialize cannot fail
                         let ok = serde_json::to_string(
                             &JsonRpcResponse::success(req.id, OkResult { ok: true }).unwrap(),
@@ -1899,6 +1943,34 @@ async fn handle(socket: WebSocket, state: AppState) {
                             )
                             .await;
                             continue;
+                        }
+                        // Verify the group exists before checking membership.
+                        // is_group_member returns false for both nonexistent groups
+                        // and groups where the caller is absent; checking group
+                        // existence first lets us return the correct error code.
+                        match state.inner.store.get_group(&params.group_id).await {
+                            Ok(Some(_)) => {}
+                            Ok(None) => {
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::GROUP_NOT_FOUND,
+                                    "group not found",
+                                )
+                                .await;
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("get_group for {}: {e}", params.group_id);
+                                send_client_error(
+                                    &client_tx,
+                                    req.id,
+                                    rpc_errors::INTERNAL_ERROR,
+                                    "internal error",
+                                )
+                                .await;
+                                continue;
+                            }
                         }
                         // Verify caller is a member of the group.
                         match state
@@ -2120,8 +2192,8 @@ async fn handle(socket: WebSocket, state: AppState) {
                             .count_and_create_invoice(&invoice, MAX_PENDING_INVOICES)
                             .await
                         {
-                            Ok(()) => {}
-                            Err(e) if e.to_string().contains("too many pending invoices") => {
+                            Ok(true) => {}
+                            Ok(false) => {
                                 send_client_error(
                                     &client_tx,
                                     req.id,

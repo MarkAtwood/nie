@@ -127,6 +127,23 @@ async fn dispatch_notification(
             let from = p.from;
             let payload = p.payload;
 
+            // When MLS is active the relay should only carry encrypted BROADCAST
+            // messages.  A DELIVER payload that parses as ClearMessage::Chat
+            // means the sender bypassed MLS and the message arrived as plaintext.
+            // Drop it so clients never silently receive unencrypted messages on
+            // the pre-MLS channel while an MLS session is established.
+            if mls.lock().await.has_group()
+                && serde_json::from_slice::<ClearMessage>(&payload)
+                    .ok()
+                    .is_some_and(|m| matches!(m, ClearMessage::Chat { .. }))
+            {
+                tracing::warn!(
+                    "deliver: dropping ClearMessage::Chat from {from} \
+                     because MLS group is active (message should arrive as BROADCAST)"
+                );
+                return;
+            }
+
             match serde_json::from_slice::<ClearMessage>(&payload) {
                 Ok(ClearMessage::Chat { text }) => {
                     state.broadcast_event(DaemonEvent::MessageReceived {

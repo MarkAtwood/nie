@@ -949,9 +949,10 @@ impl Store {
     /// read count=4 would otherwise both pass the ≥5 check and both insert,
     /// leaving 6 pending invoices.
     ///
-    /// Returns `Ok(())` if the invoice was created.
-    /// Returns `Err` if the count is already ≥ `cap` or if any DB operation fails.
-    pub async fn count_and_create_invoice(&self, row: &InvoiceRow, cap: u64) -> Result<()> {
+    /// Returns `Ok(true)` if the invoice was created.
+    /// Returns `Ok(false)` if the count is already ≥ `cap` (caller should rate-limit).
+    /// Returns `Err` only on database failures.
+    pub async fn count_and_create_invoice(&self, row: &InvoiceRow, cap: u64) -> Result<bool> {
         let amount_i64 = i64::try_from(row.amount_zatoshi).context("amount_zatoshi overflow")?;
         let days_i64: Option<i64> = row
             .subscription_days
@@ -961,7 +962,7 @@ impl Store {
 
         let mut conn = self.pool.acquire().await?;
         sqlx::query("BEGIN IMMEDIATE").execute(&mut *conn).await?;
-        let result: Result<()> = async {
+        let result: Result<bool> = async {
             let count: i64 = sqlx::query_scalar(
                 "SELECT COUNT(*) FROM subscription_invoices \
                  WHERE pub_id = ?1 AND expires_at > datetime('now')",
@@ -971,7 +972,7 @@ impl Store {
             .await?;
 
             if count as u64 >= cap {
-                return Err(anyhow::anyhow!("too many pending invoices"));
+                return Ok(false);
             }
 
             sqlx::query(
@@ -988,7 +989,7 @@ impl Store {
             .execute(&mut *conn)
             .await?;
 
-            Ok(())
+            Ok(true)
         }
         .await;
 

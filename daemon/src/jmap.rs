@@ -960,12 +960,16 @@ async fn space_get(args: Value, state: &DaemonState) -> (String, Value) {
         Ok(v) => v,
         Err(e) => return db_error(e),
     };
+    // Fetch all member rows for every returned space in a single IN query
+    // rather than one query per space (N+1).
+    let space_id_strs: Vec<&str> = spaces.iter().map(|s| s.id.as_str()).collect();
+    let mut members_by_space = match store.get_space_members_batch(&space_id_strs).await {
+        Ok(m) => m,
+        Err(e) => return db_error(e),
+    };
     let mut list = Vec::new();
     for s in &spaces {
-        let members = match store.get_space_members(&s.id).await {
-            Ok(m) => m,
-            Err(e) => return db_error(e),
-        };
+        let members = members_by_space.remove(&s.id).unwrap_or_default();
         list.push(space_to_json(s, &members));
     }
     method_ok(
@@ -1593,7 +1597,10 @@ async fn space_invite_get(args: Value, state: &DaemonState) -> (String, Value) {
         Ok(t) => t,
         Err(e) => return db_error(e),
     };
-    match store.get_space_invites(id_strs.as_deref()).await {
+    match store
+        .get_space_invites(id_strs.as_deref(), &account_id)
+        .await
+    {
         Ok((invites, not_found)) => method_ok(
             "SpaceInvite/get",
             serde_json::json!({
@@ -1708,23 +1715,20 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
         }
     }
 
-    // ── destroy: check existence first (RFC 8620 §5.3) ──────────────────
-    // A nonexistent ID must return notFound; a found ID returns forbidden
-    // because SpaceInvite objects are immutable and cannot be deleted.
+    // ── destroy ───────────────────────────────────────────────────────────
+    // Members may revoke invites for spaces they belong to (RFC 8620 §5.3).
+    // Non-members and non-existent IDs both get notFound (no membership leak).
+    let mut destroyed: Vec<Value> = Vec::new();
     if let Some(Value::Array(ids)) = args.get("destroy") {
-        let id_strs: Vec<&str> = ids.iter().filter_map(|v| v.as_str()).collect();
-        let (found_rows, not_found_ids) = match store.get_space_invites(Some(&id_strs)).await {
-            Ok(r) => r,
-            Err(e) => return db_error(e),
-        };
-        for id in &not_found_ids {
-            not_destroyed.insert(id.clone(), serde_json::json!({"type":"notFound"}));
-        }
-        for row in &found_rows {
-            not_destroyed.insert(
-                row.id.clone(),
-                serde_json::json!({"type":"forbidden","description":"SpaceInvite objects cannot be destroyed"}),
-            );
+        for id_val in ids {
+            let Some(id) = id_val.as_str() else { continue };
+            match store.delete_space_invite(id, &account_id).await {
+                Ok(true) => destroyed.push(Value::String(id.to_string())),
+                Ok(false) => {
+                    not_destroyed.insert(id.to_string(), serde_json::json!({"type":"notFound"}));
+                }
+                Err(e) => return db_error(e),
+            }
         }
     }
 
@@ -1742,7 +1746,7 @@ async fn space_invite_set(args: Value, state: &DaemonState) -> (String, Value) {
             "notCreated": not_created,
             "updated": {},
             "notUpdated": not_updated,
-            "destroyed": [],
+            "destroyed": destroyed,
             "notDestroyed": not_destroyed,
         }),
     )

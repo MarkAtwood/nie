@@ -741,6 +741,52 @@ impl Store {
             .collect())
     }
 
+    /// Return all members for a set of spaces in a single query.
+    ///
+    /// Fetches every `space_member` row whose `space_id` is in `space_ids`
+    /// and groups them by space ID.  Callers iterate the returned map to
+    /// assemble the per-space member lists without issuing one query per space.
+    pub async fn get_space_members_batch(
+        &self,
+        space_ids: &[&str],
+    ) -> Result<std::collections::HashMap<String, Vec<SpaceMemberRow>>> {
+        if space_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+        // Build a single IN(...) query.  SQLx does not support binding a slice
+        // directly, so we construct the placeholder list and bind each element.
+        let placeholders = space_ids
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("?{}", i + 1))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let sql = format!(
+            "SELECT space_id, contact_id, nick, role, joined_at \
+             FROM space_member WHERE space_id IN ({placeholders}) \
+             ORDER BY space_id, joined_at ASC LIMIT 100000"
+        );
+        let mut query = sqlx::query_as::<_, (String, String, Option<String>, String, String)>(&sql);
+        for id in space_ids {
+            query = query.bind(*id);
+        }
+        let rows = query.fetch_all(&self.pool).await?;
+        let mut map: std::collections::HashMap<String, Vec<SpaceMemberRow>> =
+            std::collections::HashMap::new();
+        for (space_id, contact_id, nick, role, joined_at) in rows {
+            map.entry(space_id.clone())
+                .or_default()
+                .push(SpaceMemberRow {
+                    space_id,
+                    contact_id,
+                    nick,
+                    role,
+                    joined_at,
+                });
+        }
+        Ok(map)
+    }
+
     /// Add or re-add a member with a specific role.
     /// If already a member, updates the role.
     ///
@@ -960,18 +1006,26 @@ impl Store {
         Ok(())
     }
 
-    /// Fetch invites by IDs.  Pass `None` to return all invites.
+    /// Fetch invites by IDs, filtered to spaces the caller is a member of.
+    /// Pass `None` for `ids` to return all invites visible to `account_id`.
     pub async fn get_space_invites(
         &self,
         ids: Option<&[&str]>,
+        account_id: &str,
     ) -> Result<(Vec<SpaceInviteRow>, Vec<String>)> {
         match ids {
             None => {
                 let rows =
                     sqlx::query_as::<_, (String, String, String, String, String, Option<String>)>(
-                        "SELECT id, code, space_id, created_by, created_at, expires_at
-                     FROM space_invite ORDER BY created_at ASC",
+                        "SELECT si.id, si.code, si.space_id, si.created_by, si.created_at, si.expires_at
+                         FROM space_invite si
+                         WHERE EXISTS (
+                             SELECT 1 FROM space_member sm
+                             WHERE sm.space_id = si.space_id AND sm.contact_id = ?
+                         )
+                         ORDER BY si.created_at ASC",
                     )
+                    .bind(account_id)
                     .fetch_all(&self.pool)
                     .await?;
                 Ok((
@@ -987,10 +1041,16 @@ impl Store {
                         _,
                         (String, String, String, String, String, Option<String>),
                     >(
-                        "SELECT id, code, space_id, created_by, created_at, expires_at
-                         FROM space_invite WHERE id = ?",
+                        "SELECT si.id, si.code, si.space_id, si.created_by, si.created_at, si.expires_at
+                         FROM space_invite si
+                         WHERE si.id = ?
+                         AND EXISTS (
+                             SELECT 1 FROM space_member sm
+                             WHERE sm.space_id = si.space_id AND sm.contact_id = ?
+                         )",
                     )
                     .bind(id)
+                    .bind(account_id)
                     .fetch_optional(&self.pool)
                     .await?;
                     match row {
@@ -1001,6 +1061,31 @@ impl Store {
                 Ok((found, not_found))
             }
         }
+    }
+
+    /// Delete a space invite by id, but only if the caller (`account_id`) is
+    /// a member of the space the invite belongs to.
+    ///
+    /// Returns `true` if the invite was found and deleted, `false` if the
+    /// invite does not exist or the caller is not a member of the space.
+    pub async fn delete_space_invite(&self, id: &str, account_id: &str) -> Result<bool> {
+        let rows = sqlx::query(
+            "DELETE FROM space_invite
+             WHERE id = ?
+             AND EXISTS (
+                 SELECT 1 FROM space_member sm
+                 WHERE sm.space_id = space_invite.space_id AND sm.contact_id = ?
+             )",
+        )
+        .bind(id)
+        .bind(account_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        if rows > 0 {
+            self.bump_state_seq("SpaceInvite").await?;
+        }
+        Ok(rows > 0)
     }
 
     fn tuple_to_invite(
