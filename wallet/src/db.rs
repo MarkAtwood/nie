@@ -488,12 +488,14 @@ impl WalletStore {
         Ok(())
     }
 
-    /// All payment sessions, in no guaranteed order.
+    /// Returns the most recent 1000 payment sessions ordered by creation time,
+    /// newest first.  This is sufficient for CLI `payment-history` display;
+    /// a full unbounded scan would be unsafe in a long-running wallet.
     pub async fn all_sessions(&self) -> Result<Vec<PaymentSession>> {
         sqlx::query_as::<_, SessionRow>(
             "SELECT session_id, peer_pub_id, role, state, chain,
                     amount_zatoshi, tx_hash, address, created_at, updated_at
-             FROM payment_sessions",
+             FROM payment_sessions ORDER BY created_at DESC LIMIT 1000",
         )
         .fetch_all(&self.pool)
         .await?
@@ -822,20 +824,31 @@ impl WalletStore {
     /// Used by the scanner to prune its in-memory witness map after notes are
     /// spent by `payment.rs`.  Returns only the IDs that have `spent = 1`; IDs
     /// that do not exist in the DB are silently excluded from the result.
+    ///
+    /// Uses a single `IN (...)` query rather than one round-trip per note.
+    /// Input is chunked at 900 to stay within SQLite's default
+    /// `SQLITE_LIMIT_VARIABLE_NUMBER` of 999.
     pub async fn spent_note_ids_in(&self, note_ids: &[i64]) -> Result<Vec<i64>> {
         if note_ids.is_empty() {
             return Ok(vec![]);
         }
+        // Single query with IN (...) rather than one round-trip per note.
+        // SQLite defaults to SQLITE_LIMIT_VARIABLE_NUMBER=999; chunk to stay safe.
         let mut spent = Vec::new();
-        for &note_id in note_ids {
-            let row: Option<(i64,)> =
-                sqlx::query_as("SELECT note_id FROM notes WHERE note_id = ? AND spent = 1")
-                    .bind(note_id)
-                    .fetch_optional(&self.pool)
-                    .await?;
-            if row.is_some() {
-                spent.push(note_id);
+        for chunk in note_ids.chunks(900) {
+            let mut builder = sqlx::QueryBuilder::new(
+                "SELECT note_id FROM notes WHERE note_id IN (",
+            );
+            let mut sep = builder.separated(", ");
+            for &id in chunk {
+                sep.push_bind(id);
             }
+            builder.push(") AND spent = 1");
+            let rows: Vec<(i64,)> = builder
+                .build_query_as()
+                .fetch_all(&self.pool)
+                .await?;
+            spent.extend(rows.into_iter().map(|(id,)| id));
         }
         Ok(spent)
     }

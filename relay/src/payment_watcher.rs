@@ -180,6 +180,17 @@ async fn run_watcher_loop(state: AppState, lightwalletd_url: String) {
                     warn!("payment_watcher: received CompactBlock with height=0; skipping to avoid scan-height reset");
                     continue;
                 }
+                // Monotonicity guard: lightwalletd must deliver strictly
+                // increasing heights.  A non-monotonic block would move
+                // last_scanned_height backwards, causing re-scans of already-
+                // processed blocks and potential double-activations.
+                if block.height <= last_scanned_height {
+                    warn!(
+                        "payment_watcher: non-monotonic block height {} (last scanned {}); skipping",
+                        block.height, last_scanned_height
+                    );
+                    continue;
+                }
 
                 scan_block(&block, &decryptor, network_type, &state).await;
 
