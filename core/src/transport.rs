@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use futures::{Sink, SinkExt, Stream, StreamExt};
-use rand::Rng;
+use rand_core::{OsRng, RngCore};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 use tokio_socks::tcp::Socks5Stream;
@@ -292,7 +292,7 @@ async fn connection_manager(
             return;
         }
 
-        let jitter = rand::thread_rng().gen_range(0.8_f64..1.2_f64);
+        let jitter = 0.8_f64 + (OsRng.next_u64() as f64 / u64::MAX as f64) * 0.4_f64;
         let jittered_secs = ((delay_secs as f64 * jitter) as u64).max(1);
 
         if in_tx
@@ -355,19 +355,61 @@ async fn open_authenticated_ws(
 
 /// Build a `Connector` based on the `accept_invalid_certs` flag.
 ///
-/// When `accept_invalid_certs` is true, returns a native-TLS connector that
+/// When `accept_invalid_certs` is true, returns a rustls connector that
 /// skips certificate verification (dev/test only).  When false, returns `None`
 /// so `client_async_tls_with_config` uses the platform default trust store.
 fn build_connector(accept_invalid_certs: bool) -> Result<Option<Connector>> {
     if accept_invalid_certs {
         warn!("TLS certificate verification disabled — dev/test use only");
-        let native = native_tls::TlsConnector::builder()
-            .danger_accept_invalid_certs(true)
-            .build()
-            .context("building insecure TLS connector")?;
-        Ok(Some(Connector::NativeTls(native)))
+        let config = rustls::ClientConfig::builder()
+            .dangerous()
+            .with_custom_certificate_verifier(std::sync::Arc::new(NoVerifier))
+            .with_no_client_auth();
+        Ok(Some(Connector::Rustls(std::sync::Arc::new(config))))
     } else {
         Ok(None)
+    }
+}
+
+/// A [`rustls::client::danger::ServerCertVerifier`] that accepts any certificate.
+/// Used only when `--insecure` / `accept_invalid_certs` is set (dev/test).
+#[derive(Debug)]
+struct NoVerifier;
+
+impl rustls::client::danger::ServerCertVerifier for NoVerifier {
+    fn verify_server_cert(
+        &self,
+        _end_entity: &rustls::pki_types::CertificateDer<'_>,
+        _intermediates: &[rustls::pki_types::CertificateDer<'_>],
+        _server_name: &rustls::pki_types::ServerName<'_>,
+        _ocsp_response: &[u8],
+        _now: rustls::pki_types::UnixTime,
+    ) -> Result<rustls::client::danger::ServerCertVerified, rustls::Error> {
+        Ok(rustls::client::danger::ServerCertVerified::assertion())
+    }
+
+    fn verify_tls12_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn verify_tls13_signature(
+        &self,
+        _message: &[u8],
+        _cert: &rustls::pki_types::CertificateDer<'_>,
+        _dss: &rustls::DigitallySignedStruct,
+    ) -> Result<rustls::client::danger::HandshakeSignatureValid, rustls::Error> {
+        Ok(rustls::client::danger::HandshakeSignatureValid::assertion())
+    }
+
+    fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
+        rustls::crypto::ring::default_provider()
+            .signature_verification_algorithms
+            .supported_schemes()
     }
 }
 
