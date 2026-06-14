@@ -822,11 +822,33 @@ pub async fn chat(
                                             eprintln!("connection lost.");
                                             break;
                                         }
+                                        let epoch = mls.epoch().unwrap_or(0);
                                         println!(
                                             "\r[MLS] {} removed — epoch {}",
                                             colored_name(&pub_id, &nicknames, &local_names),
-                                            mls.epoch().unwrap_or(0)
+                                            epoch
                                         );
+                                        // Re-derive room HPKE keypair for the new epoch,
+                                        // same as after add_member.
+                                        match mls.room_hpke_keypair() {
+                                            Ok((room_sk, room_pk)) => {
+                                                room_hpke_secret = Some(room_sk);
+                                                room_hpke_pub = Some(room_pk);
+                                                let req = JsonRpcRequest::new(
+                                                    next_request_id(),
+                                                    rpc_methods::PUBLISH_HPKE_KEY,
+                                                    PublishHpkeKeyParams { public_key: room_pk.to_vec() },
+                                                )
+                                                .unwrap();
+                                                if tx.send(req).await.is_err() {
+                                                    eprintln!("connection lost.");
+                                                    break;
+                                                }
+                                            }
+                                            Err(e) => {
+                                                tracing::warn!("failed to re-derive room HPKE key after remove_member: {e}");
+                                            }
+                                        }
                                     }
                                     Err(e) => warn!("remove_member {pub_id}: {e}"),
                                 }
@@ -1030,11 +1052,34 @@ pub async fn chat(
                                                     colored_name(&target_id, &nicknames, &local_names)
                                                 );
                                             } else {
+                                                let epoch = mls.epoch().unwrap_or(0);
                                                 println!(
                                                     "\r[MLS] {} added — epoch {}",
                                                     colored_name(&target_id, &nicknames, &local_names),
-                                                    mls.epoch().unwrap_or(0)
+                                                    epoch
                                                 );
+                                                // The Commit advanced our epoch locally; re-derive the
+                                                // room HPKE keypair so we can unseal messages sealed
+                                                // by the new member with the new epoch's key.
+                                                match mls.room_hpke_keypair() {
+                                                    Ok((room_sk, room_pk)) => {
+                                                        room_hpke_secret = Some(room_sk);
+                                                        room_hpke_pub = Some(room_pk);
+                                                        let req = JsonRpcRequest::new(
+                                                            next_request_id(),
+                                                            rpc_methods::PUBLISH_HPKE_KEY,
+                                                            PublishHpkeKeyParams { public_key: room_pk.to_vec() },
+                                                        )
+                                                        .unwrap();
+                                                        if tx.send(req).await.is_err() {
+                                                            eprintln!("connection lost.");
+                                                            break;
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        tracing::warn!("failed to re-derive room HPKE key after add_member: {e}");
+                                                    }
+                                                }
                                             }
                                         }
                                         Err(e) => warn!("add_member device for {target_id}: {e}"),
@@ -1172,10 +1217,30 @@ pub async fn chat(
                             Ok(Some(r)) => r,
                             Ok(None) => {
                                 // MLS Commit — group state updated, advance epoch.
-                                println!(
-                                    "\r[MLS] commit applied — epoch {}",
-                                    mls.epoch().unwrap_or(0)
-                                );
+                                let epoch = mls.epoch().unwrap_or(0);
+                                println!("\r[MLS] commit applied — epoch {epoch}");
+                                // Re-derive room HPKE keypair so the new epoch's key is used
+                                // for sealing/unsealing. Without this, Bob would try to unseal
+                                // Alice's epoch-1 sealed messages with his epoch-0 secret.
+                                match mls.room_hpke_keypair() {
+                                    Ok((room_sk, room_pk)) => {
+                                        room_hpke_secret = Some(room_sk);
+                                        room_hpke_pub = Some(room_pk);
+                                        let req = JsonRpcRequest::new(
+                                            next_request_id(),
+                                            rpc_methods::PUBLISH_HPKE_KEY,
+                                            PublishHpkeKeyParams { public_key: room_pk.to_vec() },
+                                        )
+                                        .unwrap();
+                                        if tx.send(req).await.is_err() {
+                                            eprintln!("connection lost.");
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("failed to re-derive room HPKE key after commit: {e}");
+                                    }
+                                }
                                 continue;
                             }
                             Err(e) => {
@@ -1417,10 +1482,27 @@ pub async fn chat(
                             Ok(Some(r)) => r,
                             Ok(None) => {
                                 // MLS Commit — group state updated, advance epoch.
-                                println!(
-                                    "\r[MLS] commit applied — epoch {}",
-                                    mls.epoch().unwrap_or(0)
-                                );
+                                let epoch = mls.epoch().unwrap_or(0);
+                                println!("\r[MLS] commit applied — epoch {epoch}");
+                                match mls.room_hpke_keypair() {
+                                    Ok((room_sk, room_pk)) => {
+                                        room_hpke_secret = Some(room_sk);
+                                        room_hpke_pub = Some(room_pk);
+                                        let req = JsonRpcRequest::new(
+                                            next_request_id(),
+                                            rpc_methods::PUBLISH_HPKE_KEY,
+                                            PublishHpkeKeyParams { public_key: room_pk.to_vec() },
+                                        )
+                                        .unwrap();
+                                        if tx.send(req).await.is_err() {
+                                            eprintln!("connection lost.");
+                                            break;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::warn!("failed to re-derive room HPKE key after commit: {e}");
+                                    }
+                                }
                                 continue;
                             }
                             Err(e) => {
