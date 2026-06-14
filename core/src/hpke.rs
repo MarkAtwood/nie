@@ -4,7 +4,7 @@ use ::hpke::{
     aead::ChaCha20Poly1305, kdf::HkdfSha256, kem::X25519HkdfSha256, single_shot_open,
     single_shot_seal, Deserializable, Kem as KemTrait, OpModeR, OpModeS, Serializable,
 };
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 use zeroize::Zeroizing;
 
 type Kem = X25519HkdfSha256;
@@ -95,7 +95,7 @@ pub fn unseal_message(
 mod tests {
     use super::*;
     use ::hpke::{Kem as KemTrait, Serializable};
-    use rand::rngs::OsRng;
+    use rand_core::OsRng;
 
     fn gen_x25519_keypair() -> (Zeroizing<[u8; 32]>, [u8; 32]) {
         let mut rng = OsRng;

@@ -10,6 +10,7 @@ use axum::{
     response::IntoResponse,
 };
 use futures::{SinkExt, StreamExt};
+use rand_core::RngCore;
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
@@ -564,7 +565,7 @@ async fn handle(socket: WebSocket, state: AppState) {
                             // to obscure per-client timing from a relay-level observer.
                             // Kept ≤50 ms so the write task can process at ≥20 msg/s,
                             // well above normal human-speed message rates.
-                            let delay_ms = rand::random::<u64>() % 51;
+                            let delay_ms = rand_core::OsRng.next_u64() % 51;
                             tokio::time::sleep(Duration::from_millis(delay_ms)).await;
                             if sink.send(Message::Text(json.into())).await.is_err() {
                                 break;

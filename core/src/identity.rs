@@ -2,7 +2,7 @@ use anyhow::Result;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
-use rand::rngs::OsRng;
+use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use zeroize::{Zeroize, Zeroizing};
@@ -33,7 +33,8 @@ impl Identity {
     pub fn generate() -> Self {
         let signing_key = SigningKey::generate(&mut OsRng);
         // Generate separate entropy for HPKE key (key separation invariant).
-        let mut hpke_seed: [u8; 32] = rand::random();
+        let mut hpke_seed = [0u8; 32];
+        OsRng.fill_bytes(&mut hpke_seed);
         // Astronomically unlikely, but the invariant requires it.
         // Use assert_ne! (not debug_assert_ne!) so a broken RNG that produces equal
         // seeds causes an explicit panic in release builds rather than a silent

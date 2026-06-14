@@ -27,7 +27,7 @@ use nie_core::{
     transport::{self, next_request_id, ClientEvent},
 };
 use nie_relay::{state::AppState, ws::ws_handler};
-use rand::{rngs::StdRng, seq::SliceRandom, Rng, SeedableRng};
+use rand::{rngs::StdRng, seq::IndexedRandom, Rng, SeedableRng};
 use tokio::sync::Barrier;
 
 /// Number of concurrent clients.
@@ -170,7 +170,7 @@ async fn sixteen_clients_stress() {
 
             // Stagger connections: spread initial connections over 0–2 s so
             // 16 clients don't all hit the relay in the same millisecond.
-            let jitter_ms: u64 = rng.gen_range(0..=2000);
+            let jitter_ms: u64 = rng.random_range(0..=2000);
             tokio::time::sleep(Duration::from_millis(jitter_ms)).await;
 
             // Wait for DirectoryList which confirms auth succeeded and the
@@ -220,7 +220,7 @@ async fn sixteen_clients_stress() {
                         }
                     }
                     _ = tokio::time::sleep(until_send) => {
-                        let word_count = rng.gen_range(1usize..=8);
+                        let word_count = rng.random_range(1usize..=8);
                         let words: Vec<&str> = (0..word_count)
                             .map(|_| *WORDS.choose(&mut rng).unwrap())
                             .collect();
@@ -237,7 +237,7 @@ async fn sixteen_clients_stress() {
                         }
 
                         // Next message in 300 ms – 3 000 ms (human typing cadence).
-                        let delay_ms: u64 = rng.gen_range(300..=3000);
+                        let delay_ms: u64 = rng.random_range(300..=3000);
                         next_send = tokio::time::Instant::now()
                             + Duration::from_millis(delay_ms);
                     }

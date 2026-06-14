@@ -2223,7 +2223,7 @@ mod tests {
     fn gen_hpke_keypair() -> ([u8; 32], [u8; 32]) {
         use ::hpke::kem::X25519HkdfSha256;
         use ::hpke::{Kem as KemTrait, Serializable};
-        use rand::rngs::OsRng;
+        use rand_core::OsRng;
         let mut rng = OsRng;
         let (sk, pk) = X25519HkdfSha256::gen_keypair(&mut rng);
         let sk_bytes: [u8; 32] = sk.to_bytes().as_slice().try_into().unwrap();

@@ -91,10 +91,10 @@ impl WalletMasterKey {
 ///   must persist and pass to `SaplingExtendedSpendingKey::from_seed` /
 ///   `OrchardSpendingKey::from_seed` to derive payment keys.
 pub fn generate_wallet() -> Result<(Vec<String>, WalletMasterKey, Zeroizing<[u8; 64]>)> {
-    use rand::RngCore;
+    use rand_core::{OsRng, RngCore};
     // 32 bytes of entropy → 256-bit security → 24-word BIP-39 mnemonic.
     let mut entropy = [0u8; 32];
-    rand::rngs::OsRng.fill_bytes(&mut entropy);
+    OsRng.fill_bytes(&mut entropy);
     let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)?;
     // BIP-39 seed derivation: PBKDF2-HMAC-SHA512, 2048 rounds, empty passphrase.
     // The passphrase slot is intentionally empty — ZIP-32 key hardening provides

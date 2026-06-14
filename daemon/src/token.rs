@@ -5,7 +5,7 @@ use axum::{
     middleware::Next,
     response::IntoResponse,
 };
-use rand::Rng;
+use rand_core::{OsRng, RngCore};
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
@@ -42,7 +42,8 @@ pub fn load_or_create_token(data_dir: &Path) -> Result<String> {
         }
         return Ok(token);
     }
-    let bytes: [u8; 32] = rand::thread_rng().gen();
+    let mut bytes = [0u8; 32];
+    OsRng.fill_bytes(&mut bytes);
     use base64::Engine;
     let token = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
     let mut file = std::fs::OpenOptions::new()

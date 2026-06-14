@@ -22,7 +22,7 @@ use monero::util::key::{KeyPair, PrivateKey, ViewPair};
 use monero::Network;
 use nie_core::coin::CoinWallet;
 use nie_core::messages::Chain;
-use rand::RngCore;
+use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -84,8 +84,8 @@ impl MoneroKeys {
         loop {
             let mut spend_bytes = [0u8; 32];
             let mut view_bytes = [0u8; 32];
-            rand::thread_rng().fill_bytes(&mut spend_bytes);
-            rand::thread_rng().fill_bytes(&mut view_bytes);
+            OsRng.fill_bytes(&mut spend_bytes);
+            OsRng.fill_bytes(&mut view_bytes);
             if let Ok(keys) = Self::from_key_bytes(spend_bytes, view_bytes, network) {
                 return keys;
             }

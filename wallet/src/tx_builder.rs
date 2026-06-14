@@ -440,7 +440,7 @@ pub fn build_shielded_tx(
             &TransparentSigningSet::new(),
             &[extsk],
             &[],
-            rand::rngs::OsRng,
+            rand_core::OsRng,
             spend_params,
             output_params,
             &FeeRule::standard(),

@@ -2,8 +2,7 @@ use anyhow::Result;
 use base64::engine::general_purpose::STANDARD as B64;
 use base64::Engine;
 use ed25519_dalek::Verifier;
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand_core::{OsRng, RngCore};
 
 use crate::identity::{decode_pub_key, hash_key, Identity, PubId};
 

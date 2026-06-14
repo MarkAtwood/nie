@@ -40,4 +40,4 @@ tempfile = "3"
 nie-relay = { path = "../relay" }
 axum.workspace = true
 hpke.workspace = true
-rand.workspace = true
+rand_core.workspace = true

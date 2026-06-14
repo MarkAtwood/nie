@@ -37,7 +37,7 @@ jubjub.workspace = true
 # PrimeField trait for jubjub::Fr::to_repr() in SaplingIvkDecryptor.
 ff.workspace = true
 # OsRng for transaction building (nie-wdw.7).
-rand.workspace = true
+rand_core.workspace = true
 # Zeroize key material on drop (nie-kef6.92, nie-kef6.94).
 zeroize.workspace = true
 zip32.workspace = true

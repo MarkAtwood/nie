@@ -2,8 +2,7 @@ use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
-use rand::rngs::OsRng;
-use rand::RngCore;
+use rand_core::{OsRng, RngCore};
 
 use dashmap::DashMap;
 use tokio::sync::{mpsc, Mutex};
