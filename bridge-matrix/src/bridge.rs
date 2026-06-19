@@ -12,6 +12,13 @@ use crate::matrix::{mxid_localpart, MatrixEvent};
 /// Maximum size of the sent-IDs deque (prevents unbounded memory growth).
 const MAX_SENT_IDS: usize = 1000;
 
+/// Maximum body size for Matrix AS transaction pushes.
+///
+/// The Matrix spec recommends ≤ 50 KiB per event. 1 MiB is generous for a
+/// full transaction of many events while preventing a rogue homeserver from
+/// forcing a 64 MiB heap allocation per request.
+const MAX_AS_BODY_BYTES: usize = 1 * 1024 * 1024; // 1 MiB
+
 /// Tracks recently-sent nie message IDs to prevent echo loops.
 pub struct SentIds {
     deque: VecDeque<String>,
@@ -263,10 +270,7 @@ pub async fn run(config: &crate::config::BridgeConfig) -> Result<()> {
         };
         let app = axum::Router::new()
             .route("/transactions/{txn_id}", axum::routing::put(as_transaction))
-            // 64 MiB: homeservers batch many events per AS transaction; 1 MiB
-            // was too small and caused 413 rejections that trigger infinite
-            // homeserver retries.
-            .layer(axum::extract::DefaultBodyLimit::max(64 * 1024 * 1024))
+            .layer(axum::extract::DefaultBodyLimit::max(MAX_AS_BODY_BYTES))
             .with_state(state);
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{listen_port}")).await?;
         tracing::info!("Matrix AS server listening on :{listen_port}");
