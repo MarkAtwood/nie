@@ -173,9 +173,19 @@ pub async fn client_connect(
 /// Returns `None` when the client has been disconnected and the event channel
 /// is closed, signalling the Dart `async*` loop to exit.
 ///
+/// Returns `Some(NieEvent::FatalError)` immediately if a second concurrent
+/// caller already holds the receiver lock.  Only one Dart Isolate should call
+/// this function at a time; a second concurrent caller would otherwise deadlock
+/// (the first caller holds the `Mutex` guard across the `recv().await` yield).
+///
 /// This function suspends (does not busy-wait) until an event arrives.
 pub async fn client_next_event(client: &NieClient) -> Option<NieEvent> {
-    client.event_rx.lock().await.recv().await
+    match client.event_rx.try_lock() {
+        Ok(mut guard) => guard.recv().await,
+        Err(_) => Some(NieEvent::FatalError {
+            message: "client_next_event called concurrently from multiple callers".to_string(),
+        }),
+    }
 }
 
 /// Return this client's public ID (64 lowercase hex chars).
