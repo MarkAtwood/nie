@@ -99,9 +99,16 @@ pub fn load_identity() -> js_sys::Promise {
 /// fields) out of the `RefCell` before awaiting, preventing the borrow from
 /// spanning the yield point (which would violate the `await_holding_refcell_ref`
 /// rule).
+///
+/// `pending_callback` stores the JS `Function` registered via `on_event()`.
+/// `connect()` re-installs it on the new inner client after replacing `inner`,
+/// so the callback is preserved across reconnects without the caller needing to
+/// re-call `on_event()` after every `connect()`.
 #[wasm_bindgen]
 pub struct NieClient {
     inner: Rc<RefCell<Option<crate::client::NieRelayClient>>>,
+    /// Invariant: callback is preserved across reconnects.
+    pending_callback: Rc<RefCell<Option<Function>>>,
 }
 
 impl Default for NieClient {
@@ -133,6 +140,7 @@ impl NieClient {
     pub fn new() -> Self {
         Self {
             inner: Rc::new(RefCell::new(None)),
+            pending_callback: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -145,6 +153,7 @@ impl NieClient {
     /// Rejects with an error string on connection or auth failure.
     pub fn connect(&self, relay_url: String, secret_b64: String) -> js_sys::Promise {
         let inner = Rc::clone(&self.inner);
+        let pending_callback = Rc::clone(&self.pending_callback);
         future_to_promise(async move {
             let bytes = B64
                 .decode(&secret_b64)
@@ -162,9 +171,17 @@ impl NieClient {
                 existing.close();
             }
 
-            let client = crate::client::NieRelayClient::connect(&relay_url, identity)
+            let mut client = crate::client::NieRelayClient::connect(&relay_url, identity)
                 .await
                 .map_err(|e| JsValue::from_str(&e))?;
+
+            // Transplant the JS event callback onto the new client so callers
+            // who registered via on_event() before or between connect() calls
+            // do not silently lose events.
+            // Invariant: callback is preserved across reconnects.
+            if let Some(cb) = pending_callback.borrow().as_ref() {
+                client.set_event_callback(cb.clone());
+            }
 
             let pub_id = client.pub_id();
             *inner.borrow_mut() = Some(client);
@@ -178,14 +195,16 @@ impl NieClient {
     /// `message_received`, `whisper_received`, `user_joined`, `user_left`,
     /// `directory_updated`, `user_nickname`, `key_package_ready`.
     ///
-    /// Replaces any previously registered callback. Returns `Err` if not connected.
-    pub fn on_event(&self, callback: Function) -> Result<(), JsValue> {
-        let mut borrow = self.inner.borrow_mut();
-        let client = borrow
-            .as_mut()
-            .ok_or_else(|| JsValue::from_str("not connected"))?;
-        client.set_event_callback(callback);
-        Ok(())
+    /// Replaces any previously registered callback. May be called before or
+    /// after `connect()` — the callback is preserved across reconnects and will
+    /// be installed on any new inner client created by a subsequent `connect()`.
+    pub fn on_event(&self, callback: Function) {
+        // Persist the JS function so connect() can transplant it onto any new
+        // inner client. Invariant: callback is preserved across reconnects.
+        *self.pending_callback.borrow_mut() = Some(callback.clone());
+        if let Some(client) = self.inner.borrow_mut().as_mut() {
+            client.set_event_callback(callback);
+        }
     }
 
     /// Broadcast a chat message to all online peers.
