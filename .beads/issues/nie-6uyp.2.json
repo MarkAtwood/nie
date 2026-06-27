@@ -1,0 +1,28 @@
+{
+  "id": "nie-6uyp.2",
+  "title": "reactions/ handler silently defaults to emoji='?' for malformed value",
+  "description": "In message_set update, reactions/ handler does value.get(\"emoji\").and_then(|v| v.as_str()).unwrap_or(\"?\") \u2014 a non-object value (e.g. a string) silently becomes emoji='?' and sentAt=''. Now that known fields (body/readAt/deletedAt) validate types strictly, a contributor adding reaction validation will see two inconsistent patterns and may copy the permissive one. Inconsistency generates future bug reports when reactions with garbled emoji appear.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:24:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T18:26:58Z",
+  "closed_at": "2026-04-24T18:26:58Z",
+  "close_reason": "Fixed: reaction value is now validated to be null or object; scalar values return invalidArguments instead of creating garbled emoji='?' reaction",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:24:08"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-91j.8",
+  "title": "load_sapling_params BLAKE2b check before groth16 parse \u2014 do not remove",
+  "description": "tx_builder.rs verifies the BLAKE2b-512 hash of each params file before calling SpendParameters::read / OutputParameters::read. A contributor may suggest removing the hash check to save time (the parser will fail on corrupt files anyway). Do not do that: a corrupt file causes a confusing groth16 parse error deep inside the parser with no indication of which file is bad or what to do. The hash check produces a clear 'file may be corrupt; delete and re-run nie wallet init' message. The ordering (hash before parse) is intentional.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:58:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:51Z",
+  "closed_at": "2026-04-19T05:03:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:58:13"
+    }
+  ]
+}

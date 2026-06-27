@@ -1,0 +1,28 @@
+{
+  "id": "nie-bwaa.11",
+  "title": "importFromSeedHex: partial in-memory update if prefs.setString throws",
+  "description": "In identity_service.dart importFromSeedHex, if _initFromSeed() succeeds (updating _keyPair and _pubId in memory) but the subsequent prefs.setString() throws, the app holds a new identity in memory but the old identity is still persisted to SharedPreferences. On restart, the app re-loads the old identity, silently reverting. This is a torn state that the user cannot detect or recover from without re-doing the restore. Fix: save to prefs first, then call _initFromSeed(), or wrap both in a rollback pattern.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:48:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:01:37Z",
+  "closed_at": "2026-04-24T00:01:37Z",
+  "close_reason": "reordered importFromSeedHex: prefs.setString before _initFromSeed so failure leaves memory and storage consistent",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:48:32"
+    }
+  ]
+}

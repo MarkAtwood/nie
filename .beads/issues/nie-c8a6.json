@@ -1,0 +1,14 @@
+{
+  "id": "nie-c8a6",
+  "title": "fix: identity.rs assert_ne → Result to prevent panic on corrupt keyfile",
+  "description": "from_secret_bytes used assert_ne! which panics on adversarial input. Changed to return Result\u003cSelf\u003e with anyhow::ensure! so callers propagate the error cleanly.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:54:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:55:08Z",
+  "closed_at": "2026-04-24T21:55:08Z",
+  "close_reason": "Closed"
+}

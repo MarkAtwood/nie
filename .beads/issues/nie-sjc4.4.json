@@ -1,0 +1,27 @@
+{
+  "id": "nie-sjc4.4",
+  "title": "Role enum duplicated as string literals in apply_member_patch and store precondition",
+  "description": "The valid role values (\"admin\", \"moderator\", \"member\") appear as a match arm in apply_member_patch (jmap.rs) and as a precondition comment on upsert_space_member_with_role (store.rs). A contributor adding a \"guest\" role has two places to update, with no compiler enforcement. The match in apply_member_patch is the enforcement point; the store comment is documentation. Rewrite as: const VALID_ROLES: &[&str] = &[\"admin\", \"moderator\", \"member\"]; and use VALID_ROLES.contains(&role) in apply_member_patch and reference VALID_ROLES in the store doc comment. One source of truth; adding a role requires changing one place.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T02:43:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:50:57Z",
+  "closed_at": "2026-04-24T02:50:57Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 19:43:16"
+    }
+  ]
+}

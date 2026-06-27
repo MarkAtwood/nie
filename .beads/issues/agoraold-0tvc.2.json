@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-0tvc.2",
+  "title": "nie-daemon types: DaemonEvent enum + DaemonError enum",
+  "description": "**What:** Define the DaemonEvent enum (all browser WebSocket event types tagged with 'type') and DaemonError typed error enum used throughout nie-daemon.\n\n**Algorithm:**\n1. Create daemon/src/types.rs\n2. Define struct UserInfo { pub_id: String, display_name: String, sequence: u64 } with Serialize+Deserialize+Clone\n3. Define DaemonEvent enum with #[serde(tag='type', rename_all='snake_case')], Serialize+Clone:\n   - MessageReceived { from: String, from_display_name: String, text: String, timestamp: String, message_id: String }\n   - UserJoined { pub_id: String, display_name: String, sequence: u64, timestamp: String }\n   - UserLeft { pub_id: String, display_name: String, timestamp: String }\n   - DirectoryUpdated { online: Vec<UserInfo>, offline: Vec<UserInfo>, timestamp: String }\n   - MlsStateChanged { active: bool, epoch: u64, timestamp: String }\n   - ConnectionStateChanged { status: String, relay_url: String, timestamp: String }\n   - PaymentUpdate { session_id: String, peer_pub_id: String, peer_display_name: String, state: String, action: String, chain: String, amount_zatoshi: u64, timestamp: String }\n4. Define DaemonError with thiserror: Config(#[from] std::io::Error), RelayConnect(String), Auth(String), Serialize(#[from] serde_json::Error), WalletNotInitialized\n5. Add thiserror to daemon/Cargo.toml deps\n6. Add pub mod types; and pub use types::*; to daemon/src/lib.rs\n\n**Defensive programming rules:**\n- DaemonEvent must not contain key material fields (signing keys, HPKE secrets)\n- All struct fields use owned String (not &str) \u2014 required for Send+Sync over broadcast channel\n- timestamp field uses ISO 8601 UTC format: chrono::Utc::now().to_rfc3339() produces '2026-04-19T14:30:00Z'\n\n**Agent team:** Single Implementer. Validator runs cargo test + clippy after.\n\n**Tests (independent oracle: serde tag values defined in this code, verified by reading JSON output):**\n- test_daemon_event_message_type: serialize MessageReceived, verify serde_json output has type='message_received'\n- test_daemon_event_user_joined_type: serialize UserJoined, verify type='user_joined'\n- test_daemon_event_roundtrip: serialize then deserialize MessageReceived, verify fields unchanged",
+  "acceptance_criteria": "cargo test -p nie-daemon passes; all serde tag tests pass; cargo clippy -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:38:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:43:01Z",
+  "close_reason": "DaemonEvent+DaemonError types implemented, serde tag tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:38:33"
+    }
+  ]
+}

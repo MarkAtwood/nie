@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.16",
+  "title": "tx_builder: change output omitted when change == 0 but fee calculation assumes 2 outputs",
+  "description": "tx_builder.rs build_shielded_tx() line ~405: the change output is only added when 'change > 0'. The select_with_fee() function always estimates fee using sapling_logical_actions(n, 2) \u2014 assuming 2 outputs (recipient + change). When change == 0, only 1 output is added to the builder. The actual transaction has sapling_logical_actions(n, 1) logical actions. The comment at tx_builder.rs lines ~544-548 argues this is safe because 'max(n,2) == max(n,1) for all n since both pass through the same max(.,2) floor.' This is only true if n >= 2 (because max(1,2)=2 and max(1,1)=2, both equal 2). For n=1, max(1,2)=2 and max(1,1)=1, but the fee formula applies GRACE_ACTIONS=2 as a floor, so zip317_fee(max(1,2))=zip317_fee(2)=10000 and zip317_fee(max(1,1))=zip317_fee(1)=10000. The comment is correct for GRACE_ACTIONS=2, but this is a fragile invariant that will silently break if GRACE_ACTIONS is ever changed to 1. This needs a regression test that confirms fee correctness for the no-change case, and a comment warning about the GRACE_ACTIONS dependency.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:54:43Z",
+  "closed_at": "2026-04-24T22:54:43Z",
+  "close_reason": "Addressed in prior rounds: tx_exact_amount_no_change_output test at line 1541 verifies no-change behavior; GRACE_ACTIONS invariant documented in select_with_fee comment at lines 543-550",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:54"
+    }
+  ]
+}

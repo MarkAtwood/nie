@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-4og.1",
+  "title": "resync_sessions missing Payee/Sent arm",
+  "description": "Trigger: payee receives PaymentAction::Sent, DB upsert records Payee/Sent state, then CLI crashes before auto-confirm fires. On restart, all_sessions loads Payee/Sent. resync_sessions has no arm for (Payee, Sent) \u2014 it falls through to _ => continue. Bad behavior: payer never receives Confirmed; payment appears stalled indefinitely from payer's perspective. Fix: add (PaymentRole::Payee, PaymentState::Sent) arm that broadcasts PaymentAction::Confirmed to the peer.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:26:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:51Z",
+  "closed_at": "2026-04-19T04:30:47Z",
+  "close_reason": "Fixed: added (Payee, Sent) arm to resync_sessions that retransmits PaymentAction::Confirmed{tx_hash}. Tests: resync_payee_sent_retransmits_confirmed_action (MLS roundtrip) and resync_payee_sent_no_tx_hash_is_skipped (defensive guard).",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:26:51"
+    }
+  ]
+}

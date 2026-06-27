@@ -1,0 +1,18 @@
+{
+  "id": "nie-7bv6",
+  "title": "Review round 1: Phase 4e WASM browser client",
+  "notes": "Review converged after fix waves: P0=1→0, P1=7→0, P2=9→0 fixed. 7 P3+3 P4 remain (elegance/readability).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:29:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T02:58:43Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ]
+}

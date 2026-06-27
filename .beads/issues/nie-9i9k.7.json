@@ -1,0 +1,28 @@
+{
+  "id": "nie-9i9k.7",
+  "title": "Notification says 'Relay connected' regardless of actual state",
+  "description": "buildNotification() in NieForegroundService always sets contentText to 'Relay connected'. The service is started on first successful auth and stopped on auth failure or explicit disconnect \u2014 but it is NOT stopped or updated during reconnect attempts. If the WebSocket drops and RelayService begins exponential backoff reconnection, the notification still says 'Relay connected', contradicting the app UI which shows the reconnecting spinner. Users filing issues will attach screenshots showing 'Relay connected' in the shade \u2014 misleading support. Fix: either add a MethodChannel call to update the notification text on reconnect state changes, or change the text to 'nie is running' (state-neutral).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:47:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:56:41Z",
+  "closed_at": "2026-04-24T00:56:41Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:47:58"
+    }
+  ]
+}

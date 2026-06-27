@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-m91",
+  "title": "ZIP-32 HD key derivation from BIP-39 mnemonic",
+  "description": "Generate 24-word BIP-39 mnemonic \u2192 64-byte seed \u2192 ZIP-32 HD wallet. Derive account 0 spending key, full viewing key (FVK), incoming viewing key (IVK). nie-core identity key (Ed25519) must remain separate \u2014 never derive from or to wallet seed.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T04:35:07Z",
+  "close_reason": "Done: BIP-39 mnemonic \u2192 64-byte seed \u2192 SaplingExtendedSpendingKey::from_seed + OrchardSpendingKey::from_seed implemented in commit 3aa54ef and 84f89bb. wallet init/restore commands in commands.rs.",
+  "defer_until": "2026-05-01T00:00:00Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:38"
+    }
+  ]
+}

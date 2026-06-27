@@ -1,0 +1,26 @@
+{
+  "id": "nie-8feq.2",
+  "title": "message_set known fields silently accept wrong type and report success",
+  "description": "body, readAt, deletedAt in message_set update use .as_str()/.as_bool() with no rejection of wrong-type values. Example: {'body': 42} silently skips the edit, then reports the message in updated (success). Client thinks body was changed but it wasn't. This is intentionally permissive (comment says so for unknown paths), but for KNOWN paths with KNOWN types the permissive approach means silent data loss. Decision needed: keep permissive (forward-compat) or add type validation (consistency with contact/space set). If permissive is intentional, document it explicitly.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:14:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T18:22:08Z",
+  "closed_at": "2026-04-24T18:22:08Z",
+  "close_reason": "Added type validation for body/readAt/deletedAt known fields; wrong types now return invalidArguments",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:14:35"
+    }
+  ]
+}

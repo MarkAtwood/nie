@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.2",
+  "title": "handle_wallet_pay: balance TOCTOU \u2014 concurrent calls over-spend on stale read",
+  "description": "api.rs handle_wallet_pay reads balance then rejects if amount > confirmed_zatoshi. This check is not atomic with the actual wallet send (which happens later in the payment flow). Concurrent POST /api/wallet/pay calls can all pass the balance gate then all create sessions and broadcast PaymentAction::Request, over-spending the wallet or creating sessions that will fail at settlement. The nie-qmq3.7 issue tracked the same pattern in cli/commands.rs; the daemon API repeats it. Fix: serialize concurrent payment initiations, or delegate the definitive balance check to the transaction builder.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:33:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:46:22Z",
+  "closed_at": "2026-04-26T05:46:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:33:40"
+    }
+  ]
+}

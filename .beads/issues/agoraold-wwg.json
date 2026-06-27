@@ -1,0 +1,14 @@
+{
+  "id": "agoraold-wwg",
+  "title": "send_payment_message refuses to fall back to plaintext on MLS failure",
+  "description": "When MLS encryption fails, send_payment_message prints an error and returns true (channel alive) without sending the message. It does NOT fall back to sending plaintext. This is the correct security posture for payment negotiation — the address and session ID in the message must not transit the relay in cleartext. A contributor might suggest 'fall back to plaintext so the user experience is not broken'. Do not do that. Payment plaintext in a broadcast message is visible to every room member and to anyone who can read relay logs.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:52:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:56Z",
+  "closed_at": "2026-04-18T06:08:39Z",
+  "close_reason": "Already implemented correctly in the existing code"
+}

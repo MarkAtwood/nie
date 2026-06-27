@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.9",
+  "title": "transport: parse_incoming doc attached to test module",
+  "description": "In core/src/transport.rs, the doc comment block at lines 492-500 that describes parse_incoming is placed immediately before the #[cfg(test)] mod tests block (line 501), not before the parse_incoming function definition (line 606). Rustdoc attaches doc comments to the item that immediately follows them, so this doc block becomes the documentation for the tests module, not for parse_incoming. The parse_incoming function has no doc comment at all.\n\nFix: move the doc comment to immediately precede the parse_incoming fn at line 606.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:26Z",
+  "closed_at": "2026-04-19T19:31:46Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:52"
+    }
+  ]
+}

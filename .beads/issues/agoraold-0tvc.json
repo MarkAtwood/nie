@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-0tvc",
+  "title": "Phase 4c: JSON API daemon + browser/Electron client",
+  "description": "A local JSON API daemon that exposes nie-core over HTTP/WebSocket, plus a browser-first client (HTML/JS) that can run in a tab or be wrapped in Electron.\n\nTwo-component architecture:\n\n## Component 1: nie-daemon (local API server)\n- New binary `nie-daemon` that starts a local HTTP+WebSocket server (default: 127.0.0.1:7734)\n- REST endpoints:\n  - GET  /api/whoami               → { pub_id, display_name }\n  - GET  /api/users                → [ { pub_id, display_name, online } ]\n  - POST /api/send { to, text }    → { message_id }\n  - GET  /api/wallet/balance       → { zatoshi, zec, network }\n  - POST /api/wallet/pay { to, amount_zatoshi } → { session_id }\n- WebSocket endpoint /ws/events   → streams JSON events (MessageReceived, UserJoined, PaymentUpdate, etc.)\n- Auth: shared secret token in a local file (~/.local/share/nie/daemon.token); required on every request\n- CORS: only allow localhost origins (no remote browser access)\n- Single-origin binding: 127.0.0.1 only, never 0.0.0.0\n\n## Component 2: nie-web (browser client)\n- Static HTML/CSS/JS bundle served by nie-daemon at GET /\n- Framework: vanilla JS or Preact (small bundle, no build toolchain required for development)\n- Chat view, users sidebar, wallet panel\n- Connects to ws://localhost:7734/ws/events for live updates\n- Works in any browser tab at http://localhost:7734\n- Electron wrapper: point BrowserWindow to http://localhost:7734 — no additional code needed\n\n## Design decisions:\n- nie-daemon spawns and owns the nie-core WebSocket connection to the relay (same as nie-cli)\n- Single daemon instance per user; subsequent launches detect running daemon via PID file\n- All key material stays in nie-daemon process; the browser/Electron client never sees secrets\n- Token auth prevents other local processes from injecting messages\n\nBlocking: Phase 1 (chat) sufficient. Wallet API endpoints require Phase 2.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:32:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:27:07Z",
+  "close_reason": "Phase 4c nie-daemon MVP complete. nie-0tvc.10 (wallet API) deferred: blocked on nie-7qp (Phase 2 Zcash wallet, not started)."
+}

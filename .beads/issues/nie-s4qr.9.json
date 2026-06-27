@@ -1,0 +1,25 @@
+{
+  "id": "nie-s4qr.9",
+  "title": "scanner: warn-and-drop on witness deserialization failure silently leaves note unspendable forever",
+  "description": "In scanner.rs load_state(), when read_incremental_witness fails for a note, the code logs a warning and drops the witness: 'scanner: failed to deserialize witness ({e}); note will be unspendable until rescan'. The witness is never tracked in self.witnesses, so it is never updated with subsequent blocks. The note exists in the DB but is excluded from spendable_notes() because no current witness row exists (or the witness row is corrupt). No automated recovery path exists \u2014 there is no rescan command (tracked in nie-qdlu.15). This is documented as a known limitation in the code comment, but there is no mechanism to surface this to the operator or user. Notes can become silently unspendable with no user-facing indication.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:21:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:31Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:21:39"
+    }
+  ]
+}

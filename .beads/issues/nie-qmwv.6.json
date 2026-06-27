@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmwv.6",
+  "title": "bridge-matrix: AS transaction body limit is 64 MiB \u2014 unbounded per-event allocation",
+  "description": "bridge-matrix/src/bridge.rs run() sets DefaultBodyLimit::max(64 * 1024 * 1024) on the axum router. The axum handler as_transaction() deserializes the entire body into AsTransaction { events: Vec<MatrixEvent> } before any per-event filtering. A rogue homeserver (or misconfigured federation peer) can send a single 64 MiB transaction containing thousands of MatrixEvent objects. Each event.content is a serde_json::Value, meaning all the JSON tree nodes are heap-allocated at once before the room_id filter runs. This can cause a large transient allocation spike. The body limit prevents the worst case but 64 MiB of JSON events is still a lot of heap churn. This is a P1 operational risk, not a crash.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:48:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:45:20Z",
+  "closed_at": "2026-06-19T20:45:20Z",
+  "close_reason": "Body limit reduced to 1 MiB; eliminates unbounded 64 MiB allocation spike",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:48:40"
+    }
+  ]
+}

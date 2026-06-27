@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-x47.5",
+  "title": "is_subscribed cached at connect time \u2014 Phase 3 billing correctness",
+  "description": "ws.rs caches subscription status at auth time: 'let is_subscribed = subscription_expires.is_some()'. The flag is never refreshed during a session. Scenario 1: client pays for subscription while connected \u2014 payment is recognized but they still see subscription_required errors until they reconnect. Scenario 2: subscription expires mid-session \u2014 client continues sending messages for the rest of the session (hours). A comment says 'Re-evaluated only on reconnect, which is fine for Phase 1' but this is not fine for Phase 3 billing accuracy. This should be resolved before subscription gating is enabled \u2014 the current design will generate a class of 'I paid but still can't send' reports.",
+  "status": "deferred",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:46:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:56Z",
+  "defer_until": "2026-06-01T00:00:00Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:46:44"
+    }
+  ]
+}

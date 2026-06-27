@@ -1,0 +1,27 @@
+{
+  "id": "nie-2f6j.3",
+  "title": "SEC1: remove dead from_pub_id field from FileReceiveState",
+  "description": "FileReceiveState.from_pub_id is stored but never read. Remove it. Also remove the #[allow(dead_code)] attribute since it will no longer be needed.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T14:17:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T14:21:36Z",
+  "closed_at": "2026-04-22T14:21:36Z",
+  "close_reason": "Fixed: removed from_pub_id and size_bytes dead fields from FileReceiveState; removed #[allow(dead_code)]",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:17:38"
+    }
+  ]
+}

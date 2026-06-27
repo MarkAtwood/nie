@@ -1,0 +1,19 @@
+{
+  "id": "nie-xfnk",
+  "title": "Review: contact_set atomicity, unknown-key rejection, store SQL dedup",
+  "notes": "Maintainer risk: LOW — no issues found. ContactPatchOp enum was later simplified; BUMP_STATE_SEQ_SQL constant eliminates SQL duplication correctly; both atomicity tests use DB-state oracles.\nConfidence: 12% chance of missed bug. Uncertainty: did not trace all code paths in the Phase 2 loop (ContactPatchOp match) for edge cases where blocked succeeds but displayName store call fails. Would raise confidence if: read the notFound-mid-transaction scenario in update_contact_fully.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:08:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:08:29Z",
+  "closed_at": "2026-04-24T17:08:29Z",
+  "close_reason": "No issues found; commit is clean given subsequent fixes",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-22n.4",
+  "title": "Wire send_payment into /pay dispatch_payment",
+  "description": "Wire send_payment() into the existing dispatch_payment state machine in cli/src/commands.rs. The Payer role, Accepted state is where the actual send happens \u2014 when the payee replies with PaymentAction::Address, the payer calls send_payment() and transitions to Sent state.\n\nSteps:\n1. Spawn a research subagent to read the full dispatch_payment function and find the Payer + Accepted + Address received branch\n2. In that branch, call send_payment() with the session's to_address and amount_zatoshi\n3. On Ok(txid): update session state to Sent, set session.tx_hash = Some(txid.to_string()), send PaymentAction::Sent { txid } to the payee, print '[pay] sent {amount} ZEC \u2014 txid: {txid}'\n4. On Err(SendPaymentError::SyncLag(e)): print '[pay] {e}', send PaymentAction::Unknown { reason: 'sync required' } to payee, do NOT advance session state\n5. On Err(SendPaymentError::Build(TxBuildError::InsufficientFunds { have, need })): print '[pay] insufficient funds: have {have} zatoshi, need {need} zatoshi', do NOT advance session state\n6. On any other Err: print '[pay] payment failed: {e}', send PaymentAction::Unknown { reason: 'send failed' } to payee\n\nDefensive rules:\n- The from-guard check (session.peer_pub_id == from) must remain in place \u2014 do not remove or move it\n- Never call send_payment() without first verifying the payer session is in Accepted state\n- Never log the recipient address \u2014 log only amount and txid\n\nTests (in dispatch_payment test suite):\n- payer_sends_after_address_received: mock send_payment returning Ok(txid) \u2192 session moves to Sent, PaymentAction::Sent sent on channel\n- payer_sync_lag_does_not_advance_state: mock SyncLag error \u2192 session stays Accepted, Unknown sent\n- payer_insufficient_funds_does_not_advance_state: mock InsufficientFunds \u2192 session stays Accepted\n\nUpdate dispatch_payment to accept a send_fn parameter (fn pointer or boxed async fn) so tests can inject a mock without touching the real send_payment \u2014 this enables unit testing without network or DB dependencies.",
+  "acceptance_criteria": "three new dispatch_payment tests pass; from-guard is not removed; no recipient address in any log output; clippy clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:50:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T02:58:50Z",
+  "closed_at": "2026-04-19T02:58:50Z",
+  "close_reason": "send_fn injected into dispatch_payment; payer auto-sends on Address; 3 new tests cover Ok/SyncLag/InsufficientFunds paths",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:50:56"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:50:53"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-pjtk",
+  "title": "store: create_group INSERT OR IGNORE silently drops conflicting create — no error to caller",
+  "description": "store::create_group() (store.rs line 1005) and create_group_with_creator() (line 1213) both use INSERT OR IGNORE. If a group_id collision occurs (e.g. UUID collision, or a client sends the same GROUP_CREATE twice with a client-generated group_id), the second INSERT silently succeeds with Ok(()) but does NOT insert any row — the original group is preserved. The caller receives Ok(()) and proceeds as if creation succeeded. In ws.rs GROUP_CREATE, group_id is relay-generated via Uuid::new_v4(), so collision is astronomically unlikely. However, create_group() is also directly callable from tests and other code paths. If a caller expects to own the group with a specific creator/name but a prior row exists with a different creator, they proceed with the wrong creator silently. This is a semantic contract violation: INSERT OR IGNORE returning Ok means 'the row now exists' but it does not mean 'I created this row'. For GROUP_CREATE specifically this is safe since UUIDs are effectively unique; the deeper issue is the API: callers cannot distinguish 'created' from 'already existed'. Fix: return a bool from create_group() indicating whether a row was actually inserted, matching the contract of add_group_member().",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:53:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:39Z",
+  "closed_at": "2026-04-26T05:11:39Z",
+  "close_reason": "Closed"
+}

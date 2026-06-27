@@ -1,0 +1,27 @@
+{
+  "id": "nie-phy.4",
+  "title": "balance() requires caller to fetch scan_tip separately \u2014 two async round-trips for one logical query",
+  "description": "What is awkward: every caller must do let tip = store.scan_tip().await?; let b = store.balance(tip, N).await?; Two pool round-trips for a single logical query. The tip parameter is always scan_tip() in production; nobody passes a synthetic tip except tests. Suggested rewrite: add balance_confirmed(min_confirmations: u64) that fetches scan_tip internally in a single query (WITH tip AS (SELECT tip_height FROM scan_state WHERE id=1)). Keep balance(scan_tip, min_confirmations) for tests. This also eliminates the time-of-check race where scan_tip advances between the two calls, though the single-connection pool makes the race benign today.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:12:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T17:32:26Z",
+  "closed_at": "2026-04-18T17:32:26Z",
+  "close_reason": "Added balance_with_confirmations(min_confirmations) convenience wrapper; keeps balance(scan_tip, min_confirmations) for tests",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:12:06"
+    }
+  ]
+}

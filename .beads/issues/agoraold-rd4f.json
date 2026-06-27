@@ -1,0 +1,14 @@
+{
+  "id": "agoraold-rd4f",
+  "title": "CI: add wasm-bindgen-test GitHub Actions job",
+  "description": "The nie-wasm unit tests (wasm/tests/wasm.rs) require a headless browser runner (wasm-pack test --headless --chrome or --firefox). Currently cargo test --workspace skips them (0 tests run). Need a GH Actions job that installs wasm-pack + geckodriver/chromedriver and runs wasm-pack test --headless --firefox -p nie-wasm.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:47:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:46Z",
+  "closed_at": "2026-04-22T13:24:30Z",
+  "close_reason": "Added .github/workflows/ci.yml with rust (fmt/clippy/test) and wasm (headless Chrome) jobs"
+}

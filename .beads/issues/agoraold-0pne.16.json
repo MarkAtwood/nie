@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-0pne.16",
+  "title": "GOOD: dual opt-in guard for testnet integration test",
+  "description": "The testnet e2e test has two independent skip conditions: #[ignore] (requires --ignored flag on cargo test) and TESTNET_ENABLED=1 env var check at runtime. Either alone is fragile: --ignored can be passed accidentally in CI configs; env var checks can be forgotten if someone adds the flag. Both together mean a CI pipeline must both explicitly request ignored tests AND set the env var before the test touches the network. The test also provides clear error messages when vars are missing, not a panic.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T15:30:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:07Z",
+  "closed_at": "2026-04-22T13:45:44Z",
+  "close_reason": "Review finding acknowledged \u2014 existing implementation is correct, no change needed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 08:30:31"
+    }
+  ]
+}

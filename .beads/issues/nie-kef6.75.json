@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.75",
+  "title": "bridge-matrix forwards events from all AS rooms, not just matrix_room_id",
+  "description": "MatrixEvent intentionally drops room_id during deserialization; the bridge loop never filters incoming events by config.matrix_room_id. An AS registered for multiple rooms forwards all rooms' messages into nie \u2014 operator intent violated, cross-room message leakage.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:54:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:12:05Z",
+  "closed_at": "2026-04-25T01:12:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:54:07"
+    }
+  ]
+}

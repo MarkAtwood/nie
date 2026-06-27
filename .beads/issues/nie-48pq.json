@@ -1,0 +1,14 @@
+{
+  "id": "nie-48pq",
+  "title": "(BUG) tui/event.rs: sessions HashMap grows unbounded via PaymentRequest flood",
+  "description": "Every incoming PaymentRequest message from any relay peer creates a new entry in state.sessions (tui/src/app.rs AppState.sessions: HashMap\u003cUuid, PaymentSession\u003e). The insert path in tui/src/event.rs calls state.sessions.entry(session_id).or_insert_with(...) with no eviction policy, no cap, and no rate limit. A malicious peer can send an unlimited stream of PaymentRequest messages with distinct session UUIDs, growing this map until OOM. Fix: add a per-peer session limit (e.g. 100 active sessions) and evict oldest when the cap is reached.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:29:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:32:44Z",
+  "closed_at": "2026-04-26T09:32:44Z",
+  "close_reason": "Closed"
+}

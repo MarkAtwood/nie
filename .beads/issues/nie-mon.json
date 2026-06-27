@@ -1,0 +1,15 @@
+{
+  "id": "nie-mon",
+  "title": "payee auto-responds without user confirmation: this is not documented as the final design",
+  "description": "dispatch_payment auto-creates a payee session and immediately broadcasts a STUB address on receiving any PaymentAction::Request. The println\\! informs after the fact. The doc comment does not flag this as stub behavior requiring future UX change (user prompt before accepting). A contributor reading this could reasonably assume auto-respond is the intended final design, and future PRs that add a confirmation dialog would look like they are 'adding complexity' to working code. Suggested fix: add a comment in dispatch_payment's Request branch: 'stub: auto-respond; real implementation requires user confirmation before sharing an address.'",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:51:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T06:29:11Z",
+  "closed_at": "2026-04-18T06:29:11Z",
+  "close_reason": "Closed"
+}

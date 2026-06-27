@@ -1,0 +1,26 @@
+{
+  "id": "nie-cp2h.4",
+  "title": "update_space_fully description parameter encoding documented only in inline comment",
+  "description": "The Option<Option<&str>> encoding for the description parameter (None=not in patch, Some(None)=set to NULL, Some(Some(s))=set to s) is documented via an inline code comment on the parameter line, not in the /// doc comment block. IDE hover and cargo doc will not show this encoding to future callers of update_space_fully. Fix: move the explanation into the function-level /// doc comment where it is surfaced by tooling. This is the one parameter in the function where correct usage is non-obvious without reading the source.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:54:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T06:06:58Z",
+  "closed_at": "2026-04-24T06:06:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:54:39"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-wrk.7",
+  "title": "i_am_admin recomputed inline 4 times \u2014 same expression, 4 copies",
+  "description": "online.first().map(|s| s.as_str()) == Some(my_pub_id.as_str()) appears in the DirectoryList, UserLeft, KeyPackageReady, and KeyPackageResponse handlers \u2014 4 separate copies of the same comparison. When the admin election rule changes (or online changes to Vec<UserInfo>), all 4 must be updated. Suggested rewrite: extract as a named closure or macro before the select! loop: let is_admin = || online.first().map(String::as_str) == Some(my_pub_id.as_str()); then call is_admin() at each site. Single point of change, intent is explicit.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:54:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:59Z",
+  "closed_at": "2026-04-18T00:10:34Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:54:03"
+    }
+  ]
+}

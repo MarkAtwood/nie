@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-3dgd.8",
+  "title": "Credentials in relay URL leak to process logs (P2)",
+  "description": "Lines 286 and 295 log the full relay URL from the CLI --relay flag:\n\n  info!(\"connected via SOCKS5 tunnel to {url}\");\n  info!(\"connected to {url}\");\n\nIf a user runs:\n  nie --relay \"wss://user:pass@relay.example.com/ws\" --proxy socks5h://127.0.0.1:9050 chat\n\nThe credentials leak to process logs, RUST_LOG output, journalctl, and any centralized logging system.\n\nMitigation: Strip user:pass from the relay URL before logging. Use url.host().unwrap_or(\"unknown\") instead:\n\n  info!(\"connected via SOCKS5 tunnel to {}\", url_without_credentials);\n\nThis leaks no sensitive data while still providing useful debugging context (hostname + scheme).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:11:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:26Z",
+  "closed_at": "2026-04-19T19:14:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "privacy",
+    "security"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:11:32"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "nie-rpm2.3",
+  "title": "handle_wallet_pay: payment request sent before session persisted",
+  "description": "daemon/src/api.rs:329-350: tx.send(rpc_req) broadcasts PaymentAction::Request to the relay (and thus the peer) at line 329-337. Then wallet.upsert_session(&session).await is called at line 340. If upsert_session fails, the function returns 500 to the HTTP caller. However, the PaymentAction::Request has already been broadcast. The peer receives it and may respond with PaymentAction::Address \u2014 but the local daemon has no session record to match the response against. The payment conversation is permanently broken: the local wallet never sends funds, while the peer thinks payment is incoming. Fix: persist the session row to DB first, then send the relay message. If the relay send fails, roll back (delete) the session. This matches the correct failure mode: no session = no payment sent = consistent state.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:34:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:44:05Z",
+  "closed_at": "2026-04-26T10:44:05Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:34:38"
+    }
+  ]
+}

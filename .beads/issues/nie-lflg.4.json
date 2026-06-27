@@ -1,0 +1,27 @@
+{
+  "id": "nie-lflg.4",
+  "title": "deserialize_chunk_data allocates base64 string before size check",
+  "description": "deserialize_chunk_data calls String::deserialize (allocating the full base64 string), then B64.decode (allocating the decoded Vec<u8>), and only then checks len > 10 MiB. A hostile peer sending a 14 MiB base64 string causes allocation of ~14 MiB (string) + ~10 MiB (decoded Vec) = ~24 MiB before rejection. The guard is at the decoded side but the string is allocated first. Fix: check the base64 string's byte length before decoding (base64 len * 3/4 >= limit implies rejection).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:18:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:02:25Z",
+  "closed_at": "2026-04-25T07:02:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:18:50"
+    }
+  ]
+}

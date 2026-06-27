@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-uvy.1",
+  "title": "parse_sapling_address: Orchard-only UA mapped to InvalidRecipient not UnsupportedAddressType",
+  "description": "Trigger: caller passes a Unified Address whose only receiver is Orchard (no Sapling receiver). Expected: TxBuildError::UnsupportedAddressType (the address parsed successfully, it just lacks a Sapling receiver). Actual: TxBuildError::InvalidRecipient (implies the string was unparseable garbage). In parse_sapling_address, the ConversionError::User arm maps to InvalidRecipient. The enum's own doc says InvalidRecipient = 'could not be parsed as a Zcash address', while UnsupportedAddressType = 'parsed successfully but resolves to an unsupported protocol'. An Orchard-only UA parses correctly \u2014 it's the second case. Wrong error variant propagated to the user: 'invalid recipient address: Unified Address has no Sapling receiver' when the correct message would be 'unsupported address type: ...'.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:06:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:52Z",
+  "closed_at": "2026-04-19T02:11:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:06:25"
+    }
+  ]
+}

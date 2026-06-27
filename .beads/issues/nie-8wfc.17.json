@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.17",
+  "title": "bridge-slack: no HTTP body size limit allows OOM",
+  "description": "bridge-slack/src/bridge.rs slack_events() reads the entire request body into memory (axum Bytes extractor) before signature verification. No DefaultBodyLimit is set. An adversary can POST a multi-hundred-MB body to :9001/slack/events to OOM the process. Same issue: bridge-matrix as_transaction handler has no body limit. Fix: axum DefaultBodyLimit::max(N) on the Router.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:18:21Z",
+  "closed_at": "2026-04-24T22:18:21Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:58"
+    }
+  ]
+}

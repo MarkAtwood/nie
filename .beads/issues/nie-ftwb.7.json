@@ -1,0 +1,27 @@
+{
+  "id": "nie-ftwb.7",
+  "title": "bridge-slack: Disconnected event breaks bridge loop; Slack events HTTP server keeps running but forwards to closed channel",
+  "description": "bridge-slack/src/bridge.rs run(): on ClientEvent::Disconnected the main loop breaks and returns Ok(()). The axum Slack events HTTP server was spawned as a separate tokio task and continues running. Subsequent Slack events arrive at the HTTP server, try to send on the mpsc channel, fail (channel closed), and return HTTP 500. Slack will retry those 500s repeatedly. The process appears running but is permanently non-functional; there is no process exit to trigger systemd restart. Scenario: relay drops the connection permanently; bridge process keeps accepting Slack events but can never forward them.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:55:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:06:08Z",
+  "closed_at": "2026-04-26T08:06:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:55:52"
+    }
+  ]
+}

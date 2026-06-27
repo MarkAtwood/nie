@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-52o.8",
+  "title": "Key separation check comment misleads about its coverage",
+  "description": "The comment in wallet_init reads:\n  'For --no-passphrase mode, perform the check directly.'\n  \nA contributor reading this thinks: 'the passphrase mode must have its own check somewhere else.' It does not. The check is entirely absent from the passphrase path.\n\nWhat the comment should say:\n  'Key separation check: only performed in --no-passphrase mode to avoid prompting\n   for identity passphrase during wallet_init. In passphrase mode, independent entropy\n   is the only enforcement \u2014 there is no runtime check.'\n\nAs-is, a future contributor who adds a 'load identity + wallet together' code path will assume the invariant is enforced elsewhere and not add their own check.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:25:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:11Z",
+  "closed_at": "2026-04-18T03:37:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:25:19"
+    }
+  ]
+}

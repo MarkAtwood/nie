@@ -1,0 +1,21 @@
+{
+  "id": "nie-x87e.18",
+  "title": "default_mainnet_endpoints_are_https has weaker length assertion than adjacent test",
+  "description": "In client.rs lines 358-374, the test `default_mainnet_endpoints_are_https` asserts `DEFAULT_MAINNET_ENDPOINTS.len() >= 2`, but the adjacent test `default_mainnet_endpoints_len_at_least_three` (lines 346-352) asserts `>= 3`. If the endpoint list shrinks from 3 to 2 entries, the https-scheme test would still pass. The weaker assertion is redundant and misleading: its doc comment says 'at least two entries' but the spec (nie-060.1) and adjacent test require three. Fix: either raise the assertion in this test to >= 3 (matching the other test), or remove the length check from this test entirely since it is already covered.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:24:58Z",
+  "closed_at": "2026-04-20T05:24:58Z",
+  "close_reason": "P3/P4 deferred: below stopping threshold (P0=0, P1=0, SEC7 says STOP)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:58"
+    }
+  ]
+}

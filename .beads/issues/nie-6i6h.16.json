@@ -1,0 +1,23 @@
+{
+  "id": "nie-6i6h.16",
+  "title": "JMAP SSRF origin-check is correct and should be defended",
+  "description": "JmapClient::init_session (jmap.rs:138-152) validates that the server-returned apiUrl has the same origin as the configured session_url, blocking SSRF via a malicious JMAP server. A contributor might simplify this to just using apiUrl directly. Do not: the check is the primary SSRF defense. The oracle test init_session_rejects_ssrf_api_url (jmap.rs:477-510) provides independent verification.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:30:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:30:46Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:30:45"
+    }
+  ]
+}

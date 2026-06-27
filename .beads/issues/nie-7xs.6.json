@@ -1,0 +1,27 @@
+{
+  "id": "nie-7xs.6",
+  "title": "set_subscription accepts arbitrary string for expires_at without format validation",
+  "description": "store.rs:set_subscription() is the only write path to subscription expiry (CLAUDE.md invariant #12). It accepts expires_at: &str with no validation. The SQLite datetime invariant (CLAUDE.md item 9) requires format 'YYYY-MM-DD HH:MM:SS' for comparisons with datetime('now') to work. An RFC 3339 string ('2026-04-16T12:00:00Z') stored here would silently make subscription_expiry() always return None (the comparison expires_at > datetime('now') would fail because 'T' sorts differently). The Phase 3 payment watcher must know the exact format requirement, but there is no guard in the code. A format mismatch produces no error -- just silently broken subscription gating. Fix: validate or enforce the format in set_subscription(), or accept a chrono::DateTime<Utc> and format it correctly internally.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:59:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:04:08Z",
+  "closed_at": "2026-04-16T09:04:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:59:01"
+    }
+  ]
+}

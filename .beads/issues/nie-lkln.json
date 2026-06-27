@@ -1,0 +1,14 @@
+{
+  "id": "nie-lkln",
+  "title": "payment_watcher: stream.message().await has no timeout — hangs on stalled gRPC",
+  "description": "relay/src/payment_watcher.rs:161 calls stream.message().await with no timeout. If the TCP connection to lightwalletd half-closes mid-stream (common under NAT or load balancers), the call blocks forever. The outer RECONNECT_DELAY_SECS path is never reached. The watcher silently stops scanning and activating subscriptions. Fix: wrap with tokio::time::timeout(Duration::from_secs(N), ...) and break the inner loop on timeout, falling through to the reconnect path.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T06:15:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:10:41Z",
+  "closed_at": "2026-04-26T07:10:41Z",
+  "close_reason": "Fixed in round 31: 30s timeout added to stream.message() in payment_watcher"
+}

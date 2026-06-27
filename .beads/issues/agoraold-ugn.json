@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-ugn",
+  "title": "Review: nie-22n wallet send_payment",
+  "notes": "Maintainer risk: MEDIUM — One real correctness bug (Sent notification lost on channel close/MLS failure with no recovery path), one efficiency bug (51.5MB blocking sync I/O per payment on the async runtime), and two schema-level land mines (no SQL account filter, no index on spent). None are immediate user-visible failures at current scale (no real scanner, no real LWD), but nie-ugn.1 will generate support issues the moment the first real payment is attempted and the connection drops at the wrong moment.\nConfidence: 15% chance of missed bug. Uncertainty driven by: did not execute any real payment end-to-end (no live LWD, no real Sapling params, no funded wallet). The Sapling proof-generation path (build_shielded_tx → zcash_primitives builder) was read but not exercised. Would raise confidence if: integration test with real params files and a real testnet node. The fee consistency argument (Item 1 in correctness review) relies on the ZIP-317 grace floor absorbing a 1-action discrepancy when n=1; this is correct but not tested.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:08:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T03:45:57Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

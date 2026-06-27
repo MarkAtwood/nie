@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.42",
+  "title": "missing index on users.first_seen causes full scan in all_users on every connect",
+  "description": "store.rs: all_users() uses ORDER BY first_seen ASC with no index on users(first_seen). Full table scan and sort on every WebSocket connect. Add CREATE INDEX IF NOT EXISTS idx_users_first_seen ON users(first_seen).",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:57:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:57:56Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:57:56"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-8lcm.10",
+  "title": "GOOD: validate_raw_tx and parse_send_response extracted for offline testing",
+  "description": "The two helper functions validate_raw_tx() and parse_send_response() are extracted from broadcast_tx() and marked pub so they can be tested without a real gRPC transport. The unit tests in the same file cover EmptyTx, BroadcastFailed (two error codes), InvalidTxId (short and non-hex), and uppercase normalization \u2014 seven cases total, all offline. This isolates the logic that has testable behavior from the thin gRPC wrapper that does not. The comment in the test section names this design choice explicitly.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:13Z",
+  "closed_at": "2026-04-20T05:09:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:39"
+    }
+  ]
+}

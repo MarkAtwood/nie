@@ -1,0 +1,27 @@
+{
+  "id": "nie-ux95.2",
+  "title": "test_space_set_description_null_is_valid is a vacuous oracle",
+  "description": "Trigger: The test creates a space with no description (already null), then patches {\"description\": null}. Bad behavior: it only asserts result[updated] contains the space_id \u2014 it does not do a follow-up Space/get to verify description==null in the DB. Because description was already null, the test passes regardless of whether the clearing logic works. It is precisely the regression test for nie-ux95.1 but it fails to catch the bug it was written to prevent. Fix: create a space with a description first (e.g. Space/create with description='HasDesc'), then patch to null, then Space/get and assert response list[0].description is null/absent.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:11:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:19:08Z",
+  "closed_at": "2026-04-24T05:19:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:11:29"
+    }
+  ]
+}

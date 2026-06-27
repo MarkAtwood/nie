@@ -1,0 +1,27 @@
+{
+  "id": "nie-4qfy.4",
+  "title": "BackgroundService.stop() sends startService(ACTION_STOP) to a potentially unstarted service",
+  "description": "If disconnect() is called before connect() ever succeeded (e.g. auth failure before start() was called), BackgroundService.stop() starts the Android service just to immediately stop it. Suggested rewrite: add a boolean _serviceRunning flag in BackgroundService; only send ACTION_STOP if it was previously started.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:33:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:39:39Z",
+  "closed_at": "2026-04-23T23:39:39Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:33:00"
+    }
+  ]
+}

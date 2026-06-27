@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-nej",
+  "title": "amount_zatoshi cast u64→i64 in upsert_session: negative value in SQLite for extreme inputs",
+  "description": "upsert_session binds session.amount_zatoshi as i64 (.bind(session.amount_zatoshi as i64)). For amounts above i64::MAX zatoshi (~92 billion ZEC), the cast silently wraps to negative and SQLite stores a negative integer. all_sessions() reads it back as i64 and casts to u64, so the roundtrip is lossless, but any SQL inspection or future WHERE amount \u003e 0 query would see a negative value. In practice Zcash total supply is 21M ZEC so this is unreachable via /pay, but there is no assertion enforcing the bound. Trigger: construct a PaymentSession with amount_zatoshi \u003e i64::MAX (possible via direct API, not via CLI). Fix: use i64 throughout or assert amount_zatoshi \u003c= i64::MAX as i64 before casting.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:51:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:35Z",
+  "closed_at": "2026-04-18T06:07:54Z",
+  "close_reason": "Closed"
+}

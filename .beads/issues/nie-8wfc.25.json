@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.25",
+  "title": "GROUP_SEND offline enqueue: no group size cap creates O(N) DB writes per send",
+  "description": "broadcast_to_group() enqueues one offline_messages row per offline member. No group size cap exists. A group with many offline members causes O(members) DB INSERTs per GROUP_SEND. Combined with the rate limit (120/min) an attacker in a large offline group can sustain many thousands of DB INSERTs/sec. Fix: add a maximum group member count enforced in GROUP_ADD.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:15:33Z",
+  "closed_at": "2026-04-24T22:15:33Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:29"
+    }
+  ]
+}

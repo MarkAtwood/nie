@@ -1,0 +1,22 @@
+{
+  "id": "nie-648y",
+  "title": "Relay-to-JMAP bridge: MLS decrypt/encrypt",
+  "description": "Wire nie-daemon's relay connection to the JMAP data store. Inbound: relay delivers opaque MLS blob \u2192 MLS decrypt \u2192 parse ClearMessage variant \u2192 store as JMAP Message (or route Payment/Profile/File events). Outbound: JMAP Message/set create \u2192 serialize ClearMessage \u2192 MLS encrypt \u2192 send via relay. This bridge is the seam between the privacy layer (relay) and the feature layer (JMAP).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T19:53:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T21:44:23Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:54:54"
+    }
+  ]
+}

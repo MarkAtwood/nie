@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-fye.3",
+  "title": "function name 'expire_stale_sessions_before' no longer matches its parameter semantics",
+  "description": "What is awkward: the name expire_stale_sessions_before implies the second argument is a reference point ('before cutoff'), but it is now a duration ('older than N seconds'). A reader seeing expire_stale_sessions_before(now_ts, 24*3600) has to read the docstring to understand that 24*3600 is a max_age, not a timestamp. The original name fit the old cutoff: i64 API. Suggested rename: expire_sessions_older_than(now_ts: i64, max_age_secs: u64) \u2014 reads naturally as 'expire sessions older than 24*3600 seconds'.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:57:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:55Z",
+  "closed_at": "2026-04-18T18:11:34Z",
+  "close_reason": "Fixed: renamed expire_stale_sessions_before \u2192 expire_sessions_older_than throughout",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:57:44"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-gsyn.13",
+  "title": "broadcast_to_group membership re-check before offline enqueue prevents ghost delivery",
+  "description": "state.rs broadcast_to_group() calls store.is_group_member() before enqueuing for offline members. This prevents delivery to members who left (GROUP_LEAVE) between the list_group_members() call at the start of GROUP_SEND and the offline enqueue. A contributor might remove this second DB check as 'redundant' \u2014 it is not. Without it, a departing member can receive group messages they were already removed from. The check is load-bearing for group leave semantics.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:28:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:28:25Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:28:24"
+    }
+  ]
+}

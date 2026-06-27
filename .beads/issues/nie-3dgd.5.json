@@ -1,0 +1,25 @@
+{
+  "id": "nie-3dgd.5",
+  "title": "AsyncRW blanket trait and boxed WsSink/WsStream lack clarity on necessity",
+  "description": "Lines 23-27 define AsyncRW (private blanket trait) and box WsSink/WsStream trait objects without explaining why. A future contributor reading ws_upgrade_and_auth<S: AsyncRW> must scroll to find the trait definition. The boxed sink/stream types incur vtable dispatch cost per message, but there's no comment indicating whether this is intentional (for future refactoring flexibility) or necessary (to handle heterogeneous stream types).\n\nClarify:\n1. Why AsyncRW exists (is it necessary to unify TcpStream and Socks5Stream<TcpStream>? Could we use a single-monomorphized path instead?)\n2. Whether the dynamic dispatch cost is acceptable or a performance footprint worth revisiting\n3. Rename AsyncRW to AsyncReadWrite (more idiomatic) or inline its bounds if not widely used",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:11:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:14:05Z",
+  "closed_at": "2026-04-19T19:14:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:11:15"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "nie-v5vp",
+  "title": "Review: review-fix commits 2fd042a, 753fc49",
+  "notes": "Maintainer risk: LOW — no findings. The inline error tuples in 753fc49 diverge slightly from the method_error helper pattern, but only 2 call sites and the surrounding comment explains the context. Not worth tracking.\nConfidence: 95% chance of no missed bug. Both commits are small, targeted, test-covered. Residual 5%: the SpaceRole::all() static slice promotion is implicit Rust behavior, correct but worth knowing about.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:32:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:32:43Z",
+  "closed_at": "2026-04-24T16:32:43Z",
+  "close_reason": "No findings — both commits correct, minimal, test-covered",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-bld",
+  "title": "Review: 5-commit wallet arc",
+  "notes": "Maintainer risk: LOW — arc is stable, all stability checks pass, refactor is clean. Only P3 docstring issues in previously unreviewed files.\nConfidence: 10% chance of missed bug. Uncertainty driven by: scanner.rs not fully reviewed (noted in prior rounds); payment state machine concurrency under load not exercised. Would raise confidence if: end-to-end integration test against a live lightwalletd. Running out of real complaints — this codebase is solid at this layer.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:45:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T07:11:35Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

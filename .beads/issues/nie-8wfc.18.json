@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.18",
+  "title": "connection_device_id only tracks last PUBLISH_KEY_PACKAGE per connection",
+  "description": "ws.rs line 850: connection_device_id is overwritten each time PUBLISH_KEY_PACKAGE succeeds. If a connection publishes for two different device_ids, only the last is deleted on disconnect. The first device's stale key package lingers in key_packages indefinitely. Fix: track a Vec<String> of all device_ids published this connection and delete all on disconnect.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:36:08Z",
+  "closed_at": "2026-04-24T22:36:08Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:00"
+    }
+  ]
+}

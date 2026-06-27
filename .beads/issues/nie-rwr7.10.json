@@ -1,0 +1,28 @@
+{
+  "id": "nie-rwr7.10",
+  "title": "CLI: sealed broadcast send+receive + PUBLISH_HPKE_KEY on connect + sealed DM",
+  "description": "What: Wire sealed sender into cli/src/commands.rs chat loop: publish user HPKE key on connect, send sealed broadcasts when MLS active, receive and unseal SealedDeliver notifications, send/receive sealed DMs.\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/cli/src/commands.rs (full chat() function)\n2. At chat loop startup (after auth handshake, after MLS init):\n   a. Generate per-session user HPKE note: the Identity struct now has hpke_pub_key_bytes()\n   b. Send PUBLISH_HPKE_KEY { public_key: identity.hpke_pub_key_bytes().to_vec() }\n   c. Store identity.hpke_secret_bytes() as hpke_secret for later unseal\n3. Track room HPKE key state:\n   let mut room_hpke_pub: Option<[u8; 32]> = None;\n4. In the send path (when user types a message and MLS is active):\n   a. Encrypt via MLS: mls_ciphertext = mls_client.encrypt(plaintext)?\n   b. If room_hpke_pub.is_some():\n      - Build sealed plaintext: {pub_id_bytes(64) as string || mls_ciphertext}\n        Format: len-prefixed or fixed: encode as pub_id_str.as_bytes() (64 ASCII bytes) || mls_ciphertext\n      - sealed = nie_core::hpke::seal_message(&room_hpke_pub.unwrap(), &sealed_plaintext)?\n      - Send SealedBroadcastParams { sealed }\n   c. Else: fall back to regular BroadcastParams { payload: mls_ciphertext } (transition compat)\n5. After MLS group established, derive room key:\n   - (room_hpke_pub, room_hpke_secret) = mls_client.room_hpke_keypair()?\n   - room_hpke_pub = Some(pub_bytes)\n   - Publish room HPKE pub key: send PUBLISH_HPKE_KEY { public_key: room_hpke_pub.to_vec() }\n     (overwrites identity-level key; room key is what peers use for broadcast sealing)\n6. In the receive path, handle SealedDeliver notifications:\n   a. Parse SealedDeliverParams { sealed }\n   b. Unseal: let plaintext = nie_core::hpke::unseal_message(&hpke_secret, &sealed)?\n      (use room_hpke_secret if MLS active, else identity hpke_secret)\n   c. Parse sealed plaintext: first 64 bytes = sender_pub_id (ASCII hex), rest = mls_ciphertext\n   d. Process MLS: let decrypted = mls_client.process_incoming(&mls_ciphertext)?\n   e. Verify sender: check that sender_pub_id matches the MLS credential from process_incoming\n   f. If mismatch: warn!(\"sealed sender mismatch, dropping\"); continue\n   g. Display as normal chat message\n7. Handle sealed DM (SealedWhisperDeliver):\n   a. Parse SealedWhisperDeliverParams { to, sealed }\n   b. Unseal with identity hpke_secret (DMs sealed to user's identity key, not room key)\n   c. Extract sender_pub_id + payload; process as regular whisper\n8. For sending sealed DM:\n   a. Before sending whisper: GET_HPKE_KEY for recipient pub_id\n   b. If they have HPKE key: seal and send SealedWhisperParams\n   c. Else: fall back to regular WhisperParams\n\nDefensive programming rules:\n- hpke_secret must never be logged (use tracing::debug!(\"unsealing sealed message\") not debug!(\"{:?}\", hpke_secret))\n- Sender verification (step 6f) is mandatory \u2014 do not skip even when MLS credential lookup fails\n- process_incoming returning None means non-application message (commit etc.) \u2014 handle gracefully\n- Unseal errors are warn!() + continue, not crash (bad message from relay, or relay tampered)\n- Fallback to unsealed Broadcast must be explicit comment: // fallback: MLS not yet active\n- room_hpke_secret update must happen AFTER MLS group established (not before)\n- 64-byte sender pub_id prefix: sender_pub_id.as_bytes() is ASCII (64 chars) \u2014 parse back with String::from_utf8(&plaintext[0..64])",
+  "acceptance_criteria": "cargo check --workspace exits 0; cargo test --workspace passes; chat loop publishes HPKE key on connect; sealed broadcast sent when MLS active; SealedDeliver received and unsealed with sender verification",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T20:01:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:34:38Z",
+  "close_reason": "Sealed sender wired into CLI chat loop: HPKE key published on connect, room HPKE key derived after MLS activation, sealed broadcast send path, SEALED_DELIVER and SEALED_WHISPER_DELIVER receive handlers. cargo check/clippy/test all clean.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:24"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:01:45"
+    }
+  ]
+}

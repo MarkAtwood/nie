@@ -1,0 +1,28 @@
+{
+  "id": "nie-2y0i.10",
+  "title": "nie-tui E2E: two instances exchange message and verify in history",
+  "description": "**What:** End-to-end integration test: start the relay, launch two nie-tui instances in headless/scripted mode (or use nie-bot-style programmatic testing), send a message from one to the other, verify it appears in the chat history DB of the receiver.\n\n**Algorithm:**\n1. Create tui/tests/e2e.rs (integration test).\n2. Test setup:\n   a. Start relay in background: spawn nie-relay with a temp SQLite DB and random port.\n   b. Create two identity keyfiles (alice, bob) with no-passphrase.\n   c. Instead of spawning nie-tui (which needs a terminal), drive the event loop directly:\n      - Call transport::connect_with_retry for alice and bob.\n      - Create AppState for alice and bob.\n      - Run handle_relay_event in a tokio task for each (simulating the event loop without terminal).\n   d. Alice sends a chat message: call send_chat() directly or construct a BroadcastParams request and send via alice.tx.\n   e. Wait up to 3 seconds for bob.messages to contain a ChatLine::Chat with alice's text.\n   f. Verify: assert!(bob.state.messages.iter().any(|m| matches!(m, ChatLine::Chat{text, ..} if text == \"hello from alice\")));\n   g. Verify: history DB for bob contains the message (call history::History::open(bob_data_dir).recent(1)).\n3. Teardown: terminate relay process, clean up temp dirs.\n\n**Defensive programming rules:**\n- Test must not require a real terminal \u2014 use headless event loop (no ratatui drawing).\n- Test must use real relay process (not mocked) \u2014 per CLAUDE.md test oracle discipline.\n- Timeout: wrap recv loop with tokio::time::timeout(Duration::from_secs(5), ...) to avoid hanging on test failure.\n- Temp dirs: use tempfile::TempDir for automatic cleanup.\n- Relay port: bind to port 0 (OS assigns) to avoid conflicts.\n- No hardcoded expected values derived from the code under test \u2014 the expected text is an independent literal \"hello from alice\".\n\n**Agent team:** Standard (R+I+V). R reads relay/tests/ for existing E2E test patterns (stress.rs, e2e.rs). I implements tui/tests/e2e.rs. V runs cargo test -p nie-tui e2e.\n\n**Tests (the bead IS the test):**\n- Two instances exchange a known message: passes.\n- Timeout if message not received within 5s: test fails with clear message, not hang.\n- History DB contains the message: verifies persistence.\n",
+  "acceptance_criteria": "cargo test -p nie-tui e2e_exchange -- --test-threads=1 passes; relay is started fresh (not mocked); message appears in receiver's history DB",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:17:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T03:55:20Z",
+  "closed_at": "2026-04-20T03:55:20Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:14"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:28"
+    }
+  ]
+}

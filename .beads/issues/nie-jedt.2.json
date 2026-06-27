@@ -1,0 +1,21 @@
+{
+  "id": "nie-jedt.2",
+  "title": "bot: auto_payment_address feature flag parsed but maybe_auto_respond() never called",
+  "description": "bot/src/config.rs parses --auto-payment-address CLI flag and stores it in ResolvedBotConfig.auto_payment_address. bot/src/payment.rs exports maybe_auto_respond() which is intended to respond to PaymentRequest events when this flag is set. However, main.rs handle_relay_event() never calls maybe_auto_respond(). The flag, the config field, and the function are all dead with respect to runtime behavior \u2014 auto payment responses are never sent regardless of the flag value. The only calls to maybe_auto_respond() are in payment.rs unit tests. Impact: documented --auto-payment-address feature silently does nothing.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:55:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:59:56Z",
+  "closed_at": "2026-04-26T10:59:56Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:55:09"
+    }
+  ]
+}

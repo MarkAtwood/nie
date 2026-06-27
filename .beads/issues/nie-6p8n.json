@@ -1,0 +1,17 @@
+{
+  "id": "nie-6p8n",
+  "title": "ws.rs: GROUP_LIST rate-limit checked before subscription gate — same ordering bug fixed for SEALED_WHISPER in round 58",
+  "description": "relay/src/ws.rs GROUP_LIST handler (line 1890): check_rate_limit is called before the require_subscription gate (line 1904). An unsubscribed client that repeatedly calls GROUP_LIST burns its rate-limit budget on requests that will always be rejected by the subscription check. The correct order — subscription check first, rate-limit second — was just established for SEALED_WHISPER in round 58 (commit 21504e4). GROUP_LIST was missed. Fix: move check_rate_limit block to after the subscribed_flag check, matching the pattern in BROADCAST, WHISPER, GROUP_ADD, GROUP_CREATE, and SEALED_WHISPER.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:35:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:38:13Z",
+  "closed_at": "2026-04-26T11:38:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "bug"
+  ]
+}

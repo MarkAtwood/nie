@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-860",
+  "title": "/receive command \u2014 show Unified Address",
+  "description": "Display the user's default Unified Address (UA). Also render a compact text QR code using block characters so it can be photographed from the terminal. Print a warning that address reuse is discouraged for payments (use /pay instead which generates a fresh subaddress).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:38Z",
+  "closed_at": "2026-04-19T04:42:17Z",
+  "close_reason": "implemented",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:43:16"
+    }
+  ]
+}

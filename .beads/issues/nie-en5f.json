@@ -1,0 +1,17 @@
+{
+  "id": "nie-en5f",
+  "title": "Review: wallet/src/*.rs security/correctness round 14",
+  "notes": "Maintainer risk: MEDIUM — scan_block in-memory state diverges from DB on save failure (nie-en5f.6) is the most dangerous issue: it silently corrupts the commitment tree on restart and makes all subsequent note proofs invalid until a full rescan. The tree-full continuation (nie-en5f.7) is theoretical at current chain size. Spent-witness accumulation (nie-en5f.2) affects performance over time. The Zip212Enforcement issue (nie-en5f.4) is a protocol compliance gap with no practical exploit path. Documentation/diagnostic issues are minor.\nConfidence: 15% chance of missed bug. Uncertainty driven by: did not trace all callers of WalletStore outside the wallet crate, could not run the full test suite, and scanner state machine restart interactions are complex. Would raise confidence with: integration test that injects a save_block_state failure mid-block and verifies subsequent scan consistency.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:53:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

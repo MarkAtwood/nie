@@ -1,0 +1,28 @@
+{
+  "id": "nie-pf86.2",
+  "title": "CLI /send command: chunk file and broadcast",
+  "description": "## What\nAdd /send <path> command to the CLI chat loop in cli/src/commands.rs. Reads file, chunks into 48KB blocks, sends FileHeader then FileChunk messages via MLS broadcast.\n\n## Algorithm\n1. In the chat input loop, add: if let Some(path_str) = line.strip_prefix('/send ') { ... continue; }\n2. Path handling: let path = std::path::Path::new(path_str.trim()); validate it exists and is a file.\n3. Read file: let bytes = tokio::fs::read(&path).await? - handle errors with println!.\n4. Enforce client-side limit: const FILE_MAX_BYTES: usize = 10 * 1024 * 1024; if bytes.len() > FILE_MAX_BYTES { println!('[send] file too large ({} bytes > 10 MB limit)', bytes.len()); continue; }\n5. Compute SHA-256: use sha2::Sha256 + Digest trait; sha256_hex = bytes.iter().map(|b| format!({'b:02x'})).collect().\n6. MIME type: simple extension lookup - match path.extension().and_then(|e| e.to_str()) { Some('jpg'|'jpeg') => 'image/jpeg', Some('png') => 'image/png', Some('pdf') => 'application/pdf', Some('txt') => 'text/plain', Some('zip') => 'application/zip', _ => 'application/octet-stream' }.\n7. transfer_id = Uuid::new_v4(); chunk_size = 48 * 1024; chunks: Vec<&[u8]> = bytes.chunks(chunk_size).collect(); total_chunks = chunks.len() as u32.\n8. Send header: let header = ClearMessage::FileHeader { transfer_id, name: path.file_name().unwrap().to_string_lossy().into_owned(), size_bytes: bytes.len() as u64, sha256_hex, total_chunks, mime_type }; serialize and MLS-encrypt and pad as normal chat message.\n9. For each chunk (seq 0..total_chunks): let chunk_msg = ClearMessage::FileChunk { transfer_id, seq: seq as u32, data: chunk.to_vec() }; serialize, pad to 65536 bucket, MLS encrypt (or plaintext if no MLS), send via BROADCAST. Print progress every 10 chunks: println!('[send] {}/{} chunks', seq+1, total_chunks).\n10. After all chunks: println!('[send] sent {} ({} bytes, {} chunks)', name, size, total_chunks).\n\n## Defensive programming\n- Validate path is a file (not directory, not symlink) before reading\n- Never log file content or sha256_hex (only metadata: name, size, chunk count)\n- Check tx.send() result for each chunk; break on connection loss\n- Path component: use path.file_name() to extract just the filename for display\n- Chunk data: call messages::pad(&mls_ciphertext_or_plaintext); if pad returns Err, skip sending that chunk and report error\n- No unwrap() in production code\n\n## Tests\nNot a standalone testable function; tested via E2E bead.",
+  "acceptance_criteria": "cargo build -p nie-cli succeeds; /send command is parseable in the input loop",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T13:56:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T14:14:53Z",
+  "close_reason": "CLI /send command: reads file, SHA-256, MIME detection, sends FileHeader+FileChunk via MLS broadcast, progress display, 10MB client-side cap",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 06:57:45"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 06:56:52"
+    }
+  ]
+}

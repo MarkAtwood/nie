@@ -1,0 +1,21 @@
+{
+  "id": "nie-z57q",
+  "title": "multidevice: client derives device_id from KeyPackage",
+  "description": "Client-side change: before calling publish_key_package, derive device_id from the ECDH encryption key in the freshly generated KeyPackage and include it in the request.\n\nWhy: device_id must be stable for the lifetime of a KeyPackage and unique per device. Deriving it from the KeyPackage's own leaf encryption key requires no extra storage and is deterministic \u2014 the relay and client agree on it without a round-trip.\n\nWhat to do:\n- In core/src/mls.rs or the CLI publish path, after generating a KeyPackage, extract the leaf node encryption key bytes and compute SHA-256 to produce device_id\n- Pass device_id alongside the KeyPackage bytes when constructing PublishKeyPackageParams\n- Ensure the same device_id is reproduced if the same KeyPackage is republished in the same session\n\nAcceptance: client publishes a device_id that matches SHA-256 of the KeyPackage leaf encryption key; relay stores it correctly.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T20:13:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:50:07Z",
+  "close_reason": "MlsClient.key_package_and_device_id() added to core/src/mls.rs; derives device_id=SHA-256(hpke_init_key); CLI and TUI call sites updated; sha2 removed from tui Cargo.toml",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 13:18:02"
+    }
+  ]
+}

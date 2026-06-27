@@ -1,0 +1,48 @@
+{
+  "id": "agoraold-th7.9",
+  "title": "CLI: GROUP_DELIVER handler + active_groups state",
+  "description": "What: Handle incoming GROUP_DELIVER notifications in the CLI chat event loop and maintain active_groups state.\n\nAlgorithm:\n1. Add to chat state:\n   - active_groups: HashMap<String, GroupClientState> where key is group_id\n   - struct GroupClientState { name: String, members: Vec<String> }\n2. Add ClientEvent::Message match arm for rpc_methods::GROUP_DELIVER\n3. Parse GroupDeliverParams { from, group_id, payload }\n4. If group exists in active_groups:\n   a. If mls.has_group_id(group_id.as_bytes()): decrypt via mls.process_for_group(group_id.as_bytes(), &payload)\n   b. Else: treat payload as UTF-8 bytes (pre-MLS fallback)\n   c. Deserialize as ClearMessage::Chat { text } and display: [group_name] from_display: text\n5. If group NOT in active_groups: log warn and skip (group list not yet fetched)\n6. Handle GROUP_CREATE response: insert into active_groups\n7. Handle GROUP_LIST response: replace active_groups with fresh list\n\nDefensive rules:\n- Parse failure on GroupDeliverParams \u2192 warn! + continue (malformed server data)\n- MLS decrypt failure \u2192 warn! + continue (epoch mismatch is possible, not fatal)\n- from is relay-authenticated; display sender name via nicknames map\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo build -p nie passes; GROUP_DELIVER notification is displayed correctly; unknown group_id logs warn and does not crash",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:51:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:16:05Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:48"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:46"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:51:46"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:46"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:47"
+    }
+  ]
+}

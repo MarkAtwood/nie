@@ -1,0 +1,14 @@
+{
+  "id": "nie-876n",
+  "title": "daemon/api: internal error strings leaked in HTTP 500 responses",
+  "description": "Three error sites in daemon/src/api.rs (~lines 184, 260, 333) use format!(\"...: {e}\") as the JSON message field in 500 responses. The anyhow chain includes SQLite file paths, gRPC transport errors, and internal context strings. Fix: log {e} internally at warn/error and return a fixed opaque string (e.g. 'internal wallet error') to callers.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:51:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:12:27Z",
+  "closed_at": "2026-04-26T06:12:27Z",
+  "close_reason": "Closed"
+}

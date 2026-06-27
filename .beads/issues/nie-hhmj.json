@@ -1,0 +1,18 @@
+{
+  "id": "nie-hhmj",
+  "title": "Review round 1: Migrate relay wire protocol to JSON-RPC 2.0",
+  "notes": "MAINTAINER RISK ASSESSMENT: 9 high-severity operational risks identified across relay auth, message routing, and client response handling.\n\nCRITICAL RISKS (P1):\n1. Error responses swallowed (.ok()) on BROADCAST, SET_NICKNAME, PUBLISH_KEY_PACKAGE, GET_KEY_PACKAGE, WHISPER — clients hang with zero error feedback (nie-hhmj.1)\n2. Malformed JSON-RPC from relay silently dropped; no diagnostic context (nie-hhmj.2)\n3. SET_NICKNAME store errors logged but no error response sent; client hangs (nie-hhmj.11)\n4. register_user() fails but auth continues; user invisible in DirectoryList (nie-hhmj.16)\n5. all_users() failures silently return empty vec; blank directory broadcast (nie-hhmj.17)\n\nSERIOUS RISKS (P2):\n6. subscription_expiry() DB errors silently treated as 'not subscribed' (nie-hhmj.3)\n7. is_subscribed cached at connect time; never re-evaluated; Phase 3 bypass (nie-hhmj.8)\n8. Whisper to offline recipients silently succeeds with no delivery confirmation (nie-hhmj.18)\n9. broadcast() ignores send errors; blind delivery failures; no accountability (nie-hhmj.19)\n10. No request-response correlation tracking; out-of-order responses assigned to wrong requests (nie-hhmj.6)\n11. connection_manager never logs reconnection details; silent reconnection loops (nie-hhmj.10)\n\nPATTERN: Silent failure dominates. Errors are logged but requests proceed or fail without client notification. Store failures in auth path crash to 'default' semantics (empty list, treat as unsubscribed). Broadcast side-effects (state mutations) are not validated for success.\n\nSOLO MAINTAINER IMPACT: A maintainer debugging 'users can't form groups' or 'broadcast seems to vanish' has no diagnostic trail. Errors hide in INFO/WARN logs that look benign ('failed to deserialize notification') but mask protocol bugs or data corruption.\n\nRECOMMENDATION: Before merging, implement:\n1. Error responses MUST be sent on all store failures in request handlers\n2. Store failures in critical paths (register_user, all_users) MUST fail-closed (disconnect client, don't continue)\n3. Broadcast/Whisper delivery failures MUST be reported or collected for operator visibility\n4. Add request-response tracking with timeout enforcement on client side\n5. Add diagnostics to reconnection loop (attempt count, last error, backoff state)",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:09:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:24:21Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "review"
+  ]
+}

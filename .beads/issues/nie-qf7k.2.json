@@ -1,0 +1,24 @@
+{
+  "id": "nie-qf7k.2",
+  "title": "Readability: canonicalize_display_name variable shadowing obscures pipeline intent",
+  "description": "The function uses triple shadowing of 's' (lines 54\u201359) to apply sequential transformations: NFC normalize, bidi check, ZWS strip, trim. This is idiomatic Rust, but in a security-critical function, named intermediate variables (e.g. normalized, zws_stripped) would improve clarity and maintainability for future reviewers. Current approach is correct; enhancement is optional.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:01:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:39:16Z",
+  "closed_at": "2026-04-22T13:39:16Z",
+  "close_reason": "Updated doc comment with Unicode spoofing security rationale; renamed intermediate variables normalized/no_zwc/trimmed for clarity",
+  "labels": [
+    "readability"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:01:21"
+    }
+  ]
+}

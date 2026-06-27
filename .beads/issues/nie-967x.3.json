@@ -1,0 +1,32 @@
+{
+  "id": "nie-967x.3",
+  "title": "pow: AppState::Inner PoW fields",
+  "description": "Add PoW state to AppState::Inner in relay/src/state.rs.\n\nWhat: Add three new fields for PoW server state; no AppState::new signature change.\n\nAlgorithm:\n1. Add to relay/Cargo.toml: no new deps needed (rand already present via nie-core)\n   Add to relay/src/state.rs imports: use rand::RngCore; use rand::rngs::OsRng;\n2. Add fields to Inner struct:\n   pub pow_difficulty: std::sync::atomic::AtomicU8,\n   pub pow_server_salt: [u8; 32],\n   pub pow_replay_set: dashmap::DashMap<[u8; 16], std::time::Instant>,\n3. In AppState::new(): initialize the new fields:\n   - pow_server_salt: generate with OsRng::fill_bytes(&mut buf)\n   - pow_difficulty: AtomicU8::new(0)  \u2014 0 = disabled\n   - pow_replay_set: DashMap::new()\n4. Derive salt: let mut salt = [0u8; 32]; OsRng.fill_bytes(&mut salt);\n5. In AppState::disconnect(): add self.inner.pow_replay_set.remove(&pub_id.0) \u2014 NO, replay set keys are h16 not pub_id; skip disconnect cleanup\n6. Add helper method:\n   pub fn pow_difficulty(&self) -> u8 { self.inner.pow_difficulty.load(Ordering::Relaxed) }\n   pub fn set_pow_difficulty(&self, d: u8) { self.inner.pow_difficulty.store(d, Ordering::Relaxed); }\n   pub fn pow_server_salt(&self) -> &[u8; 32] { &self.inner.pow_server_salt }\n\nIMPORTANT: Do NOT change AppState::new() signature \u2014 avoids updating 10+ test files\n\nDefensive programming:\n- Use OsRng (not thread_rng) for server_salt \u2014 requires cryptographic randomness\n- pow_server_salt must never appear in any log statement\n- AtomicU8 with Relaxed ordering is sufficient \u2014 difficulty changes are not synchronized with individual requests",
+  "acceptance_criteria": "cargo build -p nie-relay passes; state.rs has pow_difficulty, pow_server_salt, pow_replay_set in Inner; AppState::new signature unchanged",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:34:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:41:50Z",
+  "close_reason": "state.rs: added pow_server_salt, pow_difficulty (AtomicU8), pow_replay_set to Inner; pow_difficulty/set_pow_difficulty/pow_server_salt helpers on AppState; AppState::new unchanged",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:35:59"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:35:59"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:34:59"
+    }
+  ]
+}

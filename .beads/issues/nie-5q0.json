@@ -1,0 +1,15 @@
+{
+  "id": "nie-5q0",
+  "title": "Core: openmls MLS client module",
+  "description": "Add core/src/mls.rs implementing the broadcast-group MLS state machine using openmls. Includes: key package generation, group creation (admin), join-from-Welcome, add-member (with commit+welcome output), remove-member, encrypt application message, decrypt/process incoming message. Ed25519 ciphersuite. Ephemeral group state for Phase 1 (in-memory, recreated each session).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:31:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-16T07:44:08Z",
+  "close_reason": "Closed"
+}

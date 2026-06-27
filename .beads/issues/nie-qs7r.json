@@ -1,0 +1,14 @@
+{
+  "id": "nie-qs7r",
+  "title": "SET_NICKNAME rate limit is per-connection, not per-identity",
+  "description": "last_nickname_change in relay/src/ws.rs is a stack-local variable per WebSocket connection. A client controlling multiple concurrent connections for the same authenticated pub_id can bypass the 5-second cooldown by rotating connections. Fix: track the rate limit in AppState keyed by pub_id, as already done for broadcast rate limiting.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:41:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:54:56Z",
+  "closed_at": "2026-04-26T05:54:56Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.10",
+  "title": "SEC2: directory_list clones entire online Value array",
+  "description": "File: wasm/src/client.rs line 168.\n\nIn the 'directory_list' notification handler, the code calls:\n  serde_json::from_value::<Vec<UserInfo>>(v[\"params\"][\"online\"].clone())\n\nThe .clone() on v[\"params\"][\"online\"] deep-copies the entire serde_json::Value array (including all string fields for every UserInfo) before deserializing it. The original value is also used in the output event JSON below (line 174), which is why it is cloned rather than moved.\n\nCost: one full deep clone of a potentially large Vec<Value> (one Value per online user, each with String fields). In a room with many participants this is O(N) allocation. In a busy room where directory_list is received on every new connection, this compounds.\n\nFix: Restructure to move instead of clone. Deserialize into Vec<UserInfo> first (consuming the value), then re-serialize from Vec<UserInfo> for the event output \u2014 or extract the raw array bytes before parsing. Either approach avoids the Value-level deep clone.\n\nClassify: P2 (O(N) allocation per directory_list event, N = online users)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:47:44Z",
+  "closed_at": "2026-04-20T02:47:44Z",
+  "close_reason": "By design: O(N) clone on directory update is negligible for the expected user count (<1000). Refactoring to avoid clone would complicate the code. Defer to Phase 2 if profiling shows actual overhead.",
+  "labels": [
+    "efficiency",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:13"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-f4ce.4",
+  "title": "bridge-slack no dedup; Slack retry causes duplicate nie forward",
+  "description": "bridge-slack/src/bridge.rs: no seen-IDs dedup. Slack retries Events API delivery on 5xx/timeout. Bridge always returns 200, but in practice the 200 comes before message is enqueued in the mpsc; a bridge crash during that window lets Slack retry. The 'ts' field is available for dedup but unused.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:56:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:37:38Z",
+  "closed_at": "2026-04-25T04:37:38Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:56:48"
+    }
+  ]
+}

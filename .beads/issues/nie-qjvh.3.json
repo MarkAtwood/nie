@@ -1,0 +1,28 @@
+{
+  "id": "nie-qjvh.3",
+  "title": "Tests: PaymentAction wire format and ZEC amount parsing",
+  "description": "## What\nVerify that the new wire format is correct and the parse/format functions handle all edge cases.\n\n## Tests to write/update\n\n### In core/src/messages.rs (update existing test)\npayment_message_carries_session_id:\n- After change, action must serialize with amount_zatoshi as a JSON integer (not string)\n- Assert: json.contains(\"\\\"amount_zatoshi\\\":10000000\") -- oracle: 0.1 ZEC = 10,000,000 zatoshi\n- Assert: !json.contains(\"\\\"amount\\\":\") -- no old field name\n\nAdd: payment_action_request_wire_format:\n- Create PaymentAction::Request { chain: Chain::Zcash, amount_zatoshi: 100_000 }\n- Serialize to JSON\n- Assert json == {\\\"action\\\":\\\"request\\\",\\\"chain\\\":\\\"zcash\\\",\\\"amount_zatoshi\\\":100000}\n- Oracle: 0.001 ZEC * 10^8 = 100,000; serde_json serializes u64 as JSON number (no quotes)\n\nAdd: payment_action_sent_wire_format:\n- Create Sent { chain: Chain::Zcash, tx_hash: \"abc\".to_string(), amount_zatoshi: 10_000_000 }\n- Assert json contains \\\"amount_zatoshi\\\":10000000 (not a string)\n\n### In bot/src/dispatcher.rs (update existing test)\ndeliver_payment_request_produces_payment_request_event:\n- Change amount: \"42\".into() \u2192 amount_zatoshi: 4_200_000_000 (42 ZEC)\n- Assert BotEvent::PaymentRequest.amount == \"42\" (still a String in BotEvent, via zatoshi_to_zec_string)\n- Oracle: 42 ZEC = 4,200,000,000 zatoshi; zatoshi_to_zec_string(4_200_000_000) == \"42\"\n\n### In tui/src/event.rs (update existing test)\nUpdate test at ~line 1788 that constructs PaymentAction::Sent:\n- Change amount: \"0.1\".to_string() \u2192 amount_zatoshi: 10_000_000\n\n## Defensive programming\n- All test vectors derived from external oracle (ZEC unit definition: 1 ZEC = 10^8 zatoshi)\n- No test uses the code under test as its oracle\n- All tests must fail before the changes in W1 are applied (proving they test the right thing)\n\n## Acceptance\ncargo test --workspace passes with all tests. No tests skipped or weakened.",
+  "acceptance_criteria": "cargo test --workspace: all tests pass. The new wire format tests explicitly verify JSON number (not string) for amount_zatoshi.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T04:47:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T05:10:31Z",
+  "closed_at": "2026-04-22T05:10:31Z",
+  "close_reason": "3 wire-format tests added: integer serialization, no old field, roundtrip preserves value; all workspace tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 21:48:05"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 21:47:58"
+    }
+  ]
+}

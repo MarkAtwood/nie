@@ -1,0 +1,27 @@
+{
+  "id": "nie-ztc6.5",
+  "title": "SUBSCRIBE_REQUEST: find_addr closure runs inside BEGIN IMMEDIATE, holding SQLite write lock during Zcash diversifier CPU work",
+  "description": "In alloc_diversifier_and_create_invoice, the find_addr closure (which calls merchant.dfvk.find_address) runs inside a BEGIN IMMEDIATE transaction, holding the SQLite write lock while performing a Zcash diversifier search. find_address iterates from the start index until it finds a valid diversifier \u2014 the number of iterations depends on the key material and is unbounded at the call site. SQLite has max_connections=5, and a write lock in BEGIN IMMEDIATE blocks all other writers. An unlucky diversifier search could stall every concurrent relay DB write (offline enqueue, subscription update, key package save) until it completes. The find_addr computation should be done outside the transaction: read the diversifier index, release the transaction, compute the address, then re-enter the transaction to atomically verify the index hasn't advanced and insert.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:51:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:06:37Z",
+  "closed_at": "2026-04-26T09:06:37Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:51:34"
+    }
+  ]
+}

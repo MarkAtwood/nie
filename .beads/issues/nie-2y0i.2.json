@@ -1,0 +1,28 @@
+{
+  "id": "nie-2y0i.2",
+  "title": "nie-tui AppState struct and domain types",
+  "description": "**What:** Define the AppState struct in tui/src/app.rs \u2014 all mutable runtime state for the TUI.\n\n**Algorithm:**\n1. Create tui/src/app.rs.\n2. Define AppState with fields:\n   - my_pub_id: String \u2014 own pub_id (set at startup, immutable after)\n   - online: Vec<UserInfo> \u2014 sorted ascending by sequence (online[0] = MLS admin)\n   - online_seq: HashMap<String, u64> \u2014 pub_id \u2192 connection sequence\n   - nicknames: HashMap<String, String> \u2014 server nicknames cache\n   - local_names: HashMap<String, String> \u2014 local contact aliases (from contacts.json)\n   - messages: VecDeque<ChatLine> \u2014 bounded ring buffer (last 5000 lines max)\n   - scroll_offset: usize \u2014 lines from bottom (0 = show latest)\n   - input: String \u2014 current input buffer\n   - input_cursor: usize \u2014 byte offset in input\n   - focus: Focus \u2014 enum { Input, UserList }\n   - connection: ConnectionState \u2014 enum { Connecting, Connected, Reconnecting { delay_secs }, Offline }\n   - mls_active: bool\n   - mls_client: MlsClient \u2014 ephemeral, reset on reconnect\n   - hpke_identity_secret: [u8; 32] \u2014 own X25519 secret (for sealed messages when MLS inactive)\n   - room_hpke_secret: Option<[u8; 32]> \u2014 MLS-derived room secret (when MLS active)\n   - payment_overlays: VecDeque<PaymentOverlay> \u2014 timed overlay notifications\n   - subscriptions: HashMap<Uuid, PaymentSession> \u2014 in-flight payment sessions\n   - own_profile: HashMap<String, String> \u2014 own profile fields\n   - ever_connected: bool \u2014 true after first DirectoryList received\n3. Define ChatLine: enum { Chat { from: String, text: String, ts: DateTime<Utc> }, System(String) }\n4. Define Focus: enum { Input, UserList }\n5. Define ConnectionState: enum { Connecting, Connected, Reconnecting { delay_secs: u64 }, Offline }\n6. Define PaymentOverlay: struct { text: String, created_at: Instant, dismiss_after: Duration }\n7. Implement AppState::new(my_pub_id, hpke_identity_secret, mls_client) constructor.\n8. Implement AppState::push_message(&mut self, line: ChatLine) \u2014 maintains 5000-line cap.\n9. Implement AppState::display_name(&self, pub_id: &str) -> String \u2014 precedence: server nickname > local alias > pub_id.short().\n10. Implement PaymentOverlay::is_expired(&self) -> bool.\n\n**Defensive programming rules:**\n- VecDeque cap: if messages.len() >= 5000, pop_front before push_back.\n- Never derive Debug on MlsClient (check nie-core/src/mls.rs \u2014 if MlsClient derives Debug, create a wrapper).\n- hpke_identity_secret is key material: never log it. AppState must NOT derive Debug (would expose key material).\n- online[0] invariant: never sort the online Vec in place \u2014 document this in a comment.\n- input_cursor must be a valid UTF-8 byte boundary \u2014 validate in all mutation methods.\n\n**Agent team:** Standard (R+I+V). R reads core/src/mls.rs, core/src/messages.rs, cli/src/commands.rs for existing state patterns. I implements app.rs. V runs cargo check -p nie-tui.\n\n**Tests:** Unit tests for push_message cap (push 5001, verify len==5000), display_name precedence, PaymentOverlay::is_expired.\n",
+  "acceptance_criteria": "cargo check -p nie-tui exits 0; unit tests pass for AppState::push_message cap and display_name precedence",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:13:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:27:06Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:20"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:13:55"
+    }
+  ]
+}

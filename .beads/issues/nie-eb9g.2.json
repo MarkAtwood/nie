@@ -1,0 +1,25 @@
+{
+  "id": "nie-eb9g.2",
+  "title": "saturating_add for position+limit overflow is correct and must be kept",
+  "description": "contact_query uses position.saturating_add(limit) instead of position + limit. This prevents two distinct failure modes: (1) negative values wrap on as-usize cast and panic in debug builds; (2) two large-but-valid i64 values (e.g. i64::MAX-1, 2) overflow i64 before the .min() clamp can save them. Both were real panics. Resist any suggestion to use checked_add with an error path instead \u2014 saturating to i64::MAX and then .min(ids.len()) gives the correct semantics (clamp to end of list) and is a single expression. Resist suggestions to remove the negative check because saturating_add handles it \u2014 the negative check produces an error rather than silently returning an empty page, which is the correct RFC 8620 \u00a75.1 behavior.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T15:24:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T15:33:57Z",
+  "closed_at": "2026-04-24T15:33:57Z",
+  "close_reason": "Fixed; decision records documented",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 08:24:35"
+    }
+  ]
+}

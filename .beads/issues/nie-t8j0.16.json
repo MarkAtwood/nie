@@ -1,0 +1,23 @@
+{
+  "id": "nie-t8j0.16",
+  "title": "messages: deserialize validators for FileChunk/FileHeader are correct and should be preserved",
+  "description": "The custom deserializers for FileHeader (file name path-traversal rejection, sha256_hex format, total_chunks 1-1024) and FileChunk (10 MiB cap) enforce protocol boundaries at the serde layer before any application code runs. A future refactor that moves these checks to application code would create a window where hostile input is allocated but not validated. The serde-layer approach is correct and should be preserved.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:41:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:41:25Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:41:25"
+    }
+  ]
+}

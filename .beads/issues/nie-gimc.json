@@ -1,0 +1,17 @@
+{
+  "id": "nie-gimc",
+  "title": "P2: Add security comment explaining bidi=reject vs ZWS=strip asymmetry",
+  "description": "Without a comment, a future refactor could accidentally swap the policies. Add a comment above the bidi check explaining: bidi controls are REJECTED (not stripped) because they enable visual reordering attacks. ZWS chars are STRIPPED silently because they are invisible formatting hints with no semantic meaning.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:02:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:04:32Z",
+  "closed_at": "2026-04-22T06:04:32Z",
+  "close_reason": "fixed",
+  "labels": [
+    "maintainer-burden"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "agoraold-0pne",
+  "title": "Review round 1: Testnet and developer tooling",
+  "description": "Review round 1 for nie-jys epic completion. Covers nie-as6 (network default), nie-3bv (lightwalletd config), nie-w1e (README docs), nie-f91 (e2e test).",
+  "notes": "Review converged after 1 round. P0=0 P1=0 P2=0. SEC7: 85% confidence, running out of real complaints.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T15:28:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T15:37:27Z",
+  "close_reason": "Closed"
+}

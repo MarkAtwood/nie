@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.31",
+  "title": "Port out-of-range error says 'not a valid number'",
+  "description": "In both parse_proxy_addr and parse_relay_addr, the port string is parsed via .parse::<u16>(). When the port is a syntactically valid integer but exceeds 65535 (e.g. socks5h://host:99999), the parse fails and the error context message is 'proxy URL port is not a valid number'.\n\nThe value 99999 is a valid decimal number. The message is technically incorrect: the real problem is that the value is outside the u16 range 0\u201365535. A user who types 99999 will read 'not a valid number' and be confused.\n\nFix: after a successful integer parse into a wider type (e.g. u32), add an explicit range check and produce an error 'proxy URL port must be in range 1\u201365535, got 99999'. Same fix applies to the relay URL port in parse_relay_addr.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:22:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:32:00Z",
+  "closed_at": "2026-04-19T19:32:00Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:22:14"
+    }
+  ]
+}

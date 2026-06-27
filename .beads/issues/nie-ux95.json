@@ -1,0 +1,19 @@
+{
+  "id": "nie-ux95",
+  "title": "Review: JMAP correctness fixes (nie-sez5 series)",
+  "notes": "Maintainer risk: LOW — one correctness bug (description:null clearing), otherwise the atomicity/validation redesign is solid. The risk is bounded: description clearing is a rarely-used path and the existing test already signals intent.\nConfidence: 20% chance of missed bug. Uncertainty driven by: the description-clearing path in update_space_fully is the only semantic gap I found; possible similar issue with name if name were ever nullable (it isn't currently). Would raise confidence with: an integration test that sets description to a non-null string, patches it to null, and reads it back.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:11:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T05:19:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

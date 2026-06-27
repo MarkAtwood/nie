@@ -1,0 +1,19 @@
+{
+  "id": "nie-ea6a.7",
+  "title": "nie-monero: address_for_session minor index masked to 31 bits \u2014 2^31 UUID pairs share an address",
+  "description": "## Bug\n\nIn nie-monero/src/lib.rs address_for_session():\n\n    let b = session_id.as_bytes();\n    let minor = u32::from_le_bytes([b[0], b[1], b[2], b[3]]) & 0x7FFF_FFFF;\n    self.subaddress(0, minor)\n\nTwo session UUIDs that differ only in bit 31 of their first 4 bytes map to the same minor index. For example:\n- UUID with bytes[0..4] = 0x00000001 \u2192 minor = 1\n- UUID with bytes[0..4] = 0x80000001 \u2192 minor = 0x80000001 & 0x7FFF_FFFF = 1 (same!)\n\nWith random UUIDs, the birthday paradox gives a 50% collision probability after approximately 2^15.5 \u2248 46,341 sessions on the same wallet. In practice, each collision means two different payment sessions share the same Monero receive address, making it impossible to attribute which session received a particular payment.\n\nThe mask was presumably added to avoid the u32::MAX minor index (Monero's max_minor is 2^32-1, so u32 max is fine), but 0x7FFF_FFFF is overly conservative and introduces unnecessary collisions.\n\n## Fix\n\nRemove the 0x7FFF_FFFF mask \u2014 u32 full range is valid for Monero subaddress minor indices (the Monero protocol uses u32). If there is a protocol reason for the mask, document it.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:49:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:49:28Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:49:28"
+    }
+  ]
+}

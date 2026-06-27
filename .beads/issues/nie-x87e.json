@@ -1,0 +1,14 @@
+{
+  "id": "nie-x87e",
+  "title": "Review round 2: nie-07t E2E payment test",
+  "description": "Second review pass after Round 1 fix wave. Reviewers examine wallet/src/client.rs and wallet/tests/e2e_testnet.rs for security, correctness, and design issues.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:10:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T05:25:16Z",
+  "close_reason": "Closed"
+}

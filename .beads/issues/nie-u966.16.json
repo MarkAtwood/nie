@@ -1,0 +1,26 @@
+{
+  "id": "nie-u966.16",
+  "title": "dispatch_notification DELIVER path never bumps MLS group",
+  "description": "relay.rs processes DELIVER and BROADCAST as independent paths. BROADCAST runs MLS process_incoming to update group state, which is correct. DELIVER bypasses MLS entirely and emits a MessageReceived event from a plain ClearMessage. The problem: a newly joined member receives their first message via DELIVER (relay-level unicast) which is a plaintext JSON payload. If MLS group state has not yet been bootstrapped, this is the designed behavior. But once MLS is active, DELIVER should carry only key packages or signed data, not chat messages. There is no guard preventing a relay from injecting a crafted DELIVER with any pub_id in the from field \u2014 the daemon trusts it unconditionally. The BROADCAST path has MLS-authenticated sender_pub_id; the DELIVER path has relay-supplied from. These two identity surfaces are not the same thing and should not both produce MessageReceived events after MLS is active.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:53:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:29:56Z",
+  "closed_at": "2026-04-26T06:29:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:53:48"
+    }
+  ]
+}

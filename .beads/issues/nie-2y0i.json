@@ -1,0 +1,15 @@
+{
+  "id": "nie-2y0i",
+  "title": "Phase 4b: TUI client (ratatui)",
+  "description": "Rich terminal UI client for nie using ratatui. Replaces the line-at-a-time REPL in nie-cli with a proper split-pane terminal interface.\n\nRequired:\n- New crate `nie-tui` (binary) alongside nie-cli\n- Layout: left panel = online users list, main panel = scrollable chat log, bottom = input line, status bar = connection/wallet/sync state\n- Keybindings: Enter to send, PgUp/PgDn to scroll, Tab to cycle focus, Ctrl-C/Q to quit\n- /pay, /balance, /receive slash commands wired through same command dispatcher as nie-cli\n- Payment event overlays: modal or inline notification when a payment is received/confirmed\n- Mouse support optional (ratatui supports it)\n- Shares nie-core transport and all wallet logic with nie-cli — no duplication\n- --data-dir, --relay, --network, --lightwalletd flags identical to nie-cli\n\nArchitecture:\n- ratatui + crossterm backend (crossterm is already in the Rust ecosystem, no C deps)\n- Async event loop: tokio select! between crossterm key events and nie-core message channel\n- Terminal is restored on panic via a panic hook (crossterm raw mode must be exited cleanly)\n\nBlocking: Phase 1 (chat) is sufficient foundation. MLS and wallet are additive.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:31:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:55:22Z",
+  "close_reason": "all steps complete"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.2",
+  "title": "mls: add_member does not verify key package credential matches expected pub_id",
+  "description": "In mls.rs::add_member_to_group, the admin accepts any key package bytes returned by the relay without checking that the BasicCredential inside the key package matches the target peer's pub_id. A compromised relay could return a key package for identity B when the admin requested identity A (via GetKeyPackage with pub_id=A). The admin would add B to the MLS group while the application believes A was added. This is a relay-assisted identity substitution attack. The fix is to extract the credential from the deserialized KeyPackageIn after validation and verify it equals pub_id.as_bytes() before calling group.add_members.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:48:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:48:32Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:48:32"
+    }
+  ]
+}

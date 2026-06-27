@@ -1,0 +1,23 @@
+{
+  "id": "nie-e2c6.5",
+  "title": "broadcast_to_group: members.contains is O(M) per connected client",
+  "description": "state.rs:207 \u2014 broadcast_to_group() iterates all connected clients and calls members.contains(&pub_id) which is O(M) (vec linear scan) for each of the C connected clients, making the whole fan-out O(C*M). With C=10,000 connected clients and M=100 group members, each GROUP_SEND does ~1M string comparisons before any sends. Fix: convert members to a HashSet before the outer iteration, making the contains check O(1) and the total fan-out O(C+M).",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:34:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:34:35Z",
+  "labels": [
+    "efficiency",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:34:34"
+    }
+  ]
+}

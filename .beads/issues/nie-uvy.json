@@ -1,0 +1,19 @@
+{
+  "id": "nie-uvy",
+  "title": "Review: shielded tx builder + BIP-39 seed fix",
+  "notes": "Maintainer risk: MEDIUM — P1 bug (wrong error variant for Orchard-only UA) doesn't break payments but misleads users with 'invalid' when the address is valid. Two P2 forward-looking risks: fee formula coupling to Orchard, and overflow inconsistency that is currently impossible with real ZEC supply but would be a trap when adding multi-chain support.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) builder.build() and FeeRule::standard() interaction not fully traced — verified algebraically that fee is the same with 1 vs 2 outputs for all n, but this is a 3-party invariant between fees.rs, tx_builder.rs, and zcash_primitives; (2) try_load_wallet_fvks passphrase prompt UX not runtime-tested (no_passphrase=false path only tested via the test that skips it). Would raise confidence if: the no-change tx test (tx_exact_amount_no_change_output) runs with real params and the fee matches FeeRule::standard() in the builder output, and if an integration test covers the passphrase prompt path.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:05:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T02:18:12Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

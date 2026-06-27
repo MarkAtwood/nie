@@ -1,0 +1,25 @@
+{
+  "id": "nie-4iod.8",
+  "title": "MAINTAINER: run_hook() timeout of 30s is magic number with no rationale doc",
+  "description": "In scripting.rs, the timeout is hard-coded to 30 seconds. There's no comment explaining why 30s was chosen, no reference to a policy doc, and no note about whether this is user-configurable (it isn't). When someone asks 'why does my slow script timeout?' or 'can we increase the limit to 60s?', the maintainer has to guess at the original tradeoff. In Phase 2, if we add payment webhooks or other slow operations, this will become a bottleneck. Fix: add a comment explaining the rationale (e.g., 'prevents a hung script from blocking the bot indefinitely; balance between cleanup and user patience') and document whether it's tunable.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:27:56Z",
+  "closed_at": "2026-04-20T01:27:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:18"
+    }
+  ]
+}

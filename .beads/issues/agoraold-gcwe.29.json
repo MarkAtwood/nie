@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.29",
+  "title": "IPv6 proxy URL passes bracketed host to ToProxyAddrs",
+  "description": "parse_proxy_addr('socks5h://[::1]:9050') returns proxy_host='[::1]' with brackets intact.\n\nThe bracketed string is then passed to Socks5Stream::connect as the first argument (proxy address). tokio-socks uses ToProxyAddrs for (&str, u16), which delegates to std::net::ToSocketAddrs via to_socket_addrs(). The behavior of ('[::1]', 9050).to_socket_addrs() is unspecified: on Linux glibc it may treat '[::1]' as a DNS hostname (DNS lookup fails) rather than an IPv6 literal, producing a confusing resolution error instead of a connection attempt.\n\nThis is the mirror of the relay-side bracket bug. The fix is the same: strip brackets from any bracketed IPv6 host string returned by parse_proxy_addr before use.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:25Z",
+  "closed_at": "2026-04-19T19:31:12Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:58"
+    }
+  ]
+}

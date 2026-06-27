@@ -1,0 +1,24 @@
+{
+  "id": "nie-05wf.1",
+  "title": "bot payment.rs: --auto-payment-address sends STUB address to real peers",
+  "description": "bot/src/payment.rs maybe_auto_respond() sends 'STUB_TESTNET_ADDRESS_<session_id>' as a payment address when --auto-payment-address is enabled. This would cause real peers to attempt payment to a non-existent address. The flag is hidden but not documented as non-functional. Should either be wired to the real wallet (Zcash/Monero) or the flag should print a clear error if no wallet is configured. File: /home/mark/PROJECT/nie/bot/src/payment.rs line 56.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:43:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:43:38Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:43:38"
+    }
+  ]
+}

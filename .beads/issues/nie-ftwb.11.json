@@ -1,0 +1,26 @@
+{
+  "id": "nie-ftwb.11",
+  "title": "store.rs get_space_invites(None) has no LIMIT \u2014 unbounded result for spaces with many invites",
+  "description": "store.rs get_space_invites: the ids=None branch fetches all rows from space_invite WHERE membership check, with no LIMIT. A space with many uncleaned invites returns all of them in one query. SpaceInvite/get ids:null fetches unbounded rows into memory. Unlike the 1000-row cap on contacts and members, invites have no cap. Scenario: space admin creates thousands of invite codes over time without revoking old ones; SpaceInvite/get ids:null OOMs or saturates DB.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:56:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:05:03Z",
+  "closed_at": "2026-04-26T08:05:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:56:57"
+    }
+  ]
+}

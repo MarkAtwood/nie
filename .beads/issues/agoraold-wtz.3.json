@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-wtz.3",
+  "title": "Flutter/Android project skeleton with frb setup",
+  "description": "Create android/ Flutter project skeleton. Files-only; flutter build validation deferred until NDK installed.\n\nWhat: The android/ directory is a Flutter app using flutter_rust_bridge to call into flutter-bridge/ Rust crate.\n\nAlgorithm:\n1. Create android/pubspec.yaml (flutter_rust_bridge: ^2.0, dependency on frb codegen)\n2. Create android/android/app/build.gradle (NDK abiFilters, min SDK 26)\n3. Create android/android/app/src/main/AndroidManifest.xml\n4. Create android/lib/main.dart (entry point, MaterialApp scaffold)\n5. Create android/lib/screens/chat_screen.dart (placeholder)\n6. Create android/lib/screens/identity_screen.dart (placeholder)\n7. Create android/rust/Cargo.toml linking to flutter-bridge crate\n8. Create android/.fvmrc pinning Flutter stable 3.41.4\n\nAcceptance: All files created; fvm flutter pub get succeeds (no Dart analysis errors on pubspec).",
+  "acceptance_criteria": "All scaffold files created; pubspec.yaml is valid YAML with flutter_rust_bridge dependency",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:12:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:16:57Z",
+  "close_reason": "Flutter 3.41.4 project created; frb dep added; flutter pub get + analyze clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:12:21"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:12:31"
+    }
+  ]
+}

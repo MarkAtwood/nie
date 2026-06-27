@@ -1,0 +1,15 @@
+{
+  "id": "nie-z7y",
+  "title": "/me action messages",
+  "description": "Check for /me prefix in user input and format the outgoing ClearMessage so recipients render it as '* alice waves' instead of 'alice: /me waves'. Requires a new ClearMessage variant or a convention in the text field.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:04:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T22:29:59Z",
+  "closed_at": "2026-04-17T22:29:59Z",
+  "close_reason": "implemented in cli/src/commands.rs: /who, /me (CTCP ACTION), /cat (4KB text file), /! (shell stdout), /alias (contacts.json persistence), /clear; Ctrl+L handled natively by rustyline"
+}

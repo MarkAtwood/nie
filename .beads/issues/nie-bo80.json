@@ -1,0 +1,18 @@
+{
+  "id": "nie-bo80",
+  "title": "Review round 66: fresh full-codebase pass",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:51:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:57:21Z",
+  "closed_at": "2026-04-26T12:57:21Z",
+  "close_reason": "Round 66 complete. One new issue filed (nie-vy1q: CHRONO_MAX_DAYS silent truncation in ws.rs). nie-9qiu.7 updated with actionable note that sapling-crypto 0.7.0 is now on crates.io. nie-73ri.3 assessed as not worth fixing. All other paths reviewed: core/ (pow, auth, identity, messages, protocol, hpke, transport), relay/ (ws, store, state, payment_watcher, main), daemon/relay — no further issues found. Review loop reached bikeshedding territory.",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

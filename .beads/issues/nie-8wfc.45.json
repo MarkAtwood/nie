@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.45",
+  "title": "CORS hardcodes port 7734 but LISTEN_ADDR is configurable",
+  "description": "In daemon/src/main.rs, the CORS allow_origin list hardcodes 'http://localhost:7734' and 'http://127.0.0.1:7734'. However, the listen address is configurable via the LISTEN_ADDR environment variable. If LISTEN_ADDR is set to a different port (e.g. 127.0.0.1:8080), browser WebSocket clients and JMAP web clients connecting to the configured port will have their CORS preflight requests rejected. Fix: derive the allowed origins dynamically from the parsed socket_addr at startup rather than hardcoding the default port.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:02:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:41:06Z",
+  "closed_at": "2026-04-24T22:41:06Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:02:25"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.7",
+  "title": "scanner uses Zip212Enforcement::GracePeriod unconditionally; should be On post-Canopy",
+  "description": "scanner.rs try_decrypt_sapling always passes Zip212Enforcement::GracePeriod to try_sapling_compact_note_decryption. ZIP-212 enforcement should be GracePeriod only for blocks below the Canopy activation height (~1_046_400 mainnet), and On for all blocks at or above it. GracePeriod accepts pre-ZIP-212 (rcm-style) note plaintexts in post-Canopy blocks, meaning a note with a forged or misinterpreted rseed could be accepted by trial decryption and stored with rseed_after_zip212=false even though the block is post-Canopy. This corrupts the Rseed variant: the tx builder will reconstruct Rseed::BeforeZip212(fr) with bytes that are actually an AfterZip212 randomness seed, producing a wrong note commitment and a failing spend proof.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:06:41Z",
+  "closed_at": "2026-04-24T23:06:41Z",
+  "close_reason": "Duplicate of nie-8wfc.13 which is already tracked",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:14"
+    }
+  ]
+}

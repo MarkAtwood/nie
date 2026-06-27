@@ -1,0 +1,23 @@
+{
+  "id": "nie-ztc6.8",
+  "title": "store::drain transaction design: SELECT + DELETE in one tx preserves delivery semantics",
+  "description": "drain() selects and deletes messages atomically in a single SQLite transaction. This is the correct design: without the atomic delete, a crash after SELECT but before DELETE would cause duplicate delivery on next drain. The LIMIT 100 batching bounds memory use while the loop caller handles unbounded queues. The design correctly handles the common case. The only real issue is the i64::MAX fallback when rows is empty (filed as nie-ztc6.1) \u2014 the transaction structure itself is sound.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:54:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:54:32Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:54:31"
+    }
+  ]
+}

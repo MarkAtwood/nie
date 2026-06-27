@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.41",
+  "title": "join_from_welcome_for_group silently overwrites existing group state",
+  "description": "In mls.rs join_from_welcome_for_group, self.groups.insert(group_id.to_vec(), group) unconditionally replaces any existing group entry for that ID. If a replayed Welcome (from an earlier epoch) is delivered after the client has already joined, the existing group is silently overwritten with an old-epoch group, rolling back the MLS epoch and invalidating all keys derived from newer epochs. No error is returned. Fix: check has_group_id before inserting and return Err if the group already exists.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:22:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:35:43Z",
+  "closed_at": "2026-04-25T00:35:43Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:22:12"
+    }
+  ]
+}

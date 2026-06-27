@@ -1,0 +1,15 @@
+{
+  "id": "nie-967x",
+  "title": "Anti-spam PoW enrollment gate",
+  "description": "## Why\n\nCurrently anyone can authenticate and broadcast for free (or at minimal Zcash cost when REQUIRE_SUBSCRIPTION=false). A subscribed attacker can automate thousands of accounts. PoW raises per-account compute cost without requiring any PII.\n\n## What\n\nAdd a double-SHA256 Hashcash-style PoW challenge to the authentication flow:\n\n- Hash input: `ver || op_type || ts_floor || diff || hex(ed25519_pub) || server_salt || nonce_be64`\n- Token: binary struct (ver u8, op_type u8, ts_floor u32, diff u8, nonce u64, h16 [u8;16]) = 31 bytes, base64url-encoded\n- Default difficulty: 20-bit leading zeros; stored in AppState, adjustable at runtime without restart\n- Staleness window: ±600s from ts_floor * 60 (prevents pre-mined tokens)\n- Replay prevention: store h16 in an in-memory set (BTreeSet or DashMap) keyed by h16, TTL = 600s\n- Client mines in a background thread (rayon or std::thread) before sending Authenticate\n\n## Acceptance Criteria\n\n- Relay issues a PoW challenge before accepting Authenticate\n- Tokens with wrong difficulty, stale timestamp, or replayed h16 are rejected with AuthFailed\n- Difficulty is configurable via POW_DIFFICULTY env var without restart\n- nie-cli mines the PoW automatically before chatting (user sees no extra step)\n- Unit test: valid token accepted; wrong difficulty, stale, and replayed tokens all rejected\n- DESIGN.md §PoW invariants document the token format as a stable API",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T04:38:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T07:00:39Z",
+  "close_reason": "PoW enrollment gate complete: pow.rs module, ws.rs verification, transport.rs mining, E2E tests, DESIGN.md"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-f0pz.3",
+  "title": "CLI /send: inner 'continue' on chunk error does not break outer loop",
+  "description": "In commands.rs /send handler, the chunk loop is a for loop inside the outer tokio::select loop. When MLS encrypt or pad fails on a chunk, the code uses 'continue' which continues the inner for loop (skipping that chunk), not the outer select loop. Subsequent chunks are still sent with a gap. The receiver assembles a file with None slots at the failed positions, fails the SHA-256 check, and discards the whole transfer. The sender shows 'pad failed for chunk N' but the transfer nominally continues. Trigger: MLS encryption failure mid-transfer. Bad outcome: partial transfer attempted, silently discarded on receiver, no abort notification.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:22:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:03:37Z",
+  "closed_at": "2026-04-25T07:03:37Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:22:53"
+    }
+  ]
+}

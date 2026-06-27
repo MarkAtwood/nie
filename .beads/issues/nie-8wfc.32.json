@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.32",
+  "title": "messages: FileHeader.name has no type-level path traversal enforcement",
+  "description": "ClearMessage::FileHeader.name is doc-commented as 'basename only -- no path components' but typed as String with no validation at the type level. The CLI receiver (cli/src/commands.rs) correctly calls safe_name() before use. However, any future receiver (nie-daemon, nie-bot, nie-wasm) that handles FileHeader and forgets safe_name() will have a path traversal vulnerability. The core types should enforce the invariant either by parsing at deserialization time (a newtype that rejects paths containing '/' or '..' components) or by providing a validated accessor. Current CLI defense-in-depth is correct but fragile to extension.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:03:48Z",
+  "closed_at": "2026-04-24T23:03:48Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:57"
+    }
+  ]
+}

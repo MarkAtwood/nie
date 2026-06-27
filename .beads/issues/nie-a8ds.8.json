@@ -1,0 +1,25 @@
+{
+  "id": "nie-a8ds.8",
+  "title": "Phantom typing cleanup on abrupt disconnect (relay/ws.rs)",
+  "description": "connection_is_typing tracks the last processed typing_send state per WebSocket handle. On disconnect (both clean and abrupt), if the flag is true, a synthetic typing_notify {typing: false} is broadcast before removing the connection. This is correct: the flag is updated only after a successful broadcast, so it reflects what peers currently believe. A future contributor might 'simplify' this by removing the per-connection flag and relying on per-peer timers in the relay, but that would break the case where a user disconnects mid-typing \u2014 the 4-second client-side timer wouldn't fire because the client is gone.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:04:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:18:18Z",
+  "closed_at": "2026-04-24T01:18:18Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:04:56"
+    }
+  ]
+}

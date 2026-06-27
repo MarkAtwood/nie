@@ -1,0 +1,24 @@
+{
+  "id": "nie-wgk8.10",
+  "title": "tui /cat truncates at raw byte offset \u2014 may split UTF-8 character",
+  "description": "tui/src/event.rs:1269-1274: /cat reads a file and truncates at byte offset 4096 (&bytes[..4096]) before calling String::from_utf8_lossy. This is a raw byte cut that may split a multi-byte UTF-8 sequence. from_utf8_lossy then replaces the partial byte with U+FFFD, leaking a garbled character at the boundary. DESIGN.md invariant 16 requires truncation to use char_indices() to find a safe boundary. Fix: use String::from_utf8_lossy(&bytes) then truncate via char_indices() at a safe boundary, matching the same pattern used elsewhere.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:22:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:22:54Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:22:54"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-967x.8",
+  "title": "pow: DESIGN.md \u00a7PoW invariants",
+  "description": "Document PoW invariants in DESIGN.md as a stable API section.\n\nWhat: New \u00a7PoW enrollment gate section in DESIGN.md.\n\nContent to add:\n- Token format table (31 bytes, field by field)\n- Hash input construction (111 bytes, field by field)\n- Verification invariants:\n  * min_diff = 20 bits (never lower without security review)\n  * max_diff = 30 bits (impossible challenges rejected)\n  * staleness window = \u00b1600s (replay TTL must match)\n  * replay TTL = 600s (must match staleness window)\n  * server_salt never persisted, never logged\n  * PoW verification precedes signature verification\n  * PoW verification precedes subscription check\n- Wire protocol: ChallengeParams adds server_salt + difficulty; AuthenticateParams adds pow_token\n- Error codes: POW_REQUIRED=-32030, POW_INVALID=-32031, POW_STALE=-32032, POW_REPLAYED=-32033 (stable; never change)\n- Security note: token is bound to ed25519 public key via hash input \u2014 cannot be reused for a different key",
+  "acceptance_criteria": "DESIGN.md contains \u00a7PoW enrollment gate with all invariants listed; cargo test still passes",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:35:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:05Z",
+  "closed_at": "2026-04-22T07:00:38Z",
+  "close_reason": "DESIGN.md \u00a7Anti-Spam PoW Enrollment updated: token format table, hash input, all invariants, error codes table",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:36:04"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:35:50"
+    }
+  ]
+}

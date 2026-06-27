@@ -1,0 +1,27 @@
+{
+  "id": "nie-1b3s.9",
+  "title": "deserialize_file_name missing length cap allows >255 byte filenames",
+  "description": "messages.rs:218-245: deserialize_file_name imposes no byte-length limit on the filename. A hostile peer can send a 65536-character filename that passes all checks. Most filesystems cap at 255 bytes; write will fail with an OS error rather than a clean protocol rejection. The 'callers do NOT need to call safe_name()' comment overpromises \u2014 missing length check. Fix: return Err if name.len() > 255.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:14:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:43:36Z",
+  "closed_at": "2026-04-26T11:43:36Z",
+  "close_reason": "already implemented: deserialize_file_name has s.len() > 255 check at messages.rs:220",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:14:54"
+    }
+  ]
+}

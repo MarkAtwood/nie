@@ -1,0 +1,14 @@
+{
+  "id": "nie-m7yw",
+  "title": "(BUG) scanner: spawn_scanner poll_interval sleep after success but also after backoff sleep",
+  "description": "In wallet/src/scanner.rs spawn_scanner() (lines 720-748), after an error the loop (1) sleeps backoff, (2) doubles backoff, (3) attempts reconnect, then (4) continues to the top of the loop and calls scan_to_tip() again immediately. On the next successful scan (Ok(n \u003e 0)) it sleeps poll_interval again. This is correct. However if the reconnect itself succeeds but the subsequent scan_to_tip immediately fails again (e.g., lightwalletd returns an error on the first block), the loop sleeps backoff again (now doubled), reconnects, then immediately scans again. With multiple rapid failures this pattern is correct — the backoff does its job. No bug on the retry path.\\n\\nSeparate actual issue: on a success path (Ok(n \u003e 0) or Ok(0)), backoff is reset to Duration::from_secs(5) but this means a single successful empty poll (Ok(0)) after a series of errors still resets backoff — even if lightwalletd is returning empty responses due to an upstream issue. This is acceptable as an implementation choice, but it means a lightwalletd that returns empty blocks rather than errors will prevent backoff from accumulating. Not a critical issue but worth documenting.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:16:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:17:17Z",
+  "closed_at": "2026-04-26T09:17:17Z",
+  "close_reason": "After re-analysis: backoff reset on Ok(0) is intentional and correct — if lightwalletd is responding, it should not be penalised. The poll_interval governs normal scanning cadence. The retry logic is sound. Closing as non-issue."
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-7xs.11",
+  "title": "Admin identity determined by online list order: implicit load-bearing invariant",
+  "description": "What is awkward: The 'admin' role is determined by who is first in the online Vec<String> (commands.rs:150, 202, 218, 241). This works because: (1) relay sends DirectoryList ordered by first_seen ASC from the users table, (2) UserJoined appends to the end, (3) UserLeft calls retain(). The oldest-first_seen user is always admin. But this triple dependency between relay SQL order, client list maintenance, and the admin rule is not documented anywhere -- it's fully implicit. A relay change that alters DirectoryList ordering (e.g., for performance) or a client bug in list maintenance silently changes who is admin. The consequence is not a crash -- it's two clients both thinking they're admin, both calling add_member and remove_member, producing MLS epoch conflicts. Suggested rewrite: At minimum, add a comment in commands.rs explaining the invariant and its relay dependency. Better: relay should explicitly designate the admin in DirectoryList or AuthOk.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:59:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:07:41Z",
+  "closed_at": "2026-04-16T09:07:41Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:59:46"
+    }
+  ]
+}

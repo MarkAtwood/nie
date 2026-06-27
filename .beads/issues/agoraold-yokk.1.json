@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-yokk.1",
+  "title": "SEC2: Chain enum should derive Copy to avoid clone() calls",
+  "description": "Chain is a small enum with 3 unit variants (Zcash, Monero, Mobilecoin) and no non-Copy fields. Currently derives Clone but not Copy, causing unnecessary clone() calls:\n\n- cli/src/commands.rs: 8 instances of chain.clone() in PaymentAction construction\n- tui/src/event.rs: 2 instances of chain.clone() in PaymentSession construction\n\nAdding #[derive(Copy)] (which implies Clone for enums without non-Copy fields) would eliminate these explicit clones and allow implicit copying. This is a small but measurable efficiency gain on every payment message construction.\n\nNo breaking API change \u2014 Copy is a strict extension of Clone semantics.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T05:12:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:08Z",
+  "closed_at": "2026-04-22T05:21:55Z",
+  "close_reason": "all three fixes applied and confirmed clean by clippy+tests",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 22:12:01"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-k3f.6",
+  "title": "Chain tip TOCTOU in sync-lag guard undocumented",
+  "description": "send_payment() fetches chain_tip at one await point, calls check_lag(), then fetches spendable_notes() at a second await point. The chain can advance between the two awaits. On mainnet (75s blocks) this window is bounded, and the 10-block MAX_SYNC_LAG buffer absorbs it. On testnet (fast blocks) the gap can grow larger. The check is security-by-obscurity \u2014 it passes but is stale by the time notes are selected. This is a known architectural limitation but is not documented anywhere in the code. A future contributor who tightens the lag threshold (e.g., to 3 blocks) without understanding the TOCTOU window will make the check flakier. Add a comment in send_payment() and sync_guard.rs explaining the race and why the 10-block buffer is load-bearing.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:55:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:07:33Z",
+  "closed_at": "2026-04-19T06:07:33Z",
+  "close_reason": "Added TOCTOU race explanation to MAX_SYNC_LAG constant in sync_guard.rs (explains the window, why 10-block buffer is load-bearing, what not to do). Added a cross-reference comment in payment.rs at the check_lag call site pointing to that analysis.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:55:49"
+    }
+  ]
+}

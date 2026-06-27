@@ -1,0 +1,25 @@
+{
+  "id": "nie-d2n3.6",
+  "title": "pow.rs: STALENESS_WINDOW_SECS=600 does not match actual \u00b1659s effective window",
+  "description": "core/src/pow.rs:176 checks now_floor.abs_diff(ts_floor as u64) > 10 where both values are unix_time/60 (minute floors). The effective window is up to 10 full minutes plus up to 59 seconds of rounding in each direction = up to 659 seconds, not the 600 indicated by STALENESS_WINDOW_SECS. The constant is misleading. Fix: add a comment explaining the floor-based approximation and the actual effective range.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:54:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:01:11Z",
+  "closed_at": "2026-04-24T19:01:11Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:54:26"
+    }
+  ]
+}

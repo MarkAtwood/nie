@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-70e.2",
+  "title": "cancel+disconnect leaves payer/payee state inconsistent",
+  "description": "In /cancel: send_payment_message fires, then we break on channel-closed without persisting Expired. The peer received Cancelled and moved to Expired; we reconnect with the session still in Requested/AddressProvided. resync_sessions then re-broadcasts Request/Address. The peer (in Expired state) hits the catch-all in dispatch_payment and does nothing. Payer is permanently stuck with a live session whose counterpart is dead. Trigger: connection drop between send and state-persist, or MLS encryption failure (returns true but does not send \u2014 Cancelled silently dropped while state is never updated).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:53:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:39Z",
+  "closed_at": "2026-04-18T15:53:41Z",
+  "close_reason": "Fixed: moved upsert_session(Expired) before send_payment_message in /cancel handler. Local state is now persisted before the network send, so a channel-close break leaves consistent Expired state on both sides.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:53:20"
+    }
+  ]
+}

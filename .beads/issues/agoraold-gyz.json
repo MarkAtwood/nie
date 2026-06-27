@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-gyz",
+  "title": "Multiuser broadcast chat redesign",
+  "description": "Redesign nie from 1:1 DM relay to a multiuser broadcast chat room. All connected users share a single room. Messages go to everyone currently online. No offline queue. Identity is hash of key. Directory of connected users maintained by relay.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T06:04:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:40Z",
+  "closed_at": "2026-04-16T06:14:56Z",
+  "close_reason": "Multiuser broadcast chat implemented: hash-based PubId, broadcast protocol, persistent directory, single-room fanout, chat-only CLI"
+}

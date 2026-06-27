@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.76",
+  "title": "GROUP_CREATE not rate-limited; subscribed client can exhaust DB with group rows",
+  "description": "GROUP_CREATE checks subscription gate but not check_rate_limit. A subscribed client can call GROUP_CREATE in a tight loop, inserting two rows per call indefinitely. SET_NICKNAME is similarly unrate-limited (harmless since nicknames are immutable once set, but each call still hits the DB). GROUP_CREATE is the higher concern.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:54:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:54:10Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:54:09"
+    }
+  ]
+}

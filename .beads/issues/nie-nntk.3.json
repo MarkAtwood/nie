@@ -1,0 +1,21 @@
+{
+  "id": "nie-nntk.3",
+  "title": "monero: address_for_session 31-bit mask causes birthday collision at ~65k sessions",
+  "description": "MoneroKeys::address_for_session (nie-monero/src/lib.rs line 139) derives the subaddress minor index from only the first 4 bytes of the UUID masked to 31 bits (& 0x7FFF_FFFF), giving 2^31 approx 2.1 billion distinct values. By birthday paradox, at ~65,000 sessions the probability of two sessions sharing a subaddress address reaches ~0.1%; at ~46,000 sessions the cumulative probability exceeds 50%. Two sessions that map to the same minor index receive the same subaddress. A payment to either session activates that address, making it impossible for the wallet to determine which session was paid. The 0x7FFF_FFFF mask is unnecessarily restrictive: Monero minor index is a full u32, giving 2^32 values if the mask is removed. Fix: remove the 31-bit mask so the full 32-bit UUID prefix is used for the minor index, doubling the collision-free session capacity.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:00:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:01:14Z",
+  "closed_at": "2026-04-26T11:01:14Z",
+  "close_reason": "duplicate of nie-ea6a.7 (address_for_session 31-bit mask)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:00:11"
+    }
+  ]
+}

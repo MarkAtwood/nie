@@ -1,0 +1,23 @@
+{
+  "id": "nie-qgag.16",
+  "title": "canonicalize bidi reject vs ZWC strip asymmetry is correct",
+  "description": "Bidi controls rejected because they flip visual rendering of names. ZWC chars stripped because invisible with no semantic content. Asymmetry is correct.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:56:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:56:28Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:56:28"
+    }
+  ]
+}

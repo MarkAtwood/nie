@@ -1,0 +1,18 @@
+{
+  "id": "nie-cs9j",
+  "title": "space_set: wrap update_space_props + apply_member_patch in one SQLite transaction",
+  "description": "RFC 8620 §7.1 requires that a notUpdated response means no writes occurred. Currently, if update_space_props succeeds and a subsequent apply_member_patch returns a store/DB error, the name/description change is already committed but notUpdated is returned — a partial write. Fix requires a combined store method that accepts both prop changes and member changes and executes them in a single BEGIN/COMMIT. The partial-write can only be triggered by a genuine DB error (disk full, constraint violation), which is rare in practice. See comment at jmap.rs:1157 for full context.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:08:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:19:18Z",
+  "closed_at": "2026-04-24T04:19:18Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ]
+}

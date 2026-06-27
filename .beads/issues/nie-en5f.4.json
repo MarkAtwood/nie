@@ -1,0 +1,26 @@
+{
+  "id": "nie-en5f.4",
+  "title": "scanner: Zip212Enforcement::GracePeriod used for all heights including post-Canopy",
+  "description": "scanner.rs:221 \u2014 SaplingIvkDecryptor always passes Zip212Enforcement::GracePeriod, accepting both pre and post-ZIP-212 encodings at all block heights. After Canopy activation (mainnet ~1,046,400; testnet ~1,028,500) only post-ZIP-212 notes are valid. GracePeriod is correct for historical scanning but means the scanner cannot detect if a post-Canopy block contains a malformed pre-ZIP-212 note. In practice the network rejects these, but the scanner silently accepts them. Fix: thread block_height and network into NoteDecryptor::try_decrypt_sapling; pass Zip212Enforcement::On for heights >= Canopy activation height.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:55:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:29Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:55:50"
+    }
+  ]
+}

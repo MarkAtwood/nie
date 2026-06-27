@@ -1,0 +1,28 @@
+{
+  "id": "nie-igs.3",
+  "title": "call_build_for_error unsafe pattern: safety depends on step numbering in build_shielded_tx",
+  "description": "The SAFETY contract of call_build_for_error says params are never dereferenced because all listed error paths fire 'before step 11'. This is correct today. But the safety argument is coupled to the internal structure of build_shielded_tx: if someone adds an early return between steps 7-10 that DOES dereference params (e.g., a balance check against a fee table), the MaybeUninit reference becomes genuinely accessed UB with no compiler warning. The comment says 'eight TxBuildError variants' but lists nine (NoSpendableNotes, DustAmount, InvalidRecipient, UnsupportedAddressType, InsufficientFunds, AmountOverflow, WitnessDeserialize, NoteDeserialize, AnchorMismatch = 9). Fix the count. Medium-term: replace MaybeUninit with a real mock params type (or a feature flag that substitutes trivial proofs) so the unsafe becomes unnecessary.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:24:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T01:30:34Z",
+  "closed_at": "2026-04-19T01:30:34Z",
+  "close_reason": "igs.2: replaced 'as u64' casts with u64::try_from() + descriptive error per established pattern. igs.3: corrected 'eight' \u2192 'nine' in SAFETY comment; medium-term unsafe replacement deferred to separate issue",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 18:24:45"
+    }
+  ]
+}

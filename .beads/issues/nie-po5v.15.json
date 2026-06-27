@@ -1,0 +1,25 @@
+{
+  "id": "nie-po5v.15",
+  "title": "cli/dm: DM payload not MLS-encrypted even when mls_active \u2014 relay sees plaintext",
+  "description": "The /dm command in cli/src/commands.rs (around line 2218) always wraps the message as a plaintext ClearMessage::Chat in the Whisper payload, regardless of whether mls_active is true. The normal broadcast path seals the message with HPKE (line 2793) so the relay sees only ciphertext. /dm bypasses this \u2014 when MLS is active, the whisper payload is readable by the relay. The comment on line 2216 says 'Phase 1 (pre-MLS)' but the code path is reached even post-MLS. Fix: when mls_active, encrypt the payload via mls.encrypt() + pad() before placing it in the Whisper, matching the main send path.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:45:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:45:04Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:45:04"
+    }
+  ]
+}

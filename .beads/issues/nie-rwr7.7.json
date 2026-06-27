@@ -1,0 +1,28 @@
+{
+  "id": "nie-rwr7.7",
+  "title": "Tests: HPKE seal/unseal roundtrip and error paths in hpke.rs",
+  "description": "What: Test suite for core/src/hpke.rs seal_message/unseal_message using external oracle (hpke crate's own RFC 9180 test vectors + independent key generation).\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/core/src/hpke.rs (the implementation)\n2. Add #[cfg(test)] mod tests to hpke.rs\n3. Test 1: roundtrip_basic\n   - Generate a random X25519 keypair (StaticSecret::random_from_rng + PublicKey::from)\n   - plaintext = b\"hello sealed sender\"\n   - sealed = seal_message(&pub_key_bytes, plaintext)?\n   - recovered = unseal_message(&secret_bytes, &sealed)?\n   - assert_eq!(recovered, plaintext)\n   - Oracle: the seal/unseal inverse property (valid because we're testing the roundtrip, not the algorithm \u2014 the hpke crate's own tests validate RFC 9180 vectors)\n4. Test 2: wrong_key_fails\n   - Generate keypair A and keypair B (different keys)\n   - sealed = seal_message(&pub_key_A_bytes, b\"secret\")?\n   - Result = unseal_message(&secret_B_bytes, &sealed)\n   - assert!(result.is_err()) \u2014 wrong key must return Err, not garbage\n5. Test 3: truncated_input_fails\n   - sealed = seal_message(&pub_key_bytes, b\"data\")?\n   - Result = unseal_message(&secret_bytes, &sealed[0..10])  // truncated\n   - assert!(result.is_err())\n6. Test 4: empty_plaintext\n   - sealed = seal_message(&pub_key_bytes, b\"\")?\n   - recovered = unseal_message(&secret_bytes, &sealed)?\n   - assert_eq!(recovered, b\"\")\n7. Test 5: sealed_size\n   - plaintext = b\"exactly thirty-two bytes here!!\"  // 32 bytes\n   - sealed = seal_message(&pub_key_bytes, plaintext)?\n   - assert_eq!(sealed.len(), 32 + 32 + 16)  // enc(32) + ciphertext(32) + tag(16) = 80 bytes\n   - Documents the wire overhead\n8. Run cargo test -p nie-core hpke\n\nDefensive programming rules:\n- Tests must NOT use the seal function as the oracle for the unseal function in isolation\n- The roundtrip test is valid because both functions are exercised together; correctness of the algorithm is validated by hpke crate's own RFC 9180 vectors\n- wrong_key test validates security property: decryption fails with wrong key\n- truncated_input test validates bounds checking in unseal_message\n- Tests must pass without any internet access (all oracle data is derived locally)",
+  "acceptance_criteria": "cargo test -p nie-core hpke passes; 5 tests run; wrong_key and truncated tests verify error conditions",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T20:00:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:13:45Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:13"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:00:44"
+    }
+  ]
+}

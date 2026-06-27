@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.65",
+  "title": "Contacts.save writes contacts.json non-atomically; crash corrupts file",
+  "description": "cli/src/config.rs Contacts::save calls std::fs::write(path, data) which truncates the file before writing. A crash or signal between truncation and completion leaves a zero-byte or partial contacts.json. The fix is the standard write-to-temp + rename pattern used elsewhere in the codebase.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:52:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:52:49Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:52:49"
+    }
+  ]
+}

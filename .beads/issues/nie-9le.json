@@ -1,0 +1,15 @@
+{
+  "id": "nie-9le",
+  "title": "Client: Encrypted local message history",
+  "description": "Messages are not stored locally. If the relay purges the queue (72h TTL) or the client crashes, messages are lost. There is no read history.\\n\\nRequired:\\n- SQLite database in data_dir (e.g. history.db)\\n- Encrypted with sqlcipher OR plaintext SQLite + age-encrypted file (simpler)\\n- Schema: messages(id, from, to, timestamp, payload_cleartext, direction)\\n- Append on send (before relay confirms) and on receive\\n- CLI: nie log [peer] to show history\\n- Key derived from identity key, not a separate passphrase (transparent to user)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T07:24:32Z",
+  "closed_at": "2026-04-16T07:24:32Z",
+  "close_reason": "Closed"
+}

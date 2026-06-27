@@ -1,0 +1,24 @@
+{
+  "id": "nie-felh.5",
+  "title": "Decompose handle_relay_event into per-message-type handlers",
+  "description": "handle_relay_event spans 442 lines (94-536) with 11 message types in a single match. This defeats isolatable testing and obscures control flow.\n\nExtract separate async fns for each type:\n- handle_directory_list()\n- handle_user_joined()\n- handle_user_left()\n- handle_user_nickname()\n- handle_deliver()\n- handle_sealed_deliver()\n- handle_whisper_deliver()\n- handle_key_package_ready()\n\nWire them via a dispatch table or sub-match. This will improve:\n- Testability (each handler can be tested independently)\n- Readability (small, focused functions)\n- Reusability (handlers can be called from other contexts)",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T04:36:42Z",
+  "closed_at": "2026-04-20T04:36:42Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:59:37"
+    }
+  ]
+}

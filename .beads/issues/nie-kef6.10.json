@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.10",
+  "title": "OrchardFullViewingKey::address_at truncates diversifier index to u32",
+  "description": "OrchardFullViewingKey::address_at(j: u32) silently limits Orchard address derivation to the first ~4 billion diversifier indices (u32::MAX = 2^32-1), while Sapling uses u128 (88-bit space = 2^88-1). The internal address_at_index(DiversifierIndex) method is correct but is pub(crate). If diversified_address() in unified.rs were to call address_at() instead of address_at_index(), indices above u32::MAX would silently wrap. The public API mismatch is a latent bug risk \u2014 callers expecting 88-bit diversity cannot use the public method.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:49:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:49:20Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:49:20"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-2f6j.2",
+  "title": "SEC0: reject duplicate FileHeader for same transfer_id",
+  "description": "HashMap::insert() on FileHeader silently clobbers prior FileReceiveState, discarding received chunks. Fix: use file_transfers.entry(transfer_id).or_insert_with(|| ...) and skip (with warn!) if already present.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T14:17:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:36Z",
+  "closed_at": "2026-04-22T14:21:34Z",
+  "close_reason": "Fixed: Entry API with Occupied/Vacant arms; duplicate FileHeader logs warn! and skips without clobbering",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:17:36"
+    }
+  ]
+}

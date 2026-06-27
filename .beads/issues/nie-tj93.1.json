@@ -1,0 +1,26 @@
+{
+  "id": "nie-tj93.1",
+  "title": "GROUP_ADD and GROUP_LEAVE not rate-limited",
+  "description": "ws.rs GROUP_ADD (~line 1302) and GROUP_LEAVE (~line 1563) do not call check_rate_limit. GROUP_ADD does 4 DB ops per call; GROUP_LEAVE does 3. A subscribed client can loop at network speed with zero rate-limit cost. DESIGN.md names only broadcast/sealed_broadcast/group_send as rate-limited; GROUP_ADD and GROUP_LEAVE are absent. Fix: add check_rate_limit at the top of each handler, same as GROUP_LIST.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:54:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:04Z",
+  "closed_at": "2026-04-25T02:08:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:54:42"
+    }
+  ]
+}

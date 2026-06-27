@@ -1,0 +1,27 @@
+{
+  "id": "nie-9qiu.7",
+  "title": "Workspace Cargo.toml: all zcash/sapling git deps pinned to unlabelled revs with no version tag; future audits have no anchor for what was in scope",
+  "notes": "2026-04-26 round-66 check: sapling-crypto 0.7.0 was published to crates.io on 2026-04-21 and its feature definition confirms corez dependency (not core2), so the original reason for the git rev pin at b8a81c22f034d68f9bbd6cba728aab807b9ba2ea no longer applies. This is actionable: replace the git dep with version = '0.7.0' in Cargo.toml and verify the build compiles. Also audit orchard and librustzcash (zcash_address, zcash_primitives, zcash_protocol, zcash_transparent) for clean tagged releases on crates.io to remove the remaining git pins.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:23:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:53:27Z",
+  "closed_at": "2026-06-19T20:53:27Z",
+  "close_reason": "audit comments added to all pinned git revs with dates and rationale",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:23:42"
+    }
+  ]
+}

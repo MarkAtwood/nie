@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-ca4",
+  "title": "Payee: handle Request \u2192 auto-respond with stub address",
+  "description": "When ClearMessage::Payment action=Request arrives and no session exists for session_id (we are payee): create PaymentSession with role=Payee, state=Requested. Echo '[payment] <handle> wants to pay you <amount> <chain>.' Auto-respond with PaymentAction::Address { chain, address: 'stub-<pub_id_short>-<session_short>' } \u2014 a placeholder since real Sapling address generation needs zcash_primitives (blocked). Transition state to AddressProvided. The stub address string makes clear it is not real.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:19:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T05:39:38Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:10"
+    }
+  ]
+}

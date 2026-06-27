@@ -1,0 +1,17 @@
+{
+  "id": "nie-bqoo",
+  "title": "Review: relay ws/store handlers, wallet scanner/tx_builder, core messages round 25",
+  "notes": "Confidence: 25% chance of missed bug. Uncertainty driven by: (1) not having traced full payment flow end-to-end (payment.rs calling next_diversifier standalone is suspect), (2) scanner state machine has complex snapshot/restore logic with 4 unrestored paths now identified, (3) scan_tx witness ordering correctness depends on strict Update-before-Append ordering that is correct but relies on iteration order over self.witnesses.iter_mut() which is insertion-order in HashMap — not guaranteed, but inconsequential since all witnesses are updated identically. Would raise confidence with: integration tests that run the scanner against a replay of real mainnet compact blocks, end-to-end tests for GROUP_LEAVE/GROUP_ADD, and mutation testing on the key package cap logic.\nMaintainer risk: MEDIUM — The three correctness bugs (scan_block snapshot gaps, GROUP_LEAVE offline membership guard, key package refresh at cap) are all latent and require specific triggers. None are exploitable for remote code execution, but scan_block could cause permanent note loss which is irreversible without a rescan. The GROUP_LEAVE bug is annoying but not data-corrupting. The key package cap bug affects legitimate multi-device users.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:06:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

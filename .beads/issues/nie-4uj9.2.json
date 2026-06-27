@@ -1,0 +1,25 @@
+{
+  "id": "nie-4uj9.2",
+  "title": "update_contact_fully single-transaction atomicity prevents observable intermediate state",
+  "description": "Before this commit, a two-field contact patch made two separate store calls (set_contact_blocked, set_contact_display_name), each bumping ChatContact state independently. A concurrent ChatContact/get between the two bumps would see one field updated and the other not. update_contact_fully wraps all writes in a single SQLite transaction and emits exactly one state bump. The test test_contact_set_two_field_patch_bumps_state_once verifies this directly. A contributor might suggest splitting back into individual field calls for 'simplicity' \u2014 resist this; the intermediate-state visibility is the bug being fixed.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:07:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:07:39Z",
+  "closed_at": "2026-04-24T17:07:39Z",
+  "close_reason": "Decision records only",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:07:25"
+    }
+  ]
+}

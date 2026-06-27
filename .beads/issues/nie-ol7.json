@@ -1,0 +1,22 @@
+{
+  "id": "nie-ol7",
+  "title": "lightwalletd gRPC client",
+  "description": "Implement compact block fetching from a lightwalletd endpoint via gRPC (tonic). Support both testnet (lightwalletd.testnet.z.cash:443) and mainnet endpoints. Configurable URL. Handle reconnect on failure.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:41:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:37:20Z",
+  "close_reason": "LightwalletdClient with TLS, GetLatestBlock, GetBlockRange streaming. Proto files + tonic-build codegen. 2 unit tests verify proto types.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:37"
+    }
+  ]
+}

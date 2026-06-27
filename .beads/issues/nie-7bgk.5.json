@@ -1,0 +1,21 @@
+{
+  "id": "nie-7bgk.5",
+  "title": "Two-phase validation with collected ops before any write: defend this design",
+  "description": "The Phase 1 / Phase 2 split in contact_set and space_set is the correct architecture for RFC 8620 \u00a77.1 atomicity. A future contributor might suggest simplifying to 'validate and write as you go' to reduce code. That would reintroduce the pre-fix bug: blocked=true writes before displayName:42 fails its type check, leaving a partial patch committed. The correct invariant is: no store call happens until all per-patch validation passes. Tests nie-uf6a.1 (test_contact_set_blocked_and_bad_displayname_type_is_atomic) and the mixed-known-unknown-keys test are the regression guards for this.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:37:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:49:39Z",
+  "closed_at": "2026-04-24T16:49:39Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:37:51"
+    }
+  ]
+}

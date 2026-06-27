@@ -1,0 +1,23 @@
+{
+  "id": "nie-br9a.15",
+  "title": "load_state uses spendable_notes(0) hardcoded \u2014 won't load witnesses for other accounts",
+  "description": "scanner.rs CompactBlockScanner::load_state calls self.store.spendable_notes(0) hardcoded. This is pre-existing (nie-qdlu.4 covers load_state hardcoding account 0), filing to confirm it is known and tracked. The witnesses for any account other than 0 are not loaded into self.witnesses on restart, so those notes will not have their witnesses updated during scanning. Confirms nie-qdlu.4 is the right tracker.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:05:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:08:04Z",
+  "closed_at": "2026-04-25T04:08:04Z",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:05:47"
+    }
+  ]
+}

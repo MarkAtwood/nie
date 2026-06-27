@@ -1,0 +1,25 @@
+{
+  "id": "nie-75ra.6",
+  "title": "Two-phase validate-then-write is the correct RFC 8620 \u00a77.1 approach",
+  "description": "The two-phase approach (validate all patches first, write only if all pass) is the right design for JMAP atomicity for input errors. Without SQLite transactions that span update_space_props + upsert_space_member_with_role, pre-write validation is the only practical way to enforce RFC 8620 \u00a77.1 for user-input errors. A contributor might suggest \"simplify to one pass\" \u2014 that reintroduces the atomicity bug this commit specifically fixes. The comments in space_set explain the exact failing case; they should be preserved.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:01:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T03:10:04Z",
+  "closed_at": "2026-04-24T03:10:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:01:58"
+    }
+  ]
+}

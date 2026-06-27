@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-4og.6",
+  "title": "Migration v6 explicit transaction is load-bearing crash safety",
+  "description": "Migration v6 wraps four ALTER TABLE statements in an explicit SQLite transaction. A contributor might remove it as 'unnecessary complexity'. That is wrong: a crash between the first and fourth ALTER TABLE would leave orphaned columns, causing all subsequent opens to fail with 'duplicate column name'. SQLite DDL is transactional, so the explicit transaction makes partial failure impossible. The comment documents this; the transaction must not be removed.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:27:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:51Z",
+  "closed_at": "2026-04-19T04:34:20Z",
+  "close_reason": "Decision already documented in code. No code change needed.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:27:34"
+    }
+  ]
+}

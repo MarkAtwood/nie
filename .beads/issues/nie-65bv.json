@@ -1,0 +1,15 @@
+{
+  "id": "nie-65bv",
+  "title": "ffi: nie-ffi crate scaffold + workspace wiring",
+  "description": "Create the nie-ffi crate (cdylib/staticlib) with flutter_rust_bridge v2 init boilerplate. Add to workspace members. Verify cargo build -p nie-ffi compiles on host before any Android work.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:49:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T02:01:45Z",
+  "close_reason": "Closed"
+}

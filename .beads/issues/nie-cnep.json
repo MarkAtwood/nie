@@ -1,0 +1,22 @@
+{
+  "id": "nie-cnep",
+  "title": "multidevice: directory deduplicates per-user not per-device",
+  "description": "Update user_joined, user_left, and directory_list in relay/src/ws.rs so a user appears exactly once regardless of how many devices they have connected.\n\nWhy: with multiple connections per pub_id, naive iteration over the clients map would emit user_joined twice for the same pub_id when device 2 connects, and user_left when device 1 disconnects even though device 2 is still online. This confuses all clients about who is present.\n\nWhat to do:\n- user_joined: only broadcast when pub_id transitions from 0 connected devices to 1 (first device to connect). Suppress for subsequent devices of the same pub_id.\n- user_left: only broadcast when pub_id transitions from 1 connected device to 0 (last device disconnects). Suppress when a device disconnects but others remain.\n- directory_list: deduplicate \u2014 collect unique pub_ids from the clients map, not raw connection entries. One entry per pub_id.\n- connection_seq for directory ordering: use minimum seq across all devices for a pub_id so ordering is stable regardless of which device connected first this session.\n\nAcceptance: directory_list contains each pub_id exactly once; user_joined fires once per user arrival regardless of device count; user_left fires only when the last device disconnects.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T20:16:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T00:38:10Z",
+  "closed_at": "2026-04-23T00:38:10Z",
+  "close_reason": "connect() returns (seq, is_first_connection); UserJoined suppressed for non-first devices; UserLeft suppressed unless last device; DirectoryList already deduplicated by pub_id key",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 13:19:28"
+    }
+  ]
+}

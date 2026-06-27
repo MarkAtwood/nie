@@ -1,0 +1,23 @@
+{
+  "id": "nie-ftwb.21",
+  "title": "bridge-jmap: SSRF guard on apiUrl origin is correct \u2014 defended against simplification",
+  "description": "bridge-jmap/src/jmap.rs init_session: checks that api_url.origin() == session_url.origin(). This prevents a malicious JMAP server from redirecting API calls to an internal host (AWS metadata, localhost). The test proves it against concrete SSRF targets. A contributor might suggest 'just check that apiUrl starts with the session URL' \u2014 the origin check is stricter and correct: same scheme, host, and port, regardless of path.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:58:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:58:49Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:58:48"
+    }
+  ]
+}

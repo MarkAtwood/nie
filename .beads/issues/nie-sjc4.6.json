@@ -1,0 +1,25 @@
+{
+  "id": "nie-sjc4.6",
+  "title": "connection_is_typing synthesis on disconnect is correct and in the right place",
+  "description": "The typing=false synthesis happens after state.disconnect() (line 1777) and before key-package cleanup. This ordering is correct: disconnect() removes the client from the live map before we broadcast, so the synthesised notification is not looped back. The flag connection_is_typing is per-connection-task local state (not shared), so there are no race conditions. A contributor might suggest moving this to state.rs as part of disconnect() \u2014 do not, because the relay layer should not know about the typing protocol. The per-connection local flag is the right coupling boundary.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T02:43:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:52:03Z",
+  "closed_at": "2026-04-24T02:52:03Z",
+  "close_reason": "Decision recorded during review; no code change required",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 19:43:40"
+    }
+  ]
+}

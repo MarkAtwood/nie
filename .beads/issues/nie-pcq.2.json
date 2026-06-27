@@ -1,0 +1,27 @@
+{
+  "id": "nie-pcq.2",
+  "title": "double note-selection in send_payment: invariant not machine-verifiable",
+  "description": "payment.rs calls select_with_fee twice: once explicitly to get selected_ids for post-broadcast marking, then a second time implicitly inside build_shielded_tx. The comment documents that both calls must receive identical (all_notes, amount_zatoshi) or selected_ids will diverge and the wrong notes get marked spent. There is no runtime assertion enforcing this. A contributor who refactors to pass pre-selected notes to build_shielded_tx (reasonable optimization) will silently break note marking \u2014 no compile error, no test failure, the bug only surfaces when the node rejects a double-spend. Add a debug_assert comparing selected_ids to the IDs actually used in the built tx, or restructure so selection happens once.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:37:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:43:51Z",
+  "closed_at": "2026-04-19T06:43:51Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:37:11"
+    }
+  ]
+}

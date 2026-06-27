@@ -1,0 +1,25 @@
+{
+  "id": "nie-3c7e.4",
+  "title": "Phase 1/Phase 2 validation separation for space_set atomicity",
+  "description": "Validating all member patch paths/values before writing any of them (Phase 1 / Phase 2 split) is the correct approach for RFC 8620 \u00a77.1. The previous code wrote name/description then checked member paths \u2014 a combined patch with valid name + invalid role would write the name and return notUpdated, a clear atomicity violation. A contributor might suggest \"simplify by validating inline with writes\" \u2014 that breaks atomicity and should be rejected. The existence check inside update_space_fully (in the same SQLite transaction) closes the second gap: a member-only patch on a nonexistent space would previously create orphaned space_member rows and return Ok(true).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:51:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:04:46Z",
+  "closed_at": "2026-04-24T05:04:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 21:51:51"
+    }
+  ]
+}

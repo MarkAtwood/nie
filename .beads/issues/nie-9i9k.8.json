@@ -1,0 +1,27 @@
+{
+  "id": "nie-9i9k.8",
+  "title": "Two parallel collections for typing state \u2014 use one Map",
+  "description": "RelayService tracks typing state with two parallel collections: _typingUsers (Set<String>) and _typingTimers (Map<String, Timer>). These must be kept in sync at every add/remove site. The set of typing users is exactly _typingTimers.keys. Suggested rewrite: drop _typingUsers entirely. Replace get typingUsers => Set.unmodifiable(_typingUsers) with get typingUsers => Set.unmodifiable(_typingTimers.keys). Replace _typingUsers.add/remove with the implicit existence of a key in _typingTimers. All cancellation loops become for (final t in _typingTimers.values) t.cancel(); _typingTimers.clear(). Eliminates one data structure and all sync bugs between them.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:48:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:59:13Z",
+  "closed_at": "2026-04-24T00:59:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:48:06"
+    }
+  ]
+}

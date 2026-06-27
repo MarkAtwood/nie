@@ -1,0 +1,37 @@
+{
+  "id": "agoraold-mf3l.6",
+  "title": "nie-wasm: wasm-bindgen public API exports",
+  "description": "## What\nImplement the JavaScript-facing public API in `wasm/src/api.rs` (and re-export from `wasm/src/lib.rs`) using #[wasm_bindgen]. These are the functions the browser HTML/JS will call.\n\n## Algorithm\n1. Add console_error_panic_hook initialization to the init() function (already in lib.rs skeleton).\n2. Implement free functions in wasm/src/api.rs (all tagged #[wasm_bindgen]):\n   a. generate_identity() -> String:\n      - Call Identity::generate()\n      - Return base64(identity.to_secret_bytes_64()) as String\n      - NEVER return the raw bytes or expose Identity struct to JS\n   b. pub_id_from_secret(secret_b64: &str) -> Result<String, JsValue>:\n      - base64-decode secret_b64 to [u8; 64]\n      - Identity::from_secret_bytes(&bytes)\n      - Return identity.pub_id().0\n   c. save_identity(secret_b64: &str) -> Promise: delegates to storage::save_identity()\n   d. load_identity() -> Promise: delegates to storage::load_identity(), returns base64 string or null\n3. Implement #[wasm_bindgen] NieClient struct in wasm/src/api.rs:\n   - Wraps an Rc<RefCell<Option<client::NieRelayClient>>>\n   - #[wasm_bindgen(constructor)] pub fn new() -> NieClient\n   - pub fn connect(&self, relay_url: &str, secret_b64: &str) -> Promise:\n     * decode secret, create Identity, call NieRelayClient::connect\n     * Returns Promise resolving to pub_id string\n   - pub fn send_message(&self, text: &str) -> Promise: delegates to client\n   - pub fn set_nickname(&self, nick: &str) -> Promise: delegates to client\n   - pub fn on_event(&self, callback: &js_sys::Function): register JS callback on client\n   - pub fn get_online_users(&self) -> String: delegates to client, returns JSON array string\n   - pub fn disconnect(&self) -> Promise: calls transport.close()\n4. All Promise returns use future_to_promise(async { ... })\n5. Errors from Rust become JsValue (string message) \u2192 JS catches them as exceptions\n6. Add #[wasm_bindgen(start)] to call init() on WASM module load\n\n## Defensive programming\n- generate_identity() returns only the base64-encoded secret; never returns raw [u8; 64] typed array\n  (base64 string is still sensitive but at least it's a common opaque format)\n- pub_id_from_secret validates length == 64 after decode; returns Err(JsValue) on mismatch\n- NieClient methods guard against disconnected state: return Err if client is None\n- Never include key bytes in error messages\n- All #[wasm_bindgen] methods return Result<T, JsValue> where Err becomes a thrown JS exception\n\n## Agent team\nResearcher: read wasm-bindgen docs for Promise pattern (future_to_promise); read wasm/src/client.rs and storage.rs interfaces.\nImplementer: write wasm/src/api.rs and update wasm/src/lib.rs.\n\n## Tests\n- cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0\n- wasm-pack build --target web wasm/ succeeds (produces pkg/ directory)\n- TypeScript declarations in pkg/nie_wasm.d.ts contain: NieClient class, generate_identity fn",
+  "acceptance_criteria": "wasm-pack build --target web wasm/ succeeds; NieClient exported with connect/send_message/on_event/disconnect; generate_identity exported; no key bytes in any exported API signatures",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:54:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T02:10:33Z",
+  "close_reason": "wasm-bindgen public API exports implemented; cargo check and clippy --target wasm32-unknown-unknown -D warnings both pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:54:44"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:52"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:51"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:52"
+    }
+  ]
+}

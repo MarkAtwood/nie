@@ -1,0 +1,15 @@
+{
+  "id": "nie-8nj4",
+  "title": "Review round 1: Direct messages (1:1 whisper conversations)",
+  "notes": "SEC7 CALIBRATION ASSESSMENT:\n\nCORRECTNESS CONFIDENCE: 97% - No correctness bugs found. Core DM logic passes all tests. Architecture invariants #3 (opaque payload) and #4 (identity) are satisfied. Offline queue atomicity matches documented Phase 1 design. SQLite expiry format is correct and tested.\n\nFINDINGS IDENTIFIED:\n  1. Missing INDEX on offline_messages.to_pub_id (P2: efficiency issue, not correctness)\n  2. Missing periodic cleanup of expired messages (P3: data accumulation at scale)\n  3. is_subscribed cached at connect time (P1: separate issue nie-x47.5, not DM-specific)\n\nREAL vs OPINION:\n  - The missing index is a REAL engineering issue: O(N) full table scans on every drain()\n  - The missing cleanup is REAL but low-priority: slow data creep, only visible 100+ users\n  - Prior complaints about 'payload not validated' or 'add ack logic' are OPINION: out of Phase 1 scope\n\nRUNNING OUT OF REAL COMPLAINTS: YES\n  - All architectural invariants verified\n  - Test oracles are independent and correct\n  - No SQL injection, no format bugs, no atomicity issues\n  - Remaining issues are performance/maintenance, not logic correctness\n  - Further complaints would be bikeshedding without engineering basis",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:35:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T21:40:29Z",
+  "close_reason": "Closed"
+}

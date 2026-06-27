@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-hhmj.6",
+  "title": "RISK: No request-response correlation tracking on JSON-RPC client",
+  "description": "core/src/transport.rs lines 373-414: parse_incoming() routes responses (messages with id) directly to ClientEvent::Response, matching by resp.id. However, the client application (CLI) has no built-in request tracker. If a response arrives for a stale or cancelled request, or if response order is scrambled, the client has no way to know. Worse: if two sequential GET_KEY_PACKAGE requests are sent with ids 5 and 6, and responses arrive as {id:6} then {id:5}, the CLI code will process them in arrival order and assign the wrong result to the wrong request. No request queue, no id\u2192context map. Risk: out-of-order responses silently assigned to wrong requests; hard to debug.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:28Z",
+  "closed_at": "2026-04-19T18:16:34Z",
+  "close_reason": "False positive. GetKeyPackageResult carries pub_id in the response, so the client correlates by pub_id, not by request id. This is self-identifying; no correlation map needed.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:33"
+    }
+  ]
+}

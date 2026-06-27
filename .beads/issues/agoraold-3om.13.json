@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-3om.13",
+  "title": "migration v7 comment says 'partial index' but index does not use WHERE clause value in key",
+  "description": "db.rs migration v7 creates: CREATE INDEX IF NOT EXISTS notes_unspent ON notes(spent) WHERE spent = 0. The comment says 'Partial index on spent = 0 only \u2014 SQLite supports partial indexes and this one is selective: in a normal wallet most notes are spent.' This is accurate, but a contributor unfamiliar with SQLite partial indexes may not understand why indexing the spent column with a WHERE spent=0 is useful \u2014 the indexed column only ever has value 0 in this index, so the B-tree lookup is not for searching, it is purely as a filter/skip mechanism. The comment would be clearer if it said: 'Partial index: instead of scanning all notes, SQLite uses this index to enumerate only unspent notes. The indexed column value is always 0 (the condition), so it functions as a rowid list, not a B-tree search key.'",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:55:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:09Z",
+  "closed_at": "2026-04-19T04:10:58Z",
+  "close_reason": "Opinion: current comment is accurate ('Partial index on spent=0 only \u2014 selective because most notes are spent'). Elaborating further is bikeshedding.",
+  "labels": [
+    "my-oss",
+    "opinion",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:55:54"
+    }
+  ]
+}

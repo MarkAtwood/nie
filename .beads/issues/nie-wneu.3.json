@@ -1,0 +1,23 @@
+{
+  "id": "nie-wneu.3",
+  "title": "CLI: /dm <handle> <text> slash command",
+  "description": "What: Add /dm <handle> <text> slash command to cli/src/commands.rs that sends a point-to-point Whisper to a single peer.\n\nNo relay changes needed. No store changes needed. Works with both online and offline recipients (offline queueing handled by relay after nie-wneu.2).\n\nAlgorithm:\n1. In cli/src/commands.rs in the user input handler (the block that checks line.strip_prefix for various /commands), add BEFORE the final broadcast send:\n\n   if let Some(rest) = line.strip_prefix(\"/dm \") {\n       let rest = rest.trim();\n       let mut parts = rest.splitn(2, ' ');\n       let handle = parts.next().unwrap_or(\"\").trim();\n       let text = parts.next().unwrap_or(\"\").trim();\n       if handle.is_empty() || text.is_empty() {\n           println!(\"usage: /dm <handle> <text>\");\n           continue;\n       }\n       let peer = match resolve_handle(handle, &online, &nicknames, &local_names) {\n           Some(p) => p,\n           None => {\n               println!(\"[dm] unknown: {handle}\");\n               continue;\n           }\n       };\n       // For Phase 1 (pre-MLS), DMs are plaintext ClearMessage::Chat inside Whisper payload.\n       // When mls_active, this will need per-peer MLS encryption (Phase 2 - nie-t4t).\n       let payload = serde_json::to_vec(&ClearMessage::Chat { text: text.to_string() })\n           // serde_json::to_vec on derived Serialize with only String fields cannot fail\n           .unwrap();\n       let req = JsonRpcRequest::new(\n           next_request_id(),\n           rpc_methods::WHISPER,\n           WhisperParams { to: peer.clone(), payload },\n       )?;\n       tx.send(req).await?;\n       let ts = Local::now().format(\"%H:%M\");\n       println!(\"\\r[{ts}] DM \u2192 {}: {}\", display_name(&peer, &nicknames, &local_names), text);\n       continue;\n   }\n\n2. Add 'WhisperParams' and 'rpc_methods::WHISPER' to existing use imports if not already imported in this scope (check existing use statements at top of commands.rs).\n\nDefensive rules:\n- splitn(2, ' ') so message text with spaces is preserved as-is\n- resolve_handle() handles: server nickname (/iam), local alias (/alias), pub_id prefix \u2014 reuse, do not re-implement\n- The unwrap() on to_vec is justified: derived Serialize on struct with only String fields cannot fail \u2014 add comment\n- Display with 'DM \u2192' prefix on send confirmation so user can see it was routed as DM not broadcast\n\nTests:\n- Unit test (can be doc-test or standalone): parse rest='alice hello world', verify handle='alice', text='hello world'\n- Unit test: parse rest='alice' (no text), verify usage message (not panic)\n- Serialize test: construct WhisperParams payload, deserialize as ClearMessage::Chat, assert text == original; oracle = serde_json roundtrip with known string",
+  "acceptance_criteria": "cargo test --workspace passes; cargo clippy --workspace -- -D warnings passes; /dm command visible in /help output or at minimum does not panic on malformed input",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:20:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T21:26:56Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:20:01"
+    }
+  ]
+}

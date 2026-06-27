@@ -1,0 +1,26 @@
+{
+  "id": "nie-hhmj.8",
+  "title": "RISK: Broadcast subscriber check is cached at connect time, never re-evaluated",
+  "description": "relay/src/ws.rs lines 139-140: is_subscribed is cached from subscription_expiry() at auth time and never re-checked. If the subscription expires while the client is connected, the relay will silently let the client continue sending broadcasts (because require_subscription flag is checked against the stale is_subscribed bool, not a fresh DB lookup). When the relay server is restarted or the client reconnects, access is suddenly denied. Phase 1 behavior acceptable (no payment wiring yet), but will cause confusing access violations in Phase 3. A solo maintainer will see 'subscription expired 30 minutes ago but client still sends?' and not immediately understand the caching issue. Risk: subscription expirations silently violated until reconnect; confusing behavior in Phase 3.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:16:42Z",
+  "closed_at": "2026-04-19T18:16:42Z",
+  "close_reason": "By design. Code already has comment: 'Cached at connect time. Re-evaluated only on reconnect, which is fine for Phase 1.' This is an accepted Phase 1 limitation, not a bug.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:39"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-mf3l.11",
+  "title": "GOOD: Closure fields stored on struct prevent silent handler removal",
+  "description": "WasmTransport stores _onopen, _onmessage, _onerror, _onclose as named struct fields with underscore-prefixed names. In wasm-bindgen, a Closure is a Rust-owned heap allocation. When the Closure is dropped, wasm-bindgen removes the underlying JS event handler silently \u2014 no error, the WebSocket just stops delivering events. By storing all four closures on the struct, their lifetimes are tied to the WasmTransport lifetime. The alternative is to call .forget() on each closure, which leaks memory permanently. The struct-field approach gives bounded lifetime (freed when transport is dropped) with no leak.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:30:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:18Z",
+  "closed_at": "2026-04-22T13:09:46Z",
+  "close_reason": "Documented in DESIGN.md \u00a7WebAssembly Client Invariants (\u00a7\u00a717-22)",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:30:55"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-70e.5",
+  "title": "na./eu. lightwalletd endpoints unverified; fail first connect",
+  "description": "wallet/src/client.rs:17-20 \u2014 DEFAULT_MAINNET_ENDPOINTS lists three URLs. Only mainnet.lightwalletd.com:9067 is documented by ECC. The na.lightwalletd.com:9067 and eu.lightwalletd.com:9067 subdomain forms appear to be speculation; no ECC documentation or community documentation confirms they exist. If they are wrong, connect_with_failover() logs two 'unreachable' warnings on every startup and the only functional endpoint is the first one \u2014 the failover list provides no actual redundancy.\n\n**Why:** Hardcoded endpoints that don't exist are worse than a shorter verified list, because they add latency (TLS timeout per unreachable URL) and false confidence in redundancy.\n**How to apply:** Verify each URL against current ECC or community lightwalletd endpoint lists before shipping. Remove unverified entries or replace with documented alternatives.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:55:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T15:56:00Z",
+  "closed_at": "2026-04-18T15:56:00Z",
+  "close_reason": "Fixed: removed unverified na./eu. subdomain endpoints. Only mainnet.lightwalletd.com:9067 (ECC-documented) remains. Comment explains the removal rationale.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:55:51"
+    }
+  ]
+}

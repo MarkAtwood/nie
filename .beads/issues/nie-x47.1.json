@@ -1,0 +1,27 @@
+{
+  "id": "nie-x47.1",
+  "title": "MLS encrypt silently falls back to plaintext on error",
+  "description": "When mls_active is true but mls.encrypt() returns any error, commands.rs falls back to sending line_bytes.clone() (cleartext) with only a warn! log. Trigger: any MLS provider or ratchet error during send. Bad behavior: relay receives plaintext payload; user sees no indication; the architecture's core invariant ('server never sees plaintext message content') is violated silently. Occurs in at least 4 call sites: main chat text (~861), /me action (~710), /cat file send (~745), /! command output (~800). The correct behavior is to refuse the send with a user-visible error rather than degrade to cleartext.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:46:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T04:12:45Z",
+  "closed_at": "2026-04-18T04:12:45Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:46:11"
+    }
+  ]
+}

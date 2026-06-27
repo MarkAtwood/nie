@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.7",
+  "title": "broadcast_to_group enqueues offline messages for expelled/left members until next GROUP_SEND",
+  "description": "ws.rs GROUP_SEND calls list_group_members() to get the member list, then calls broadcast_to_group(). If a member goes offline between the list_group_members() call and the deliver_live() calls, their offline queue correctly receives the message. But if a member left (GROUP_LEAVE) between list_group_members() and enqueue(), broadcast_to_group() enqueues a message for a user who is no longer a group member. The member will receive a group message after they left, with no membership to contextualize it. The member list and the offline-queue write are not atomic.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:41:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:06:13Z",
+  "closed_at": "2026-04-25T04:06:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:41:05"
+    }
+  ]
+}

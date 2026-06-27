@@ -1,0 +1,26 @@
+{
+  "id": "nie-ld0c.4",
+  "title": "FFI save_identity_to_file: non-atomic write corrupts keyfile on crash",
+  "description": "save_identity_to_file uses fs::write() which is not atomic. If killed mid-write (OOM, SIGKILL), the identity file is left with partial content. On next launch, load_identity_from_file returns Err('identity file is N bytes, expected 64') and the app cannot recover. Fix: write to temp file then rename.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:44:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:37:33Z",
+  "closed_at": "2026-04-26T06:37:33Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:44:19"
+    }
+  ]
+}

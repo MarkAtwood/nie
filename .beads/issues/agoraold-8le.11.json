@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-8le.11",
+  "title": "Two-barrier stress test design is correct and should be defended",
+  "description": "relay/tests/stress.rs uses start_barrier (all N clients must receive DirectoryList before any send) and done_barrier (all sends complete before any drain). This design makes the received == sent*(N-1) assertion exact with no fudge factor. A contributor might suggest removing start_barrier to 'simplify' the test, but without it early senders reach fewer than N-1 peers and the assertion becomes non-deterministically wrong. Why this choice is correct: the two-barrier protocol is the minimal structure that makes the count exact. The alternative (probabilistic assertion with tolerance) would hide real routing bugs behind noise.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:08:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:59Z",
+  "closed_at": "2026-04-17T23:35:07Z",
+  "close_reason": "decision already recorded in CLAUDE.md / architecture is intentional; no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:08:24"
+    }
+  ]
+}

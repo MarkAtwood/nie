@@ -1,0 +1,24 @@
+{
+  "id": "nie-s4qr.15",
+  "title": "broadcast_to_group membership_cache is HashMap<String, bool> but pub_id strings are 64 chars \u2014 avoidable cloning",
+  "description": "AppState::broadcast_to_group builds membership_cache as HashMap<String, bool> keyed by pub_id String (64-char hex). The HashMap is populated inside the loop over channels (which can have multiple entries per pub_id for multi-device users). Each cache miss does a DB roundtrip. The cache key clones the 64-char pub_id string on every insertion. This is an O(num_channels \u00d7 DB_query_amortized) operation at group fan-out time. For a group with 100 members and 200 connections, this is up to 200 DB roundtrips on the live path (2 per pub_id, amortized to 1 by the cache). For groups at max size, this is potentially 200 sequential DB queries before any message is delivered. A pre-fetch of all membership statuses for the known member list in one DB query before the channel loop would reduce this to O(1) DB calls.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:22:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:22:53Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:22:52"
+    }
+  ]
+}

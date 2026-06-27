@@ -1,0 +1,25 @@
+{
+  "id": "nie-jq8m.10",
+  "title": "tui: /cat reads files relative to CWD at runtime, not relative to data-dir \u2014 surprising scope",
+  "description": "The /cat command in tui/event.rs rejects absolute paths and '..' components, but allows any relative path \u2014 resolved against the process CWD at the time the command runs. Users expect /cat to share a file relative to their working directory, but the TUI CWD is wherever the binary was launched from, which may be surprising or inconsistent across invocations. It also means any file readable by the user in the CWD tree is shareable, including .env files. There is no size limit on what gets sent (4096 bytes is truncated server-side but sent without a progress indicator). This should be documented or the path should be anchored to a specific directory.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:22:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:22:35Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:22:34"
+    }
+  ]
+}

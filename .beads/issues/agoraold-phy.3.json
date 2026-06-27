@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-phy.3",
+  "title": "scanner: no birthday height enforcement \u2014 fresh wallet scans from genesis",
+  "description": "Scenario: user initialises wallet without calling set_scan_tip first. scan_tip() returns 0, scanner starts from block 1 and attempts to download ~2.2M blocks before reaching the wallet's actual birthday. This will generate issue reports from users who see 'scanning' for hours. Documentation says 'callers should call set_scan_tip with an appropriate birthday height' but there is no runtime guard. Maintenance consequence: until enforcement is added, we own every bug report from users who miss the docs. Fix: either require birthday height in CompactBlockScanner::new, or assert scan_tip >= SAPLING_ACTIVATION_HEIGHT before starting, or log a prominent warn! when scan_tip == 0.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:11:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:55Z",
+  "closed_at": "2026-04-18T17:31:08Z",
+  "close_reason": "Fixed: scan_to_tip() emits warn! when scan_tip==0, explaining the genesis-scan consequence and pointing to set_scan_tip()",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:11:57"
+    }
+  ]
+}

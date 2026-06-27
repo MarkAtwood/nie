@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.55",
+  "title": "wasm storage::load_identity returns plain [u8;64]; key bytes not zeroized",
+  "description": "wasm/src/storage.rs::load_identity() returns a plain [u8; 64]. In api.rs::load_identity (line 74) the Ok(arr) binding holds 64 bytes of key material on the Wasm linear memory heap until it is dropped without zeroing. Additionally, intermediate String values (json_str, secret_b64) holding base64 of the key remain alive until GC. In the Wasm linear memory model there is no OS-level protection; a same-origin JS caller with access to the Wasm memory buffer can read these values. Same class as kef6.36 but distinct codepath (storage.rs, not keyfile.rs).",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:24:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:24:03Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:24:02"
+    }
+  ]
+}

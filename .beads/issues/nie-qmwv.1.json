@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmwv.1",
+  "title": "store: create_group_with_creator_capped does not check rows_affected on INSERT",
+  "description": "In create_group_with_creator_capped (store.rs ~line 1676), after passing the cap check the INSERT OR IGNORE into groups and INSERT OR IGNORE into group_members are issued. If the group_id already exists (a retry/race), the INSERT OR IGNORE silently returns rows_affected=0 but the function returns Ok(true) \u2014 incorrectly telling the caller the group was newly created. This misleads the caller into sending a GROUP_CREATED notification for an already-existing group. Trigger: two near-simultaneous GROUP_CREATE requests with the same group_id where the first commits between the cap check and the insert of the second.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:47:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:00:31Z",
+  "closed_at": "2026-04-26T12:00:31Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:47:46"
+    }
+  ]
+}

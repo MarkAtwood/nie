@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.6",
+  "title": "SUBSCRIBE_REQUEST allows duration_days=0, producing immediately-expired invoice",
+  "description": "ws.rs SUBSCRIBE_REQUEST: params.duration_days is a u32. The cap check rejects values above max_days but does not reject 0. A client sending duration_days=0 gets an invoice with expires_at=now, which is immediately expired. The payment watcher looks up the invoice via get_invoice_by_address which filters WHERE expires_at > datetime('now') \u2014 so the invoice is unfindable the moment it is created, and the payment can never be fulfilled even if the client pays. Fix: add a minimum check: duration_days >= 1.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:22:24Z",
+  "closed_at": "2026-04-24T23:22:24Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:11"
+    }
+  ]
+}

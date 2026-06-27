@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-k3f.10",
+  "title": "Double note selection pattern needs defending comment",
+  "description": "send_payment() calls select_with_fee() once to get selected_ids for post-broadcast marking, then passes all_notes to build_shielded_tx() which re-selects internally. A well-intentioned contributor will see this and try to pass the already-selected notes directly to the builder, bypassing the internal selection. This is wrong: build_shielded_tx() must receive the full candidate set to enforce its fee-calculation invariants and anchor checks. The current double-selection comment (payment.rs lines 178\u2013183) explains this, but does not explicitly warn against the 'obvious simplification' of passing the pre-selected set. Worth hardening the comment.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:56:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:50Z",
+  "closed_at": "2026-04-19T06:10:43Z",
+  "close_reason": "Already documented. payment.rs lines 185\u2013196 have a 10-line comment explicitly explaining the double-selection invariant, why passing selected (not all_notes) to build_shielded_tx would break it, and the INVARIANT warning. Nothing to add.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:56:11"
+    }
+  ]
+}

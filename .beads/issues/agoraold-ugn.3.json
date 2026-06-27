@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-ugn.3",
+  "title": "spendable_notes account guard is Rust-only; SQL has no account predicate",
+  "description": "Trigger: schema evolution adds account_index to notes table for multi-account wallets. The 'if account \\!= 0 { bail\\!() }' guard creates false confidence that accounts are isolated. The SQL query (db.rs spendable_notes) has no WHERE account_index = ? predicate. When multi-account support lands, account=0 queries will return notes from all accounts. Fix: add account_index to notes schema now and filter in SQL, or add a TODO comment documenting that account isolation is not enforced at the query level.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:13:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:52Z",
+  "closed_at": "2026-04-19T03:32:29Z",
+  "close_reason": "Added account isolation comment to spendable_notes SQL documenting missing account_index predicate",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:13:06"
+    }
+  ]
+}

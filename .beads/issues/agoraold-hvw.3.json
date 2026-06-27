@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-hvw.3",
+  "title": "Relay: merchant wallet config \u2014 DFVK loading into AppState",
+  "description": "Add merchant wallet support to the relay: load DFVK from env, open wallet DB, store both in AppState.\n\nWhat: relay operator configures MERCHANT_DFVK (128-byte hex) and MERCHANT_WALLET_DB (SQLite path) env vars; relay loads them at startup.\n\nAlgorithm:\n1. In relay/Cargo.toml, add nie-wallet as workspace dependency.\n2. In relay/src/state.rs, add field merchant: Option<MerchantWallet> to Inner, where:\n   struct MerchantWallet {\n       dfvk: SaplingDiversifiableFvk,\n       wallet_store: WalletStore,\n       network: ZcashNetwork,\n   }\n3. In relay/src/main.rs: read MERCHANT_DFVK (256-char hex string, skip if absent), MERCHANT_WALLET_DB (path, default 'merchant-wallet.db'), MERCHANT_NETWORK (mainnet/testnet, default testnet).\n4. Parse MERCHANT_DFVK: hex-decode to [u8; 128], call SaplingDiversifiableFvk::from_bytes().  Return Err if not exactly 256 hex chars or from_bytes returns None.\n5. Open WalletStore::new(merchant_wallet_db_path). Call ensure_account(0).\n6. Construct MerchantWallet { dfvk, wallet_store, network } and pass to AppState::new().\n7. If MERCHANT_DFVK is absent, merchant = None (relay runs without subscription payment support \u2014 existing behavior).\n\nDefensive rules:\n- NEVER log the DFVK bytes or the hex string (it is key material \u2014 anyone with it can derive the IVK and watch all payments).\n- Log only: 'merchant wallet loaded for network {network}' at info level.\n- Error on invalid MERCHANT_DFVK format must be descriptive without echoing the value.\n- SaplingDiversifiableFvk does not implement Debug \u2014 do not add it.\n\nTests:\n- Unit: parse valid MERCHANT_DFVK hex succeeds.\n- Unit: parse wrong-length MERCHANT_DFVK returns descriptive Err.\n- Unit: absent MERCHANT_DFVK leaves merchant = None; relay starts normally.",
+  "acceptance_criteria": "cargo build -p nie-relay succeeds; relay starts with and without MERCHANT_DFVK set",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:52:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T06:05:43Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:52:41"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:32"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-t8j0.2",
+  "title": "messages: Profile.fields has no size bound; hostile peer causes unbounded heap allocation",
+  "description": "ClearMessage::Profile { fields: HashMap<String, String> } has no bound on map size or key/value length enforced at deserialization. A hostile MLS peer can send a Profile message with thousands of entries each with arbitrarily large strings. Since Profile is deserialized from MLS-decrypted bytes, the allocation happens before any application-level check. Add a custom deserializer that caps total field count (e.g. 32) and key/value length (e.g. 256 bytes each), analogous to the existing FileChunk/FileHeader validators.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:33:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:07:14Z",
+  "closed_at": "2026-04-25T04:07:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:33:34"
+    }
+  ]
+}

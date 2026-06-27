@@ -1,0 +1,15 @@
+{
+  "id": "nie-6gg",
+  "title": "Ctrl+L to clear screen",
+  "description": "Detect Ctrl+L in the input loop and emit \\x1b[2J\\x1b[H to clear the terminal. Standard terminal UX. Requires line-editing integration to intercept the keystroke before it reaches the line buffer.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:04:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T22:29:59Z",
+  "closed_at": "2026-04-17T22:29:59Z",
+  "close_reason": "implemented in cli/src/commands.rs: /who, /me (CTCP ACTION), /cat (4KB text file), /! (shell stdout), /alias (contacts.json persistence), /clear; Ctrl+L handled natively by rustyline"
+}

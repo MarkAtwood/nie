@@ -1,0 +1,27 @@
+{
+  "id": "nie-bwaa.7",
+  "title": "Space member role stored without whitelist validation",
+  "description": "In space_set, the member role is taken as .unwrap_or('member') with no validation that it is one of the accepted values ('admin', 'moderator', 'member'). An arbitrary string sent by the client is stored verbatim in the database and returned in JMAP responses. Clients that validate the role enum will reject the response. Fix: validate role against an accepted set before inserting; return a JMAP invalidArguments error if the value is not in {admin, moderator, member}.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:48:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:55:57Z",
+  "closed_at": "2026-04-23T23:55:57Z",
+  "close_reason": "added matches!(role, 'admin'|'moderator'|'member') guard with invalidArguments error before upsert_space_member_with_role",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:48:03"
+    }
+  ]
+}

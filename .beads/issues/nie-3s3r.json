@@ -1,0 +1,15 @@
+{
+  "id": "nie-3s3r",
+  "title": "multidevice: add device_id to protocol",
+  "description": "Add device_id field to PublishKeyPackageParams in core/src/protocol.rs so the relay can distinguish multiple devices belonging to the same pub_id.\n\nWhy: the relay needs a stable per-device identifier to store and retrieve KeyPackages per device rather than per user. device_id is derived from the ECDH init key fingerprint in the KeyPackage — SHA-256 of the leaf's encryption key bytes. No extra state required; the client computes it from the KeyPackage it already generates.\n\nWhat to do:\n- Add optional or required device_id: String field to PublishKeyPackageParams\n- Update any JSON-RPC serialization tests that construct PublishKeyPackageParams\n- Document derivation: device_id = hex(SHA-256(leaf_node.encryption_key))\n\nAcceptance: PublishKeyPackageParams serializes/deserializes with device_id field; existing tests pass.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T20:12:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:13:20Z",
+  "close_reason": "device_id field added to PublishKeyPackageParams; relay validates 64-char lowercase hex; all call sites updated; all tests pass; review clean"
+}

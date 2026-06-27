@@ -1,0 +1,26 @@
+{
+  "id": "nie-tb8e.2",
+  "title": "payment_watcher: block stream broken break re-enters outer loop but skips POLL_INTERVAL before reconnect \u2014 watcher loops at 60s even when stream ends normally due to exhaustion vs error conflation",
+  "description": "In run_watcher_loop, when the inner stream loop exits via break (either Ok(None) stream exhaustion or Err/timeout), execution falls through to the outer loop's sleep(RECONNECT_DELAY_SECS=60). A normally-exhausted stream (Ok(None), all blocks processed) sleeps 60 seconds before reconnecting and checking for new blocks, instead of immediately polling. The intended behavior is: normal stream exhaustion \u2192 continue inner loop (check tip again, maybe sleep POLL_INTERVAL=30s); error/timeout \u2192 break to outer loop (sleep 60s before reconnect). But all break paths in the stream loop fall to the same outer-loop reconnect sleep. Trigger: normal operation, watcher is caught up \u2014 every scan cycle waits 60s instead of 30s. This halves responsiveness to new payment confirmations.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:36:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:56:30Z",
+  "closed_at": "2026-04-26T07:56:30Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:36:35"
+    }
+  ]
+}

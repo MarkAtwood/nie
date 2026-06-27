@@ -1,0 +1,15 @@
+{
+  "id": "nie-9hri",
+  "title": "daemon store: get_contacts(None) unbounded — OOM on ChatContact/get with ids=null",
+  "description": "daemon/src/store.rs get_contacts(ids=None) (line 1261) issues SELECT with no LIMIT over chat_contact. Called from JMAP ChatContact/get when the client passes ids=null (return all). On a daemon with thousands of contacts this returns the entire table into a Vec\u003cChatContactRow\u003e in memory. Similarly query_contacts() (line 1325) has no LIMIT — called from ChatContact/query and ChatContact/changes. Fix: enforce a server-side LIMIT (e.g. 256 or 4096 per RFC 8620 §5.1 maxObjectsInGet) on both paths.",
+  "notes": "Part of security review round 23 (epic nie-nvk2)",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:58:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:35Z",
+  "closed_at": "2026-04-26T05:11:35Z",
+  "close_reason": "Closed"
+}

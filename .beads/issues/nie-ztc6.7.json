@@ -1,0 +1,25 @@
+{
+  "id": "nie-ztc6.7",
+  "title": "try_set_nickname: read-then-write race between HasNickname check and UPDATE",
+  "description": "store::try_set_nickname races on concurrent same-user requests: SELECT sees nickname=NULL, then UPDATE WHERE nickname IS NULL gets rows_affected=0 when another connection wins the write first. The code returns Ok(SetNicknameResult::Set) regardless of rows_affected, so the losing device gets Set instead of HasNickname. In practice this requires two simultaneous device connections for the same pub_id both calling SET_NICKNAME \u2014 uncommon but not impossible. The second device's response is wrong (Set instead of HasNickname) and triggers a spurious USER_NICKNAME broadcast. Fix: check rows_affected from the UPDATE result and return HasNickname when rows_affected=0 and no unique violation occurred.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:53:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:53:42Z",
+  "labels": [
+    "correctness",
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:53:05"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.2",
+  "title": "SEC4: has_id double-null check in transport.rs",
+  "description": "transport.rs line 82: `let has_id = \\!value[\"id\"].is_null() && value[\"id\"] \\!= Value::Null;` checks the same condition twice. `Value::Null` is exactly what `is_null()` tests, so the second clause is always redundant. A maintainer who sees this will either spend time convincing themselves it matters, or assume there is a subtle distinction between the two forms (there isn't). Fix: simplify to `let has_id = \\!value[\"id\"].is_null();` with a comment: // JSON-RPC: id is present and non-null (null id is not valid per spec, but guard anyway)",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:30:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:47:31Z",
+  "closed_at": "2026-04-20T02:47:31Z",
+  "close_reason": "Fixed in nie-7bv6.24 fix wave; code now uses value.get('id').is_some()",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:30:48"
+    }
+  ]
+}

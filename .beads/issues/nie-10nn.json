@@ -1,0 +1,14 @@
+{
+  "id": "nie-10nn",
+  "title": "daemon/store: burn_on_read in read_message non-atomic (SELECT then DELETE without transaction)",
+  "description": "daemon/src/store.rs:1937: read_message reads burn_on_read in one statement then calls hard_delete_message in a second statement with no transaction lock. Two concurrent calls on the same burn-on-read message_id can both observe burn!=0 and both attempt hard_delete_message. Fix: wrap in BEGIN IMMEDIATE transaction, or use a single atomic DELETE FROM message WHERE id=? AND burn_on_read=1 RETURNING id and check if a row was returned.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T06:15:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:10:39Z",
+  "closed_at": "2026-04-26T07:10:39Z",
+  "close_reason": "Fixed in round 31: DELETE...RETURNING makes burn_on_read atomic"
+}

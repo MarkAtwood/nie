@@ -1,0 +1,19 @@
+{
+  "id": "nie-8wfc.13",
+  "title": "scanner: Zip212Enforcement::GracePeriod used for all blocks including post-Canopy",
+  "description": "scanner.rs SaplingIvkDecryptor::try_decrypt_sapling() line ~207: calls try_sapling_compact_note_decryption with Zip212Enforcement::GracePeriod for every block regardless of height. GracePeriod accepts both pre-ZIP-212 (lead byte 0x01) and post-ZIP-212 (lead byte 0x02) note formats. This is documented as intentional to handle mixed blocks during the transition period. However, after Canopy activation (mainnet block 1046400, testnet block 1028500), all new notes MUST use the post-ZIP-212 format (Zip212Enforcement::On). Accepting pre-ZIP-212 notes after Canopy violates the Zcash consensus rules for those blocks. A note with lead byte 0x01 in a post-Canopy block is invalid per consensus and should not be credited to the wallet. The fix is to pass Zip212Enforcement::On for blocks above the Canopy activation height, and GracePeriod only for blocks at or below it. The block height is already passed as a parameter.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:58:43Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:43"
+    }
+  ]
+}

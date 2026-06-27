@@ -1,0 +1,26 @@
+{
+  "id": "nie-gsyn.2",
+  "title": "SEALED_WHISPER user_exists check before subscription check",
+  "description": "SEALED_WHISPER handler checks user_exists before subscription; an unsubscribed sender can enumerate whether any 64-char hex string is a registered user by observing the error code (not-found vs subscription-required). nie-jmmd.6 covers WHISPER; this is the same bug in SEALED_WHISPER. Fix: move subscription check before user_exists, same as WHISPER fix.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:21:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:02:50Z",
+  "closed_at": "2026-04-25T07:02:50Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:21:11"
+    }
+  ]
+}

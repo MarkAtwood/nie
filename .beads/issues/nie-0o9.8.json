@@ -1,0 +1,25 @@
+{
+  "id": "nie-0o9.8",
+  "title": "advance_diversifier_to monotonicity in Rust not SQL \u2014 documented correctly",
+  "description": "advance_diversifier_to enforces monotonicity with a Rust read-then-compare, not SQL max(). The doc comment explains exactly why: 'SQLite max() on TEXT is lexicographic, not numeric' (max('50','200')='50' since '5'>'2'). A future contributor might suggest switching to SQL max() to avoid the separate read. Resist: the TEXT decimal encoding means SQL comparison is wrong for variable-length numbers. The Rust-level check is the only correct approach without changing the column type to INTEGER or zero-padded TEXT.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:43:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T22:49:22Z",
+  "closed_at": "2026-04-18T22:49:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:43:25"
+    }
+  ]
+}

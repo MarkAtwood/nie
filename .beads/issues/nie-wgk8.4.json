@@ -1,0 +1,24 @@
+{
+  "id": "nie-wgk8.4",
+  "title": "tui/cli /dm sends plaintext whisper \u2014 relay can inspect DM content",
+  "description": "tui/src/event.rs:1187-1199: /dm sends ClearMessage::Chat as a raw, unencrypted JSON payload in a Whisper. The relay operator can see the DM content by instrumenting ws.rs despite the relay not being supposed to deserialize payloads. For DMs to be truly private, the ClearMessage should be HPKE-sealed to the recipient's identity key before embedding in the whisper payload. The same issue exists in cli/src/commands.rs for the CLI DM path. This is a systemic gap: the design assumes whisper payloads are opaque but they are actually plaintext JSON.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:19:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:19:44Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:19:44"
+    }
+  ]
+}

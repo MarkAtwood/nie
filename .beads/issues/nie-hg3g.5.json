@@ -1,0 +1,27 @@
+{
+  "id": "nie-hg3g.5",
+  "title": "relay: PoW replay DashMap grows unbounded under flood",
+  "description": "relay/src/ws.rs:288-309: the PoW replay set uses lazy eviction (`retain`) on every authenticate call but has no size cap. An attacker sending millions of unique valid PoW tokens within the 600 s staleness window will grow the DashMap without bound, eventually causing OOM. Fix: after the retain, check `pow_replay_set.len() > MAX_REPLAY_ENTRIES` (e.g. 1_000_000) and reject new tokens with POW_REPLAYED or a dedicated error. A DashMap with 1 M small entries fits in ~100 MB; above that something is wrong.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:36:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:45:49Z",
+  "closed_at": "2026-04-24T19:45:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "security"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:36:54"
+    }
+  ]
+}

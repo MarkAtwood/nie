@@ -1,0 +1,21 @@
+{
+  "id": "nie-x87e.25",
+  "title": "compact_block_proto_fields_are_accessible does not assert hash contents",
+  "description": "In client.rs lines 277-291, the test constructs a CompactBlock with hash: vec\\![0xab; 32] but only asserts block.hash.len() == 32, not the contents. The test oracle comment says it checks 'proto-generated struct layout', but a prost bug that zero-initializes bytes fields would pass the length check while silently dropping the content. Fix: add assert_eq\\!(block.hash, vec\\![0xab_u8; 32]) to verify that byte-vector fields round-trip their content, not just their length.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:12:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:24:35Z",
+  "closed_at": "2026-04-20T05:24:35Z",
+  "close_reason": "P3/P4 deferred: below stopping threshold (P0=0, P1=0, SEC7 says STOP)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:12:19"
+    }
+  ]
+}

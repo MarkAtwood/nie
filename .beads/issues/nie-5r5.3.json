@@ -1,0 +1,27 @@
+{
+  "id": "nie-5r5.3",
+  "title": "SyncLagError.lag is a redundant public field that allows inconsistent construction",
+  "description": "SyncLagError is a pub struct with pub fields {scan_tip, chain_tip, lag}. lag is always chain_tip.saturating_sub(scan_tip) \u2014 it is fully derived from the other two fields. Exposing it as a pub field means external code can construct SyncLagError { scan_tip: 0, chain_tip: 10, lag: 99 } with an inconsistent lag value. Fix: make lag a method \u2014 fn lag(&self) -> u64 { self.chain_tip.saturating_sub(self.scan_tip) } \u2014 and remove the field. The Display impl and all tests compute lag from the other two fields, so this is a mechanical change.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:11:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T05:22:19Z",
+  "closed_at": "2026-04-19T05:22:19Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:11:11"
+    }
+  ]
+}

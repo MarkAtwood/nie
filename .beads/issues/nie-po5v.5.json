@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.5",
+  "title": "handle_send: returned message_id is a random UUID unrelated to relay or JMAP store",
+  "description": "api.rs handle_send generates a fresh Uuid::new_v4() as message_id in SendResponse. This UUID has no relationship to any relay-assigned or DB-assigned identifier. A caller who uses the returned message_id to track delivery receipts or correlate with Message/get will never find a match. The ID is disconnected from the system. Fix: document explicitly that the ID is client-side correlation only, not a JMAP Message id, or (better) store the outgoing message in the JMAP store and return its id.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:35:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:46:38Z",
+  "closed_at": "2026-04-26T05:46:38Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:35:30"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "agoraold-7qp",
+  "title": "Phase 2: Zcash wallet and P2P payments",
+  "description": "Add privacy-preserving P2P payments via Zcash shielded transactions. Payments are negotiated inside encrypted envelopes — the relay never sees amounts, addresses, or transaction IDs.\\n\\nPhase 2 scope: testnet first, then mainnet.\\n\\nRequired sub-tasks:\\n- zcash_client_backend integration in nie-core (or separate nie-wallet crate)\\n- Connect to public lightwalletd endpoint (testnet: lightwalletd.testnet.z.cash)\\n- P2P payment negotiation state machine using ClearMessage::Payment envelope variants\\n- CLI commands: /pay \u003ccontact\u003e \u003camount\u003e, /balance, /receive (show shielded address)\\n- Address generation: unified address (UA) combining Sapling + Orchard receivers\\n- Payment confirmation: watch for incoming tx, send ClearMessage::Payment(Confirmed) to peer\\n\\nOut of scope for Phase 2: server-side subscription payments (Phase 3).",
+  "notes": "Phase 1 decomposition (2026-04-19): 7 gaps identified and mapped to existing issues.\n\nWave 0 (parallel, READY now): nie-gw8k (IVK decryption + Note struct + insert_note), agoraold-7766 (commitment tree + witnesses)\nWave 1 (after nie-gw8k): nie-ghf (background watcher task) — child of nie-hov\nWave 2 (after nie-ghf): nie-hll (confirmation depth) — child of nie-hov\nWave 3 (after nie-hll): nie-iiy (send PaymentAction::Confirmed) — child of nie-hov\nWave 4 E2E: nie-3no (testnet E2E) — blocked on nie-gw8k + agoraold-7766\n\nCritical path: nie-gw8k → nie-ghf → nie-hll → nie-iiy → nie-3no (agoraold-7766 parallel)\nAlso ready: nie-l22.1 (scanner.rs UNIQUE constraint bug fix, P3)",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T05:33:38Z",
+  "close_reason": "All Phase 2 work complete: IVK decryption, Merkle witnesses, send_payment, testnet E2E test scaffolded"
+}

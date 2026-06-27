@@ -1,0 +1,25 @@
+{
+  "id": "nie-ugn.9",
+  "title": "select_with_fee called twice per payment: once in send_payment, once in build_shielded_tx",
+  "description": "send_payment pre-selects notes via select_with_fee to capture selected_ids for post-broadcast marking, then passes all_notes to build_shielded_tx which re-runs select_with_fee internally. The comment at payment.rs 154-156 explains determinism. This is the right tradeoff: changing build_shielded_tx to accept pre-selected notes would couple its interface to send_payment's internal bookkeeping. The current design keeps build_shielded_tx self-contained and testable. A contributor may suggest 'passing selected instead of all_notes to avoid double selection' \u2014 this is wrong because it breaks build_shielded_tx's standalone correctness (it assumes it can see all notes for fee calculation). Defend this seam.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:13:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T03:45:54Z",
+  "closed_at": "2026-04-19T03:45:54Z",
+  "close_reason": "Design decisions documented in code with defending comments",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:13:47"
+    }
+  ]
+}

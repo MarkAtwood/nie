@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.32",
+  "title": "identity.rs uses rand::random() for HPKE seed instead of explicit OsRng",
+  "description": "identity.rs:35 uses rand::random() for the HPKE seed while all other cryptographic randomness in the codebase explicitly uses OsRng. rand::random() is implemented via thread_rng() which is OS-seeded and cryptographically secure, but the implicit form obscures the entropy source. Replace with OsRng.fill_bytes(&mut hpke_seed) to match the explicit pattern used in auth.rs and hpke.rs and make the entropy source auditable at a glance.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:57:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:57:14Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:57:14"
+    }
+  ]
+}

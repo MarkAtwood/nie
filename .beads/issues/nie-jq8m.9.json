@@ -1,0 +1,25 @@
+{
+  "id": "nie-jq8m.9",
+  "title": "relay/main.rs: POW_DIFFICULTY clamp to 20 warns but does not reject the configured value \u2014 ambiguous operator UX",
+  "description": "When POW_DIFFICULTY is set to a value between 1 and 19, the code emits 'clamping to 20' but the ensure check on the line above already allowed values up to MAX_DIFFICULTY. The warning reads as a correction but the variable description says it is invalid. An operator who sets POW_DIFFICULTY=5 expecting 'weak PoW enabled' will see the relay start and accept the misconfiguration with only a warn. Refusing to start with an error message is clearer than silently clamping.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:22:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:22:25Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:22:25"
+    }
+  ]
+}

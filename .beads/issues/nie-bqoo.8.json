@@ -1,0 +1,25 @@
+{
+  "id": "nie-bqoo.8",
+  "title": "create_invoice INSERT OR IGNORE silently swallows duplicate invoice_id collisions",
+  "description": "store::create_invoice uses INSERT OR IGNORE. If two callers race with the same invoice_id (UUID collision probability ~0 but also a retry path from the ws handler), the second write is silently discarded with Ok(()). The caller cannot distinguish 'inserted' from 'already existed with different data' (e.g. different amount or address). The handler generates a fresh UUID each time so collision is negligible, but the insert of INSERT OR IGNORE is misleading: a logic bug that sends the same invoice_id twice would silently win, leaving the client with a mismatched address.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:09:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:09:33Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:09:33"
+    }
+  ]
+}

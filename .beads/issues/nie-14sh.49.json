@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.49",
+  "title": "daemon jmap space_get issues N+1 queries for member lists",
+  "description": "space_get (jmap.rs lines 955-962) calls get_space_members once per requested space ID inside a loop. For a request with N space IDs this issues N+1 SQL round-trips. Under a workload with many spaces this becomes a latency bottleneck. Fix: add a bulk get_space_members_for_spaces(ids) query using WHERE space_id IN (...).",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:58:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:58:37Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:58:37"
+    }
+  ]
+}

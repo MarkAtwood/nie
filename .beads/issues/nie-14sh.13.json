@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.13",
+  "title": "db.rs balance() SUM(value_zatoshi) can silently overflow SQLite i64 arithmetic",
+  "description": "db.rs balance(): the SQL query uses SUM(value_zatoshi) without any overflow guard. SQLite INTEGER arithmetic is 64-bit signed; if multiple unspent notes whose combined value exceeds i64::MAX (~9.2e18 zatoshi) are present, SQLite returns NULL or a wrong negative value. The code catches negative values via u64::try_from but the error message says 'notes table may be corrupt' rather than 'arithmetic overflow', masking the actual cause. At realistic ZEC supply (~2.1e15 zatoshi total) this cannot happen with real notes, but a wallet accepting synthetic note values from a test harness or a compromised scanner could trigger it. The SUM should be guarded with a CAST check or the query should use MIN/MAX bounds on individual rows before summing.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:09:19Z",
+  "closed_at": "2026-04-24T23:09:19Z",
+  "close_reason": "Not silent: if SUM overflows i64, SQLite returns REAL, sqlx fails to decode as i64, balance() returns Err. Error message says 'corrupt' but the fix is just a doc improvement. Already safe.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:41"
+    }
+  ]
+}

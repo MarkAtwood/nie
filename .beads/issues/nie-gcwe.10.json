@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.10",
+  "title": "fmt: proxy-feature files fail cargo fmt --check",
+  "description": "cargo fmt --all -- --check exits 1 with diffs in four files introduced or touched by the proxy feature:\n\n- cli/src/main.rs (3 test functions: invalid_proxy_scheme_returns_err, onion_socks5_warns_dns_leak, onion_socks5h_no_warn)\n- core/src/transport.rs (2 test functions: proxy_addr_parses_port_ignores_credentials, proxy_unreachable_error)\n- relay/tests/e2e_proxy.rs (spawn_relay helper, connect_via_socks5_proxy body)\n- relay/tests/socks5_helper.rs (run_socks5_proxy signature and body)\n\nThe CLAUDE.md quality gate 'cargo fmt --all' is a mandatory pre-commit step. All diffs are mechanical line-wrapping \u2014 rustfmt wants different line breaks. Fix: run cargo fmt --all and commit the result.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:30:53Z",
+  "closed_at": "2026-04-19T19:30:53Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:54"
+    }
+  ]
+}

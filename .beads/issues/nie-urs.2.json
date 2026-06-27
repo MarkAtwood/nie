@@ -1,0 +1,28 @@
+{
+  "id": "nie-urs.2",
+  "title": "mark_notes_spent has no test coverage",
+  "description": "mark_notes_spent() is a new public WalletStore method with transaction semantics (all-or-nothing) that differs from the per-note mark_note_spent(). No test exercises it directly: batch success, rollback on missing note_id, or empty-slice no-op. The happy-path coverage in payment tests exercises it indirectly via send_payment but does not isolate or validate the atomicity guarantee. A contributor changing the loop logic or error handling has no failing test to catch the regression.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:16:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:21:16Z",
+  "closed_at": "2026-04-19T06:21:16Z",
+  "close_reason": "Fixed: added 3 tests \u2014 mark_notes_spent_batch_success (both notes marked), mark_notes_spent_empty_slice_is_noop (no-op, Ok), mark_notes_spent_rolls_back_on_missing_note (real note stays unspent after rollback). All pass.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:16:28"
+    }
+  ]
+}

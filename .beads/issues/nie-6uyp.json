@@ -1,0 +1,19 @@
+{
+  "id": "nie-6uyp",
+  "title": "Review: message_set update type validation and non-Object patch",
+  "notes": "Maintainer risk: LOW — the diff adds strict type validation consistently. One pre-existing semantics bug filed (deletedAt null) but not introduced by this diff. No new public API surface. No breaking changes beyond the readAt-null behavioral fix which was previously a silent lie to clients.\nConfidence: 85% chance of no missed bug. Uncertainty driven by: not tracing all callers of the store methods to verify they handle all return value combinations; reactions/ handler remains permissive and was not fully audited. Would raise confidence if: integration test covered the deletedAt null / undelete path.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:22:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T18:27:48Z",
+  "close_reason": "All findings from this review fixed. Remaining permissive behaviors (emoji='?' default, non-validated timestamp strings) are intentional and pre-existing.",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

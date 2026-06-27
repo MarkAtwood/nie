@@ -1,0 +1,27 @@
+{
+  "id": "nie-ftwb.10",
+  "title": "bridge-matrix: bot detection broken when homeserver URL port differs from emitted MXID",
+  "description": "bridge-matrix/src/bridge.rs is_bot_sender: strips http(s):// and trailing slash from homeserver URL then builds '@{bot_localpart}:{domain}'. If homeserver is configured as 'https://matrix.example.com' but server emits MXIDs as '@niebridge:matrix.example.com:443', the comparison fails and echo-loop suppression breaks \u2014 every message the bridge posts to Matrix is forwarded back to nie, creating an infinite loop. Trigger: non-default port on homeserver URL vs default port in emitted MXIDs.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:56:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:06:24Z",
+  "closed_at": "2026-04-26T08:06:24Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:56:48"
+    }
+  ]
+}

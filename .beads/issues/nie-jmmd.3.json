@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.3",
+  "title": "enqueue TOCTOU: concurrent callers both see count<1000 and both insert, exceeding cap",
+  "description": "store.rs enqueue() uses BEGIN DEFERRED. Two concurrent callers both read count=999, both pass the check, both insert \u2014 leaving 1001 messages. The 1000-message flood cap is not enforced. add_group_member_capped documents BEGIN IMMEDIATE as the fix for the same pattern; enqueue() has the same flaw.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:33:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:06:04Z",
+  "closed_at": "2026-04-25T04:06:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:33:50"
+    }
+  ]
+}

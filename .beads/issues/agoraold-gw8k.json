@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-gw8k",
+  "title": "Scanner: IVK note decryption and plaintext storage",
+  "description": "The compact-block scanner uses NullDecryptor, meaning it never finds incoming notes. Without note detection, spendable_notes() is always empty and send_payment always fails with NoSpendableNotes. This issue implements a real SaplingIvkDecryptor that: (1) accepts a DiversifiableFullViewingKey, (2) implements NoteDecryptor using sapling::note_encryption::try_sapling_compact_note_decryption, (3) extends the Note struct or adds a new method to WalletStore to persist plaintext columns (note_diversifier, note_pk_d, note_rseed, rseed_after_zip212). Without this, the testnet E2E payment test (nie-3no) cannot work because Alice's wallet will never have spendable notes even after scanning.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T07:45:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T09:38:48Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-4og.2",
+  "title": "Payer/AddressProvided sessions not retried after reconnect",
+  "description": "Trigger: payer receives Address (session moves to AddressProvided), then CLI disconnects and reconnects. resync_sessions has no arm for (Payer, AddressProvided). The address is stored in the DB so nothing is lost, but neither auto-payment nor a user-visible prompt fires after reconnect. Bad behavior: user must remember to type /confirm <id> with no prompt \u2014 will generate 'my payment got stuck after disconnect' reports. Fix: on reconnect, if send_fn is available and session is Payer/AddressProvided, re-trigger the auto-payment attempt (or print a visible reminder to /confirm).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:26:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:33:48Z",
+  "closed_at": "2026-04-19T04:33:48Z",
+  "close_reason": "Fixed: resync_sessions now prints a visible reminder for each Payer/AddressProvided session ('Run /confirm <id> to send, or /cancel <id> to abort'). No peer message is sent (address already stored locally). Test: resync_payer_address_provided_sends_no_message verifies no channel message is emitted.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:26:57"
+    }
+  ]
+}

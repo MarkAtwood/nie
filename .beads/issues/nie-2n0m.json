@@ -1,0 +1,25 @@
+{
+  "id": "nie-2n0m",
+  "title": "Phase 4d: iOS client",
+  "description": "iOS client sharing the Flutter codebase established in nie-wtz (Android). Same nie-core Rust library, different platform targets and OS integrations.\n\n## Scope\n\nShares with Android (nie-wtz):\n- Flutter UI: Chat, Contacts, Wallet, Settings screens\n- flutter_rust_bridge bindings to nie-core\n- Business logic: payment flow, wallet sync, identity\n\niOS-specific work:\n- Cross-compile targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios (simulator)\n- Xcode project setup and provisioning profiles\n- Identity key storage: iOS Keychain (SecItemAdd/SecItemCopyMatching) instead of Android Keystore\n- Push notifications: APNs (Apple Push Notification service) for background wake-up when persistent WebSocket is killed by iOS app lifecycle\n- Background modes: Background Fetch + VoIP socket trick for persistent connection while backgrounded\n- App Store submission: App Store Connect, TestFlight for beta, export compliance (uses encryption \u2192 ERN required)\n- Privacy manifest (PrivacyInfo.xcprivacy): declare no data collection, no tracking\n\n## Key differences from Android\n- iOS kills background processes aggressively \u2014 VoIP socket or background task must be used to keep relay connection alive\n- Keychain access requires entitlements (com.apple.keychain-access-groups)\n- App Store review is slower and stricter than Play Store; encryption use requires export compliance documentation\n- APNs requires a paid Apple Developer account ($99/yr)\n\n## Dependencies\n- nie-wtz (Android client) must be complete first \u2014 Flutter project and flutter_rust_bridge bindings are established there\n- nie-hlns (JSON-RPC protocol) must be stable \u2014 iOS client implements the updated protocol",
+  "status": "deferred",
+  "priority": 4,
+  "issue_type": "epic",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:43:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "defer_until": "2026-05-23T00:00:00Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:43:48"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:43:47"
+    }
+  ]
+}

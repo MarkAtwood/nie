@@ -1,0 +1,25 @@
+{
+  "id": "nie-43zd.5",
+  "title": "mls: Welcome's sender identity not cross-checked against directory",
+  "description": "join_from_welcome_for_group accepts any well-formed Welcome without verifying that the admin who signed it is the expected admin (online[0] by sequence). A connected peer who is not admin could send a crafted Welcome whisper to a new joiner and get them to join a shadow group. The new member would have a valid MLS session but not the real group. The relay cannot distinguish real from shadow Welcomes (they are opaque payloads). Mitigation requires the client to verify the sender's MLS signing credential against the expected admin's pub_id before calling join_from_welcome.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:10:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:02Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:10:22"
+    }
+  ]
+}

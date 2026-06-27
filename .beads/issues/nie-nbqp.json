@@ -1,0 +1,17 @@
+{
+  "id": "nie-nbqp",
+  "title": "Review: daemon/relay/core round 27",
+  "notes": "Maintainer risk: HIGH — Three P0 correctness bugs (WHISPER no rate limit, GROUP_CREATE no rate limit, GROUP_SEND empty payload fan-out) are directly exploitable by any authenticated user without a subscription (WHISPER, GROUP_SEND) or with one (GROUP_CREATE). The insert_message_ext atomicity gap is a crash-window data integrity bug. The daemon has no HTTP rate limiting on any endpoint (existing nie-0j6b.7 + expanded scope in nie-nbqp.5). These are not theoretical — they all have plausible triggers reachable by a single malicious client.\nConfidence: 20% chance of missed bug. Uncertainty driven by: (1) did not read daemon/jmap.rs handlers — they are the primary callers of daemon/store.rs and may have additional input validation gaps; (2) daemon/api.rs handle_wallet_pay holds wallet_pay_lock across balance_with_confirmations which is async DB I/O — the lock is an async Mutex so this is not executor-blocking, but the lock scope covers more than needed; (3) ws.rs has ~2500 lines and was read in chunks — a cross-handler interaction (e.g. race between GROUP_LEAVE and GROUP_SEND that removes a user after list_group_members but before enqueue) was noted but has a mitigation (broadcast_to_group re-checks membership). Would raise confidence if: jmap.rs handlers were reviewed, integration tests exercising concurrent GROUP operations existed.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:31:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

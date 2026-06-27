@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-mf3l.1",
+  "title": "nie-wasm: create WASM crate skeleton",
+  "description": "## What\nCreate a new `wasm/` crate in the workspace that builds as a WebAssembly cdylib via wasm-pack. This is the scaffolding all other WASM beads build on.\n\n## Algorithm\n1. Create `wasm/` directory in workspace root\n2. Write `wasm/Cargo.toml`:\n   - package: name='nie-wasm', version='0.1.0', edition='2021'\n   - [lib] crate-type = ['cdylib', 'rlib']\n   - deps (all version-pinned): wasm-bindgen='0.2', wasm-bindgen-futures='0.4', js-sys='0.3', serde_json (workspace), anyhow (workspace), tracing (workspace), futures='0.3'\n   - web-sys with features: Window, WebSocket, MessageEvent, ErrorEvent, CloseEvent, EventTarget, console, IdbDatabase, IdbFactory, IdbOpenDbRequest, IdbRequest, IdbTransaction, IdbObjectStore, IdbTransactionMode, IdbKeyRange\n   - getrandom = { version='0.2', features=['js'] } (for WASM entropy)\n   - console_error_panic_hook = '0.1'\n   - nie-core = { path = '../core', default-features = false }\n   - dev-deps: wasm-bindgen-test = '0.3'\n3. Write `wasm/src/lib.rs`:\n   - #[wasm_bindgen] extern block with console_log macro helper\n   - pub fn init() function tagged #[wasm_bindgen] that calls console_error_panic_hook::set_once()\n   - Module declarations (all empty): mod transport; mod storage; mod client; mod api;\n4. Write empty placeholder files: wasm/src/transport.rs, storage.rs, client.rs, api.rs (each just has // TODO comment)\n5. Add 'wasm' to members array in workspace Cargo.toml\n6. Run: rustup target add wasm32-unknown-unknown (idempotent)\n7. Run: cargo check --target wasm32-unknown-unknown -p nie-wasm\n8. Run: cargo check -p nie-wasm (native build must also work for rlib consumers)\n\n## Defensive programming\n- No unwrap() anywhere in production code paths\n- console_error_panic_hook must be initialized before any WASM entry point is called\n- Never log key material to console (no #[wasm_bindgen] export that takes raw key bytes)\n\n## Agent team\nSingle implementer agent: read Cargo.toml workspace, create files, verify cargo check passes.\n\n## Tests\n- cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0\n- cargo check -p nie-wasm exits 0 (native rlib check)\n- cargo check --workspace exits 0 (workspace still intact)",
+  "acceptance_criteria": "cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0; cargo check --workspace exits 0; wasm/Cargo.toml exists with cdylib crate-type",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:53:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T01:57:52Z",
+  "close_reason": "WASM crate skeleton created; cargo check wasm32 passes",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:53:07"
+    }
+  ]
+}

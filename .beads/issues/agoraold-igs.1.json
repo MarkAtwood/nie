@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-igs.1",
+  "title": "Migration v6: non-atomic ALTER TABLE \u2014 interrupted migration corrupts DB permanently",
+  "description": "Trigger: process killed between the 1st and 4th ALTER TABLE in the v6 migration block (e.g., OOM kill during wallet init). PRAGMA user_version = 6 has not run yet, so on next open version < 6 is still true. The already-added columns cause 'duplicate column name: note_diversifier' on the first ALTER TABLE re-attempt \u2192 WalletStore::new() returns Err \u2192 wallet permanently unusable without manual sqlite3 surgery. Earlier migrations used CREATE TABLE IF NOT EXISTS (idempotent). ALTER TABLE ADD COLUMN has no IF NOT EXISTS clause before SQLite 3.37.0. Fix: wrap the four ALTER TABLEs and the PRAGMA in a single explicit sqlx transaction \u2014 SQLite DDL is transactional.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:24:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:38Z",
+  "closed_at": "2026-04-19T01:29:55Z",
+  "close_reason": "wrapped 4 ALTER TABLEs + PRAGMA in a single sqlx transaction; SQLite DDL is transactional, so mid-migration kill now rolls back cleanly",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 18:24:27"
+    }
+  ]
+}

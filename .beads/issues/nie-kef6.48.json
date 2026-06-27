@@ -1,0 +1,24 @@
+{
+  "id": "nie-kef6.48",
+  "title": "deliver_live never publishes BusMessage::Direct; whisper/sealed-whisper skip cross-instance delivery",
+  "description": "deliver_live() in state.rs delivers only to local clients and never calls bus.publish(). The BusMessage::Direct variant exists for this purpose but is unused. On a multi-instance deployment: sender calls WHISPER/SEALED_WHISPER \u2192 deliver_live returns false (recipient is on another instance) \u2192 message falls to offline enqueue. Recipient appears offline to the sending instance even though they are live on a peer instance. Real-time delivery fails silently; the only recovery is when the recipient reconnects and drains the queue. Fix: publish BusMessage::Direct to the bus from deliver_live when it returns false.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:55:48Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:22"
+    }
+  ]
+}

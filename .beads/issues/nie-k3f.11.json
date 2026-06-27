@@ -1,0 +1,26 @@
+{
+  "id": "nie-k3f.11",
+  "title": "Transactional DDL in schema migration v6 is load-bearing",
+  "description": "db.rs migration v6 wraps all ALTER TABLE statements in an explicit SQLite transaction (BEGIN \u2192 multiple DDL \u2192 PRAGMA user_version = 6 \u2192 COMMIT). This prevents partial migration: a crash mid-migration rolls back all column additions, leaving user_version < 6, so the next open retries cleanly. Without the transaction, a process kill leaves orphaned columns and makes every subsequent open fail with 'duplicate column name'. A contributor simplifying the migration code or copy-pasting a single-statement migration pattern will drop this transaction. Worth a comment specifically calling out 'do not inline the transaction, DDL is transactional in SQLite but only if you wrap it'.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:56:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:10:46Z",
+  "closed_at": "2026-04-19T06:10:46Z",
+  "close_reason": "Already documented. db.rs lines 297\u2013301 have a 4-line comment explaining that SQLite DDL is transactional, why the transaction is required, and what happens without it ('duplicate column name'). Nothing to add.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:56:16"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-u966.1",
+  "title": "Space/get N+1 query per space for members",
+  "description": "space_get fetches the member list for each space in a separate SELECT inside the response loop. With N spaces, this is N+1 queries with no transaction wrapper. A concurrent Space/set (rename or member add) can commit between two get_space_members calls, so the list returned has a mix of pre- and post-mutation snapshots. Trigger: two spaces, concurrent admin update to space 2 while Space/get is iterating. Actual bad behavior: inconsistent snapshot returned to client \u2014 state token says version X but the data has mixed-version content, causing spurious JMAP synchronization loops.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:42:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:37:08Z",
+  "closed_at": "2026-04-26T05:37:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:42:51"
+    }
+  ]
+}

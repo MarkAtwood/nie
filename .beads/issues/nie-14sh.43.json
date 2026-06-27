@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.43",
+  "title": "GROUP_ADD uses serde_json::from_value(unwrap_or_default) inconsistently with other methods",
+  "description": "ws.rs GROUP_ADD and SUBSCRIBE_REQUEST use serde_json::from_value(req.params.unwrap_or_default()) while all other methods use the deserialize_params() helper. The inconsistency means GROUP_ADD silently accepts a missing params field (substituting a null JSON value and attempting deserialization) rather than returning INVALID_PARAMS. Use deserialize_params() consistently so missing-params errors are caught uniformly.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:58:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:58:04Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:58:04"
+    }
+  ]
+}

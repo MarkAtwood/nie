@@ -1,0 +1,24 @@
+{
+  "id": "nie-13e3.1",
+  "title": "test-lock-check",
+  "description": "test",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:20:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:30:51Z",
+  "closed_at": "2026-04-25T04:30:51Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:20:38"
+    }
+  ]
+}

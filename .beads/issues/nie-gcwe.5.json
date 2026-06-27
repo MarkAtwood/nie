@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.5",
+  "title": "DNS leak warning only covers .onion; socks5:// vs socks5h:// distinction underdocumented",
+  "description": "validate_proxy_config in cli/src/main.rs warns about DNS leaks only when the relay URL contains '.onion'. For clearnet relay URLs, no warning or explanation is given about the socks5:// vs socks5h:// distinction.\n\nIn this implementation, both socks5:// and socks5h:// pass the relay hostname as a domain-name (ATYP=3) to the proxy via tokio-socks \u2014 there is no local DNS resolution in either case. This is safe, but it is the opposite of what users familiar with curl/ssh proxy conventions expect (socks5:// conventionally resolves DNS locally; socks5h:// resolves at the proxy).\n\nThe risk: a privacy-conscious user who knows the conventional semantics may:\n- Believe socks5:// is leaking DNS to their ISP when it is not (false alarm)\n- OR believe socks5h:// is providing privacy it actually provides, without realizing the implementation ignores the distinction for non-.onion addresses\n\nThe --proxy help text ('socks5h:// recommended for .onion addresses') hints at the distinction but does not explain that tokio-socks does not locally resolve hostnames regardless of scheme.\n\nEither the behavior should match the conventional semantics (socks5:// resolves locally, socks5h:// at proxy), or the documentation should explicitly state that this implementation always sends hostnames to the proxy.\n\nFiles: cli/src/main.rs validate_proxy_config (~line 179), cli/src/main.rs --proxy arg help text (~line 44).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:36:41Z",
+  "closed_at": "2026-04-19T19:36:41Z",
+  "close_reason": "socks5h:// guidance for .onion is correct user advice; implementation detail that tokio-socks sends ATYP=3 regardless is an impl artifact, not a design promise. No change needed.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:41"
+    }
+  ]
+}

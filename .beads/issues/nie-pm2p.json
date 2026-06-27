@@ -1,0 +1,14 @@
+{
+  "id": "nie-pm2p",
+  "title": "relay ws: SET_NICKNAME has no rate limit and no subscription check; O(N) broadcast amplification",
+  "description": "In relay/src/ws.rs, the SET_NICKNAME handler (around line 739) has no rate limit and no subscription guard. It calls state.broadcast(None, notif) which pushes a USER_NICKNAME notification to every connected client. An unsubscribed, unauthenticated-by-subscription client can call SET_NICKNAME in a tight loop, generating O(N) mpsc pushes per call where N = connected clients. The handler is not in the rate_limit check. This lets a single free (unsubscribed) connection exhaust other clients' receive buffers. Fix: add a check_rate_limit() call, and optionally a subscription check, to SET_NICKNAME before the broadcast.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:45:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:54:23Z",
+  "closed_at": "2026-04-26T04:54:23Z",
+  "close_reason": "Closed"
+}

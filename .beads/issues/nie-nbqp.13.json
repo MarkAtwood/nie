@@ -1,0 +1,24 @@
+{
+  "id": "nie-nbqp.13",
+  "title": "daemon/store: query_contacts builds SQL string dynamically but branches on exact same conditions twice",
+  "description": "query_contacts (store.rs line 1514) first builds WHERE clause from presence/blocked with push/join, then immediately switches on the same (presence, blocked) tuple to choose which sqlx binding arms to use. The two match arms must stay in sync \u2014 if a third filter is added, the developer must update both the conditions Vec AND the inner match. The WHERE clause construction is dead in the sense that the SQL string could be built once with the bindings inline. Suggested rewrite: use a single dynamic query builder (e.g., sqlx's QueryBuilder) or collapse the two-step condition/binding split into a single pass.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:37:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:37:47Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:37:47"
+    }
+  ]
+}

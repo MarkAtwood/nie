@@ -1,0 +1,27 @@
+{
+  "id": "nie-e1l",
+  "title": "cargo build --workspace and fix errors",
+  "description": "Run cargo build, iterate until clean.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T04:37:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T04:41:26Z",
+  "closed_at": "2026-04-16T04:41:26Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 21:37:10"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 21:37:10"
+    }
+  ]
+}

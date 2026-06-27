@@ -1,0 +1,24 @@
+{
+  "id": "nie-qf7k.3",
+  "title": "Elegance: ZWS_CHARS constant name is vague; consider ZERO_WIDTH_CHARS or ZERO_WIDTH_INVISIBLE_CHARS",
+  "description": "The constant name 'ZWS_CHARS' uses an unfamiliar acronym (Zero Width Space). More explicit names like ZERO_WIDTH_CHARS or ZERO_WIDTH_INVISIBLE_CHARS would improve discoverability and reduce cognitive load for maintainers unfamiliar with Unicode terminology. BIDI_CONTROLS is already clear by comparison.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:01:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:29:36Z",
+  "closed_at": "2026-04-22T06:29:36Z",
+  "close_reason": "Renamed ZWS_CHARS to ZERO_WIDTH_CHARS for clarity",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:01:25"
+    }
+  ]
+}

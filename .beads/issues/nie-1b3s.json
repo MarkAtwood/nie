@@ -1,0 +1,17 @@
+{
+  "id": "nie-1b3s",
+  "title": "Review round 48: mls, hpke, auth, transport, messages, store, history",
+  "notes": "Maintainer risk: MEDIUM — Two correctness bugs in store.rs (advance_diversifier_to DEFERRED tx, try_set_nickname TOCTOU) affect relay database integrity. The HPKE, MLS, and auth code is well-structured with good test coverage. The main risk area is SQLite transaction discipline in store.rs where the BEGIN IMMEDIATE pattern is used inconsistently.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) did not read all of ws.rs GROUP_ADD/GROUP_SEND paths in detail, (2) MLS openmls library internals not audited — credential() behavior on StagedCommit not verified. Would raise confidence if: MLS test vectors from a second implementation were run, and if the DEFERRED-vs-IMMEDIATE SQLite test suite covered concurrent-reconnect scenarios.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:10:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

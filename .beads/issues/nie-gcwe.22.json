@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.22",
+  "title": "transport: parse_proxy_addr not tested with missing port",
+  "description": "parse_proxy_addr() in core/src/transport.rs is supposed to return Err when the proxy URL has no port (e.g. socks5://127.0.0.1 with no colon after the host). The rsplit_once(':') call would return None, causing the ok_or_else to fire with 'proxy URL missing port'. This error path is not covered by any unit test.\n\nExisting tests cover: socks5h:// IP with port, socks5:// hostname with port, trailing slash stripped, credentials-in-URL (port parses), invalid scheme. The missing-port error case is absent.\n\nWithout a test, a refactor of parse_proxy_addr could change the error path and go undetected.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:36:07Z",
+  "closed_at": "2026-04-19T19:36:07Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:21"
+    }
+  ]
+}

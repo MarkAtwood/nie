@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.8",
+  "title": "Redis bus subscriber re-subscribes on every recv() call",
+  "description": "In bus.rs RedisSubscriber::recv() (line 228), self.conn.subscribe(REDIS_CHANNEL) is called inside the recv loop on every invocation, not once at connection time. Each recv() re-issues SUBSCRIBE, leaking Redis subscription slots and causing incorrect behavior (duplicate message delivery, excessive Redis round-trips). Fix: call subscribe() once in RedisClient::subscribe() when creating the RedisSubscriber, not on each recv().",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:14:05Z",
+  "closed_at": "2026-04-24T22:14:05Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:23"
+    }
+  ]
+}

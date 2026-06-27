@@ -1,0 +1,21 @@
+{
+  "id": "nie-tl6f.2",
+  "title": "Message/query: client-supplied limit passed unbounded to SQL LIMIT clause",
+  "description": "daemon/src/jmap.rs message_query() (line 2514): the limit parameter from the JMAP request is validated only to be non-negative, then passed directly as the SQL LIMIT argument to store.query_messages():\n\n    let limit = args.get(\"limit\").and_then(|v| v.as_i64()).unwrap_or(256);\n    if limit < 0 { return invalid_args(...); }\n    let ids = store.query_messages(&chat_id, position, limit).await?;\n\nAnd query_messages() in daemon/src/store.rs:1766:\n    SELECT id FROM message WHERE chat_id = ? AND deleted_at IS NULL\n    ORDER BY received_at ASC LIMIT ? OFFSET ?\n\nA request with limit=9223372036854775807 (i64::MAX) causes SQLite to attempt returning every row in the table, with results allocated into a Vec<String>. All other query methods in the store have hardcoded LIMIT 1000 or 10000 caps.\n\nConsistent with nie-u966.8 (Space/query no pagination). Fix: cap at a maximum (e.g. 4096) and return hasMore: true if clamped.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:14:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:23:36Z",
+  "closed_at": "2026-04-26T11:23:36Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:14:03"
+    }
+  ]
+}

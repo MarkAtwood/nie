@@ -1,0 +1,25 @@
+{
+  "id": "nie-ms2c.7",
+  "title": "Phase 1 validates role; Phase 2 re-extracts it independently \u2014 good decision to defend",
+  "description": "The two-phase approach (validate_member_patch in Phase 1, apply SpaceMemberOp in Phase 2) correctly implements RFC 8620 \u00a77.1 atomicity: if any patch path is invalid, neither the prop writes nor the member writes happen. The old code applied member patches inline after prop writes, so a mixed patch could partially apply. This is the right fix and worth defending if a contributor suggests 'simplifying' back to inline application.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:29:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:44:23Z",
+  "closed_at": "2026-04-24T04:44:23Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 21:29:40"
+    }
+  ]
+}

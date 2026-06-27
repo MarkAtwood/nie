@@ -1,0 +1,23 @@
+{
+  "id": "nie-ft4h.4",
+  "title": "save_block_state atomic 3-way write: prevents tree/witness/tip skew on crash",
+  "description": "db.rs:1051-1098: save_block_state wraps tree snapshot, all witness updates, and scan_tip advance in a single SQLite transaction. A contributor might suggest saving them separately (simpler code) but ANY non-atomic combination creates scenarios where tip advances but witnesses are stale (notes become unspendable) or witnesses are saved but tip isn't (scanner re-processes blocks with orphaned witnesses). The 3-way atomicity is the correct invariant.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:37:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:37:38Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:37:37"
+    }
+  ]
+}

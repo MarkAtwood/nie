@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-7bv6.36",
+  "title": "SEC1: base64 dep duplicated instead of using workspace",
+  "description": "wasm/Cargo.toml line 38: base64 = '0.22' is specified independently instead of base64.workspace = true. If the workspace bumps base64 (e.g. to 0.23), the wasm crate will continue to use 0.22 \u2014 two versions will coexist, potentially causing type mismatches at the nie-core boundary (base64::Engine impl from 0.22 vs 0.23 are different types). Fix: change to 'base64.workspace = true' matching how serde, serde_json, anyhow are already handled in the same file.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:35:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:17Z",
+  "closed_at": "2026-04-20T02:41:39Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:35:32"
+    }
+  ]
+}

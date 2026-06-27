@@ -1,0 +1,28 @@
+{
+  "id": "nie-bwaa.10",
+  "title": "Typing notifications broadcast to all relay subscribers, not per-chat",
+  "description": "TypingNotifyParams has no chat_id field. The relay broadcasts typing notifications to all connected clients globally, using default_channel_id on the daemon side. This works for a single-room architecture but leaks typing activity if a relay ever serves multiple disjoint user groups. More critically, TypingParams sent by clients contains no room qualifier, so the wire protocol has no slot for per-chat typing isolation. The fix requires adding chat_id to TypingParams and TypingNotifyParams at the protocol level (core/src/protocol.rs) \u2014 a wire-breaking change that locks in now.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:48:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:02:22Z",
+  "closed_at": "2026-04-24T00:02:22Z",
+  "close_reason": "Single-room architecture (design decision): all users share one room, so broadcast-to-all is correct. Adding chat_id would pre-engineer multi-room support the project explicitly does not have.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:48:25"
+    }
+  ]
+}

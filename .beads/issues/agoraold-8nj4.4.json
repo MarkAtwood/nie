@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-8nj4.4",
+  "title": "Integration tests use independent oracle for payload validation",
+  "description": "relay/tests/dm_tests.rs:11-14, 141-147, 232-236: Both test_dm_live_delivery and test_dm_offline_delivery construct the oracle payload independently using serde_json::to_vec(&ClearMessage::Chat {...}), not by round-tripping through the DM send/receive path. This is load-bearing: tests that encrypt with function X and decrypt with X prove nothing. The independent oracle ensures the test fails if the payload format changes unexpectedly.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:37:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:48Z",
+  "closed_at": "2026-04-19T21:40:24Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:37:11"
+    }
+  ]
+}

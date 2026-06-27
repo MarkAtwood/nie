@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-8jf",
+  "title": "no DB migration strategy: first schema change breaks existing wallet DBs",
+  "description": "WalletStore.new() uses CREATE TABLE IF NOT EXISTS with no schema version tracking (no PRAGMA user_version, no migrations table). Trigger: any future column addition or rename — the existing table is silently left at the old schema, causing runtime errors or missing columns. Maintenance consequence: every schema change requires a manual migration story or a breaking change that deletes the DB. This is the first DB commit; the pattern set here will be copied by future contributors.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:51:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:56Z",
+  "closed_at": "2026-04-18T06:07:53Z",
+  "close_reason": "Closed"
+}

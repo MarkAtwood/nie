@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-2n0m.1",
+  "title": "Install Rust iOS cross-compilation targets",
+  "description": "Install the iOS Rust targets via rustup. No Xcode needed for this step.\n\nAlgorithm:\n1. rustup target add aarch64-apple-ios (device arm64)\n2. rustup target add aarch64-apple-ios-sim (simulator arm64)\n3. rustup target add x86_64-apple-ios (simulator x86_64, legacy)\n\nAcceptance: All 3 targets appear in rustup target list --installed | grep apple-ios.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:20:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:20:48Z",
+  "close_reason": "iOS Rust targets installed: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:20:15"
+    }
+  ]
+}

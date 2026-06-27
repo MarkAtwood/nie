@@ -1,0 +1,26 @@
+{
+  "id": "nie-hhmj.4",
+  "title": "RISK: SET_NICKNAME store error logged but response not guaranteed sent",
+  "description": "relay/src/ws.rs lines 418: store.try_set_nickname() error is logged with error!(). However, no error response is sent to the client. The client waits for either success or error and will time out after a few seconds. If nickname updates start failing (DB full, permissions issue), clients will hang briefly on each attempt, then time out and reconnect. A solo maintainer sees error logs but users see silent hangs. Risk: silent client hangs when store fails; poor UX and hard to correlate with error logs.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:16:56Z",
+  "closed_at": "2026-04-19T18:16:56Z",
+  "close_reason": "Duplicate of nie-hhmj.11 (same bug: try_set_nickname Err branch logs but sends no response). Tracked and will be fixed under nie-hhmj.11.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:23"
+    }
+  ]
+}

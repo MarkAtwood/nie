@@ -1,0 +1,21 @@
+{
+  "id": "AGORA-4uk",
+  "title": "JMAP Chat: local user-agent server bridging Agora relay",
+  "description": "Implement JMAP Chat support using the mailbox-per-user topology from draft-atwood-jmap-chat-00 (https://github.com/MarkAtwood/ideas/blob/main/draft-atwood-jmap-chat-00.md).\n\nThe Agora relay is a stateless message router and cannot be the JMAP server. Instead, the user agent (agora-cli) runs a local JMAP server on localhost. State lives on the user's machine. The relay is unchanged.\n\nArchitecture:\n\n  [JMAP client]\n        \u2195 JMAP over HTTP (localhost)\n  [agora-cli \u2014 local JMAP server + local SQLite message store]\n        \u2195 Agora WebSocket protocol (sealed_broadcast / sealed_deliver)\n  [Agora relay \u2014 unchanged, stateless]\n\nInbound: sealed_deliver \u2192 agent decrypts \u2192 inserts into local JMAP Message store \u2192 EventSource push to connected JMAP clients.\nOutbound: JMAP Message/set \u2192 agent encrypts \u2192 sealed_broadcast to relay.\n\nThe user's did:key IS their JMAP account identifier. E2EE is transparent to the JMAP client \u2014 the agent seals/unseals, the client sees plaintext.\n\nWork areas:\n\n1. Local HTTP listener: JMAP Core (RFC 8620) session endpoint, batch request handler, EventSource push.\n2. Local SQLite schema: Messages, Chats, Contacts (did:key \u2192 JMAP Contact), Reactions, Threads, ReadState, StateTokens.\n3. JMAP Chat types to implement: Chat, Message, Contact, ChatMember, Reaction, MessageRevision, Mention, Attachment (subset \u2014 not all 16 types needed for MVP).\n4. Bridge loop: Agora WS receive \u2192 decrypt \u2192 JMAP store insert \u2192 push state change.\n5. Bridge loop: JMAP Message/set \u2192 encrypt \u2192 sealed_broadcast.\n6. Reactions/edits/threads: define a small application-layer envelope schema on top of sealed payloads so peer agents can distinguish new messages from metadata updates.\n7. Multi-device: explicitly out of scope for MVP. Document the tradeoff (same as Signal \u2014 single device or manual backup).\n\nKnown hard parts:\n- JMAP state token machinery (/changes methods, state strings) is non-trivial to implement correctly.\n- Reactions and edits require a shared envelope schema that all peer agents agree on \u2014 this needs to be specced before implemented.\n- New installs have no history (accepted tradeoff for now).",
+  "design": "Mailbox-per-user topology (explicitly described in draft-atwood-jmap-chat-00). The relay's statelessness is preserved and becomes a privacy feature \u2014 the relay is just a sealed bus. Each user's agent is their own JMAP server. did:key maps cleanly as the JMAP account identifier. No relay changes required.",
+  "notes": "JMAP Chat draft lives at https://github.com/MarkAtwood/ideas/blob/main/draft-atwood-jmap-chat-00.md \u2014 16 data types defined, but MVP needs only the core subset. Federation (Peer/* methods) is explicitly out of scope \u2014 the relay handles routing.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "feature",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-23T03:51:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:39Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 20:56:31"
+    }
+  ]
+}

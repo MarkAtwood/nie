@@ -1,0 +1,22 @@
+{
+  "id": "nie-6tn",
+  "title": "Wallet SQLite schema: notes, witnesses, tx history",
+  "description": "Design and implement wallet DB schema. Tables: notes (txid, output_index, value, memo, spent), witnesses (per-note Merkle path updated each block), transactions (txid, height, direction, amount, memo, peer_pub_id). Use sqlx migrations.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:41:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:32:40Z",
+  "close_reason": "Migration v2 adds notes/witnesses/transactions tables. CRUD methods + 7 new tests including cascade-delete, witness upsert, v1\u2192v2 migration preservation.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:38"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "nie-li9e",
+  "title": "Review: bridge-jmap/slack/matrix/teams, wasm, ffi",
+  "notes": "Maintainer risk: MEDIUM — two echo-suppression gaps (wasm/ffi) are user-visible. Cleartext IndexedDB storage is a real security exposure for the WASM client.\nConfidence: 15% chance of missed bug. Uncertainty: no runtime test of relay echo behavior, no WASM integration test. Would raise confidence with a live test of WASM send_message confirming no self-deliver event fires.\nConfidence: 10% chance of missed bug. Uncertainty driven by: runtime WASM behavior (challenge hang scenario, IndexedDB interactions), and Teams webhook semantics not directly testable without a live Teams tenant. Would raise confidence if: integration tests existed for bridge auth handshakes and the WASM challenge timeout path. Maintainer risk: LOW — bridge code is well-structured, security-sensitive paths (HMAC verification, own-echo filtering, channel_id scoping) are all present and tested. The one new finding (teams_security_token base64 not validated at startup) is low severity. The self-oracle Teams test (nie-kef6.102) and the challenge hang (nie-li9e.3) remain the highest-priority open items in scope.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:52:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

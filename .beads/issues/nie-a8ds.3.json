@@ -1,0 +1,28 @@
+{
+  "id": "nie-a8ds.3",
+  "title": "BackgroundService.start() not guarded by _running \u2014 duplicate starts on reconnect",
+  "description": "BackgroundService._running is checked in stop() but not in start(). RelayService calls _bgService.start() (fire-and-forget) on every auth success. Auto-reconnect logic calls _doConnect() in a timer loop; each successful reconnect triggers start(), which calls _requestNotificationPermission() + invokeMethod('startService') even though the service is already running. The _running flag exists to prevent this \u2014 its asymmetric use (stop-only) will confuse the next person who reads it and assumes it gates both directions. Fix: add if (_running) return; at the top of start().",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:04:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:17:42Z",
+  "closed_at": "2026-04-24T01:17:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:04:24"
+    }
+  ]
+}

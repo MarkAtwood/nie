@@ -1,0 +1,27 @@
+{
+  "id": "nie-83e.2",
+  "title": "change output always goes to default_address \u2014 breaks transaction unlinkability",
+  "description": "build_shielded_tx step 10 calls sk.default_address() for every change output. All change across all transactions from the same account goes to the same address. An observer can link all transactions that receive change to one wallet \u2014 this breaks shielded unlinkability and violates the privacy model explicitly called out in CLAUDE.md \u00a7Fresh subaddress per payment. Fix: use sk.to_dfvk().find_address(diversifier_index) with a per-tx or DB-tracked diversifier index.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T00:48:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T00:58:21Z",
+  "closed_at": "2026-04-19T00:58:21Z",
+  "close_reason": "build_shielded_tx now takes change_diversifier_index: u128; change output uses sk.to_dfvk().find_address(change_diversifier_index) instead of default_address()",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 17:48:19"
+    }
+  ]
+}

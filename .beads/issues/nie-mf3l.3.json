@@ -1,0 +1,32 @@
+{
+  "id": "nie-mf3l.3",
+  "title": "nie-wasm: browser WebSocket transport + JSON-RPC client",
+  "description": "## What\nImplement a browser-native WebSocket client in `wasm/src/transport.rs` that speaks JSON-RPC 2.0, correlates responses to requests by id, and delivers notifications to a registered callback.\n\n## Algorithm\n1. Define structs in wasm/src/transport.rs:\n   - struct PendingRequest { resolve: futures::channel::oneshot::Sender<Result<serde_json::Value, JsonRpcError>> }\n   - struct WasmTransport { ws: web_sys::WebSocket, pending: Rc<RefCell<HashMap<u64, PendingRequest>>>, notify_cb: Rc<RefCell<Option<js_sys::Function>>>, next_id: Rc<Cell<u64>> }\n   - Note: Rc<RefCell<>> is used because WASM is single-threaded; Arc/Mutex not needed.\n2. impl WasmTransport:\n   - fn new(url: &str) -> Result<(WasmTransport, Promise), JsValue>:\n     * Create web_sys::WebSocket::new(url)?\n     * Set ws.set_binary_type(BinaryType::Arraybuffer) -- but use text frames (JSON)\n     * Create oneshot for open confirmation\n     * Set ws.set_onopen with Closure that resolves the open promise\n     * Set ws.set_onmessage with Closure that calls self.handle_message()\n     * Set ws.set_onerror with Closure that logs error and rejects pending requests\n     * Set ws.set_onclose with Closure that logs and cleans up\n     * Return (transport, open_promise)\n   - fn handle_message(&self, event: &MessageEvent):\n     * Get data as string: event.data().as_string()?\n     * Parse JSON: serde_json::from_str::<serde_json::Value>(&text)?\n     * If has 'id' field and no 'method': it's a response \u2192 dispatch to pending HashMap\n     * If has 'method' field and no 'id': it's a notification \u2192 call notify_cb(event_json)\n     * If parse fails: log warning and return (do NOT panic or disconnect)\n   - async fn send_request(&self, method: &str, params: serde_json::Value) -> Result<serde_json::Value, String>:\n     * Allocate id = next_id.increment\n     * Build JsonRpcRequest: {jsonrpc:'2.0', id, method, params}\n     * Insert oneshot sender into pending HashMap keyed by id\n     * ws.send_with_str(&json_text)?\n     * Await oneshot receiver (convert to JsFuture)\n     * Remove from pending on completion\n     * 30-second timeout via gloo_timers::future::TimeoutFuture OR setTimeout web-sys\n   - fn send_notification(&self, method: &str, params: serde_json::Value): fire-and-forget send\n   - fn set_notify_callback(&self, cb: js_sys::Function): stores callback\n   - fn close(&self): ws.close()\n3. All Closures must be set as Box::new(closure) and then forget()d (to avoid GC) OR stored as fields in WasmTransport to keep them alive.\n4. Do NOT use tokio anywhere. Use futures::channel::oneshot for request correlation.\n5. JSON-RPC 2.0 request format: {jsonrpc:'2.0', id:u64, method:string, params:object}\n   JSON-RPC 2.0 response format: {jsonrpc:'2.0', id:u64, result?:any, error?:{code:i32,message:string}}\n   JSON-RPC 2.0 notification format: {jsonrpc:'2.0', method:string, params?:object} (no id)\n\n## Defensive programming\n- Never panic on malformed JSON from relay \u2014 log warning, continue\n- Pending requests must be cleaned up on WS close (reject all with 'disconnected' error)\n- 30-second timeout for every request; remove from pending on timeout\n- Never call unwrap() on user-supplied data (relay messages)\n- The only unwrap() allowed: serde_json::to_string() on derived Serialize (cannot fail)\n\n## Agent team\nResearcher: read web-sys WebSocket API source in ~/.cargo/registry; read nie-core protocol.rs for JSON-RPC types.\nImplementer: write wasm/src/transport.rs following the algorithm above.\nTester: write wasm tests (in W2B bead) that verify JSON-RPC parsing.\n\n## Tests\n- cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0\n- No clippy warnings: cargo clippy --target wasm32-unknown-unknown -p nie-wasm -- -D warnings",
+  "acceptance_criteria": "cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0 after this file is implemented; clippy clean; JSON-RPC id correlation logic present in source",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:53:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T02:04:01Z",
+  "close_reason": "WASM WebSocket transport implemented; cargo check wasm32 passes; cargo clippy -D warnings passes",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:47"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:53:46"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:47"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.2",
+  "title": "parse_proxy_addr: IPv6 proxy addresses not handled",
+  "description": "parse_proxy_addr uses rsplit_once(':') to split host and port. For an IPv6 proxy URL such as socks5://[::1]:9050:\n\n1. After stripping the 'socks5://' prefix, addr = '[::1]:9050'\n2. rsplit_once(':') gives host='[::1]', port_str='9050'\n3. The brackets are NOT stripped, so tokio-socks receives '[::1]' as the proxy host\n\nWhether tokio-socks handles bracketed IPv6 addresses is untested. In most TCP resolver implementations, '[::1]' (with brackets) is not a valid hostname and will fail to connect with an opaque error.\n\nNo validation rejects or warns about IPv6 addresses, so a user who configures socks5://[::1]:9050 gets a silent connect failure rather than a clear 'IPv6 proxy addresses are not supported' error.\n\nFile: core/src/transport.rs, function parse_proxy_addr (~line 423).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:26Z",
+  "closed_at": "2026-04-19T19:30:57Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:21"
+    }
+  ]
+}

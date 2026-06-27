@@ -1,0 +1,28 @@
+{
+  "id": "nie-zd3.3",
+  "title": "passphrase prompt text misrepresents blank-passphrase semantics",
+  "description": "Prompt says 'leave blank to disable payment address generation' but blank just passes '' as the passphrase \u2014 whether it disables depends on whether the wallet was initialized with a passphrase. A user who init'd with --no-passphrase and leaves this blank gets the wallet working correctly. A user who init'd with a passphrase and accidentally presses Enter gets a decrypt failure with the correct 'disabled' message. The prompt text overpromises: it implies blank always disables, but it only disables when the decrypt fails. This will generate issue reports from users who init'd with --no-passphrase and expect 'blank = disable' to work as documented.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:16:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T23:36:58Z",
+  "closed_at": "2026-04-18T23:36:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:16:55"
+    }
+  ]
+}

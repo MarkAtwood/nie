@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-0pne.5",
+  "title": "lwd_endpoints build: second block missing comment",
+  "description": "In commands.rs there are two identical Vec<String> construction blocks for lwd_endpoints (one inside send_fn_box around line 198, one inside spawn_block_watcher setup around line 395). The first block has a three-line comment explaining why a user-supplied override is used exclusively vs network defaults. The second block has no comment. A reader maintaining the watcher path does not get the same context. The comment should be duplicated (or the construction extracted into a helper).",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T15:29:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:08Z",
+  "closed_at": "2026-04-22T13:43:44Z",
+  "close_reason": "Closed",
+  "labels": [
+    "readability"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 08:29:29"
+    }
+  ]
+}

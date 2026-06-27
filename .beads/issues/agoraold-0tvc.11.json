@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-0tvc.11",
+  "title": "nie-daemon E2E: two daemons exchange a message via relay",
+  "description": "**What:** End-to-end test verifying that Alice sends a chat message via her daemon's REST API and Bob receives it via his daemon's WebSocket /ws/events \u2014 exercising the full stack: browser API \u2192 nie-daemon \u2192 relay \u2192 nie-daemon \u2192 WebSocket.\n\n**Algorithm:**\n1. Add to daemon/tests/e2e.rs (requires --ignored tag, two daemon instances + relay):\n2. Test: test_two_daemon_message_exchange:\n   a. Spawn relay on random port (reuse spawn_relay from relay tests)\n   b. Generate two identities (Alice, Bob) in tmp dirs\n   c. Start Alice daemon on port A connecting to relay\n   d. Start Bob daemon on port B connecting to relay\n   e. Wait until both daemons report relay connected (poll /health + /api/users for each other, timeout 10s)\n   f. Bob connects WS /ws/events with Bob's token\n   g. Alice: POST /api/send { text: 'hello from alice' } with Alice's token\n   h. Bob's WS: await next event, timeout 10s\n   i. Assert: event.type == 'message_received', event.text == 'hello from alice'\n   j. Assert: event.from == Alice's pub_id (64 hex chars)\n   k. Cleanup: stop both daemons, relay\n\n**Defensive programming rules:**\n- All waits use tokio::time::timeout \u2014 never infinite\n- 10s timeout on relay sync (step e), 10s timeout on WS event (step h)\n- Cleanup runs even on test failure (use Drop guard)\n- Assert pub_id structural format: length 64, all hex chars\n\n**Agent team:** Implementer (reads relay/tests/stress.rs for spawn_relay pattern) + Validator.\n\n**Tests:** This is the E2E test. Oracle: known message string 'hello from alice' is the expected value sent by Alice; Bob receives it unmodified. Independent oracle confirmed by round-trip through relay (two separate processes).\n\nRun with: cargo test -p nie-daemon e2e -- --ignored",
+  "acceptance_criteria": "cargo test -p nie-daemon e2e -- --ignored passes within 30s; event.text matches exactly; cargo clippy -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:40:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:22Z",
+  "closed_at": "2026-04-20T00:12:50Z",
+  "close_reason": "E2E test implemented: daemon/tests/e2e.rs \u2014 two daemon instances exchange via relay, passes in <1s",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:15"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:40:53"
+    }
+  ]
+}

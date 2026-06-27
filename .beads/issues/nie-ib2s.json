@@ -1,0 +1,32 @@
+{
+  "id": "nie-ib2s",
+  "title": "Chat and Message basic methods",
+  "description": "Implement Chat/get, changes, set, query, queryChanges and Message/get, changes, set (create only), query, queryChanges. Chat kinds: direct (maps to nie whisper) and group (maps to nie group_*). Message/set create: serialize to ClearMessage, MLS encrypt, send via relay, store locally with ULID. Message/query requires chatId filter; servers MUST return unsupportedFilter if chatId filter is absent. Default sort receivedAt ascending. unreadCount tracking.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T19:54:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T22:11:20Z",
+  "close_reason": "Implemented: ChatContact/get|changes|set|query|queryChanges, Chat/get|changes|query, Message/get|changes|set|query|queryChanges. All tests pass.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:54:57"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:54:58"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:54:59"
+    }
+  ]
+}

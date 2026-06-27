@@ -1,0 +1,25 @@
+{
+  "id": "nie-4iod.28",
+  "title": "MAINTAINER: amount_zatoshi parsed via best-effort unwrap_or(0), silent precision loss",
+  "description": "In dispatcher.rs line 58, amount is parsed as 'amount.trim().parse::<u64>().unwrap_or(0)'. If the relay sends '0.5 ZEC' and parsing fails, the bot emits amount_zatoshi=0 with no error. A payment request for 0 satoshi looks successful but the user hasn't actually been told to pay. In 6 months, if someone reviews payment logs and sees zero payments, they won't know if it's legitimate (free test) or a parsing bug. Fix: log a warning when amount parsing fails, and consider returning Err instead of silently using 0.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:14:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:21:13Z",
+  "closed_at": "2026-04-20T01:21:13Z",
+  "close_reason": "duplicate of nie-4iod.25 (same amount bug) and nie-4iod.26",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:14:34"
+    }
+  ]
+}

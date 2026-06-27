@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-1on",
+  "title": "nie-cli: config, commands, main",
+  "description": "Write all source files for nie-cli crate from scratch.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T04:37:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-16T04:40:12Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 21:37:09"
+    }
+  ]
+}

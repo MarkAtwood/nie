@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.3",
+  "title": "transport: parse_incoming silently drops malformed response, hanging caller",
+  "description": "parse_incoming() in transport.rs returns None when a JSON-RPC response (has 'id' field) fails serde deserialization. The None causes the reader task to skip the event and not deliver anything on in_tx. Any caller that sent a request and is waiting for a Response event on the channel will hang indefinitely \u2014 there is no timeout and no error delivered. Trigger: the relay sends a response whose shape is valid JSON with an 'id' field but is not a well-formed JsonRpcResponse (e.g. missing 'jsonrpc' field or 'id' not a u64). Affected callers: GetKeyPackage, SubscribeRequest, and any future post-auth request-response flow in commands.rs.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:48:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:48:41Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:48:40"
+    }
+  ]
+}

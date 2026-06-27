@@ -1,0 +1,27 @@
+{
+  "id": "nie-bqoo.5",
+  "title": "try_set_nickname: ambiguous error distinguishes two different failure modes",
+  "description": "try_set_nickname returns Ok(false) and the SET_NICKNAME handler sends NICKNAME_TAKEN/'nickname already set and cannot be changed' for two distinct cases: (1) this pub_id already has a nickname set (immutable-nickname rule), (2) another pub_id holds this nickname (uniqueness). A user who tries to claim a taken name cannot tell whether they must choose a different name (case 2) or have already set their nickname and cannot change it (case 1). This generates user confusion and support load. The fix is two distinct error codes and messages.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:08:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:21:53Z",
+  "closed_at": "2026-04-26T08:21:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:08:20"
+    }
+  ]
+}

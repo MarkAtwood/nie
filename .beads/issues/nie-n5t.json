@@ -1,0 +1,21 @@
+{
+  "id": "nie-n5t",
+  "title": "Relay: At-least-once delivery with client ack",
+  "description": "Current delivery is at-most-once: relay drain()s the queue (deletes rows), then delivers. If the WebSocket write fails mid-drain, the messages are gone.\\n\\nRequired:\\n- Add delivered_at column to message_queue (nullable)\\n- drain() fetches but does NOT delete \u2014 marks delivered_at = now()\\n- Client sends DeliverAck{message_id} after processing each Deliver\\n- Relay deletes row on DeliverAck receipt\\n- Redelivery: on reconnect, redeliver rows where delivered_at IS NULL OR delivered_at < (now - 1h)\\n- Client must deduplicate by envelope id (Uuid) to handle redelivery\\n- purge_expired() also purges delivered rows after 24h",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T07:11:38Z",
+  "closed_at": "2026-04-16T07:11:38Z",
+  "close_reason": "at-least-once queue delivery references drain()/DeliverAck architecture that was removed in broadcast redesign. Broadcast model delivers only to live connections; at-least-once is a future concern if reconnect+replay is added.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 22:51:30"
+    }
+  ]
+}

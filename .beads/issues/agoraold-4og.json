@@ -1,0 +1,20 @@
+{
+  "id": "agoraold-4og",
+  "title": "Review: nie-wallet payment stack (5 commits)",
+  "description": "Deep pre-merge MY-OSS review of commits bc8cb12..21f531e: shielded tx builder, error types, db migration, /pay dispatch, post-review fixes.",
+  "notes": "Maintainer risk: MEDIUM — two P2 UX gaps (silent payment stall on reconnect, silent auto-payment disable) will generate user reports. One P1 crash-recovery bug (Payee/Sent resync gap) is low-frequency but correctness-relevant.\nConfidence: 8% chance of missed bug. Uncertainty driven by: (1) resync_sessions state machine was not fully traced against the live dispatch_payment transitions — a full state-matrix audit would raise confidence; (2) happy-path tx tests require real Sapling params and don't run in CI without them, so the proof-generation path has lower test coverage than the error paths. Would raise confidence if: a full (role, state, action) matrix test were added to payment tests, and the params-present happy-path tests were run and passing.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:19:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T04:42:19Z",
+  "close_reason": "implemented",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

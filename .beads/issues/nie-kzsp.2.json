@@ -1,0 +1,25 @@
+{
+  "id": "nie-kzsp.2",
+  "title": "Test verifies description names the offending field \u2014 prevents description regression",
+  "description": "The tests assert description.contains('position') and description.contains('limit'), not just that the error type is invalidArguments. This is the right oracle \u2014 a future change that removes the description (e.g. switching back to method_error) would fail the test immediately. A contributor might suggest weakening these assertions to just check the type; resist this, the description is part of the user-facing contract.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:01:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:02:03Z",
+  "closed_at": "2026-04-24T17:02:03Z",
+  "close_reason": "Decision record only",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:01:53"
+    }
+  ]
+}

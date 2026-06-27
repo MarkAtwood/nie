@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmwv.10",
+  "title": "wasm/client: unbounded online_users growth on user_joined without directory_list reset",
+  "description": "In wasm/src/client.rs set_event_callback(), user_joined events call users.insert(pos, new_user) but there is no cap on the online_users Vec. The relay should send directory_list periodically to reset the list, but if the relay only sends user_joined notifications (e.g. on reconnect without a fresh directory_list), the Vec can grow unbounded. If the relay is compromised or buggy and sends many spurious user_joined events with distinct pub_ids, this grows the WASM heap without limit. The directory_list handler correctly calls users.truncate(MAX_USERS_IN_DIRECTORY) but the user_joined path does not.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:49:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:00:55Z",
+  "closed_at": "2026-04-26T12:00:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:49:25"
+    }
+  ]
+}

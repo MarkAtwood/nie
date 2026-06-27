@@ -1,0 +1,27 @@
+{
+  "id": "nie-mf3l.9",
+  "title": "E2E: WASM protocol integration test",
+  "description": "## What\nWrite a Rust integration test in `relay/tests/` that verifies the JSON-RPC 2.0 protocol sequence the WASM client will use, exercising: connect \u2192 auth \u2192 broadcast \u2192 deliver \u2192 disconnect. This is a protocol-level proxy for the full browser E2E test.\n\n## Algorithm\n1. Create relay/tests/wasm_protocol.rs\n2. Spin up a test relay (same pattern as relay/tests/stress.rs):\n   - Start relay in-process with a temp SQLite file\n   - Get the local address\n3. Implement a minimal JSON-RPC 2.0 client in the test (using tokio-tungstenite directly):\n   - connect_rpc(addr) -> (WsSink, WsStream)\n   - send_request(sink, id, method, params) -> ()\n   - recv_message(stream) -> serde_json::Value\n4. Execute auth sequence:\n   a. Receive challenge notification from relay (method == 'challenge')\n   b. Generate test identity: Identity::generate()\n   c. Sign challenge: auth::sign_challenge(&identity, &nonce)\n   d. Send authenticate request with correct params\n   e. Assert response: result.pub_id == identity.pub_id().0\n   f. Assert result.sequence is a u64\n5. Execute messaging sequence:\n   a. Connect a SECOND client with a different identity, authenticate it\n   b. Client 1 sends broadcast with payload = base64(JSON of ClearMessage::Chat { text: 'hello' })\n   c. Assert client 1 receives ack with message_id (UUID hyphenated string)\n   d. Assert client 2 receives deliver notification with from == client1.pub_id and same payload\n   e. Assert relay did NOT modify or deserialize the payload (verify payload bytes are identical)\n6. Execute disconnect: close client connections\n7. Test MUST NOT modify any existing test file or break existing tests.\n\n## Defensive programming\n- Test uses real relay (no mocking), so auth and routing logic is exercised end-to-end\n- Payload bytes verified bit-for-bit: relay must not modify opaque payload\n- Test is self-contained: spins up relay, runs, tears down \u2014 no external services needed\n- Never hardcode timeouts shorter than 5 seconds (CI can be slow)\n\n## Agent team\nStandard team (Researcher + Implementer + Tester + Validator):\n- Researcher: read relay/tests/stress.rs for relay startup pattern; read core/src/auth.rs for sign_challenge.\n- Implementer: write relay/tests/wasm_protocol.rs.\n- Validator: cargo test -p nie-relay -- wasm_protocol exits 0.\n\n## Tests\n- cargo test -p nie-relay -- wasm_protocol::test_auth_and_broadcast exits 0\n- Payload integrity assertion passes (deliver payload == sent payload)\n- Auth rejection test: wrong signature returns error code -32001",
+  "acceptance_criteria": "cargo test -p nie-relay -- wasm_protocol exits 0; tests cover: auth success, auth rejection (wrong sig), broadcast + deliver round-trip, payload byte-for-byte integrity",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:55:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:16:22Z",
+  "closed_at": "2026-04-20T02:16:22Z",
+  "close_reason": "E2E protocol integration test passing: auth success, auth rejection (-32001), broadcast+deliver round-trip, payload byte-for-byte integrity",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:37"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:56"
+    }
+  ]
+}

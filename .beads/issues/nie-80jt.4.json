@@ -1,0 +1,25 @@
+{
+  "id": "nie-80jt.4",
+  "title": "daemon store: set_member_role accepts unchecked &str role; invalid roles persist silently",
+  "description": "daemon/src/store.rs:601 set_member_role() takes role: &str and binds it directly to SQL with no validation. Any string (empty, 'superadmin', garbage) is written to space_member.role. get_space_member_role() calls SpaceRole::parse() which returns None for unknown values, making the record effectively invisible to authorization checks. Fix: change signature to role: SpaceRole and call role.as_str() before binding, matching the pattern in upsert_space_member_with_role() on line 580.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:08:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:20:31Z",
+  "closed_at": "2026-04-24T19:20:31Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:08:33"
+    }
+  ]
+}

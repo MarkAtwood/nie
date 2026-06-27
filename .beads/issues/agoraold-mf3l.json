@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-mf3l",
+  "title": "Phase 4e: WebAssembly pure-browser client",
+  "description": "Compile nie-core to WebAssembly so a user can chat (and eventually pay) directly in a browser tab with no local daemon or installed software. Key material lives in browser storage \u2014 weaker than a native process but good for onboarding and low-trust devices.\n\n## Scope\n\n### Phase 1: chat-only WASM build\n- Compile nie-core to wasm32-unknown-unknown with wasm-pack\n- Audit all deps for WASM compatibility:\n  - getrandom: requires js feature (getrandom/js)\n  - ring/aws-lc-rs: does not support WASM \u2014 must replace with pure-Rust alternatives (ed25519-dalek already used, should be fine)\n  - tokio: replace with wasm-bindgen-futures + browser setTimeout for async\n  - SQLite (sqlx): not available in WASM \u2014 replace wallet store with IndexedDB (idb crate or raw web-sys bindings)\n- Identity key storage: SubtleCrypto non-extractable key in IndexedDB (best available in browser)\n- WebSocket: use browser native WebSocket (web-sys), not tokio-tungstenite\n- UI: reuse nie-web JS/HTML from nie-0tvc, replace daemon API calls with direct WASM function calls\n- Implements JSON-RPC 2.0 client (nie-hlns) directly in the browser\n\n### Phase 2: wallet in WASM (deferred, hard)\n- Sapling proving parameters (~47 MB download) must be fetched and cached in browser (Cache API)\n- Sapling circuit (bellman/groth16) in WASM: possible but slow (~10-30s prove time without SIMD)\n- WASM SIMD (wasm32 simd128) can reduce prove time; requires opt-in and browser support check\n- Alternative: offload proving to a trusted server (breaks privacy model) \u2014 document the tradeoff explicitly\n\n## What does NOT work in WASM\n- Persistent background connection (browser kills tabs)\n- Filesystem access for key backup (offer export/import flow instead)\n- Native push notifications without a service worker\n\n## Dependencies\n- nie-hlns (JSON-RPC protocol) \u2014 WASM client implements the wire protocol directly\n- nie-0tvc (JSON daemon + browser client) \u2014 shares the nie-web HTML/JS UI layer",
+  "notes": "Review converged after 2 rounds. Round 1: P0=1, P1=7, P2=9 \u2014 all fixed. Round 2: P0=0 P1=0 P2=0. Review epics: nie-7bv6 (round 1), nie-rwr0 (round 2). 7 P3 concerns tracked as backlog.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:43:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T02:16:24Z",
+  "close_reason": "all steps complete",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:43:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:43:49"
+    }
+  ]
+}

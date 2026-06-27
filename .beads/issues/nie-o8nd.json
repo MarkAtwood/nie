@@ -1,0 +1,14 @@
+{
+  "id": "nie-o8nd",
+  "title": "(BUG) cli: SEALED_WHISPER_DELIVER Welcome accepted without sender check",
+  "description": "In commands.rs around line 1612-1666, when a SEALED_WHISPER_DELIVER arrives before MLS is active, the code only checks that online is non-empty before calling mls.join_from_welcome(). The WhisperDeliver path (line 1048) additionally verifies that the sender is online[0] (the MLS admin). The SEALED_WHISPER_DELIVER path skips this sender-identity check entirely because the relay strips the 'from' field for sealed whispers. The comment at line 1611 acknowledges this: 'The WhisperDeliver path enforces the stricter sender == admin[0] check where the sender is known.' The result is that any relay-authenticated peer can send a SEALED_WHISPER_DELIVER carrying a crafted Welcome message that pulls the recipient into an attacker-controlled group — the only mitigation is that the relay authentication must have been passed. Fix: either (a) reject SEALED_WHISPER_DELIVER-based Welcomes entirely (requiring Welcomes to use the identified WhisperDeliver path where the sender can be verified), or (b) include the sender pub_id in the SEALED_WHISPER_DELIVER params even for sealed delivery (relay can include the authenticated sender; the seal prevents the relay from reading the plaintext).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:16:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:23:38Z",
+  "closed_at": "2026-04-26T09:23:38Z",
+  "close_reason": "Closed"
+}

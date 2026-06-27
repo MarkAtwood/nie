@@ -1,0 +1,26 @@
+{
+  "id": "nie-qgag.5",
+  "title": "subscription_active flag set via string contains() on JSON",
+  "description": "write_task checks json.contains(r#\"\"method\":\"subscription_active\"\"#) to update subscribed_flag. This is a substring match on a pre-serialized JSON string. If any field in a legitimate payload ever contains that exact substring (e.g. a message body discussing subscription_active), the flag is spuriously set to true, granting send permission to an unsubscribed user for the duration of the session. Use a proper typed signal (e.g. a bool channel or a dedicated BusMessage variant) instead of string sniffing.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:53:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:36:03Z",
+  "closed_at": "2026-04-25T04:36:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:53:18"
+    }
+  ]
+}

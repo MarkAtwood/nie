@@ -1,0 +1,26 @@
+{
+  "id": "nie-f0pz.6",
+  "title": "TUI: sealed_deliver passes empty string as from_pub_id to decrypt_and_display",
+  "description": "tui/src/event.rs handle_relay_event for SEALED_DELIVER calls decrypt_and_display(state, \"\", &plaintext) \u2014 the empty string for from_pub_id. decrypt_and_display uses from_pub_id as the 'effective_from' fallback when MLS is inactive, meaning sealed messages arriving before MLS activation are attributed to an empty pub_id string. In the MLS-active path, effective_from comes from mls.process_incoming \u2014 correct. But there is a window: the guard at line 389 says 'Drop sealed messages that arrive before our Welcome', but MLS is checked after the unseal \u2014 if mls_active is false the message is dropped but decrypt_and_display has already been called (it returns Ok(()) for None from process_incoming when inactive). The empty from_pub_id is only used in the fallback path but the fallback produces a display_name of the empty string which renders as an 8-char ellipsis (display_name('') returns '' since len is not > 8).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:25:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:37:37Z",
+  "closed_at": "2026-04-26T06:37:37Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:25:53"
+    }
+  ]
+}

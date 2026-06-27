@@ -1,0 +1,15 @@
+{
+  "id": "nie-otlb",
+  "title": "Native desktop apps",
+  "description": "GUI client for macOS, Windows, and Linux — installable without a terminal.\\n\\nRequired:\\n- Framework decision: Tauri (Rust backend + webview) is the leading candidate; avoids duplicating nie-core logic\\n- nie-core compiled as a native library, called from the Tauri backend\\n- Screens: chat room, contacts/online list, wallet (balance, send, receive), settings\\n- System tray integration with unread message badge\\n- Native notifications for incoming messages\\n- Key backup UI: display seed phrase / QR code, import from backup file\\n- Auto-update mechanism\\n- Signed installers for macOS (.dmg) and Windows (.msi); AppImage/deb/rpm for Linux",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-20T17:13:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T16:54:48Z",
+  "close_reason": "Tauri 2 desktop skeleton complete: init_identity, connect_relay, send_chat commands; nie://message event loop; HTML chat UI; 3 tests pass; cargo check clean"
+}

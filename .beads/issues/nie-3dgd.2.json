@@ -1,0 +1,24 @@
+{
+  "id": "nie-3dgd.2",
+  "title": "Document AsyncRW trait usage pattern in transport.rs",
+  "description": "AsyncRW trait (lines 21-24) has a brief comment explaining it unifies TcpStream and Socks5Stream, but doesn't explain the key insight: why it's necessary for ws_upgrade_and_auth<S: AsyncRW> to be generic over the stream type. A future contributor adding IPv6 SOCKS5 support or modifying the proxy path might not realize that both branches (lines 274-297) must produce types implementing AsyncRW, and could introduce a type mismatch. Add a doc comment to ws_upgrade_and_auth explaining: 'Generic over S: AsyncRW so both Socks5Stream (proxy path) and TcpStream (direct path) can use the same WebSocket upgrade logic.'",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:11:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:16:14Z",
+  "closed_at": "2026-04-19T19:16:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "readability"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:11:06"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.5",
+  "title": "SEC3: notify callback fires JS call with discarded Result",
+  "description": "transport.rs line 115-118: the notification path calls `f.call1(...).map(...)` but the result of `Option::map` is discarded (the outer expression is just a statement). The inner `f.call1()` returns `Result<JsValue, JsValue>`; if the JS callback throws, the error is silently swallowed with no log. Either log the error (`if let Err(e) = f.call1(...) { console::warn(...) }`) or accept the discard explicitly with `let _ = f.call1(...)`. The current `.map(...)` form looks intentional but achieves nothing and will confuse a reader.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:30:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:47:56Z",
+  "closed_at": "2026-04-20T02:47:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:30:59"
+    }
+  ]
+}

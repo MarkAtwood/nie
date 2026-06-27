@@ -1,0 +1,18 @@
+{
+  "id": "nie-h0ci",
+  "title": "Shell injection boundary: shlex split instead of sh -c",
+  "description": "GOOD CHOICE: /! command handler uses shlex::split() + Command::new(\u0026argv[0]).args(\u0026argv[1..]) instead of sh -c (event.rs 975-1000). This prevents shell metacharacters (|, ;, \u0026\u0026, , \u003e) from being interpreted.\n\nThe comment explicitly marks this as a SECURITY boundary: 'SECURITY: shlex split prevents shell injection — do NOT change to sh -c'.\n\nA contributor might suggest 'sh -c' for \"full shell support\", but that would enable exfiltration: /! echo hi; cat ~/.ssh/id_rsa would leak the SSH key to all chat participants. The shlex boundary is intentional and load-bearing.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:28:22Z",
+  "closed_at": "2026-04-22T06:28:22Z",
+  "close_reason": "Verified invariant holds; nie-5xf0 documented in DESIGN.md §16 UTF-8 cursor boundary invariant; nie-pjxx and nie-h0ci already documented in DESIGN.md",
+  "labels": [
+    "review"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-hhmj.1",
+  "title": "RISK: send_client_error called with .ok() swallows delivery failures",
+  "description": "relay/src/ws.rs lines 352, 407, 466, 514, 553: send_client_error() awaited as .await.ok() silently drops SendError. When the client channel is full or closed, the error is swallowed with no log or reconnection attempt. A solo maintainer encountering 'client stopped responding to error messages' will have zero diagnostic information. This pattern appears in BROADCAST, SET_NICKNAME, PUBLISH_KEY_PACKAGE, GET_KEY_PACKAGE, WHISPER handlers. Risk: operator blinded to client communication failures.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:48Z",
+  "closed_at": "2026-04-19T18:16:26Z",
+  "close_reason": "False positive. CLAUDE.md \u00a78: mpsc::Sender::send() Err means client disconnected \u2014 treat as clean exit, not relay error. .ok() is the documented correct pattern.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:10"
+    }
+  ]
+}

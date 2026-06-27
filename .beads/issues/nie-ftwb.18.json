@@ -1,0 +1,27 @@
+{
+  "id": "nie-ftwb.18",
+  "title": "message_set readAt: client-supplied timestamp stored verbatim without RFC 3339 validation",
+  "description": "jmap.rs message_set update, readAt path: Phase 1 checks only that the value is a string (value.as_str().is_some()), not that it is a valid timestamp. Phase 2 passes the raw string to store.read_message(msg_id, ts) which writes it to the read_at column. An authenticated client can store any string in read_at (e.g. 'not-a-date', SQL injection attempt \u2014 ineffective via parameterized query but stored as garbage). Comparing read_at to datetime() functions in future queries would silently fail or produce wrong results. Suggested fix: validate with chrono::DateTime::parse_from_rfc3339 before accepting, same as senderExpiresAt.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:58:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:05:21Z",
+  "closed_at": "2026-04-26T08:05:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:58:13"
+    }
+  ]
+}

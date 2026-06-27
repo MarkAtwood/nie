@@ -1,0 +1,14 @@
+{
+  "id": "nie-i20r",
+  "title": "ws: GET_KEY_PACKAGE and GET_HPKE_KEY accept arbitrary pub_id without format validation",
+  "description": "Both GET_KEY_PACKAGE (ws.rs line 956) and GET_HPKE_KEY (line 1096) accept a params.pub_id from the caller and pass it directly to store queries without validating it is 64 lowercase hex chars. WHISPER, SEALED_WHISPER, and GROUP_ADD all validate their target pub_id with the 64-char hex check before the DB call. GET_KEY_PACKAGE and GET_HPKE_KEY are inconsistent: an attacker can pass a multi-kilobyte string as pub_id, injecting an arbitrarily-sized string into every DB query that touches the key_packages or hpke_keys tables. The DB queries are parameterized so SQL injection is not possible, but the missing check allows resource waste (large string allocation per DB round-trip) and fingerprinting (timing oracle: a 64-char valid pub_id that exists returns Some, one that does not returns None, but an invalid format is indistinguishable from a not-found result). Fix: add the same len==64 + all lowercase hex check present in WHISPER before the store call, and return INVALID_PARAMS if invalid.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:51:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:59:36Z",
+  "closed_at": "2026-04-26T04:59:36Z",
+  "close_reason": "Closed"
+}

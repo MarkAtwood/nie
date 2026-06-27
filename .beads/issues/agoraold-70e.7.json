@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-70e.7",
+  "title": "startup expiry issues N individual upsert_session calls instead of one SQL",
+  "description": "commands.rs:149-169 \u2014 on startup, the code iterates all non-terminal sessions and calls upsert_session individually for each expired one. For N expired sessions this is N async DB round-trips. A single bulk UPDATE would be: UPDATE payment_sessions SET state='expired', updated_at=? WHERE state NOT IN ('confirmed','failed','expired') AND updated_at < ?\n\nNot a correctness issue at current scale (sessions are few). The concern is that this loop-per-row pattern establishes a precedent that will be copied for future startup checks.\n\n**Why:** SQLite round-trips over a local file are cheap but not free; the pattern grows O(N).\n**How to apply:** Replace the loop with a bulk UPDATE query. The println per expired session can be replaced with a single summary after the update.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:56:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:35Z",
+  "closed_at": "2026-04-18T15:58:26Z",
+  "close_reason": "Fixed: added expire_stale_sessions_before(now_ts, cutoff) bulk SQL UPDATE to WalletStore. commands.rs startup expiry now issues one DB call instead of N. Added expire_stale_sessions_bulk test.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:56:07"
+    }
+  ]
+}

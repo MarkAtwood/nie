@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-3om.2",
+  "title": "spendable_notes() returns notes from all accounts despite account param",
+  "description": "db.rs spendable_notes(account) rejects account != 0 in Rust but the SQL query has no account_index filter \u2014 it returns ALL unspent notes regardless of account. Trigger: wallet has notes from multiple accounts (currently impossible since multi-account is not supported, but the guard is not in SQL). Bad behavior: when multi-account support lands and a migration adds account_index, this function silently mixes notes from all accounts because the SQL WHERE clause does not filter by account. The Rust guard is the only enforcement and it only blocks account != 0, not cross-account mixing for account 0. The guard comment acknowledges this but the SQL is the wrong place to leave this unfixed \u2014 a future migration that adds account_index without updating this query will silently corrupt note selection for account 0 by mixing in other accounts' notes.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:54:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:38Z",
+  "closed_at": "2026-04-19T04:06:37Z",
+  "close_reason": "Already addressed: db.rs lines 558-561 document the limitation and prescribe the fix (add account_index column + WHERE clause) for when multi-account lands. Current single-account guard is correct.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:54:00"
+    }
+  ]
+}

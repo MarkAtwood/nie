@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-8lcm.14",
+  "title": "GOOD: explicit drop() before TempDir cleanup",
+  "description": "In testnet_wallet_address_generation() and testnet_shielded_payment_end_to_end(), WalletStore handles are explicitly dropped before the TempDir goes out of scope. SQLite keeps file handles open until the connection pool is dropped. On Linux this does not prevent directory removal, but it does prevent the sqlite WAL and SHM files from being left open while the directory is deleted, which produces confusing error output. The explicit drop() makes the intended cleanup order clear as documentation, and is correct behavior on Windows where open handles block directory removal.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:13Z",
+  "closed_at": "2026-04-20T05:10:01Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:52"
+    }
+  ]
+}

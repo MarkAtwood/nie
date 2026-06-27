@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-3om.11",
+  "title": "send_payment step numbering skips step 7 \u2014 docs say 9 steps, comment labels jump 6\u21928",
+  "description": "payment.rs send_payment has a 9-step docstring (steps 1-9) and inline comments. The comment before broadcast says '// Step 8: Broadcast.' \u2014 step 7 (described in the doc as 'Build the signed transaction') appears without a step comment label in the inline code (step 6 comment exists, then step 8 appears next). The missing '// Step 7:' comment causes the reader to think there are only 8 steps, or that there is a step-numbering error. This is confusing to a contributor auditing the function against the docs. What would make it clear: add '// Step 7: Build the signed transaction.' comment before build_shielded_tx call, aligning with the docstring.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:55:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:09Z",
+  "closed_at": "2026-04-19T04:10:37Z",
+  "close_reason": "Fixed: updated doc comment (removed stale step 3 'Load params', renumbered 4-9 to 3-8) and updated inline step labels to match (Step 8\u21927 for broadcast, Step 9\u21928 for best-effort).",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:55:37"
+    }
+  ]
+}

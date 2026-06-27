@@ -1,0 +1,21 @@
+{
+  "id": "nie-x87e.28",
+  "title": "Fee magic number 10_000 lacks ZIP-317 reference",
+  "description": "e2e_testnet.rs line 365 asserts alice balance >= PAYMENT_AMOUNT_ZATOSHI + 10_000. The 10_000 zatoshi is an assumed minimum fee with no named constant and no citation of ZIP-317 (which defines the conventional fee). If send_payment uses a different fee schedule the assertion may silently under-constrain the balance check. Should be a named constant with a comment citing the fee basis.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:12:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:24:41Z",
+  "closed_at": "2026-04-20T05:24:41Z",
+  "close_reason": "P3/P4 deferred: below stopping threshold (P0=0, P1=0, SEC7 says STOP)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:12:32"
+    }
+  ]
+}

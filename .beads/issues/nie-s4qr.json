@@ -1,0 +1,17 @@
+{
+  "id": "nie-s4qr",
+  "title": "Review: core/transport/mls/state/wallet/ffi/wasm round 21",
+  "notes": "Maintainer risk: HIGH — MLS credential spoofing (nie-s4qr.14), WASM PoW incompatibility (nie-s4qr.10), and permanent-disconnect silencing (nie-s4qr.6 + nie-s4qr.11) are the three highest-consequence issues for future maintainers: they affect security, feature parity, and operational observability respectively.\nConfidence: 20% chance of missed bug. Uncertainty driven by: (1) MLS credential validation path not fully traced into openmls internals — unsure if openmls enforces any constraints on BasicCredential content; (2) wasm transport.rs JS event handler lifecycle not verified against browser GC semantics; (3) payment.rs change diversifier race between concurrent send_payment calls not analyzed (subscription_alloc_lock exists in relay but not in payment path). Would raise confidence if: full tracing of openmls validate() in add_member_to_group to confirm it rejects spoofed credentials; test coverage of wasm reconnect behavior; review of whether payment.rs next_diversifier is protected from concurrent access.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:12:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

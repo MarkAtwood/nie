@@ -1,0 +1,17 @@
+{
+  "id": "nie-ztyg",
+  "title": "Review: core crate security/correctness round 11",
+  "notes": "Maintainer risk: LOW — Core crate logic is well-structured. The three findings are all in the security-adjacent zeroization class (two) and a usability/reliability class (one). No memory safety issues, no protocol logic bugs, no correctness issues found beyond those already tracked.\nConfidence: 10% chance of missed bug. Uncertainty driven by: (1) openmls internals — whether StaticSecret::from() internally zeroizes its input is crate-dependent and not verified; (2) x25519_dalek::StaticSecret zeroize-on-drop behavior not audited here. Would raise confidence if: cross-checked x25519_dalek StaticSecret::from() source to confirm whether it internally copies or moves without clearing.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:53:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

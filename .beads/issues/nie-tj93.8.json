@@ -1,0 +1,23 @@
+{
+  "id": "nie-tj93.8",
+  "title": "alloc_subscription_address holds in-process mutex across DB calls to prevent diversifier reuse",
+  "description": "ws.rs alloc_subscription_address() (~line 2073) and state.rs subscription_alloc_lock: the next_diversifier + find_address + advance_diversifier_to sequence is wrapped in a tokio Mutex to serialize concurrent SUBSCRIBE_REQUEST handlers. Without the mutex, two concurrent callers both read the same 'start' from next_diversifier (which is already incremented inside its own transaction), then both call find_address(start) and land on the same diversifier index, generating a duplicate Sapling address that maps to two different invoices. The mutex is the correct fix. A contributor might try to remove it thinking next_diversifier's own transaction is sufficient \u2014 it is not, because find_address() can skip ahead an unpredictable number of indices.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:58:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:58:18Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:58:17"
+    }
+  ]
+}

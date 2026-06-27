@@ -1,0 +1,27 @@
+{
+  "id": "nie-967x.6",
+  "title": "pow: relay main.rs POW_DIFFICULTY env var",
+  "description": "Read POW_DIFFICULTY environment variable in relay/src/main.rs and apply to AppState.\n\nWhat: One new env var; call state.set_pow_difficulty() after AppState::new().\n\nAlgorithm:\n1. After AppState::new() in main():\n   let pow_difficulty: u8 = std::env::var('POW_DIFFICULTY')\n       .ok()\n       .and_then(|v| v.parse::<u8>().ok())\n       .unwrap_or(0);  // 0 = disabled by default (safe default for relay operators)\n2. Validate: if pow_difficulty > 0 && pow_difficulty < 20 {\n       tracing::warn!(pow_difficulty, 'POW_DIFFICULTY is below minimum 20; using 20');\n       state.set_pow_difficulty(20);\n   } else {\n       state.set_pow_difficulty(pow_difficulty);\n   }\n3. Log: tracing::info!(pow_difficulty, 'PoW enrollment gate configured');\n\nDefensive programming:\n- 0 is a safe default \u2014 no PoW required; relay operates as before\n- Parse failure silently defaults to 0 (not a hard error)\n- Values 1-19 clamped to 20 with a warning\n- Values > 30 accepted (but verify_token will reject them client-side; relay operator misconfiguration)",
+  "acceptance_criteria": "cargo build -p nie-relay passes; main.rs reads POW_DIFFICULTY env var; state.set_pow_difficulty called",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:35:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:43:16Z",
+  "close_reason": "main.rs: POW_DIFFICULTY env var read; state.set_pow_difficulty called; 0=disabled default; <20 clamped to 20 with warning",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:35:26"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:36:03"
+    }
+  ]
+}

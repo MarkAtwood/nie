@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-felh.14",
+  "title": "Refactor handle_slash into per-command functions with dispatch table",
+  "description": "handle_slash (lines 853-1256) is 404 lines implementing 17 commands in a single match. This creates giant function hard to navigate and test.\n\nRefactor into cmd_quit(), cmd_help(), cmd_pay(), etc. with dispatch table.\n\nBenefits: independently testable commands, easier to add/remove, clearer code organization.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:45Z",
+  "closed_at": "2026-04-20T04:36:57Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:19"
+    }
+  ]
+}

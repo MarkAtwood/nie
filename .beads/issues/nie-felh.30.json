@@ -1,0 +1,22 @@
+{
+  "id": "nie-felh.30",
+  "title": "PaymentAction::Request handler never creates payee PaymentSession",
+  "description": "decrypt_and_display PaymentAction::Request arm only pushes an overlay. It never creates a PaymentSession in state.sessions for the local payee. Subsequent Sent/Cancelled for this session have no local session to update. The comment in is_valid_transition says 'receiving a Request creates a new payee session' \u2014 the handler must do so.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:28:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T04:29:10Z",
+  "closed_at": "2026-04-20T04:29:10Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:28:03"
+    }
+  ]
+}

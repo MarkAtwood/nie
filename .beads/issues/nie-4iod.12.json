@@ -1,0 +1,25 @@
+{
+  "id": "nie-4iod.12",
+  "title": "MAINTAINER: maybe_auto_respond() creates stub address from session_id, hard to find where real address generation belongs",
+  "description": "In payment.rs, maybe_auto_respond() is Phase 4f stub code: stub_address = format\\!('STUB_TESTNET_ADDRESS_{session_id}'). This is clearly temporary, but there's no doc at the module level or on the function explaining where real wallet address generation should go, or what the eventual architecture is. When Phase 2 lands, a maintainer won't know if real wallet code should go here or elsewhere. The function takes relay_tx but doesn't call it to fetch a wallet\u2014future maintainers might assume wallet state is available in this function. Fix: doc comment on maybe_auto_respond() explaining it's a Phase 4f placeholder, and a module-level comment explaining the Phase 2 flow (e.g., 'real wallet generates fresh subaddress; address generation is delegated to wallet service').",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:28:13Z",
+  "closed_at": "2026-04-20T01:28:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:27"
+    }
+  ]
+}

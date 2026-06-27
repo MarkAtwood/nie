@@ -1,0 +1,26 @@
+{
+  "id": "nie-f4ce.3",
+  "title": "bridge-matrix SentIds in-memory only; echo on restart",
+  "description": "bridge-matrix/src/bridge.rs: SentIds is in-memory. On restart homeserver may replay events within its push-retry window, forwarding same Matrix message to nie twice. Same class as nie-y9mn.5 but specific to matrix bridge.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:56:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:37:29Z",
+  "closed_at": "2026-04-25T04:37:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:56:14"
+    }
+  ]
+}

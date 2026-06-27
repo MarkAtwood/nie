@@ -1,0 +1,17 @@
+{
+  "id": "nie-vmjq",
+  "title": "Review: relay/src/*.rs round 13 security/correctness",
+  "notes": "Maintainer risk: MEDIUM — one new P0 auth gap (GROUP_ADD caller membership not verified), two P1 operator footguns (POW_DIFFICULTY silent parse failure, SUBSCRIPTION_DAYS=0 lockout), one P1 subscription policy gap (GROUP_ADD vs GROUP_SEND inconsistency). Core correctness (payment atomicity, PoW replay, diversifier allocation, rate limiting on all msg paths except tracked WHISPER) is solid. The authorization gap in GROUP_ADD is the most significant finding.\nConfidence: 20% chance of missed bug. Uncertainty driven by: (1) GROUP_ADD authorization gap is a real correctness issue that slipped through previous rounds; there may be other authorization gaps in less-traveled methods. (2) The bus subscriber loop is dead (nie-kef6.16) so cross-instance delivery is untested and could have additional bugs. (3) payment_watcher block stream error handling retries via the inner loop rather than reconnecting the gRPC client — this may cause rapid spinning on persistent stream errors. Would raise confidence if: authorization checks (is_caller_member) were added and tested for all group mutation methods; integration tests existed for payment_watcher with mock lightwalletd.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:57:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "id": "nie-4v7.6",
+  "title": "E2E: padded message delivery roundtrip integration test",
+  "description": "What: Integration test in relay/tests/e2e_jsonrpc.rs verifying that a message padded by the sender arrives intact at the receiver after unpadding.\n\nAlgorithm:\n1. spawn_relay() (existing helper)\n2. Connect Alice and Bob (two transport connections)\n3. Wait for DirectoryList on both\n4. Alice constructs a known payload: b\"hello from alice\" (16 bytes)\n5. Alice pads it: padded = pad(b\"hello from alice\").unwrap()\n6. Alice sends BroadcastParams { payload: padded }\n7. Bob receives DeliverParams; extracts deliver.payload\n8. Bob asserts deliver.payload.len() is one of {256, 512, 1024, 4096} (bucket-aligned)\n9. Bob unpadded = unpad(&deliver.payload).unwrap()\n10. Assert: unpadded == b\"hello from alice\"\n\nAlso test rejection of oversized payload:\n11. Alice constructs a 4093-byte payload (over the 4092 byte limit)\n12. pad(&payload) must return Err (assert Err at call site, NOT a relay test)\n\nOracle:\n- pad(b\"hello from alice\") where len=16: 4+16=20 < 256, so bucket=256. Output is 256 bytes with first 4 bytes = [16,0,0,0].\n- unpad of that output returns exactly b\"hello from alice\"\n- This is verifiable from first principles without the code under test\n\nDefensive rules:\n- Use real pad/unpad calls (not mock) to test the actual implementation\n- Do not use rand in this test \u2014 use a fixed known payload for determinism\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-relay --test e2e_jsonrpc -- padded passes; deliver.payload.len() is exactly 256; unpad gives back original bytes",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T15:42:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T15:59:38Z",
+  "closed_at": "2026-04-20T15:59:38Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:42:11"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:42:01"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:42:10"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:42:09"
+    }
+  ]
+}

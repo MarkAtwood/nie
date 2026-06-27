@@ -1,0 +1,14 @@
+{
+  "id": "agoraold-7z4",
+  "title": "beads issue IDs in dispatch_payment doc comment expose internal tracker to public",
+  "description": "The dispatch_payment doc comment reads 'For nie-7ri: establishes the dispatch skeleton used by ... nie-glh (payer /pay), nie-c20 (payer Address), nie-ca4 (payee Request)'. These IDs are beads internal issue numbers. On GitHub they appear as opaque references with no link, no context. Suggested rewrite: describe the intent ('This function is the dispatch skeleton; state-transition logic is added incrementally.') and remove the tracker IDs. Contributors reading the code cannot follow the references and may copy the pattern.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:51:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:56Z",
+  "closed_at": "2026-04-18T06:17:50Z",
+  "close_reason": "Closed"
+}

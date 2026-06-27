@@ -1,0 +1,23 @@
+{
+  "id": "nie-qdlu.16",
+  "title": "foreign_keys(true) set on SqliteConnectOptions not post-connect: correct and must stay this way",
+  "description": "db.rs WalletStore::new sets foreign_keys(true) on SqliteConnectOptions. This ensures FK enforcement on every connection from the pool, not just the first one. A future contributor might 'simplify' this to a post-connect PRAGMA query which would silently disable FK enforcement on any connection beyond the first. The existing approach is correct and must be kept. The comment in the code explains why.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:47:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:47:10Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:47:10"
+    }
+  ]
+}

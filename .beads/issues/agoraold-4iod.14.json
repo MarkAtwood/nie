@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-4iod.14",
+  "title": "MAINTAINER: dispatch_payload() does per-message chain parsing, coupled to serde_json behavior",
+  "description": "In dispatcher.rs lines 38-78, dispatch_payload() deserializes the payload directly. The function has three separate deserialization paths: (1) ClearMessage serde_json::from_slice, (2) PaymentAction::Request match, (3) check for Ack/Profile. If the serde tag changes in core/messages.rs, this code silently breaks. There's no type-level coupling\u2014no newtype or validator preventing a misnamed tag from propagating through the system. In 6 months, if a new ClearMessage variant lands and forgot to handle it here, the event will be None and users see no message, no error. Fix: add doc comment documenting all ClearMessage variants and which ones produce events, plus a unit test that would fail if a new variant isn't handled.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:45Z",
+  "closed_at": "2026-04-20T01:28:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:32"
+    }
+  ]
+}

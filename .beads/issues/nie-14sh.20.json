@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.20",
+  "title": "broadcast_to_group offline enqueue not guarded by group membership re-check",
+  "description": "state.rs broadcast_to_group(): the member list is fetched before delivery begins. If a member leaves the group (GROUP_LEAVE) between list_group_members() and the enqueue loop, they receive an offline message for a group they are no longer in. The message is encrypted and opaque, so confidentiality is not violated, but the relay stores messages for ex-members indefinitely until the offline queue expires (72h). Low severity but violates the principle that leaving a group stops delivery.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:56:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:56:26Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:56:26"
+    }
+  ]
+}

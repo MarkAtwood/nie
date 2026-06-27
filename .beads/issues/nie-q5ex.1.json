@@ -1,0 +1,27 @@
+{
+  "id": "nie-q5ex.1",
+  "title": "two tests use is_null() to check presence in updated map",
+  "description": "test_message_set_update_reaction (line 2866) and test_space_set_member_patch (line 3165) use result['updated'][id].is_null() to assert the id appears in the updated map. serde_json returns Value::Null for missing keys, so this assertion passes whether the id is in updated OR absent (in notUpdated or dropped entirely). c8bf9c7 already fixed one instance (test_space_set_update_name_succeeds); two more remain. The tests have independent oracles (DB check, notUpdated.is_empty()) so they won't miss bugs, but the assertions are misleading. Fix: use .as_object().unwrap().contains_key(id).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:51:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:52:35Z",
+  "closed_at": "2026-04-24T17:52:35Z",
+  "close_reason": "Fixed: contains_key() replaces is_null() in two tests",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:51:59"
+    }
+  ]
+}

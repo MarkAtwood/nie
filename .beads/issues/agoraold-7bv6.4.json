@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.4",
+  "title": "SEC2: JSON string roundtrip across WASM boundary for events",
+  "description": "File: wasm/src/client.rs lines 241-242.\n\nwire_notify_callback builds a serde_json::Value event, serializes it to a String (serde_json::to_string), then converts that to JsValue::from_str to cross the WASM boundary. The JS caller must then JSON.parse() the string to use it.\n\nCost: one serde_json serialization allocation + one JS string allocation + one JS JSON.parse() call on every relay notification. Three extra operations per event that could be eliminated.\n\nFix: Use serde-wasm-bindgen (serde_wasm_bindgen::to_value(&event)) or js_sys::Object construction to pass the event as a native JS object directly. This avoids the String intermediate entirely. Dependency: add serde-wasm-bindgen to wasm/Cargo.toml (it is already common in the wasm-bindgen ecosystem and adds negligible binary size for what it replaces).\n\nClassify: P2 (measurable latency + allocation on every notification event crossing the WASM/JS boundary)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:30:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:18Z",
+  "closed_at": "2026-04-20T02:54:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "efficiency",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:30:54"
+    }
+  ]
+}

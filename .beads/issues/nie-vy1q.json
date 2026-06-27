@@ -1,0 +1,14 @@
+{
+  "id": "nie-vy1q",
+  "title": "Fix CHRONO_MAX_DAYS: u32 silent truncation in ws.rs",
+  "description": "relay/src/ws.rs contains a const CHRONO_MAX_DAYS: u32 = (i64::MAX / 86400) as u32; i64::MAX/86400 is 106,751,991,167,300 which exceeds u32::MAX (4,294,967,295), so the as u32 cast silently truncates to 579,025,220. The accompanying comment says '~106 million days' but the actual chrono::Duration::days() panic threshold is ~106 trillion days. The guard itself is also redundant: params.duration_days is a u32, so the earlier check params.duration_days as u64 \u003e max_days (max_days = operator's SUBSCRIPTION_DAYS, default 30) always fires first; no realistic subscription length can reach 579M days let alone 4.29B. Fix: remove the redundant CHRONO_MAX_DAYS guard entirely, or if kept, correct the type to u64 and the value to 106_751_991 (matching the correct constant in main.rs) and fix the comment.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:56:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T13:00:17Z",
+  "closed_at": "2026-04-26T13:00:17Z",
+  "close_reason": "Closed"
+}

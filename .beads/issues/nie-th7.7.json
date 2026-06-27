@@ -1,0 +1,38 @@
+{
+  "id": "nie-th7.7",
+  "title": "ws.rs: GROUP_ADD handler",
+  "description": "What: Add GROUP_ADD relay WebSocket handler in relay/src/ws.rs.\n\nAlgorithm:\n1. Parse GroupAddParams { group_id, member_pub_id }\n2. Validate member_pub_id format: must be exactly 64 lowercase hex chars (regex or manual check)\n3. store.is_group_member(group_id, pub_id.0).await \u2192 caller must be a member; if not: NOT_A_MEMBER error\n4. store.get_group(group_id).await \u2192 group must exist; if not: GROUP_NOT_FOUND error\n5. store.add_group_member(group_id, member_pub_id).await  -- INSERT OR IGNORE (idempotent)\n6. Build GROUP_DELIVER notification to new member: GroupDeliverParams { from: pub_id.0, group_id, payload: group_name_utf8_bytes }\n7. deliver_live(member_pub_id, notif_json).await; if false: enqueue(member_pub_id, notif_json).await\n8. Return OkResult { ok: true }\n\nNote: MLS Welcome for new member is handled client-side via WHISPER. Relay only tracks membership.\n\nDefensive rules:\n- pub_id format check: reject if not 64 hex chars (CLAUDE.md \u00a76)\n- relay SETS from from authenticated pub_id, never from params (CLAUDE.md \u00a74)\n- Double-add is idempotent (INSERT OR IGNORE)\n- GROUP_DELIVER payload is opaque bytes; relay never deserializes it (invariant #3)\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-relay passes; adding invalid pub_id format returns INVALID_PARAMS; adding to non-existent group returns GROUP_NOT_FOUND; non-member add returns NOT_A_MEMBER",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:51:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:07:58Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:42"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:43"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:41"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:51:25"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-8le.2",
+  "title": "MLS Commit+Welcome not atomic: Welcome lost on mid-sequence disconnect",
+  "description": "Admin sends Commit (Broadcast) then Welcome (Whisper) as two separate sends. If the connection drops or the channel returns Err between the two sends, the Commit reaches all existing members (epoch advances, new member is cryptographically in the group) but the new member never receives a Welcome. The group is now in an irrecoverable inconsistent state: existing members believe the new member is in epoch N, but the new member has no group state at all. Triggered by any transient network error during the add-member sequence. Bad behavior: new member permanently locked out, silent failure \u2014 no error is surfaced to any party.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:07:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:39Z",
+  "closed_at": "2026-04-17T23:24:16Z",
+  "close_reason": "Phase 1 fix: differentiated Commit-failed (break, nothing delivered) from Welcome-failed (Commit already propagated). Welcome failure now surfaces a user-visible warning naming the affected peer and explaining they need to reconnect. Admin stays in chat. Deeper at-least-once fix (save Welcome bytes, retransmit on reconnect) deferred to Phase 2 per CLAUDE.md \u00a710.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:07:19"
+    }
+  ]
+}

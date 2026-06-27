@@ -1,0 +1,15 @@
+{
+  "id": "nie-7gtm",
+  "title": "Broadcast rate limiting",
+  "description": "## Why\n\nSubscribed clients can currently broadcast unlimited messages. There is no rate limit on broadcast, sealed_broadcast, or group_send. A single compromised or malicious client can flood the relay and degrade service for all other users.\n\n## What\n\nAdd an in-process per-pub_id rate limiter in AppState:\n\n- Data structure: `rate_limits: DashMap\u003cString, (u32, Instant)\u003e` keyed by pub_id\n- Window: 60 seconds, max 120 broadcasts per window\n- Configuration: `RATE_LIMIT_MSG_PER_MIN` env var (default 120)\n- On exceed: return JSON-RPC error { code: -32020, message: 'RATE_LIMITED' }\n- Applies to: broadcast, sealed_broadcast, group_send\n- Exempt: whisper (1:1 direct delivery has natural cost), all non-send methods\n- Counters: in-memory only, no persistence — counters reset on relay restart\n\n## Acceptance Criteria\n\n- A client sending \u003e120 broadcasts in 60s receives error -32020 after the 120th\n- Whisper messages are not rate-limited\n- RATE_LIMIT_MSG_PER_MIN env var changes the limit without code change\n- Unit test covers: under-limit passes, at-limit passes, over-limit rejected, window reset unblocks\n- DESIGN.md §Rate Limiting documents error code -32020 as a stable client-facing contract",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T04:38:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:22:56Z",
+  "closed_at": "2026-04-22T06:22:56Z",
+  "close_reason": "Broadcast rate limiting implemented: rolling 60s window, DashMap per-pub_id counters, RATE_LIMITED -32020, configurable via RATE_LIMIT_MSG_PER_MIN (default 120). Wired into BROADCAST, SEALED_BROADCAST, GROUP_SEND. Cleanup on disconnect. 5 unit tests. DESIGN.md updated."
+}

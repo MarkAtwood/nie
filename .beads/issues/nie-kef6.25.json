@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.25",
+  "title": "upsert_space_member bumps SpaceMember state_seq on no-op insert",
+  "description": "upsert_space_member() uses INSERT OR IGNORE then unconditionally calls bump_state_seq('SpaceMember'). When a member is already present the insert is a no-op but the state token is still incremented, causing spurious JMAP SpaceMember/changes notifications. This function is called on every user_joined relay event, so every reconnect by any existing member generates a false state change for all clients watching SpaceMember. Same root cause as nie-14sh.44 but in store.rs upsert_space_member.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:50:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:50:38Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:50:38"
+    }
+  ]
+}

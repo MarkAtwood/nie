@@ -1,0 +1,19 @@
+{
+  "id": "nie-91j",
+  "title": "Review: /balance /receive /payments; send_payment wired",
+  "notes": "Maintainer risk: MEDIUM — two user-facing correctness issues (wrong /receive warning, frozen TxRecord block_height) that will generate issue reports; one reliability gap (endpoint failover bypass) that silently fails under poor network conditions.\nConfidence: 85% chance of no missed bug. Uncertainty driven by: happy_path test is params-gated (skips without sapling params), so the broadcast→mark-spent→insert-tx path has no always-running test. Would raise confidence if: (1) params are present in CI so happy_path always runs, or (2) the DB post-broadcast steps are extracted and tested independently with a mock.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:57:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T05:03:07Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

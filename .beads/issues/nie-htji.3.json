@@ -1,0 +1,25 @@
+{
+  "id": "nie-htji.3",
+  "title": "tracing::warn for unrecognised SpaceRole: observability without behavior change",
+  "description": "The SpaceRole::parse fallback to Member is intentional (keeps the DB valid), but without the warn\\! the mismatch between relay's role string and local storage is invisible. Adding a structured log (role=?, space_id, contact_id) with the original string lets an operator grep logs to detect relay/client version skew without changing any behavior or adding complexity. A future contributor might suggest making the fallback an error \u2014 resist this; the relay may add new roles we don't know yet, and the safe degradation to Member is correct behavior.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:55:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:56:59Z",
+  "closed_at": "2026-04-24T16:56:59Z",
+  "close_reason": "Decision records \u2014 no code change needed; recorded for future reference",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:55:53"
+    }
+  ]
+}

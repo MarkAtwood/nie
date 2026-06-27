@@ -1,0 +1,25 @@
+{
+  "id": "nie-zd3.7",
+  "title": "monotonicity check in Rust, not SQL \u2014 correct given TEXT storage",
+  "description": "A contributor might suggest replacing the Rust read-compare-write with a SQL max() or WHERE clause. Do not do this. diversifier_index is stored as TEXT to avoid SQLite's signed i64 overflow on large u128 values. SQLite TEXT comparison is lexicographic: max('200','50') = '50' because '5' > '2'. A SQL-based monotonicity guard would silently pass retrograde writes for multi-digit values with a larger leading digit. The Rust-level check is correct and the code comment explains why. This is not premature optimization; it is the only correct approach given the storage type.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:17:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T23:37:04Z",
+  "closed_at": "2026-04-18T23:37:04Z",
+  "close_reason": "decision records, no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:17:27"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-th7.1",
+  "title": "Protocol: GROUP_* method constants, error codes, param/result structs",
+  "description": "What: Add all group-chat protocol types to core/src/protocol.rs.\n\nAlgorithm:\n1. Add to rpc_methods module: GROUP_CREATE='group_create', GROUP_ADD='group_add', GROUP_SEND='group_send', GROUP_LEAVE='group_leave', GROUP_LIST='group_list', GROUP_DELIVER='group_deliver'\n2. Add to rpc_errors module: GROUP_NOT_FOUND: i32 = -32011, NOT_A_MEMBER: i32 = -32012\n3. Add structs (matching existing style \u2014 serde_as Base64 for Vec<u8> payloads, all fields pub):\n   - GroupCreateParams { name: String }\n   - GroupCreateResult { group_id: String, name: String }\n   - GroupAddParams { group_id: String, member_pub_id: String }\n   - GroupSendParams { group_id: String, payload: Vec<u8> }  // Base64\n   - GroupSendResult { message_id: String }\n   - GroupLeaveParams { group_id: String }\n   - GroupInfo { group_id: String, name: String, member_count: u64, created_at: String }\n   - GroupListResult { groups: Vec<GroupInfo> }\n   - GroupDeliverParams { from: String, group_id: String, payload: Vec<u8> }  // Base64\n\nDefensive rules:\n- No Default impl on structs with Vec<u8>\n- All derives: Debug + Clone + Serialize + Deserialize\n- Match existing #[serde_as] pattern for Base64 payloads\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo clippy -p nie-core -- -D warnings passes; method constants are snake_case strings; Base64 round-trip test for GroupSendParams.payload",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:50:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T11:58:06Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:50:33"
+    }
+  ]
+}

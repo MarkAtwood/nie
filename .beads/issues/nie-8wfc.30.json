@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.30",
+  "title": "messages: PeerReceipt.receipt_type and PeerGroupUpdate.action are unvalidated free strings",
+  "description": "ClearMessage::PeerReceipt.receipt_type (core/src/messages.rs line 88) and PeerGroupUpdate.action (line 114) are doc-commented as fixed-value enumerations (delivered|read and join|leave|role_change respectively) but typed as String. Any value passes deserialization. In nie-daemon/src/relay.rs (line 468), receipt_type is passed as a string to update_message_delivery_state(), which writes it to the database. An adversary who can send messages could inject arbitrary strings into the delivery_state column. These fields should be Rust enums with serde tag variants to make invalid values a parse error at the boundary, not a database write.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:12:10Z",
+  "closed_at": "2026-04-24T22:12:10Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:49"
+    }
+  ]
+}

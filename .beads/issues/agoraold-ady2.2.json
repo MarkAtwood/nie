@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-ady2.2",
+  "title": "Wire make_did_key into Identity::pub_id() and verify_challenge()",
+  "description": "Update two call sites to use make_did_key() instead of hash_key().\n\nWhat: One-line change in each of identity.rs and auth.rs.\n\nAlgorithm:\n1. In core/src/identity.rs line 94: change\n   PubId(hash_key(self.signing_key.verifying_key().as_bytes()))\n   to:\n   PubId(make_did_key(self.signing_key.verifying_key().as_bytes()))\n2. In core/src/auth.rs: find verify_challenge() \u2014 change\n   Ok(PubId(hash_key(key.as_bytes())))\n   to:\n   Ok(PubId(make_did_key(key.as_bytes())))\n   (note: make_did_key is in identity.rs; auth.rs imports from agora_core::identity or similar \u2014 adjust use statement)\n3. Remove use of hash_key() in both files (will become dead code)\n4. Update PubId struct doc comment (lines 22-27 of identity.rs) to describe did:key format instead of SHA-256\n\nDefensive programming:\n- verify_challenge() invariant must be preserved: PubId is only derived AFTER signature verification\n- No unwrap() without comment\n- PubId is a public identifier, not secret \u2014 safe to log/display\n\nAgent team: standard (R + I + T)\n\nTests (in identity.rs):\n- pub_id_has_did_key_format: generate Identity, assert pub_id().0.starts_with(\"did:key:z\"), assert validate_did_key(&pub_id().0).is_ok()\n- pub_id_consistent_with_verify_challenge: no code change needed to existing export_and_restore test \u2014 just verify it still passes",
+  "acceptance_criteria": "cargo test -p agora-core passes; cargo check -p agora-core clean; hash_key() is no longer called (dead code warning or removal)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:06:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:10:52Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:06:04"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:06:12"
+    }
+  ]
+}

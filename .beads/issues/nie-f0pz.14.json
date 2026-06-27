@@ -1,0 +1,24 @@
+{
+  "id": "nie-f0pz.14",
+  "title": "message_get ids=null: two-query round-trip (query_messages then get_messages)",
+  "description": "jmap.rs message_get with ids=null calls store.query_messages() to get IDs then store.get_messages(&id_strs) to fetch the rows \u2014 two separate DB round-trips for a single logical operation. A single query returning full rows ordered by position would eliminate one RTT. At 256 messages (MAX_GET_ALL) and small SQLite RTTs this is not a problem today, but if the store ever moves to a networked backend or the limit grows, this N+1 structure will hurt. Compare: message_query correctly does a single count + single query. The ids=null path in message_get should be a single store.get_messages_for_channel() call.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:28:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:28:32Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:28:31"
+    }
+  ]
+}

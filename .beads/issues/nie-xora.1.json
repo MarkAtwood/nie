@@ -1,0 +1,28 @@
+{
+  "id": "nie-xora.1",
+  "title": "validate_member_patch error message hardcodes role list, not SpaceRole",
+  "description": "jmap.rs validate_member_patch returns an error message built from a hardcoded literal [\"admin\", \"moderator\", \"member\"] rather than from SpaceRole itself. The PR's stated goal was for SpaceRole to be the single source of truth for valid roles, but this error message is a second source of truth that will silently diverge when a new SpaceRole variant is added. SpaceRole::parse will reject the new role correctly, but the error message will still list only the three old values \u2014 users get a wrong help string. Fix: add a SpaceRole::all() or a Display impl that enumerates variants, and use it in the format\\!() call.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T06:11:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T15:05:15Z",
+  "closed_at": "2026-04-24T15:05:15Z",
+  "close_reason": "Fixed in code; decision records documented",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 23:11:51"
+    }
+  ]
+}

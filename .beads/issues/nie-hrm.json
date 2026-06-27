@@ -1,0 +1,23 @@
+{
+  "id": "nie-hrm",
+  "title": "Implement ZIP-32 master key derivation (unblock nie-m91)",
+  "description": "Implement BIP-39 mnemonic \u2192 64-byte seed \u2192 ZIP-32 Sapling master key using the workaround chosen by the spike bead. Deliver: derive_master_key(seed: &[u8; 64]) -> SaplingMasterKey, derive_account_key(master: &SaplingMasterKey, account: u32) -> SaplingExtendedSpendingKey. Defensive programming: (1) assert_ne\\!(identity_seed, wallet_seed) at wallet init \u2014 key separation invariant, panic with 'wallet and identity keys must be independent'; (2) SaplingMasterKey must NOT implement Debug or Clone; (3) validate seed length == 64 with descriptive Err not panic; (4) zeroize key material on drop using zeroize crate. Use a subagent to look up the ZIP-32 spec PRF^expand domain separation byte (0x01 for child key) and hardcode it as a named constant with a doc comment citing the spec section.",
+  "design": "Never derive wallet key from identity key or vice versa. Never implement Debug on key material structs.",
+  "acceptance_criteria": "cargo test --workspace passes. ZIP-32 derive round-trip test using hardcoded known test vector from zcash spec (not derived from code under test). Key separation assert present and tested.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:19:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T18:35:00Z",
+  "close_reason": "Already implemented in nie-core/src/wallet.rs using blake2b_simd (option b from spike). WalletMasterKey::from_seed() uses BLAKE2b-512 with ZcashIP32Sapling personalization. All acceptance criteria met: test vector from Python oracle, key separation assert in CLI init path, all tests passing. Child key derivation (derive_account_key) requires jubjub crate \u2014 tracked by nie-1ws/nie-fz7.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:20"
+    }
+  ]
+}

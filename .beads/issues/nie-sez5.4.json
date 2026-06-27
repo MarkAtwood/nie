@@ -1,0 +1,27 @@
+{
+  "id": "nie-sez5.4",
+  "title": "invokeMethod<void> discards bool from requestNotificationPermission",
+  "description": "BackgroundService._requestNotificationPermission() calls invokeMethod<void>('requestNotificationPermission') but the Kotlin handler returns result.success(granted: Boolean). The bool is silently discarded. This is intentional (the comment says 'Service starts regardless of grant or deny') but the void type lies about what the channel returns. A contributor adding logic that depends on the grant outcome would not see a compile error and would be confused why the return is always null. Suggested rewrite: either change to invokeMethod<bool?> and document the discard explicitly, or omit the return value on the Kotlin side (result.success(null)).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:39:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:24:57Z",
+  "closed_at": "2026-04-24T02:24:57Z",
+  "close_reason": "Kotlin now returns result.success(null) instead of result.success(bool). Channel contract is now void\u2192void on both sides. Comments updated to reflect that grant outcome is intentionally not returned.",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:39:11"
+    }
+  ]
+}

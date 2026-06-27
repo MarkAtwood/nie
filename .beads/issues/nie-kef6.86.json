@@ -1,0 +1,24 @@
+{
+  "id": "nie-kef6.86",
+  "title": "parse_sapling_address ignores ZcashNetwork; cross-network Sapling addresses silently accepted",
+  "description": "tx_builder.rs::parse_sapling_address takes no ZcashNetwork parameter. SaplingExtractor::try_from_sapling ignores the _net argument (prefixed with underscore). A mainnet zs1... address supplied to a testnet wallet (or vice versa) is accepted without error, producing a transaction the node will reject at broadcast. The network parameter present in build_shielded_tx is never threaded into the address parser. The ConversionError::IncorrectNetwork arm exists in the match but can never be triggered.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:56:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:55:43Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:56:46"
+    }
+  ]
+}

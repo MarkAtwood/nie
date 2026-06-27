@@ -1,0 +1,32 @@
+{
+  "id": "agoraold-967x.5",
+  "title": "pow: relay ws.rs challenge emission + AUTHENTICATE verification",
+  "description": "Wire PoW into relay/src/ws.rs: send salt+difficulty in Challenge; verify token before accepting AUTHENTICATE.\n\nWhat: Two changes to the relay's auth handshake in handle().\n\nPart 1 \u2014 Challenge emission (before sending challenge notification):\n1. Read pow_difficulty = state.pow_difficulty()  (returns u8; 0 = disabled)\n2. Encode server_salt to base64: B64.encode(state.pow_server_salt())\n3. Build ChallengeParams { nonce: nonce.clone(), server_salt: salt_b64, difficulty: pow_difficulty }\n4. Send as before\n\nPart 2 \u2014 AUTHENTICATE handler (after extracting AuthenticateParams):\n1. If state.pow_difficulty() == 0: skip PoW verification (disabled)\n2. If state.pow_difficulty() > 0:\n   a. Let Some(token_str) = params.pow_token else { return auth_error(POW_REQUIRED) }\n   b. Decode params.pub_key from base64 to pub_key_bytes (needed for verify_token)\n      Note: pub_key bytes are the raw 32-byte Ed25519 verifying key\n   c. Get now_unix_secs from SystemTime::now()\n   d. Call nie_core::pow::verify_token(token_str, pub_key_bytes, state.pow_server_salt(), now_unix_secs, state.pow_difficulty())\n   e. Match result:\n      - Ok(h16): proceed; add h16 to replay set: state.inner.pow_replay_set.insert(h16, Instant::now())\n      - Err(PowError::Stale): return auth_error(POW_STALE)  \n      - Err(PowError::Replayed): return auth_error(POW_REPLAYED)\n      - Err(_): return auth_error(POW_INVALID)\n3. But ALSO add replay check before calling verify_token:\n   if state.inner.pow_replay_set.get(&h16_from_token) is Some: return auth_error(POW_REPLAYED)\n   Actually verify_token does NOT have access to the replay set \u2014 the relay checks replay after verify_token returns the h16.\n   \n   Revised algorithm:\n   a. Decode and call verify_token \u2192 get Ok(h16) or Err\n   b. If Ok(h16): check replay: state.inner.pow_replay_set.contains_key(&h16)\n      If in set \u2192 return auth_error(POW_REPLAYED)\n      If not \u2192 insert into set and continue\n4. Continue to verify_challenge (signature check) as before\n5. Existing cleanup: periodically evict expired entries from pow_replay_set.\n   Strategy: lazy eviction \u2014 on each PoW verification attempt, remove entries older than 600s.\n   This avoids a background task and keeps the code simple.\n\nError helper: auth_error(code) sends JsonRpcResponse with error {code, message} and returns.\nUse rpc_errors::POW_REQUIRED, POW_INVALID, POW_STALE, POW_REPLAYED from protocol.rs.\n\nDefensive programming:\n- pub_key decode happens before PoW verification; on decode error return AUTH_FAILED (same as now)\n- Replay set lazy eviction: iterate set and remove entries older than 600s on every verify call\n- Never log server_salt or pub_key bytes\n- PoW check happens before signature check \u2014 fail fast on bad token format",
+  "acceptance_criteria": "cargo build -p nie-relay passes; challenge sends server_salt+difficulty; AUTHENTICATE verifies token or rejects with appropriate error code",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:35:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:49:22Z",
+  "close_reason": "ws.rs: challenge includes salt/difficulty from AppState; AUTHENTICATE handler verifies PoW token (required/invalid/stale/replayed) before signature check",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:36:01"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:36:02"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:35:25"
+    }
+  ]
+}

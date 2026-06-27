@@ -1,0 +1,26 @@
+{
+  "id": "nie-qdlu.6",
+  "title": "scanner: invalid cmu 'continue' corrupts commitment tree \u2014 witnesses diverge",
+  "description": "wallet/src/scanner.rs scan_tx line 471: Node::from_bytes(cmu_bytes) returning None causes 'continue', skipping the output without appending to the global tree or any witness. The Sapling commitment tree must include EVERY output commitment in canonical chain order. Skipping any commitment causes all subsequent in-memory witnesses to diverge from the real tree, making spend proofs for any later-received note fail with anchor mismatch. Trigger: lightwalletd returns a cmu that is not a valid Jubjub field element (malformed block, adversarial LWD, corruption). Bad behavior: silent corruption of all witnesses, all notes received after this block become permanently unspendable. Fix: return Err (scan_block will restore the snapshot and retry) \u2014 do not continue.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:36:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:06:47Z",
+  "closed_at": "2026-04-25T04:06:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:36:34"
+    }
+  ]
+}

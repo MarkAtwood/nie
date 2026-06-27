@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-cs0.12",
+  "title": "WalletFvks holds only viewing keys, not spending key \u2014 correct key minimization",
+  "description": "try_load_wallet_fvks derives SaplingDiversifiableFvk and OrchardFullViewingKey from the master key, then discards the spending key. The WalletFvks struct holds only the public view keys, which is sufficient for address generation but insufficient for spending. A future contributor might suggest 'just store the master key bytes in WalletFvks to avoid re-deriving the FVK on each session'. Resist: caching the master key bytes in memory for the lifetime of the chat session violates the key minimization principle (CLAUDE.md \u00a7Wallet Security: 'never log key material'). The FVK derivation cost is paid once at startup.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:08:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:55Z",
+  "closed_at": "2026-04-18T22:30:35Z",
+  "close_reason": "Confirmed correct: WalletFvks discards spending key, holds only SaplingDiversifiableFvk and OrchardFullViewingKey. No action needed.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:08:00"
+    }
+  ]
+}

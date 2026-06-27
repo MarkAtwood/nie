@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-k3f.2",
+  "title": "Address reuse on advance_diversifier_to failure",
+  "description": "generate_fresh_address() in commands.rs: next_diversifier() succeeds and returns start index; Sapling skips invalid diversifiers (found_di > start); advance_diversifier_to(found_di + 1) is called and fails (DB error). Function returns PaymentAction::Unknown and exits. On the next /pay call, next_diversifier() returns the same start index again because the advancement never committed. The same Sapling subaddress is issued to a different payment session, linking two payments to the same on-chain identity. Breaks the fresh-subaddress-per-payment invariant and the legal 'no custody / no tracking' posture. The comment at lines 1638\u20131640 acknowledges the risk but provides no mitigation.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:55:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:38Z",
+  "closed_at": "2026-04-19T06:05:20Z",
+  "close_reason": "False positive. advance_diversifier_to failure propagates via ? \u2014 Ok(addr) is never reached on failure so the address is never issued. The next call finds the same found_di and issues it for the first time. No reuse possible. Comment in code is slightly misleading but behavior is correct.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:55:28"
+    }
+  ]
+}

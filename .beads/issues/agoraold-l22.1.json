@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-l22.1",
+  "title": "scanner.rs: UNIQUE constraint detection uses fragile error string matching",
+  "description": "scanner.rs lines 576-584: is_unique_constraint() detects UNIQUE violations by string-matching the SQLite error message (.contains('UNIQUE constraint failed') etc). SQLite error message text is not stable API.\n\n## Algorithm\n1. Open wallet/src/scanner.rs, find is_unique_constraint() function (lines ~576-584)\n2. Replace the function body:\n   - Use e.downcast_ref::<sqlx::Error>() to extract the underlying sqlx error from anyhow::Error\n   - Match on sqlx::Error::Database(db_err)\n   - Return db_err.is_unique_violation() (uses sqlx 0.8 ErrorKind enum, stable API)\n   - Return false for any non-Database sqlx error\n3. Check existing imports in scanner.rs for sqlx \u2014 add 'use sqlx;' if not present\n4. Update the test unique_constraint_detection() (lines ~766-772):\n   - Current test creates a fake anyhow error with a string \u2014 this does not test the real code path\n   - New test: use an in-memory WalletStore (or call insert_note twice for same (txid, output_index)) to produce a real sqlx UNIQUE constraint error, then assert is_unique_constraint(&e) returns true\n   - Also assert is_unique_constraint(&anyhow::anyhow!(\"some other error\")) returns false\n\n## Defensive programming rules\n- The downcast_ref pattern must handle the anyhow wrapping correctly \u2014 do NOT unwrap\n- Return false (not panic) for any non-matching error shape\n- No key material in any new log statement\n\n## Acceptance\n- cargo test -p nie-wallet passes including unique_constraint_detection test using real sqlx error\n- cargo clippy -p nie-wallet -- -D warnings passes\n- No string literals 'UNIQUE constraint' or 'unique constraint' remain in is_unique_constraint()",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T07:26:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:49Z",
+  "closed_at": "2026-04-19T17:12:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:05:37"
+    }
+  ]
+}

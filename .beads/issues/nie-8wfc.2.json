@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.2",
+  "title": "db.rs balance(): unwrap_or(i64::MAX) gives wrong confirmed balance at extreme scan_tip",
+  "description": "db.rs WalletStore::balance(), line ~1042: when scan_tip - min_confirmations overflows i64 (theoretically possible because scan_tip is u64), the threshold falls back to i64::MAX via unwrap_or(i64::MAX). Since every real block_height is <= i64::MAX, the condition 'block_height <= i64::MAX' is always true, so every note is counted as confirmed regardless of actual depth. The correct behavior is to return an Err, not silently produce an incorrect balance. In practice scan_tip fits in i64 for real Zcash heights (u32 range), so this requires a pathological scan_tip (e.g. from a rogue server returning height > i64::MAX), but the i64::try_from().unwrap_or(i64::MAX) pattern is incorrect. Fix: propagate the error instead of substituting i64::MAX.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:57:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:19:53Z",
+  "closed_at": "2026-04-24T22:19:53Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:57:42"
+    }
+  ]
+}

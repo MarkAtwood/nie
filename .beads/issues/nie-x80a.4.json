@@ -1,0 +1,24 @@
+{
+  "id": "nie-x80a.4",
+  "title": "OrchardSpendingKey::to_bytes pub API leaks spending key ref with no zeroization contract",
+  "description": "orchard.rs:76 OrchardSpendingKey::to_bytes() is pub and returns &[u8;32] \u2014 a reference into the Zeroizing-wrapped inner field. The comment says 'Never log this value' but there is no mechanical enforcement. A caller can trivially copy the bytes to a non-Zeroizing buffer: let copied: [u8;32] = *sk.to_bytes(). The function is currently only used within the crate (address comparison in tests) but its pub visibility means external callers can extract the spending key bytes with no zeroization guarantee. Either restrict to pub(crate) if external access is not needed, or change the return type to be obviously key-material (e.g. a newtype that doesn't implement Copy).",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:53:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:53:45Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:53:45"
+    }
+  ]
+}

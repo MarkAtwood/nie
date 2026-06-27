@@ -1,0 +1,17 @@
+{
+  "id": "nie-lflg",
+  "title": "Review: core round 19",
+  "notes": "Maintainer risk: MEDIUM — Three groups of unbounded deserialization fields remain in ClearMessage enum variants (PeerDeliver aux fields, PeerTyping/PeerRetract, PaymentAction strings). Only authenticated MLS group members can trigger them, reducing severity. Pattern of bounded guards established but not applied consistently.\nConfidence: 15% chance of missed bug. Uncertainty: openmls internals not reviewed; hpke crate API. Would raise if openmls audited and nie-qgag.3 fixed.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:16:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

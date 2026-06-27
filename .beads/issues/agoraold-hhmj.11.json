@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-hhmj.11",
+  "title": "RISK: ws.rs line 418 error\\!() but no sendback on try_set_nickname Err",
+  "description": "relay/src/ws.rs line 418: when try_set_nickname fails with Err(e), the error is logged but NO error response is sent to the client on the client_tx channel. The client is left hanging, waiting for a response to its SET_NICKNAME request (which has an id field). The client will eventually time out internally (if it has timeout logic) or hang indefinitely (if it doesn't). This is a critical asymmetry: successful SET_NICKNAME sends a response (line 407), but the error path does not. A solo maintainer investigating 'client hung on set_nickname' will not realize the relay silently swallowed the error. Risk: client hangs on store errors; no error feedback to user.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:47Z",
+  "closed_at": "2026-04-19T18:19:56Z",
+  "close_reason": "Fixed: added INTERNAL_ERROR (-32603) to rpc_errors; subscription_expiry/register_user errors now send error response and abort auth; all_users error disconnects and returns; try_set_nickname Err branch sends internal error response.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:49"
+    }
+  ]
+}

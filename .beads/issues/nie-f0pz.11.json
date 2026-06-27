@@ -1,0 +1,26 @@
+{
+  "id": "nie-f0pz.11",
+  "title": "bot scripting: hook env vars NIE_FROM/NIE_TEXT set from unvalidated relay message",
+  "description": "scripting.rs run_hook passes NIE_FROM and NIE_TEXT as environment variables to hook commands. The values come from MLS-authenticated messages (via dispatcher.rs BotEvent::MessageReceived from and text fields). While MLS authenticates the sender identity, it does not sanitize the message content. A user can send text containing shell metacharacters ($(), backticks, newlines, etc.) that appear as NIE_TEXT. Because run_hook uses shlex + Command::new (NOT sh -c), the env vars themselves are not interpreted as shell. However, if the hook command itself is a shell script that does e.g. 'eval $NIE_TEXT' or 'sh -c $NIE_TEXT', the hook author could introduce injection. This is a social engineering / developer footgun risk, not an injection in run_hook itself. Should document that hook scripts must never expand NIE_TEXT in shell context.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:27:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:47:57Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:27:31"
+    }
+  ]
+}

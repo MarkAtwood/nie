@@ -1,0 +1,24 @@
+{
+  "id": "nie-4iod.18",
+  "title": "scripting: unbounded stderr collection in hook execution",
+  "description": "Lines 65-66: stdout is capped at 65KB but stderr is unbounded. A runaway hook script that writes to stderr can exhaust bot memory.\n\nCost: Denial of service vector. Hook script writing gigabytes to stderr will OOM the bot.\n\nFix: Cap stderr to same 65KB limit as stdout. Requires refactor to not consume all output into String before truncating.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:28:19Z",
+  "closed_at": "2026-04-20T01:28:19Z",
+  "close_reason": "Closed",
+  "labels": [
+    "efficiency"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:48"
+    }
+  ]
+}

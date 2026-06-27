@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-5lsf",
+  "title": "Canonicalize nicknames and group names",
+  "description": "## Why\n\nUser-supplied display names (set via /iam and group_create) are stored and broadcast to all connected users without normalization. This creates spoofing attack vectors:\n\n- RTL override: U+202E RIGHT-TO-LEFT OVERRIDE renders 'groupname' as 'emanpuorg'\n- Homoglyph spoofing: 'niе' using Cyrillic е (U+0435) is visually indistinguishable from Latin 'nie'\n- Zero-width characters: two names with different bytes can appear visually identical\n\nAn attacker can create a group or nickname that appears to be a trusted identity.\n\n## What\n\nApply canonicalization in `ws.rs` set_nickname handler and `store.rs` group_create before any storage or broadcast:\n\n```rust\nuse unicode_normalization::UnicodeNormalization;\n\nfn canonicalize_display_name(s: \u0026str) -\u003e Result\u003cString, \u0026'static str\u003e {\n    let s: String = s.nfc().collect();  // NFC: prevents homoglyph bypass\n    let bidi: \u0026[char] = \u0026[\n        '\\u{202A}', '\\u{202B}', '\\u{202C}', '\\u{202D}', '\\u{202E}',\n        '\\u{2066}', '\\u{2067}', '\\u{2068}', '\\u{2069}',\n        '\\u{200E}', '\\u{200F}',\n    ];\n    let zwsp: \u0026[char] = \u0026['\\u{200B}', '\\u{200C}', '\\u{2060}'];\n    let s: String = s.chars()\n        .filter(|c| !bidi.contains(c) \u0026\u0026 !zwsp.contains(c))\n        .collect();\n    let s = s.trim().to_string();\n    if s.is_empty() { return Err(\"empty after canonicalization\"); }\n    if s.chars().count() \u003e 32 { return Err(\"too long\"); }\n    Ok(s)\n}\n```\n\n## Acceptance Criteria\n\n- set_nickname with RTL override chars returns an error\n- set_nickname with zero-width chars strips them silently\n- group_create with homoglyph name is NFC-normalized before storage\n- Names over 32 chars (post-canonicalization) are rejected\n- Unit tests cover: clean name passes, RTL rejected, ZWS stripped, homoglyph normalized, 33-char rejected\n- DESIGN.md §Display Name Canonicalization documents this as a security invariant\n- unicode-normalization added to nie-relay Cargo.toml if not already present",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T04:38:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:08Z",
+  "closed_at": "2026-04-22T06:09:21Z",
+  "close_reason": "Display name canonicalization implemented: NFC + bidi reject + ZWS strip (U+200B/C/2060/FEFF) + trim + 32-char limit. Wired into SET_NICKNAME and GROUP_CREATE. 12 unit tests, E2E test. DESIGN.md and IMPROVEMENTS.md updated. 2 review rounds; P0=P1=P2=0."
+}

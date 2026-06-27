@@ -1,0 +1,28 @@
+{
+  "id": "nie-wrk.4",
+  "title": "KEEPALIVE_SECS and REQUIRE_SUBSCRIPTION silently fall back on parse error",
+  "description": "Both env vars are parsed with .ok().and_then(|v| v.parse().ok()).unwrap_or(default). If an operator sets KEEPALIVE_SECS=five or REQUIRE_SUBSCRIPTION=yes, the parse silently fails and the default is used with no log output. The operator assumes their setting is applied. REQUIRE_SUBSCRIPTION=yes leaving subscription gating off is a business logic error. Fix: parse then warn! (or error!) if the value is set but unparseable, so misconfigurations surface in the startup log.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:53:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T00:06:20Z",
+  "closed_at": "2026-04-18T00:06:20Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:53:47"
+    }
+  ]
+}

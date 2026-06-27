@@ -1,0 +1,25 @@
+{
+  "id": "nie-7xs.14",
+  "title": "PubId as hex(SHA-256(key)), not raw key: prevents key extraction from address",
+  "description": "identity.rs uses hex(SHA-256(verifying_key_bytes)) as the PubId rather than base64(verifying_key_bytes). A reviewer might suggest using the raw key directly (simpler, no hash step). Do not do this: if PubId were the raw key, any party who receives a message knows the verifying key and can do offline signature analysis or link identities across services by key fingerprint. With the hash scheme, the verifying key is only revealed during the auth handshake (as pub_key in Authenticate) and is only seen by the relay. Third parties who observe PubIds cannot extract the signing key. The separate pub_key_b64() method is intentional: it exposes the key only to the relay for signature verification, not as the persistent public address.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T08:00:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:07:52Z",
+  "closed_at": "2026-04-16T09:07:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 01:00:04"
+    }
+  ]
+}

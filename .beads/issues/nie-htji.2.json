@@ -1,0 +1,25 @@
+{
+  "id": "nie-htji.2",
+  "title": "Remove ContactPatchOp enum: direct fields beat intermediate vec for 2 variants",
+  "description": "The ContactPatchOp enum had exactly 3 variants mapping to 2 fields (blocked: Option<bool>, display_name: Option<Option<String>>). Collecting into a Vec<ContactPatchOp> then decomposing it back to local variables in Phase 2b added indirection with zero payoff \u2014 the decomposition loop was just reconstruction. Direct field assignment is simpler, removes an allocation, and the atomicity guarantee (RFC 8620 \u00a77.1) is unchanged because Phase 1 still runs entirely before Phase 2. A future contributor might suggest restoring the enum 'for extensibility' \u2014 resist this unless there are 4+ variants or the ops need to carry richer metadata.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:55:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:56:57Z",
+  "closed_at": "2026-04-24T16:56:57Z",
+  "close_reason": "Decision records \u2014 no code change needed; recorded for future reference",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:55:48"
+    }
+  ]
+}

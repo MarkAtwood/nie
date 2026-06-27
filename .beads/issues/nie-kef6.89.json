@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.89",
+  "title": "SpaceInvite/set destroy returns forbidden for nonexistent IDs instead of notFound",
+  "description": "SpaceInvite/set destroy handler blindly returns forbidden for every ID in the destroy list without checking existence first. RFC 8620 \u00a77.1 requires notFound for objects that do not exist. Trigger: POST /jmap with SpaceInvite/set destroy:[\"nonexistent-id\"] \u2192 {type:forbidden} instead of {type:notFound}.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:21:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:45:10Z",
+  "closed_at": "2026-04-25T01:45:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:21:09"
+    }
+  ]
+}

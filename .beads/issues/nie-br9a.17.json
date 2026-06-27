@@ -1,0 +1,22 @@
+{
+  "id": "nie-br9a.17",
+  "title": "scan_block in-memory rollback on save_block_state failure",
+  "description": "scanner.rs scan_block snapshots tree and witnesses before processing a block, and restores them if save_block_state fails. This ensures the next scan_to_tip call replays the block against a consistent tree rather than double-counting commitments. A contributor might remove the snapshot to save the clone overhead. Preserve: without the rollback, a DB write failure would advance the in-memory commitment tree but not the scan tip, causing the next scan iteration to replay the block with an already-advanced tree \u2014 permanently corrupting witness positions.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:08:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:08:16Z",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:08:16"
+    }
+  ]
+}

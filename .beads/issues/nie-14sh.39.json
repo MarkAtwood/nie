@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.39",
+  "title": "unpad uses u32-to-usize cast that silently truncates on 16-bit targets",
+  "description": "messages.rs:564 casts u32 original_len to usize. On 32/64-bit hosts (all current targets) this is fine, but on hypothetical 16-bit (wasm16) hosts a value > 65535 would silently truncate. The existing bounds check (4 + original_len > padded.len()) catches any exploitable case because padded.len() is also bounded, but the cast is sloppy. Use usize::try_from(original_len).map_err(|_| ...) for defense-in-depth.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:57:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:57:45Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:57:44"
+    }
+  ]
+}

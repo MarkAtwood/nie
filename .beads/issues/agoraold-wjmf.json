@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-wjmf",
+  "title": "E2E: nickname with RTL override is rejected by relay",
+  "description": "Why: verifies the full path from client request through relay to error response. What: add an integration test to relay/tests/ or extend e2e_jsonrpc.rs: (1) spawn relay; (2) connect a client; (3) send SET_NICKNAME with 'alice\\u{202E}attacker' (contains RTL override); (4) wait for response; (5) assert response is an error (not success); (6) also send GROUP_CREATE with zero-width-char name 'group\\u{200B}name'; (7) assert response is success (ZWS stripped); (8) if possible: send GROUP_LIST and verify stored name is 'groupname' (ZWS stripped). Oracle: SET_NICKNAME must fail (error response); GROUP_CREATE must succeed with stripped name.",
+  "acceptance_criteria": "cargo test -p nie-relay e2e passes; relay correctly rejects RTL, strips ZWS",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T05:50:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:07Z",
+  "closed_at": "2026-04-22T05:59:57Z",
+  "close_reason": "E2E test verifies RTL rejection and ZWS stripping; all tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 22:50:52"
+    }
+  ]
+}

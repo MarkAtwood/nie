@@ -1,0 +1,19 @@
+{
+  "id": "nie-75ra",
+  "title": "Review: space_set atomicity, test oracle, pendingPermissionResult leak",
+  "notes": "Confidence: 80% — 20% chance of missed bug. Uncertainty: did not read full apply_member_patch body (only diff context), so there may be other member-id validation gaps; did not audit other store methods for empty-id constraints that would produce a different bad behavior. Would raise confidence with: (1) a test for 'members/' empty-id path specifically, (2) reading apply_member_patch in full.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T02:58:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T03:10:11Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

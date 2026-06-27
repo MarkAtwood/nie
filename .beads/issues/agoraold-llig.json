@@ -1,0 +1,16 @@
+{
+  "id": "agoraold-llig",
+  "title": "Review round 1: nie-cdr / nie-13u payment notifications",
+  "description": "Review of nie-13u changes: display_name() added to dispatch_payment(), ZEC amount in Confirmed notification, user-visible error messages for malformed amount and dust violations",
+  "notes": "SEC7: 95% confidence no missed bugs. P0=0 P1=0 P2=0. Running out of real complaints.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:52:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:28:08Z",
+  "close_reason": "Review converged: P0=0, P1=0, P2=0, running out of real complaints"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-tb8e.12",
+  "title": "MLS group state reset on Reconnecting but mls_active flag not reset if create_group fails after reset",
+  "description": "cli/src/commands.rs: on ClientEvent::Reconnecting, mls = MlsClient::new(&my_pub_id)? and mls_active = false are set. If MlsClient::new returns Err (unlikely but possible if the signing key generation fails), the ? propagates and the chat() function returns an error \u2014 this is the correct behavior. However if a later call to mls.create_group() fails (e.g. GroupAlreadyExists on a stale provider), mls_active remains false but mls is a new client without a group. The admin then sends no Commits, and non-admin peers waiting for a Welcome never receive one. The admin must disconnect and reconnect to recover. This is a session-stuck scenario with no UI feedback beyond a warn! log.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:42:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:06:59Z",
+  "closed_at": "2026-04-26T10:06:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:42:24"
+    }
+  ]
+}

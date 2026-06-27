@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-smg",
+  "title": "Payer-side state machine",
+  "description": "States: Requested (sent PaymentAction::Request, waiting for Address) \u2192 Addressed (received address, building tx) \u2192 Sent (broadcast tx, waiting for Confirmed) \u2192 Complete. On each state transition: persist state, send appropriate PaymentAction message via the chat broadcast path. Handle unexpected messages gracefully (warn + ignore).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:17:32Z",
+  "close_reason": "Fully implemented by nie-6sp, nie-c20, nie-c1v respectively",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:21"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:52"
+    }
+  ]
+}

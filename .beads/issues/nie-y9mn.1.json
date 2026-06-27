@@ -1,0 +1,26 @@
+{
+  "id": "nie-y9mn.1",
+  "title": "bridge-jmap email_get ignores maxObjectsInGet; drops all messages on JMAP server cap",
+  "description": "email_get sends all up to 50 new IDs in a single Email/get request. JMAP servers may advertise a maxObjectsInGet capability (e.g. 10). A server with maxObjectsInGet < 50 returns a requestTooLarge error response; the error is propagated as email_get failure and all new messages are lost for that poll cycle with only a WARN log.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:34:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:06:55Z",
+  "closed_at": "2026-04-25T04:06:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:34:00"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-tb8e.10",
+  "title": "TYPING_NOTIFY in relay.rs ignores relay-provided chat_id; uses daemon default_channel_id instead",
+  "description": "daemon/src/relay.rs TYPING_NOTIFY handler: let chat_id = state.default_channel_id().unwrap_or('default').to_string(). The TypingNotifyParams has no chat_id field at this level, but the relay broadcasts typing on a per-channel basis. The daemon hardwires the typing event to the default channel, so a typing indicator from any channel appears in only one channel. When multiple channels exist (e.g. spaces with separate channels), typing indicators from non-default channels are misrouted. Compare with PeerTyping (in dispatch_peer_typing) which correctly uses the chat_id from the ClearMessage payload. These two paths diverge: direct relay typing always goes to default channel; MLS-encrypted peer typing goes to the correct channel.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:42:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:10Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:42:04"
+    }
+  ]
+}

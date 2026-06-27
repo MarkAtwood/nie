@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.10",
+  "title": "ffi save_identity_to_file non-atomic write can silently corrupt identity on crash",
+  "description": "ffi/src/api/identity.rs save_identity_to_file() calls fs::write() which is not atomic \u2014 if the process dies mid-write, the identity file contains partial bytes; load_identity_from_file() then returns Err (corrupt, not None), so the user's identity is permanently lost with no recovery path; fix by writing to a temp file then rename(2) which is atomic on POSIX",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:55:26Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:26"
+    }
+  ]
+}

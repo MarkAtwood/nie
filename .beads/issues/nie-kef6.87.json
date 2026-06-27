@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.87",
+  "title": "fees::select_notes and CoinSelectError are dead pub API; production path uses tx_builder",
+  "description": "fees::select_notes (takes &[Note]) and fees::CoinSelectError are exported as pub but are never called from any production code path. All production payments go through tx_builder::select_with_fee / select_notes_spendable (takes &[SpendableNote]). The dead pub items leak an interface that (a) external crates could depend on, locking the API, and (b) operates on Note (without witness_data), so any caller that uses it bypasses the witness-aware selection path. Should be pub(crate) or removed. Related: nie-14sh.54 tracks the duplication angle.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:57:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:57:01Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:57:01"
+    }
+  ]
+}

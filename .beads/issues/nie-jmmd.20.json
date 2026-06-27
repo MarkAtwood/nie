@@ -1,0 +1,23 @@
+{
+  "id": "nie-jmmd.20",
+  "title": "display name: bidi reject vs ZWS strip is security-load-bearing",
+  "description": "canonicalize_display_name() rejects bidi controls but strips ZWS. Bidi controls reverse visual rendering so rejection is required; ZWS are invisible so stripping is safe. Do not simplify to strip-all.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:47:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:47:52Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:47:51"
+    }
+  ]
+}

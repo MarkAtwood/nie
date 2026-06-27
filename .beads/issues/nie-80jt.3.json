@@ -1,0 +1,26 @@
+{
+  "id": "nie-80jt.3",
+  "title": "daemon store: no FK constraints in schema; orphaned rows possible",
+  "description": "daemon/src/store.rs has no FOREIGN KEY declarations in any table and no PRAGMA foreign_keys = ON. Specific gaps: space_member.space_id does not reference space(id) \u2014 deleting a space leaves orphaned members. message.chat_id does not reference chat(id). No cascades or referential integrity exist at the schema level; correctness relies entirely on application-layer deletes never being skipped. Fix: add FOREIGN KEY ... ON DELETE CASCADE to space_member and message tables in a new migration, and enable PRAGMA foreign_keys = ON in DaemonStore::new().",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:07:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:31:29Z",
+  "closed_at": "2026-04-24T19:31:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:07:47"
+    }
+  ]
+}

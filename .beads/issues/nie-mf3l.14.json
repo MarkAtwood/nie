@@ -1,0 +1,24 @@
+{
+  "id": "nie-mf3l.14",
+  "title": "GOOD: Client verifies relay-returned pub_id against locally-computed value",
+  "description": "After the authenticate request completes, client.rs checks that auth_result[\"pub_id\"] matches identity.pub_id() computed locally. If they differ, the connection is rejected with an explicit error. This catches two failure modes: (1) a misconfigured relay that hashes keys differently, and (2) a relay that impersonates a different user by returning a wrong pub_id in the auth response. The alternative is trusting the relay's returned pub_id, which would let a compromised relay silently reassign the client's identity. The local verification costs one string comparison and closes the attack surface entirely.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:09:47Z",
+  "closed_at": "2026-04-22T13:09:47Z",
+  "close_reason": "Documented in DESIGN.md \u00a7WebAssembly Client Invariants (\u00a7\u00a717-22)",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:22"
+    }
+  ]
+}

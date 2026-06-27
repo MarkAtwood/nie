@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-8le.1",
+  "title": "Admin diverges after reconnect: UserJoined order != connection_seq order",
+  "description": "Existing clients track online list by appending on UserJoined / removing on UserLeft. Two clients receiving UserJoined(Charlie) and UserJoined(Dave) in different orders will place them at different positions \u2014 admin = online[0] diverges across peers. Relay sends a correct connection_seq-ordered DirectoryList only to the newly connecting client; existing clients never re-sync. Triggered whenever two clients connect in rapid succession and a previous admin disconnects. Bad behavior: two clients elect different admins, both try to create/advance the MLS group epoch, epoch collision.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:07:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:40Z",
+  "closed_at": "2026-04-17T23:23:01Z",
+  "close_reason": "Added sequence: u64 to UserInfo (DirectoryList) and UserJoined. Relay fills sequence from connection_seq() in both places. Client now maintains online_seq: HashMap<String,u64> and inserts UserJoined events via partition_point() to keep online sorted ascending by sequence. online[0] is now consistent across all peers regardless of UserJoined arrival order.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:07:13"
+    }
+  ]
+}

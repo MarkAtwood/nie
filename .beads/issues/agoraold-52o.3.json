@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-52o.3",
+  "title": "network flag accepts arbitrary string, creates permanent garbage wallet.json",
+  "description": "Scenario: user runs 'nie --network Mainnet wallet init' (capital M) or '--network testnet2'. The value is stored verbatim in wallet.json. Every subsequent command using --network mainnet (the default) then fails: 'This wallet was created for Mainnet. Use --network Mainnet or create a new mainnet wallet.' User cannot escape without manually editing wallet.json or deleting it \u2014 neither is documented.\n\nMaintenance consequence: will generate issue reports from users who fat-fingered the flag. Fix is a one-liner in clap:\n  #[arg(long, global = true, value_parser = [\"mainnet\", \"testnet\"], default_value = \"mainnet\")]\nThis converts a future-me maintenance headache into 'error: invalid value' at parse time.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:24:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:57Z",
+  "closed_at": "2026-04-18T03:37:43Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:24:32"
+    }
+  ]
+}

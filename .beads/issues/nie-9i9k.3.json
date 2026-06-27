@@ -1,0 +1,27 @@
+{
+  "id": "nie-9i9k.3",
+  "title": "Restore seed dialog pre-populated on second open",
+  "description": "Trigger: User opens setup_screen, taps 'Restore from seed', types a hex seed, presses Cancel. Then taps 'Restore from seed' again. _seedHexController still contains the previously-entered text. User may not notice the field is pre-populated, start typing at the cursor, and accidentally restore a concatenated/corrupted seed. The 64-char length check will usually catch this, but if the old text was exactly 64 chars and the user adds characters, they could restore garbage. Fix: clear _seedHexController.clear() before showing the dialog in _restore().",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:47:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:56:34Z",
+  "closed_at": "2026-04-24T00:56:34Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:47:27"
+    }
+  ]
+}

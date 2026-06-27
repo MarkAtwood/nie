@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-pf86",
+  "title": "Better file transfer",
+  "description": "Chunked, resumable file transfer with progress reporting, replacing the /cat stopgap. Required: sender chunks file into fixed-size blocks, pads each block (reuse envelope padding), sends as ClearMessage::FileChunk sequence; receiver reassembles, verifies hash, writes to disk; progress display on both ends; resumption on disconnect from last confirmed chunk; configurable relay-side size cap (default 10 MB) to prevent amplification; file metadata (name, MIME type) in first chunk header; /send \u003cpath\u003e CLI command.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-20T17:13:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T14:23:50Z",
+  "close_reason": "Chunked file transfer complete: /send \u003cpath\u003e CLI command, FileHeader+FileChunk protocol types, 65536-byte pad bucket, SHA-256 verify, safe_name path-traversal guard, FILE_MAX_CHUNKS=230 OOM guard, duplicate-header protection. Review converged after 2 rounds."
+}

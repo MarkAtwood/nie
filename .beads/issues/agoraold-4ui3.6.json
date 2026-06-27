@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-4ui3.6",
+  "title": "Add proxy URL validation and .onion warning",
+  "description": "In main.rs, after resolving the proxy and relay URLs, validate that the proxy URL scheme is socks5:// or socks5h://; emit warn!() if relay is .onion without socks5h proxy.\n\n## What\nEarly validation that emits a clear error for invalid proxy schemes and a warning when .onion relay is used without socks5h proxy.\n\n## Algorithm\n1. After proxy resolution (proxy = cli.proxy.or(file_config.proxy)) in main.rs:\n   a. If proxy is Some(ref p):\n      - Parse p with url::Url::parse(p).with_context(|| 'invalid proxy URL')?\n      - If scheme is not 'socks5' and not 'socks5h': bail!('proxy URL must start with socks5:// or socks5h://')\n      - If relay URL ends with '.onion' and scheme == 'socks5' (not socks5h): warn!('relay is .onion but proxy scheme is socks5:// \u2014 DNS will be resolved locally before Tor tunnel; use socks5h:// to prevent DNS leak')\n   b. If proxy is None and relay URL ends with '.onion':\n      - warn!('.onion relay address without a SOCKS5 proxy \u2014 connection will likely fail without Tor; use --proxy socks5h://127.0.0.1:9050')\n2. Do not hard-error on .onion without proxy \u2014 just warn. (User may have system-wide Tor routing)\n\n## Defensive programming rules\n- Url::parse errors must include the offending URL in the error context (but NOT if it might contain credentials \u2014 since this is validation, use only scheme+host+port in any error message)\n- The warn!() calls must use tracing::warn!, not eprintln!\n- Never bail! on .onion without proxy \u2014 only warn\n- bail! is correct for invalid scheme (we cannot proceed without a valid proxy URL format)\n\n## Agent team\nResearcher (read main.rs validation block + tracing usage), Implementer, Validator\n\n## Tests\n- invalid_scheme: --proxy http://localhost:3128 \u2192 process exits with 'must start with socks5://'\n- valid_socks5: --proxy socks5://127.0.0.1:1080 \u2192 no error (even if proxy unreachable at this point)\n- valid_socks5h: --proxy socks5h://127.0.0.1:9050 \u2192 no error\n- onion_no_proxy: --relay ws://abc.onion/ws (no --proxy) \u2192 warn! message in output, no exit error\n- onion_with_socks5: --relay ws://abc.onion/ws --proxy socks5://127.0.0.1:9050 \u2192 warn! about DNS leak\n- onion_with_socks5h: --relay ws://abc.onion/ws --proxy socks5h://127.0.0.1:9050 \u2192 no warning\nAcceptance: cargo test -p nie-cli exits 0; all six test cases pass; clippy exits 0.",
+  "acceptance_criteria": "cargo test -p nie-cli exits 0; invalid proxy scheme returns clear error; .onion warnings emitted correctly; clippy exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:35:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:46:31Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:40"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:35:56"
+    }
+  ]
+}

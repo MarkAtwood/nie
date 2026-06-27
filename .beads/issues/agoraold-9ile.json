@@ -1,0 +1,13 @@
+{
+  "id": "agoraold-9ile",
+  "title": "Rename nie→agora throughout source",
+  "description": "Replace all remaining 'nie' identifiers (type names, constants, string literals, log messages, test names, CLI help text) with 'agora' equivalents. Covers: rpc_methods constants (e.g. NIE_VERSION), error code names, protocol string literals in ws.rs and protocol.rs, CLI binary name in help text, any remaining nie_ prefixes in identifiers, and .env example files.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T19:32:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:04Z",
+  "closed_at": "2026-04-22T20:17:17Z"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-9i9k.1",
+  "title": "START_STICKY restart: startForeground() never called",
+  "description": "Trigger: Android OS kills NieForegroundService under memory pressure and restarts it (START_STICKY behavior). onStartCommand() is called with intent=null. The when(intent?.action) dispatch has no null branch, so neither ACTION_START nor ACTION_STOP runs \u2014 startForeground() is never called. The service wakes up (wakeLock acquired in onCreate), but runs as an unprovisioned background service. Android 8+ kills background services after a few minutes, so the keepalive effect is lost until the user opens the app again. The comment says 'restart it with ACTION_START' which is wrong \u2014 START_STICKY delivers null, not the last intent. Fix: add a null branch that calls startForeground(), or switch to START_REDELIVER_INTENT.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:47:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:56:24Z",
+  "closed_at": "2026-04-24T00:56:24Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:47:13"
+    }
+  ]
+}

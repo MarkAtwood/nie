@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.30",
+  "title": "JMAP_BASE_URL defaults to hardcoded port 7734 ignoring LISTEN_ADDR",
+  "description": "JMAP_BASE_URL env var defaults to http://127.0.0.1:7734 in daemon/src/main.rs regardless of the LISTEN_ADDR setting. If an operator changes the listen port via LISTEN_ADDR, the Session object still advertises upload/download URLs at port 7734. Clients following those URLs from the Session object will connect to the wrong port. Fix: derive the default JMAP_BASE_URL from the resolved LISTEN_ADDR rather than hardcoding it.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:51:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:51:10Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:51:10"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-hlns.2",
+  "title": "nie-hlns W1A: Relay handler rewrite to JSON-RPC",
+  "description": "## What\nRewrite relay/src/ws.rs to speak JSON-RPC 2.0 instead of the RelayMessage tag-discriminated format. Relay binary must compile and pass all existing relay tests after this bead.\n\n## Algorithm\n1. Replace all outgoing RelayMessage constructions with JsonRpcNotification or JsonRpcResponse:\n   - Auth handshake:\n     a. Send Challenge as: JsonRpcNotification::new(CHALLENGE, ChallengeParams{nonce})?.to_json_string()\n     b. Parse incoming frame as JsonRpcRequest; validate id field (must be u64, not null)\n     c. If method != AUTHENTICATE: send error response {id, code: NOT_AUTHENTICATED}; close\n     d. Deserialize AuthenticateParams from request.params; call verify_challenge()\n     e. On success: send JsonRpcResponse::success(id, AuthenticateResult{...})\n     f. On failure: send JsonRpcResponse::error(id, AUTH_FAILED, reason); close\n   - After auth: send DirectoryList as JsonRpcNotification::new(DIRECTORY_LIST, DirectoryListParams{...})\n   - Send UserJoined as JsonRpcNotification for each existing peer\n2. In the main dispatch loop, replace match on RelayMessage with:\n   a. Parse each text frame as JsonRpcRequest (may fail \u2192 warn!+continue, send error -32700)\n   b. Check version == \"2.0\" (else error -32600)\n   c. Match on request.method:\n      - BROADCAST: check subscription; deserialize BroadcastParams; relay-set from = authenticated pub_id; broadcast DeliverParams as notification to all except sender; respond JsonRpcResponse::success(id, BroadcastResult{message_id: Uuid::new_v4().to_string()})\n      - SET_NICKNAME: deserialize SetNicknameParams; validate 1-32 chars; call try_set_nickname; success \u2192 respond ok + broadcast UserNickname notification; fail \u2192 respond error NICKNAME_TAKEN\n      - PUBLISH_KEY_PACKAGE: deserialize PublishKeyPackageParams; save_key_package().await; respond ok; broadcast KeyPackageReady notification ONLY AFTER save_key_package() resolves\n      - GET_KEY_PACKAGE: deserialize GetKeyPackageParams; get_key_package(); respond JsonRpcResponse::success(id, GetKeyPackageResult{...})\n      - WHISPER: deserialize WhisperParams; relay-set from = authenticated pub_id (never client-supplied); deliver_live(to, WhisperDeliver notification)\n      - SUBSCRIBE_REQUEST: respond error METHOD_NOT_FOUND for now (Phase 3)\n      - unknown method: respond error METHOD_NOT_FOUND (-32601)\n3. Broadcast path: all fan-out messages are JsonRpcNotification (no id); state.broadcast() takes String (serialized notification) not RelayMessage\n4. Remove all RelayMessage constructions from relay/src/ws.rs\n5. Update state.rs deliver_live/broadcast signatures from RelayMessage to String (pre-serialized JSON)\n\n## Defensive programming rules\n- Never accept 'from' field from client in Broadcast or Whisper params \u2014 relay always sets from\n- Validate request id is present and u64 before processing any request\n- Gate all methods on authenticated flag (bool set after AuthOk sent)\n- PUBLISH_KEY_PACKAGE must await save_key_package() before broadcasting KeyPackageReady\n- All outgoing JSON: use helper methods, not hand-rolled strings\n- Log sender-identity check failures with warn! (spoofed_sender code)\n- Never deserialize payload bytes in relay \u2014 pass through as Vec<u8>\n\n## Agent team: Critical-path (R + I_A + I_B + T + DIFF)\n- R: Read relay/src/ws.rs and relay/src/state.rs in full; produce context summary\n- I_A: Implement relay rewrite using R's summary\n- I_B: Implement relay rewrite independently using R's summary\n- T: Write test suite asserting relay sends valid JSON-RPC; test unauthenticated method rejection, spoofed-sender rejection, KeyPackageReady ordering; use external oracle (two live clients)\n- DIFF: Compare I_A and I_B outputs; if they agree on the five security invariants, merge one\n\n## Tests (security-critical \u2014 T writes before seeing implementation)\n- unauthenticated_broadcast_rejected: connect, skip auth, send broadcast request \u2192 expect error -32002\n- spoofed_from_in_params_ignored: send broadcast with extra 'from' field in params \u2192 delivered message has from=authenticated_pub_id not the spoofed value\n- key_package_ready_after_write: publish KP, capture ready notification \u2192 verify KP fetchable via get_key_package\n- error_response_has_matching_id: send broadcast with id=42 when not subscribed \u2192 error response has id=42",
+  "acceptance_criteria": "cargo build -p nie-relay passes; relay binary sends valid JSON-RPC 2.0 only; no RelayMessage constructions remain in relay/src/ws.rs; clippy clean; security invariants tested",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T17:42:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:01:25Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:37"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:42:45"
+    }
+  ]
+}

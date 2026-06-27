@@ -1,0 +1,26 @@
+{
+  "id": "nie-qgag.6",
+  "title": "GROUP_REMOVE not implemented",
+  "description": "There is no GROUP_REMOVE method (admin removing another member). Only GROUP_LEAVE exists (user removes themselves). This means group admins cannot kick members. Any group management UI will either be broken or workaround by having the UI send WHISPER to the target and hope they leave \u2014 which is client-enforced not relay-enforced. The ws.rs match arm for unknown methods returns METHOD_NOT_FOUND, which looks like a protocol bug from the client's perspective. Add GROUP_REMOVE with admin check (only creator or existing member can remove).",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:53:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:26Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:53:39"
+    }
+  ]
+}

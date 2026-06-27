@@ -1,0 +1,27 @@
+{
+  "id": "nie-8le.10",
+  "title": "Whisper from-field implicitly safe but not commented: looks like a missing check",
+  "description": "ws.rs handles Whisper by constructing WhisperDeliver { from: pub_id.0.clone(), payload } \u2014 relay fills in the authenticated sender, so spoofing is impossible. But there is no comment explaining this. CLAUDE.md \u00a74 says 'the relay must verify envelope.from == authenticated_pub_id on every Send', and a reviewer applying that rule to the Whisper branch would expect to see an explicit check and find none. What would make it clear: a one-line comment: '// from is set by relay from authenticated pub_id \u2014 client-supplied from field does not exist in Whisper'",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:08:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T23:34:36Z",
+  "closed_at": "2026-04-17T23:34:36Z",
+  "close_reason": "implemented",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:08:16"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-zd3.1",
+  "title": "try_load_wallet_fvks derives wrong FVKs: passes ZIP-32 master key to from_seed",
+  "description": "wallet.key stores master.as_bytes() = ZIP-32 master key (BLAKE2b output). try_load_wallet_fvks passes these 64 bytes to SaplingExtendedSpendingKey::from_seed and OrchardSpendingKey::from_seed, which each apply BLAKE2b-512 again internally (master() / from_zip32_seed()). The resulting FVKs are double-derived and do not correspond to the wallet's actual key tree. Every payment address generated will be unreachable \u2014 payers send ZEC to an address the wallet can never spend. Tests miss this because test_wallet_fvks() constructs WalletFvks directly from the raw BIP-39 seed, bypassing try_load_wallet_fvks entirely.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:16:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T23:33:22Z",
+  "closed_at": "2026-04-18T23:33:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:16:39"
+    }
+  ]
+}

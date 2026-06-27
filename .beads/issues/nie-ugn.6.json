@@ -1,0 +1,27 @@
+{
+  "id": "nie-ugn.6",
+  "title": "anchor_height = scan_tip contract not documented at build_shielded_tx callsite",
+  "description": "payment.rs lines 177-178 carry the correct comment: 'anchor_height = scan_tip: witnesses in spendable_notes() are valid at scan_tip, not at note.block_height'. build_shielded_tx's doc comment says only 'Block height at which the Sapling commitment tree was last updated'. A contributor adding a second call site to build_shielded_tx will likely pass note.block_height, causing silent anchor mismatch and proof failure. Fix: add to build_shielded_tx doc: 'Must equal WalletStore::scan_tip() \u2014 witnesses from spendable_notes() are rooted at the scan tip. Passing note.block_height causes anchor mismatch.'",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:13:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T03:44:27Z",
+  "closed_at": "2026-04-19T03:44:27Z",
+  "close_reason": "Doc/comment fixes applied",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:13:33"
+    }
+  ]
+}

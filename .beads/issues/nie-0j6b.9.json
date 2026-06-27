@@ -1,0 +1,27 @@
+{
+  "id": "nie-0j6b.9",
+  "title": "JMAP upload: 25 MB body fully buffered in RAM before size check",
+  "description": "handle_jmap_upload in daemon/src/jmap.rs receives body as Bytes (axum buffers the entire request body in memory before the handler runs). The UPLOAD_MAX_BYTES=25MB check happens after full buffering. A caller sending a 25MB+1 body triggers 413 but has already consumed 25MB of RAM. With concurrent uploads from the same authenticated user, this can exhaust process memory. Since the daemon is loopback-only this is constrained, but the right fix is axum body size limits at the router level, not post-read rejection.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:56:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:55:17Z",
+  "closed_at": "2026-04-26T09:55:17Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:56:20"
+    }
+  ]
+}

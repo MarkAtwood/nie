@@ -1,0 +1,19 @@
+{
+  "id": "nie-rpm2.4",
+  "title": "new_challenge: broken clock silently produces ts=0; nonce fails freshness check",
+  "description": "core/src/auth.rs:24-33: new_challenge() calls SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default(). If the system clock is before the Unix epoch, unwrap_or_default() returns Duration::ZERO, so the nonce timestamp bytes are [0,0,0,0]. The relay then calls nonce_is_fresh(&nonce) (ws.rs:363), which computes age = current_unix_time - 0 = current_unix_time (e.g., 1.7 billion seconds), which is >> CHALLENGE_TTL_SECS (300). The freshness check rejects the nonce with AUTH_FAILED. The client receives an opaque auth failure with no diagnostic information \u2014 the relay rejected its own nonce. Contrast with transport.rs:447-451 where the client side uses context() to fail explicitly. Fix: use context() or an explicit check in new_challenge() to propagate a clear error when the clock is broken, matching the defensive posture in transport.rs.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:35:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:35:34Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:35:33"
+    }
+  ]
+}

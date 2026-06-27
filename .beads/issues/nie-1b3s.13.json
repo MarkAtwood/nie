@@ -1,0 +1,23 @@
+{
+  "id": "nie-1b3s.13",
+  "title": "auth.rs nonce embeds timestamp in opaque base64, avoiding wire change",
+  "description": "auth.rs:17-22: the freshness timestamp is embedded in bytes 0-3 of the random nonce bytes and the whole thing is base64-encoded. This means the wire format of ChallengeParams.nonce didn't change when per-nonce TTL was added \u2014 existing clients see a valid base64 string with a different length (44 chars for 32 bytes vs 24 chars for 18 bytes). A contributor might suggest adding a separate 'issued_at' field to the challenge; reject this \u2014 it extends the wire protocol unnecessarily and splits the TOCTOU surface. The embedded-timestamp approach is correct.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:15:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:15:33Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:15:32"
+    }
+  ]
+}

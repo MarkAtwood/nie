@@ -1,0 +1,26 @@
+{
+  "id": "nie-9i9k.9",
+  "title": "BackgroundService 'fire-and-forget' comment contradicts await",
+  "description": "In BackgroundService.start(), the comment says 'Fire-and-forget: service starts regardless of grant or deny.' But the code immediately below does 'await _requestNotificationPermission()'. The method blocks until the permission dialog resolves (granted or denied), then continues to startService. 'Fire-and-forget' means non-blocking, which this is not. A contributor reading this will assume the permission and service start are decoupled and may refactor to actually make it fire-and-forget, breaking the sequencing guarantee. Fix: rewrite comment to 'Await the permission dialog so the notification system dialog appears before startService; service starts regardless of outcome.'",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:48:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:57:57Z",
+  "closed_at": "2026-04-24T00:57:57Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:48:31"
+    }
+  ]
+}

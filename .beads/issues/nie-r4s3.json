@@ -1,0 +1,14 @@
+{
+  "id": "nie-r4s3",
+  "title": "Flutter: Android background foreground service",
+  "description": "Keep the WebSocket relay connection alive when the app is backgrounded on Android. Requires: (1) Add flutter_foreground_task or similar package to pubspec.yaml, (2) Kotlin ForegroundService class in android/app/src/main/, (3) notification channel for persistent notification, (4) Flutter platform channel to start/stop the service. POST_NOTIFICATIONS and FOREGROUND_SERVICE permissions are already declared in AndroidManifest.xml.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "feature",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:17:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:19:31Z",
+  "closed_at": "2026-04-23T23:19:31Z",
+  "close_reason": "Android foreground service implemented: NieForegroundService.kt, MethodChannel in MainActivity, Dart BackgroundService wrapper, integrated with RelayService connect/disconnect"
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.52",
+  "title": "scanner persists N witness rows individually per block; O(N) separate DB round-trips per block",
+  "description": "scanner.rs scan_block: the witness persistence loop calls upsert_witness once per unspent note per block. With M unspent notes, this is M separate DB round-trips per block. Since the DB pool is max_connections=1, each upsert is synchronous. A batch upsert using a single SQL statement with multiple rows (or at minimum pipelining inside the existing transaction) would reduce DB overhead from O(N) to O(1) round-trips per block.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:58:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:58:46Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:58:46"
+    }
+  ]
+}

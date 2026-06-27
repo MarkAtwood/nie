@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-0tvc.8",
+  "title": "nie-daemon web: embedded index.html + JavaScript client",
+  "description": "**What:** Create daemon/web/index.html (3-panel layout: users, chat, wallet stub) with inline JavaScript that connects to /ws/events, fetches /api/whoami + /api/users on load, and sends messages via POST /api/send.\n\n**Algorithm:**\n1. Create daemon/web/ directory\n2. Write daemon/web/index.html (single file, no external deps, all inline):\n   a. HTML skeleton: three-column layout \u2014 left panel (users list), center panel (chat log + text input + send button), right panel (wallet stub showing 'Wallet coming in Phase 2')\n   b. CSS: minimal flexbox layout, dark-ish theme, monospace font for pub_ids\n   c. JavaScript:\n      - const TOKEN_KEY = 'nie_daemon_token';\n      - On DOMContentLoaded: read token from localStorage; if missing, prompt user 'Enter daemon token:'; store in localStorage\n      - Fetch /api/whoami (Authorization: Bearer {token}) \u2192 display own pub_id in status bar\n      - Fetch /api/users \u2192 render users in left panel (online/offline)\n      - Connect WebSocket ws://localhost:7734/ws/events with Authorization header via query param ?token={token} if browsers don't allow WS auth headers, OR use a ws-ticket approach: POST /api/ws-ticket \u2192 get one-time token \u2192 connect ws://localhost:7734/ws/events?ticket={ticket}\n      - SIMPLER APPROACH: token in URL fragment, server reads it from query string on WS upgrade. Implement as query param ?token=... on the WS URL; update WS handler to also accept ?token= query param\n      - WS onmessage: parse JSON; switch on .type: 'message_received' \u2192 append div to chat log; 'user_joined'/'user_left'/'directory_updated' \u2192 refresh users panel\n      - Send button / Enter key: POST /api/send { text } \u2192 append optimistic message to chat, show error if 4xx/5xx\n      - On 401 from any request: show re-enter token prompt\n3. Create daemon/src/web.rs:\n   - const INDEX_HTML: &str = include_str!('../web/index.html');\n   - pub async fn handle_index() -> impl IntoResponse { ([(axum::http::header::CONTENT_TYPE, 'text/html; charset=utf-8')], INDEX_HTML) }\n4. Update WS handler (nie-0tvc.6 / W2-C) to accept token from query param: extract ?token= from WS URL as fallback if no Authorization header\n5. Register routes in main.rs: .route('/', get(web::handle_index)), .route('/index.html', get(web::handle_index))\n6. Note: GET / does NOT require auth (token entered in browser \u2014 user sees the page first)\n\n**Defensive programming rules:**\n- Token not embedded in HTML (it changes and is user-specific)\n- No external CDN resources in HTML \u2014 no <script src='https://...'>\n- Token stored in localStorage only (not URL bar, not cookies)\n- All API calls include Authorization header\n- No inline eval() or unsafe JS patterns\n\n**Agent team:** Implementer (HTML+JS, no research needed). Validator (cargo build + visual spot check).\n\n**Tests:**\n- test_static_serve: GET http://127.0.0.1:7734/ returns 200 with Content-Type: text/html\n- test_index_html_no_external_resources: grep for 'https://' in index.html \u2192 must find 0 matches (no CDN)",
+  "acceptance_criteria": "GET / returns 200 text/html; no external resource URLs in HTML; cargo clippy -- -D warnings exits 0; page renders in browser with 3 panels",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:40:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:55:23Z",
+  "close_reason": "embedded web client implemented; HTML tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:07"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:40:14"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:07"
+    }
+  ]
+}

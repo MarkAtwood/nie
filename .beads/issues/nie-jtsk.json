@@ -1,0 +1,22 @@
+{
+  "id": "nie-jtsk",
+  "title": "Message expiry: senderExpiresAt and burnOnRead",
+  "description": "Implement sender-controlled message expiry in nie-daemon. senderExpiresAt: schedule hard deletion (row removal, no tombstone) at deadline; carry value in ClearMessage so receiving daemon can also schedule. burnOnRead: hard-delete immediately after Message/set readAt update. messageExpirySeconds: per-Chat local expiry policy enforced by daemon background task. None of these require relay visibility.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T19:54:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T22:26:49Z",
+  "closed_at": "2026-04-23T22:26:49Z",
+  "close_reason": "Implemented: Message/set update (reactions, body edit, soft-delete, readAt/burn-on-read), destroy (hard-delete). senderExpiresAt/burnOnRead fields on create. DB v2 migration. Background expiry reaper task. All tests pass.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:55:03"
+    }
+  ]
+}

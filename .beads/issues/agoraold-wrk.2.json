@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-wrk.2",
+  "title": "remove_member called for users never in the MLS group generates misleading warn",
+  "description": "UserLeft handler calls mls.remove_member(&pub_id) whenever i_am_admin && mls_active, without checking mls.group_contains(&pub_id) first. A user who disconnects before the admin has added them (race: UserLeft arrives before KeyPackageResponse) causes remove_member to fail with 'member not in group', logged at warn! level. In any session where users join and leave quickly, this warn fires routinely. A future maintainer chasing this log entry will waste time on a normal code path \u2014 the check should mirror the guard already used in KeyPackageReady.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:53:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:58Z",
+  "closed_at": "2026-04-18T00:06:16Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:53:45"
+    }
+  ]
+}

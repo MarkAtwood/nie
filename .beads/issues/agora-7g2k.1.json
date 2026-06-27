@@ -1,0 +1,14 @@
+{
+  "id": "agora-7g2k.1",
+  "title": "elegance: validate_did_key() uses raw bytes [0xed, 0x01] instead of ED25519_MULTICODEC constant",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-23T00:19:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T01:29:02Z",
+  "closed_at": "2026-04-23T01:29:02Z",
+  "close_reason": "Fixed: use ED25519_MULTICODEC constant in test; updated stale 'hash' comment to 'did:key encoding'"
+}

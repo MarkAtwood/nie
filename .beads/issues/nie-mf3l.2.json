@@ -1,0 +1,22 @@
+{
+  "id": "nie-mf3l.2",
+  "title": "nie-core: WASM-conditional platform deps",
+  "description": "## What\nMake nie-core compile for wasm32-unknown-unknown by moving non-WASM-compatible deps and modules behind cfg() guards. nie-core's pure crypto modules (identity, auth, hpke, messages, protocol) must compile for both native and wasm32.\n\n## Algorithm\n1. In `core/Cargo.toml`, move these deps to [target.'cfg(not(target_arch = \"wasm32\"))'.dependencies]:\n   - tokio (all features)\n   - tokio-tungstenite\n   - tokio-socks\n   - native-tls\n   - rpassword\n   Keep these unconditional (already WASM-safe): ed25519-dalek, x25519-dalek, sha2, serde, serde_json, serde_with, anyhow, thiserror, uuid, base64, rand, tracing, futures, hpke, openmls, openmls_rust_crypto, openmls_basic_credential, tls_codec, bip39, blake2b_simd, age, chrono\n2. Add [target.'cfg(target_arch = \"wasm32\")'.dependencies]:\n   - getrandom = { version = '0.2', features = ['js'] }\n   This ensures WASM builds get browser crypto for RNG.\n3. In `core/src/lib.rs`, wrap platform-specific module declarations:\n   - #[cfg(not(target_arch = \"wasm32\"))] pub mod transport;\n   - #[cfg(not(target_arch = \"wasm32\"))] pub mod keyfile;\n   Leave all other mods (identity, auth, hpke, messages, protocol, mls, wallet) unconditional.\n4. Check if mls.rs has any tokio usage \u2014 grep for 'tokio'. If found, add cfg guard.\n5. Check if wallet.rs has any tokio/sqlx usage \u2014 if found, add cfg guard.\n6. Run cargo check -p nie-core (native must still pass)\n7. Run cargo test -p nie-core (all existing tests must still pass)\n8. Run cargo check --target wasm32-unknown-unknown -p nie-core (WASM must now pass)\n\n## Defensive programming\n- Add a comment above every cfg() guard explaining what is excluded and why\n- Do NOT remove any functionality from native builds \u2014 only add cfg guards\n- Every existing test must still pass on native\n\n## Agent team\nStandard: Researcher reads core/Cargo.toml and core/src/lib.rs + each flagged module; Implementer makes only the minimum necessary changes; Validator runs cargo check/test for both targets.\n\n## Tests\n- cargo check -p nie-core exits 0\n- cargo test -p nie-core exits 0 (no tests removed or broken)\n- cargo check --target wasm32-unknown-unknown -p nie-core exits 0",
+  "acceptance_criteria": "cargo check -p nie-core exits 0; cargo test -p nie-core exits 0; cargo check --target wasm32-unknown-unknown -p nie-core exits 0; no previously passing tests broken",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:53:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T01:59:47Z",
+  "close_reason": "nie-core WASM-compatible; cargo check wasm32 passes; all native tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:53:17"
+    }
+  ]
+}

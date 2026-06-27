@@ -1,0 +1,24 @@
+{
+  "id": "nie-felh.18",
+  "title": "Extract UTF-8 cursor movement helpers to prevent divergence",
+  "description": "UTF-8 boundary-aware cursor movement code appears in three places with similar but slightly different logic:\n\n1. Left arrow (lines 759-766): move_cursor_left()\n2. Right arrow (lines 768-776): move_cursor_right()\n3. Backspace (lines 744-752): delete_char_before_cursor()\n\nEach has:\n    let mut pos = state.input_cursor - 1;  // or +1\n    while !state.input.is_char_boundary(pos) {\n        pos -= 1;  // or += 1\n    }\n\nProblem: If a UTF-8 boundary bug is found, it might be fixed in one place but not others. Different edge case handling:\n- Left goes backward from cursor-1\n- Right goes forward from cursor+1 (with bounds check)\n- Backspace has no bounds check\n\nExtract:\n    fn cursor_left(s: &str, cursor: usize) -> usize { ... }\n    fn cursor_right(s: &str, cursor: usize) -> usize { ... }\n\nThese will:\n- Ensure consistent UTF-8 safety across all movement\n- Make edge cases testable in isolation\n- Prevent divergence",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T04:37:09Z",
+  "closed_at": "2026-04-20T04:37:09Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:35"
+    }
+  ]
+}

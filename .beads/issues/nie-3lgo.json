@@ -1,0 +1,14 @@
+{
+  "id": "nie-3lgo",
+  "title": "HPKE seal/unseal: no recipient binding in AAD — cross-recipient forgery possible",
+  "description": "core/src/hpke.rs seal_message/unseal_message pass empty AAD to single_shot_seal/single_shot_open. No recipient pub_id is cryptographically bound into the ciphertext. A compromised or buggy relay can re-deliver a ciphertext sealed for Alice to Bob (if Bob's private key is obtained) and it decrypts successfully. Fix: include the recipient's pub_id bytes in the AAD on both seal and open, with a new INFO string to version the protocol change.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:51:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:12:18Z",
+  "closed_at": "2026-04-26T06:12:18Z",
+  "close_reason": "Closed"
+}

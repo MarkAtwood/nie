@@ -1,0 +1,32 @@
+{
+  "id": "agoraold-967x.7",
+  "title": "pow: E2E test \u2014 gate, rejection, replay",
+  "description": "E2E integration test in relay/tests/pow_e2e.rs proving the PoW gate works end-to-end.\n\nWhat: Four test cases exercising the complete PoW flow.\n\nTest setup helper:\n- spawn_relay_with_pow(difficulty: u8) \u2192 String: starts relay with state.set_pow_difficulty(difficulty)\n- difficulty=1 makes mining fast (~50% chance per attempt)\n\nTest 1: pow_gate_allows_valid_mined_token\n  1. spawn_relay_with_pow(1)\n  2. transport::connect(&url, &alice, false, None) \u2014 connect() automatically mines PoW\n  3. wait_for_directory_list (proves auth succeeded)\n  Oracle: successful connection to a PoW-enabled relay; DirectoryList proves auth succeeded\n\nTest 2: pow_gate_rejects_missing_token\n  1. spawn_relay_with_pow(1)\n  2. Manual connection: open WS, receive Challenge, sign but do NOT include pow_token\n  3. Send AuthenticateParams { pub_key, nonce, signature, pow_token: None }\n  4. Expect response with error.code == POW_REQUIRED (-32030)\n  Oracle: pow_token=None when difficulty>0 must return POW_REQUIRED\n\nTest 3: pow_gate_rejects_stale_token\n  1. spawn_relay_with_pow(1)\n  2. Manual: open WS, receive Challenge, sign\n  3. Craft token manually with ts_floor = (now/60 - 11) (11 minutes ago, outside \u00b110 window)\n  4. Mine valid PoW for that stale ts_floor (diff=1 so it's fast)\n  5. Send AuthenticateParams with stale token\n  6. Expect response with error.code == POW_STALE (-32032)\n  Oracle: ts_floor > 10 minutes ago must return POW_STALE\n\nTest 4: pow_gate_rejects_replayed_token\n  1. spawn_relay_with_pow(1)\n  2. alice connects successfully (auto-mines token T1, captured)\n  3. alice disconnects\n  4. Replay T1 in a new manual connection (same token)\n  5. Expect response with error.code == POW_REPLAYED (-32033)\n  Wait \u2014 T1 was sent by transport::connect() which doesn't expose the raw token.\n  Alternative: mine a token manually (difficulty=1), submit twice in two separate manual connections\n  Second submission of same h16 must return POW_REPLAYED\n\nDefensive note: tests must NOT use difficulty=0 (that disables PoW and the tests would trivially pass without actually testing the gate).",
+  "acceptance_criteria": "cargo test -p nie-relay -- pow_e2e passes; all four test cases pass; no hardcoded results",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:35:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:53:13Z",
+  "close_reason": "relay/tests/pow_e2e.rs: 4 tests \u2014 allows_valid, rejects_missing, rejects_stale, rejects_replayed \u2014 all pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:35:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:36:04"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:36:03"
+    }
+  ]
+}

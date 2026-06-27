@@ -1,0 +1,14 @@
+{
+  "id": "nie-y2nq",
+  "title": "(BUG) relay/main: plaintext WebSocket with no TLS termination documented",
+  "description": "relay/src/main.rs binds a plain axum HTTP/WebSocket listener on LISTEN_ADDR (default 0.0.0.0:3210) with no TLS. The relay is documented as requiring a TLS-terminating reverse proxy (nginx/caddy) in front of it, but this is not enforced or even warned about at startup. If an operator exposes the relay directly (e.g., on a cloud VM without a proxy), all relay traffic is plaintext even though individual messages are E2E-encrypted by MLS. The relay's authentication nonce, connection metadata, and IP addresses travel in cleartext. Fix: add a startup warning when LISTEN_ADDR is not a loopback address and TLS is not configured (e.g., via a BEHIND_PROXY=true env var acknowledgement), similar to how daemon/src/main.rs enforces loopback-only binding.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:16:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:21:04Z",
+  "closed_at": "2026-04-26T09:21:04Z",
+  "close_reason": "Closed"
+}

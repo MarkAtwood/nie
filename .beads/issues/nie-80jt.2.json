@@ -1,0 +1,26 @@
+{
+  "id": "nie-80jt.2",
+  "title": "relay store: PRAGMA foreign_keys = ON never set; no schema FK constraints",
+  "description": "relay/src/store.rs never executes PRAGMA foreign_keys = ON, so SQLite's FK enforcement is disabled. Additionally, the schema has no FOREIGN KEY declarations at all: group_members.group_id does not reference groups, offline_queue.pub_id does not reference users, key_packages.pub_id does not reference users, group_members.pub_id does not reference users. Deleting a group does not cascade-delete group_members by schema; it only works because delete_group() manually does both. Fix: (1) add PRAGMA foreign_keys = ON in Store::new() after pool creation; (2) add FOREIGN KEY constraints to the schema in the next migration.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:06:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:31:26Z",
+  "closed_at": "2026-04-24T19:31:26Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:06:55"
+    }
+  ]
+}

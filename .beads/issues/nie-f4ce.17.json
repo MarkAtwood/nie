@@ -1,0 +1,23 @@
+{
+  "id": "nie-f4ce.17",
+  "title": "bridge-matrix: constant-time hs_token comparison via subtle is correct",
+  "description": "bridge-matrix/src/bridge.rs as_transaction: uses subtle::ConstantTimeEq for hs_token comparison, preventing timing attacks on the bearer token. A contributor might suggest replacing with == for simplicity. This must stay as constant-time comparison \u2014 the hs_token is a bearer credential and timing differences on the comparison would leak prefix information.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:09:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:09:36Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:09:36"
+    }
+  ]
+}

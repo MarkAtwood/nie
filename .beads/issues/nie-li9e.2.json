@@ -1,0 +1,26 @@
+{
+  "id": "nie-li9e.2",
+  "title": "ffi client delivers own broadcast messages to Dart",
+  "description": "ffi/src/api/client.rs map_notification lines 244-249: DELIVER arm creates NieEvent::MessageReceived without checking if p.from == client.pub_id. The NieClient struct contains pub_id but it is not passed into map_notification. Every bridge handle_nie_deliver checks deliver.from == own_pub_id and skips (bridge-jmap:267, bridge-slack:128, bridge-teams:108). Fix: thread own_pub_id into map_notification (or the spawned task) and filter there.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:53:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:52Z",
+  "closed_at": "2026-04-25T02:08:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:53:39"
+    }
+  ]
+}

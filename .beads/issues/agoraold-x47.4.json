@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-x47.4",
+  "title": "No per-client rate limiting on Broadcast \u2014 DoS via channel saturation",
+  "description": "Any authenticated client can broadcast at WebSocket speed with no per-sender rate limit. Scenario: one authenticated bad actor floods the relay, filling all other clients' 64-message mpsc channels. When a channel fills, broadcast() blocks on that sender's tx.send().await \u2014 stalling delivery to all other clients for the duration. Downstream effect: the read loop in ws.rs can't process new messages from other senders while blocked in broadcast(). At 16 clients with 1 MiB messages, one flood sender can allocate 15 MiB per message relay-side and hold the broadcast lock until all channels drain. This will generate 'messages delayed/lost' issue reports from users who did nothing wrong.",
+  "status": "deferred",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:46:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:57Z",
+  "defer_until": "2026-06-01T00:00:00Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:46:36"
+    }
+  ]
+}

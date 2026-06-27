@@ -1,0 +1,14 @@
+{
+  "id": "nie-rb2k",
+  "title": "wallet/client.rs: latest_height and broadcast_tx have no per-RPC timeout",
+  "description": "LightwalletdClient::latest_height() and broadcast_tx() make gRPC calls with no timeout. The connect() call has a 15-second tokio::time::timeout, but the individual RPC invocations do not. A TCP connection that has stalled (e.g. after a NAT timeout with no keepalive packets) will appear connected but RPCs will block indefinitely. In payment_watcher, this blocks the entire inner scan loop. In payment.rs/tx_builder.rs, a stalled broadcast_tx blocks the wallet task holding wallet_pay_lock. The get_block_range streaming call has a 30-second per-message timeout in the scanner, but latest_height and broadcast_tx do not. Fix: wrap each unary RPC call in tokio::time::timeout(Duration::from_secs(15), ...).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:06:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:14:40Z",
+  "closed_at": "2026-04-26T09:14:40Z",
+  "close_reason": "Closed"
+}

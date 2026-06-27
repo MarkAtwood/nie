@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-felh.27",
+  "title": "active_overlay returns expired overlay between prune ticks",
+  "description": "app.rs active_overlay() returns payment_overlays.front() without checking is_expired(). prune_overlays is only called on render tick (50ms). Expired overlays can show for up to one extra frame. Fix: filter in active_overlay().",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:22:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:15Z",
+  "closed_at": "2026-04-20T04:26:33Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:22:47"
+    }
+  ]
+}

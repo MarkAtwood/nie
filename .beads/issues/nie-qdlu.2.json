@@ -1,0 +1,26 @@
+{
+  "id": "nie-qdlu.2",
+  "title": "select_with_fee: no iteration bound \u2014 infinite loop if fee non-monotone",
+  "description": "wallet/src/tx_builder.rs select_with_fee loops until required_fee == fee with no upper bound. Comment asserts fee is monotone-non-decreasing with note count, which is true for current zip317_fee. But: (a) there is no debug_assert inside the loop, (b) a future zip317_fee change breaking monotonicity causes an infinite loop. Trigger: any regression that makes zip317_fee(sapling_logical_actions(n,2)) decrease as n increases. Bad behavior: hang in send_payment. Fix: bound by notes.len() + 2 iterations, return TxBuildError::BuilderError if exceeded.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:34:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:06:39Z",
+  "closed_at": "2026-04-25T04:06:39Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:34:55"
+    }
+  ]
+}

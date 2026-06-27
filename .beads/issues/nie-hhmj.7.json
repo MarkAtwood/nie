@@ -1,0 +1,25 @@
+{
+  "id": "nie-hhmj.7",
+  "title": "READABILITY: Document connection_seq and MLS admin election invariant",
+  "description": "relay/src/ws.rs:193-201 \u2014 The code sorts online users by connection_seq and stamps each entry with its sequence number. The comment mentions 'lowest sequence = admin' but doesn't explain why this matters or what the load-bearing invariant is. Per CLAUDE.md MLS Admin Election Invariant section, online[0] is the MLS group admin because the relay assigns monotonic sequence values and clients sort by them. This ensures all peers independently elect the same admin. A reader needs to understand this is not just sorting; it's a coordinated leader election. Fix: expand the comment to mention this is for MLS admin election and cross-reference or inline the key invariant: 'online[0] is always the admin because all peers sort by this relay-stamped sequence value.'",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:24:16Z",
+  "closed_at": "2026-04-19T18:24:16Z",
+  "close_reason": "P4 readability/comment items. Not blocking correctness. Deferred \u2014 file separately if prioritized.",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:36"
+    }
+  ]
+}

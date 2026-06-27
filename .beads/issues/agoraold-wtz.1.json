@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-wtz.1",
+  "title": "agora-flutter: Rust FFI bridge crate skeleton",
+  "description": "Create flutter-bridge/ Rust cdylib crate in the workspace. Expose agora-core API via flutter_rust_bridge annotations. Must cargo-check clean on host target without Flutter SDK.\n\nWhat: A new Rust crate at flutter-bridge/ that wraps agora-core functions for Dart FFI.\n\nAlgorithm:\n1. Create flutter-bridge/Cargo.toml (crate-type = cdylib + rlib, deps: agora-core, flutter_rust_bridge, tokio, anyhow, base64)\n2. Add flutter-bridge to workspace Cargo.toml members\n3. Create flutter-bridge/src/lib.rs with flutter_rust_bridge::frb(dart_metadata) annotation\n4. Create flutter-bridge/src/api/identity.rs: expose identity_generate() -> Vec<u8>, identity_from_secret(secret: Vec<u8>) -> String (returns pub_id), keyfile_encrypt(secret: Vec<u8>, passphrase: String) -> Vec<u8>, keyfile_decrypt(ciphertext: Vec<u8>, passphrase: String) -> Vec<u8>\n5. Create flutter-bridge/src/api/hpke.rs: expose seal_message(recipient_pub_key: Vec<u8>, plaintext: Vec<u8>) -> Vec<u8>, unseal_message(secret_key: Vec<u8>, sealed: Vec<u8>) -> Vec<u8>\n6. Create flutter-bridge/src/api/mod.rs re-exporting submodules\n7. Verify cargo check -p agora-flutter-bridge passes\n\nDefensive rules: never log secret bytes, all Vec<u8> representing secrets must be zeroed when done, all Result<T> returned as anyhow::Result<T> for frb error translation.\n\nAcceptance: cargo check -p agora-flutter-bridge clean; no warnings; security invariant: no secret bytes appear in any log call.",
+  "acceptance_criteria": "cargo check -p agora-flutter-bridge exits 0; grep -r 'log.*secret\\|debug.*secret' flutter-bridge/ exits 1 (no secret logging)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:12:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:15:10Z",
+  "close_reason": "flutter-bridge crate created; identity/keyfile/hpke FFI API; cargo check clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:12:06"
+    }
+  ]
+}

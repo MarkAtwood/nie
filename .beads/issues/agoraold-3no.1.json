@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-3no.1",
+  "title": "Add connect_timeout to LightwalletdClient::connect",
+  "description": "wallet/src/client.rs Endpoint builder lacks a connect_timeout(). If lightwalletd is firewalled or slow to respond, connect() hangs indefinitely (OS TCP timeout ~130s). Add .connect_timeout(Duration::from_secs(15)) to the Endpoint chain before .connect().await. The 15s value matches common gRPC client conventions and gives three full TCP retransmit windows before failing.\n\nAlgorithm:\n1. Open wallet/src/client.rs, find the Endpoint::from_shared(...).tls_config(...).connect().await chain.\n2. Insert .connect_timeout(std::time::Duration::from_secs(15)) before .connect().await.\n3. cargo build -p nie-wallet; cargo test -p nie-wallet.\n\nDefensive rules: no unwrap(), import Duration from std::time, leave all other Endpoint config unchanged.",
+  "acceptance_criteria": "cargo build -p nie-wallet succeeds; connect_timeout(15s) visible in source",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:52:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T04:54:12Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:52:46"
+    }
+  ]
+}

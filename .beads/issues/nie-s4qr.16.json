@@ -1,0 +1,26 @@
+{
+  "id": "nie-s4qr.16",
+  "title": "wasm/transport: pending HashMap never has a size cap; grows without bound if server sends no responses",
+  "description": "Duplicate check: nie-y9mn.4 already covers wasm pending map growth. Skipping this finding.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:23:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:23:05Z",
+  "closed_at": "2026-04-26T07:23:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:23:01"
+    }
+  ]
+}

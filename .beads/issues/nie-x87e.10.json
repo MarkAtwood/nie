@@ -1,0 +1,21 @@
+{
+  "id": "nie-x87e.10",
+  "title": "mine-wait loop: proves mempool accept, not mined",
+  "description": "In testnet_shielded_payment_end_to_end, the mine-wait loop (e2e_testnet.rs lines 448-462) exits as soon as any new block appears (h > broadcast_height). This only proves a block arrived, not that the tx was included in it. The tx could be evicted from mempool (low fee, double-spend race, etc.) and the loop would still exit successfully. Bob's scanner would then find no note and the test would fail at the balance assertion with no explanation. The test should verify tx inclusion by checking the block containing the txid, or at minimum document the limitation in a comment so a failing balance assertion is diagnosed correctly.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:19:58Z",
+  "closed_at": "2026-04-20T05:19:58Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:40"
+    }
+  ]
+}

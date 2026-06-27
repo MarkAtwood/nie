@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-th7.4",
+  "title": "Store: CRUD for groups + group_members",
+  "description": "What: Add GroupRow struct and CRUD async methods to relay/src/store.rs for group and membership persistence.\n\nStructs to add:\n  pub struct GroupRow { pub group_id: String, pub created_by: String, pub name: String, pub created_at: String }\n\nMethods to add to Store:\n  pub async fn create_group(group_id: &str, created_by: &str, name: &str) -> Result<()>  -- INSERT OR IGNORE\n  pub async fn get_group(group_id: &str) -> Result<Option<GroupRow>>\n  pub async fn list_groups_for_user(pub_id: &str) -> Result<Vec<GroupRow>>  -- JOIN with group_members\n  pub async fn add_group_member(group_id: &str, pub_id: &str) -> Result<()>  -- INSERT OR IGNORE\n  pub async fn remove_group_member(group_id: &str, pub_id: &str) -> Result<()>\n  pub async fn list_group_members(group_id: &str) -> Result<Vec<String>>  -- vec of pub_ids\n  pub async fn is_group_member(group_id: &str, pub_id: &str) -> Result<bool>\n  pub async fn member_count(group_id: &str) -> Result<u64>\n  pub async fn delete_group(group_id: &str) -> Result<()>  -- also deletes group_members rows\n\nDefensive rules:\n- i64::try_from() for any u64/usize\u2192i64 binding\n- u64::try_from() for i64\u2192u64 reads from COUNT(*)\n- No unwrap() in production\n- All datetime values use datetime() not rfc3339\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-relay passes; CRUD roundtrips verified; is_group_member returns false for non-members; delete_group cascades to members",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:51:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:02:28Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:36"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:51:17"
+    }
+  ]
+}

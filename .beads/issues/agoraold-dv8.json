@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-dv8",
+  "title": "Protocol: MLS relay message types",
+  "description": "Add Whisper/WhisperDeliver (for Welcome delivery to specific users), PublishKeyPackage, GetKeyPackage, and KeyPackageResponse variants to RelayMessage in core/src/protocol.rs and handle them in relay/src/ws.rs. These are the relay-level plumbing needed for broadcast MLS group management.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:31:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-16T07:44:09Z",
+  "close_reason": "Closed"
+}

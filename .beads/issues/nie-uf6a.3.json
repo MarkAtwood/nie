@@ -1,0 +1,28 @@
+{
+  "id": "nie-uf6a.3",
+  "title": "update_space_fully inlines bump_state_seq SQL: schema drift risk",
+  "description": "update_space_fully (store.rs:686-702) inlines the same INSERT ON CONFLICT SQL as bump_state_seq (store.rs:963-965). These are currently identical. If state_version schema changes (e.g. a last_modified column), bump_state_seq gets the change but the inlined copies in update_space_fully will not \u2014 silently producing inconsistent state tokens. Either call bump_state_seq inside the transaction (requires passing the tx) or add a comment pointing to bump_state_seq as the canonical form.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:28:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:43:15Z",
+  "closed_at": "2026-04-24T05:43:15Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:28:17"
+    }
+  ]
+}

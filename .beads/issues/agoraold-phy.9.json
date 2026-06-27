@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-phy.9",
+  "title": "per-block tip advance after all txs processed \u2014 correct crash-recovery ordering",
+  "description": "Why this choice is correct: in scan_block, set_scan_tip is called AFTER all transactions are processed. If the process crashes mid-block, the tip is not advanced, so the scanner replays the block on restart. The duplicate note case is handled by is_unique_constraint. A contributor might suggest advancing the tip per-transaction to reduce replay work \u2014 wrong, because partial block state (some notes inserted, others not) is unrecoverable without advancing at block granularity. The current ordering is the only correct crash-recovery design.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:12:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:55Z",
+  "closed_at": "2026-04-18T17:31:20Z",
+  "close_reason": "Decision record \u2014 no code change required; rationale preserved in codebase",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:12:46"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.49",
+  "title": "bridge-slack Slack timestamp replay guard accepts timestamps 5 min in the future (9-min replay window)",
+  "description": "verify_slack_signature in bridge-slack/src/slack.rs uses saturating_abs() (line 111): 'now.saturating_sub(ts).saturating_abs() > 300'. This accepts request timestamps up to ~5 minutes in the future as well as the past, creating a ~9-minute effective replay window (an attacker can capture a request, hold it for up to 4m59s in the future relative to now, and replay it within the next 5 minutes). Slack's own documentation accepts a small future skew but the correct guard is 'abs(now - ts) > 300', which saturating_abs already computes correctly for the past case but silently allows large future timestamps to pass via the symmetric acceptance. The fix is to additionally verify ts <= now + small_fuzz (e.g. 30s) to reject bogus future timestamps.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:23:26Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:25"
+    }
+  ]
+}

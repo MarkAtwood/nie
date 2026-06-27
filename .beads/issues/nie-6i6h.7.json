@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.7",
+  "title": "bridge-matrix: empty bot_localpart causes echo loop",
+  "description": "BridgeConfig::validate() does not check bot_localpart. If bot_localpart is empty string, is_bot_sender() constructs bot_mxid = ':domain' (bridge.rs:123), which never matches any sender. Every message the bridge posts to Matrix is then echoed back into nie because the self-message filter is broken. Trigger: misconfigured bridge.toml with bot_localpart = ''. Fix: add bail!(\"bot_localpart must not be empty\") to validate().",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:28:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:03:29Z",
+  "closed_at": "2026-04-25T07:03:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:28:35"
+    }
+  ]
+}

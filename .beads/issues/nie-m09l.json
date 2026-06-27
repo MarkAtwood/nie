@@ -1,0 +1,15 @@
+{
+  "id": "nie-m09l",
+  "title": "Parse RATE_LIMIT_MSG_PER_MIN env var in relay/src/main.rs",
+  "description": "Why: operator must be able to tune the limit. What: in relay/src/main.rs, parse env var RATE_LIMIT_MSG_PER_MIN: u32 with default 120. Pattern: parse same as KEEPALIVE_SECS (warn on invalid, use default). Pass parsed value to AppState::new.",
+  "acceptance_criteria": "relay starts and logs the configured limit; default of 120 used when env var absent",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:13:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:16:49Z",
+  "close_reason": "RATE_LIMIT_MSG_PER_MIN env var parsed in main.rs; default 120"
+}

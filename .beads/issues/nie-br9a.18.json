@@ -1,0 +1,22 @@
+{
+  "id": "nie-br9a.18",
+  "title": "diversifier_index stored as TEXT not INTEGER to avoid i64 overflow",
+  "description": "db.rs migration v5 stores diversifier_index as TEXT (decimal u128). SQLite INTEGER is signed 64-bit; ZIP-32 diversifier is 88-bit. A contributor might change to INTEGER for simplicity. Preserve: comment calls this out explicitly and diversifier_index_roundtrip test writes u128::MAX to catch the regression. Keep as TEXT.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:08:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:08:29Z",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:08:29"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-x80a.7",
+  "title": "Zeroizing<[u8;32]> on OrchardSpendingKey and SaplingExtendedSpendingKey inner fields",
+  "description": "Both OrchardSpendingKey (orchard.rs) and SaplingExtendedSpendingKey (address.rs) store their key bytes in Zeroizing<[u8;N]> and reconstruct the key object from bytes on each method call. This correctly prevents the spending key from persisting in memory beyond the struct's lifetime, and avoids the risk of the key material being embedded in a larger allocator-managed struct that might not be zeroed. A contributor might suggest caching the reconstructed key for performance; this should be resisted because the performance cost is negligible for infrequent payment operations, and caching would reintroduce a non-zeroized key copy.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:54:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:54:55Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:54:54"
+    }
+  ]
+}

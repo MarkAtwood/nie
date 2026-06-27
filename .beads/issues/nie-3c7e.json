@@ -1,0 +1,19 @@
+{
+  "id": "nie-3c7e",
+  "title": "Review: fix: jmap correctness and space/contact set fixes",
+  "notes": "Maintainer risk: MEDIUM — two P0 correctness bugs found (Space/changes lying, name/description type not validated). Neither will corrupt data, but both violate the JMAP spec in ways clients will notice: Space/changes returns stale synthetic created[] lists; space_set accepts and silently drops type errors. One structural P1 risk: the is_simple_space_prop/Phase-2 match arm invariant is comment-only, guaranteeing a future breakage class.\nConfidence: 15% chance of missed bug. Uncertainty driven by: did not trace every call site of update_space_fully, did not review the Android MainActivity.kt change (17 lines, different layer), did not run integration tests against a real JMAP client. Would raise confidence if: a JMAP compliance test suite ran against the daemon, or the space_changes cannotCalculateChanges fix had a test (contact_changes does; space_changes doesn't).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:46:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T05:04:48Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

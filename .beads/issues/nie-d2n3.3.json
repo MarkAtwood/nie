@@ -1,0 +1,25 @@
+{
+  "id": "nie-d2n3.3",
+  "title": "bridge-jmap: seen_ids updated before try_send \u2014 permanent message loss on failure",
+  "description": "bridge-jmap/src/bridge.rs adds email ID to seen_ids BEFORE calling try_send. If try_send fails (channel full), the email is logged as warn and permanently lost \u2014 subsequent polls skip it because it is already in seen_ids. Fix: only insert into seen_ids after a successful send.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:54:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:01:05Z",
+  "closed_at": "2026-04-24T19:01:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:54:04"
+    }
+  ]
+}

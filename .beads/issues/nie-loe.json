@@ -1,0 +1,15 @@
+{
+  "id": "nie-loe",
+  "title": "Wire: Send WebSocket close frame on client exit",
+  "description": "When the CLI exits (Ctrl-C or /quit), the TCP connection drops with no WebSocket close handshake. The relay logs an error: 'ws error from \u003cpub_id\u003e: \u003cio error\u003e' instead of a clean disconnect.\\n\\nRequired:\\n- In transport.rs, send Message::Close before dropping the connection\\n- Handle SIGINT in CLI main to trigger clean shutdown\\n- Relay should log 'disconnected: \u003cpub_id\u003e' not an error on clean close\\n- Test: relay log should show clean disconnect, not error",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T07:18:02Z",
+  "closed_at": "2026-04-16T07:18:02Z",
+  "close_reason": "Closed"
+}

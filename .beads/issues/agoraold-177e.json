@@ -1,0 +1,18 @@
+{
+  "id": "agoraold-177e",
+  "title": "Key material non-Debug invariant for HPKE secrets",
+  "description": "GOOD CHOICE: HPKE identity secret and room secret are stored as [u8; 32] arrays without Debug implementation (app.rs 109-115). The struct fields are marked with inline comments: 'KEY MATERIAL — never log, never debug-print'.\n\nAppState itself does not derive Debug, making accidental debug output of these fields impossible. A contributor might add #[derive(Debug)] to AppState or move secrets into a Debug-implementing wrapper.\n\nThis is a paranoid defensive pattern that prevents key material leakage via tracing::debug!(\"{:?}\", state). The design choice (not implementing Debug at all) is more effective than relying on code review to avoid certain function calls.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:15Z",
+  "closed_at": "2026-04-22T06:11:21Z",
+  "close_reason": "DESIGN.md §1 Key material handling extended to document AppState/Inner/MerchantWallet non-Debug invariant; existing invariant confirmed: AppState derives Clone only, no Debug",
+  "labels": [
+    "review"
+  ]
+}

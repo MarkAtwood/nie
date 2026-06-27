@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-4v7.3",
+  "title": "CLI: apply pad() in MLS-encrypted broadcast send path",
+  "description": "What: Wrap the MLS ciphertext with pad() in cli/src/commands.rs before it is placed in BroadcastParams.payload, so every broadcast carries a bucket-aligned payload.\n\nAlgorithm:\n1. Add to imports: use nie_core::messages::pad;\n2. Find all sites in the chat() function where MLS ciphertext is produced and placed into BroadcastParams or SealedBroadcastParams payload. There are approximately three:\n   a. Main broadcast path (after mls.encrypt()): let mls_ciphertext = mls.encrypt(&line_bytes)?; -> let payload = pad(&mls_ciphertext)?;\n   b. Sealed broadcast path (HPKE path): payload that goes into seal_message() before sealing\n   c. Group send path (/group send): after mls.encrypt_for_group()\n3. For the non-MLS plaintext path (mls_active == false): do NOT pad \u2014 padding interoperates only with unpad() which expects the prefix. Plaintext path is transitional and will be removed when MLS is mandatory.\n4. On pad() error (payload > 4092 bytes): eprintln error message, continue (do not crash)\n\nDefensive rules:\n- Never pad the plaintext (pre-MLS) path \u2014 only MLS-encrypted ciphertext\n- On pad() Err: print error to user, continue loop, do not panic or crash\n- Do not log the plaintext or ciphertext content\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo build -p nie-cli passes; cargo clippy -p nie-cli -- -D warnings passes; grep for pad() usage appears in commands.rs at MLS-active send site",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T15:41:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T15:51:55Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:42:07"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:41:43"
+    }
+  ]
+}

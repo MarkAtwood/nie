@@ -1,0 +1,24 @@
+{
+  "id": "nie-1b3s.6",
+  "title": "room_hpke_keypair: zeroize of secret_bytes is incomplete",
+  "description": "mls.rs:396-401: secret_bytes is zeroed via Zeroize after being passed to x25519_dalek::StaticSecret::from(). But StaticSecret::from([u8;32]) moves the bytes and stores them internally; the subsequent zeroize of secret_bytes clears the stack array but not the copy inside StaticSecret. The code then calls secret.to_bytes() to produce a new copy. The net effect is the key material lives in at least two places (inside StaticSecret and inside the Zeroizing return value) \u2014 the zeroize call on secret_bytes gives a false sense of cleanup. The StaticSecret does implement Drop with zeroize via the zeroize crate, so this is not a key leak, but the manual zeroize is misleading. Document why the zeroize is not needed (StaticSecret zeros on drop) and remove the extra zeroize call.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:13:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:13:26Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:13:26"
+    }
+  ]
+}

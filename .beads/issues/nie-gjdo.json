@@ -1,0 +1,14 @@
+{
+  "id": "nie-gjdo",
+  "title": "fix: wallet misc safety — rows_affected check, narrowing cast, checked_add, assert→ensure",
+  "description": "wallet/src/db.rs: set_scan_tip now returns Err if rows_affected!=1; max_age_secs narrowing cast i64::try_from; wallet/src/scanner.rs: checked_add for scan_tip+1; wallet/src/client.rs: assert! → anyhow::ensure!",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:55:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:55:14Z",
+  "closed_at": "2026-04-24T21:55:14Z",
+  "close_reason": "Closed"
+}

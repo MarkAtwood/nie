@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.18",
+  "title": "parse_proxy_addr: credential URLs produce unusable host string",
+  "description": "When a user passes socks5://user:pass@127.0.0.1:9050, parse_proxy_addr strips the scheme prefix and gets user:pass@127.0.0.1:9050. rsplit_once(':') correctly extracts port 9050, but the returned host string is \"user:pass@127.0.0.1\" \u2014 credentials included. This string is then passed to Socks5Stream::connect((\"user:pass@127.0.0.1\", 9050), ...). tokio-socks 0.5 does NOT support userinfo in the host string; it tries to parse the string as an IpAddr (fails), then treats it as a domain name and sends the literal \"user:pass@127.0.0.1\" string to the SOCKS5 proxy, which will reject it. The test proxy_addr_parses_port_ignores_credentials documents this as expected behavior (\"tokio-socks will fail at connect time\"), but the error the user sees is a cryptic SOCKS5 protocol error with no indication that credential URLs are unsupported. Fix: detect userinfo via rfind('@') and either strip it (if unauthenticated proxies only) or bail with a clear error message: \"SOCKS5 proxy credentials in URL are not supported; configure proxy authentication separately\".",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:46Z",
+  "closed_at": "2026-04-19T19:31:21Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:12"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.46",
+  "title": "DESIGN.md \u00a71 documents keyfile as 32 bytes but code requires 64 bytes",
+  "description": "DESIGN.md \u00a71 states the keyfile is 'raw 32 bytes', but daemon/src/main.rs line 63 uses <[u8; 64]>::try_from() and cli code (nie-core identity.rs) creates 64-byte keyfiles (Ed25519 secret key = 32 bytes seed + 32 bytes verifying key = 64-byte expanded form). The documentation is incorrect. Any operator reading DESIGN.md and manually creating or validating a keyfile will use the wrong size expectation. Fix: update DESIGN.md \u00a71 to say '64 bytes (32-byte seed concatenated with 32-byte verifying key, as produced by nie init)'.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:02:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:17:58Z",
+  "closed_at": "2026-04-24T22:17:58Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:02:32"
+    }
+  ]
+}

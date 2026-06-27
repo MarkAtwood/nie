@@ -1,0 +1,25 @@
+{
+  "id": "nie-83e.8",
+  "title": "INNER JOIN witnesses in spendable_notes() \u2014 semantically correct, worth defending",
+  "description": "spendable_notes() uses INNER JOIN witnesses rather than LEFT JOIN + IS NOT NULL. This means a note with no witness row is genuinely not spendable (no Merkle proof = no inclusion proof = builder panics). A contributor might suggest LEFT JOIN to 'show all notes' and let the caller handle missing witnesses. Do not do that: the JOIN is the semantic contract. If a note has no witness, it is not a spendable note and has no business being in the result set. The current design prevents a class of panics.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T00:48:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T01:31:01Z",
+  "closed_at": "2026-04-19T01:31:01Z",
+  "close_reason": "decision records documented in beads; no code change required",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 17:48:57"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "nie-2f8",
+  "title": "broadcast payment msgs → non-involved peers emit spurious Unknown replies",
+  "description": "Payment messages are sent via Broadcast (all room members), by design for relay blindness. In a room with N\u003e2 users, every non-involved peer receives each payment step, dispatches it as unknown-session+non-Request, and broadcasts a PaymentAction::Unknown reply.\n\nThe relay uses broadcast(Some(sender), msg) which EXCLUDES the sender — confirmed in relay/src/ws.rs:229 and state.rs:102. So C's Unknown goes to A and B, both hit the Occupied path (logs warning, returns true, sends nothing). No feedback loop: the chain terminates after exactly 1 Unknown per non-involved party per payment step.\n\nCurrent risk: bounded noise — N-2 spurious Unknown messages per payment step.\nFuture risk (when Occupied handlers are added): if those handlers don't validate from==peer_pub_id, an Unknown from a non-party C could drive the payer's state machine with an event it was not meant to receive. Each Occupied handler added in future issues MUST check from before acting on the action.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:51:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T06:07:53Z",
+  "closed_at": "2026-04-18T06:07:53Z",
+  "close_reason": "Closed"
+}

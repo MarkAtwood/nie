@@ -1,0 +1,24 @@
+{
+  "id": "nie-kef6.56",
+  "title": "balance() includes notes with plaintext but no witness row",
+  "description": "balance() queries FROM notes WHERE spent=0 with no JOIN on witnesses. A note row with all three plaintext columns (note_diversifier, note_pk_d, note_rseed) populated but no matching witnesses row appears in balance() but is excluded from spendable_notes() (which uses INNER JOIN witnesses). Trigger: insert_note() called without a subsequent upsert_witness(), or external deletion of a witnesses row. Result: wallet shows a positive spendable balance but send_payment returns NoSpendableNotes. Distinct from nie-kef6.6 which covers NULL-plaintext stub notes.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:24:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:55:45Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:24:08"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nie-qdlu.8",
+  "title": "select_with_fee zero-change fee overcounts outputs \u2014 silent mismatch if GRACE_ACTIONS changes",
+  "description": "select_with_fee always passes sapling_logical_actions(n, 2) assuming 2 outputs (recipient + change), but build_shielded_tx only adds the change output when change > 0. For exact-change txns the builder actually sees 1 output. This works today only because GRACE_ACTIONS=2 floors max(n,1) and max(n,2) identically. The select_with_fee doc explains this but the invariant is easy to miss: if ZIP-317 is revised to reduce GRACE_ACTIONS below 2, or if a contributor changes the output-count assumption without reading the coupling comment, the fee computed by select_with_fee will disagree with FeeRule::standard() inside builder.build(), producing a cryptic rejection. The coupling comment in select_with_fee is the only protection. Hardening: add a debug_assert in build_shielded_tx that verifies selected_fee == actual ZIP-317 fee for the actual output count used.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:41:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:46:09Z",
+  "closed_at": "2026-04-25T03:46:09Z",
+  "close_reason": "duplicate of nie-qdlu.9",
+  "labels": [
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:41:46"
+    }
+  ]
+}

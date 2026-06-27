@@ -1,0 +1,22 @@
+{
+  "id": "nie-c1v",
+  "title": "Payer: handle Confirmed + Unknown \u2192 terminal states",
+  "description": "When ClearMessage::Payment action=Confirmed arrives for a Payer session in Sent state: transition to Confirmed, echo '[payment] \u2713 Confirmed by <handle>. Session complete.' When action=Unknown arrives for any Payer session: transition to Failed, echo '[payment] Session <id> failed: <reason>.'",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:19:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:17:11Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:08"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.15",
+  "title": "config.rs: example comment missing proxy field",
+  "description": "The AppConfig doc comment in cli/src/config.rs (lines 26-28) shows an example config.toml with relay and lightwalletd fields but not the new proxy field. A user reading the source or generated rustdoc to learn how to configure a Tor proxy would not find the proxy field here. Fix: add a proxy line (commented out) to the example block, e.g.: proxy = 'socks5h://127.0.0.1:9050' with a note about socks5h for .onion.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:25Z",
+  "closed_at": "2026-04-19T19:36:12Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:06"
+    }
+  ]
+}

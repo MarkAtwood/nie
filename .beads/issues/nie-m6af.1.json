@@ -1,0 +1,27 @@
+{
+  "id": "nie-m6af.1",
+  "title": "space_set create silently drops wrong-type description",
+  "description": "space_set create path uses .get('description').and_then(|v| v.as_str()) which returns None silently when description is a non-string (e.g. 42, [], null). The space is created and reported as success in 'created', but description is absent. The update path (try_parse_simple_space_prop) correctly rejects wrong-type description with invalidProperties. The asymmetry means a client sending {name:'S',description:42} gets a success response but the description was silently dropped \u2014 likely to generate a user bug report. Fix: add type check in the create branch and return notCreated with invalidProperties when description is present but not a string or null.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:48:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:50:17Z",
+  "closed_at": "2026-04-24T17:50:17Z",
+  "close_reason": "Fixed: description type check in create branch + test; decision record filed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:48:44"
+    }
+  ]
+}

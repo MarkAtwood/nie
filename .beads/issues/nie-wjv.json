@@ -1,0 +1,15 @@
+{
+  "id": "nie-wjv",
+  "title": "Phase 1: Relay subscription gating",
+  "description": "Relay currently allows all authenticated users to send and receive with no subscription check. The Store has is_subscribed() and subscription_expiry() but they are dead code — never consulted in ws.rs.\\n\\nRequired:\\n- Gate Send messages behind active subscription check\\n- Return Error{code:'subscription_required'} if not subscribed\\n- Allow receive (Deliver) without subscription so offline messages are retrievable\\n- Wire subscription_expires into AuthOk (already present, just needs real data)\\n- Dev/test override: REQUIRE_SUBSCRIPTION=false env var",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T07:15:58Z",
+  "closed_at": "2026-04-16T07:15:58Z",
+  "close_reason": "Closed"
+}

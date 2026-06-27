@@ -1,0 +1,14 @@
+{
+  "id": "nie-i6j3",
+  "title": "R2: Add unit test for U+FEFF stripping",
+  "description": "canonicalize_display_name includes U+FEFF (ZERO WIDTH NO-BREAK SPACE / BOM) in ZWS_CHARS with explicit security comment: 'it is invisible and can appear in copy-pasted text, creating two names that look identical but differ.' However, there is no unit test verifying U+FEFF is actually stripped. Tests exist for U+200B, U+200C, U+2060 but not U+FEFF itself. Per project Test Integrity rules (CLAUDE.md), implementation without explicit test oracle is incomplete. Add: #[test] fn bom_stripped() { assert_eq\\!(canonicalize_display_name(\"a\\u{FEFF}b\"), Ok(\"ab\".to_string())); }",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:07:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:29:01Z",
+  "closed_at": "2026-04-22T06:29:01Z",
+  "close_reason": "Already implemented: DESIGN.md §3 documents U+FEFF and bom_stripped_silently test exists in ws.rs"
+}

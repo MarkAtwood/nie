@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-phy.7",
+  "title": "scan_state table: CHECK (id = 1) + seeded INSERT OR IGNORE \u2014 correct single-row enforcement",
+  "description": "Why this choice is correct: the scan_state table must have exactly one row so scan_tip() can use fetch_one (fail loudly if missing) rather than fetch_optional (silently return None on first open). The CHECK constraint prevents accidental duplicate inserts at the DB level; INSERT OR IGNORE seeds the row during migration. A contributor might suggest removing the CHECK and using UPSERT on every set_scan_tip call \u2014 that works but removes the invariant guarantee and makes scan_tip() fragile. Keep CHECK (id=1) and the seeded row.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:12:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:56Z",
+  "closed_at": "2026-04-18T17:31:19Z",
+  "close_reason": "Decision record \u2014 no code change required; rationale preserved in codebase",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:12:45"
+    }
+  ]
+}

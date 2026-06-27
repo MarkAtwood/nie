@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.66",
+  "title": "bot BotCommand::Send broadcasts unencrypted plaintext; no warning emitted",
+  "description": "bot/src/main.rs handle_command BotCommand::Send serializes ClearMessage::Chat and sends it via BROADCAST with no MLS encryption. The bot never joins the MLS group, so every outgoing message is readable by the relay. No warning is emitted to the operator. At minimum the bot should log a warning on startup and on each send that messages are not end-to-end encrypted.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:52:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:52:55Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:52:55"
+    }
+  ]
+}

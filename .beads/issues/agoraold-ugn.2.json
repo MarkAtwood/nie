@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-ugn.2",
+  "title": "LightwalletdClient::connect failure reported as SendPaymentError::Db",
+  "description": "Trigger: LWD endpoint unreachable or TLS failure during send_fn closure. The map_err(SendPaymentError::Db) in commands.rs produces '[pay] Payment error: database error: could not connect to lightwalletd'. Db variant implies local storage fault; an operator reading logs will debug the wrong component. Should be a dedicated SendPaymentError::Connect variant or mapped to Broadcast.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:13:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:52Z",
+  "closed_at": "2026-04-19T03:32:28Z",
+  "close_reason": "Added SendPaymentError::Connect variant; updated commands.rs map_err",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:13:05"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-felh.6",
+  "title": "Extract publish_room_hpke_key helper \u2014 duplicated in DirectoryList and WhisperDeliver",
+  "description": "Lines 192-217 (post-create_group) and 441-468 (post-join_from_welcome) both derive room HPKE keypair and publish it with identical structure:\n\n1. Call state.mls_client.room_hpke_keypair()\n2. Set state.room_hpke_secret = Some(room_sk)\n3. Send PublishHpkeKeyParams over relay\n4. Handle channel close / log errors\n5. Log epoch\n\nDuplicated logic creates maintenance burden \u2014 fix in one place and risk divergence in the other. Extract into async fn publish_room_hpke_key(state, tx) and call from both sites.\n\nAlso benefits: easier to test the publish sequence independently.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:45Z",
+  "closed_at": "2026-04-20T04:36:46Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:59:42"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-ftwb.8",
+  "title": "bridge-jmap: seen_ids ring buffer eviction can cause duplicate email delivery",
+  "description": "bridge-jmap/src/bridge.rs SeenIds: the ring buffer is capped at 1000 entries. When the oldest id is evicted (after 1000 distinct emails seen), it becomes eligible for re-delivery if it still appears in the JMAP mailbox. The bridge uses a full-mailbox scan on every poll (email_query), so any evicted id that remains in the mailbox will be treated as new and forwarded to nie again. Comment says '1000 covers 20 full-scan cycles before first eviction' \u2014 but that is 20 cycles of PAGE_SIZE=50 new messages, not 20 total cycles. A mailbox with 1001+ persistent emails and new arrivals will hit this quickly. Consequence: duplicate messages forwarded to nie relay from email.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:56:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:52:36Z",
+  "closed_at": "2026-06-19T20:52:36Z",
+  "close_reason": "seen_ids persisted to disk; bounded to last 1000 IDs; atomic write-then-rename; restart no longer causes re-delivery",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:56:03"
+    }
+  ]
+}

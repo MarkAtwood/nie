@@ -1,0 +1,14 @@
+{
+  "id": "nie-book",
+  "title": "auth: broken clock produces ts=0, relay rejects own nonce",
+  "description": "core/src/auth.rs:27: new_challenge() calls .unwrap_or_default() on the system clock. A pre-epoch or broken clock produces ts=0. The relay sends this nonce to the client, client signs it, relay then calls nonce_is_fresh() which computes age = now - 0 \u003e\u003e CHALLENGE_TTL_SECS (300) and rejects it — the relay rejected its own nonce. Client gets opaque AUTH_FAILED. Fix: bail! with a clear error rather than silently producing ts=0.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:36:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:44:08Z",
+  "closed_at": "2026-04-26T10:44:08Z",
+  "close_reason": "Closed"
+}

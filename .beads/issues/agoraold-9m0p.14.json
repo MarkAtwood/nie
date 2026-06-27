@@ -1,0 +1,38 @@
+{
+  "id": "agoraold-9m0p.14",
+  "title": "nie-bot: payment auto-responder stub",
+  "description": "What: When config.auto_payment_address=true and a PaymentAction::Request arrives, send back a stub PaymentAction::Address response (Phase 4f: no real wallet, use testnet placeholder address).\n\nAlgorithm:\n1. In bot/src/payment.rs:\n   pub async fn maybe_auto_respond(\n       event: &BotEvent,\n       config: &ResolvedBotConfig,\n       relay_tx: &mpsc::Sender<JsonRpcRequest>,\n   ) -> Result<()>\n   - If BotEvent::PaymentRequest AND config.auto_payment_address:\n     a. construct stub address: format!(\"STUB_TESTNET_ADDRESS_FOR_SESSION_{}\", session_id)\n     b. build ClearMessage::Payment { session_id, action: PaymentAction::Address { chain, address } }\n     c. serialize to bytes; build WhisperParams { to: from, payload }; send via relay_tx\n   - If NOT PaymentRequest or NOT auto_payment_address: return Ok(()) immediately\n\nDefensive:\n- DOCUMENT clearly: stub address is not a real Zcash address; real wallet integration is Phase 2\n- Never log session_id at info level (it correlates payments to users)\n- WhisperParams to field is the original sender's pub_id (from the PaymentRequest)\n\nAgent team: I (implementer). V (validator).\nTests: unit test in payment.rs: auto_payment_address=false \u2192 no message sent; auto_payment_address=true with PaymentRequest \u2192 WhisperParams sent on relay_tx",
+  "acceptance_criteria": "cargo build -p nie-bot clean; payment.rs documents stub clearly; tests for enabled/disabled auto-respond pass",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:44:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T01:02:33Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:50"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:46"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:01"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:48"
+    }
+  ]
+}

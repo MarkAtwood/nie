@@ -1,0 +1,27 @@
+{
+  "id": "nie-xsp4.1",
+  "title": "bridge-slack: timestamp replay check overflows for extreme attacker-sent ts",
+  "description": "bridge-slack/src/slack.rs:96: `(now - ts).abs() > 300` \u2014 if an attacker sends X-Slack-Request-Timestamp: -9223372036854775808, the subtraction `now - ts` overflows i64 in debug mode (panic) or wraps in release mode (wrong result). The HMAC check that follows would still reject the forged request, but the overflow happens before it. Fix: replace with saturating arithmetic: `now.saturating_sub(ts).abs() > 300` ensures no overflow for any attacker-supplied ts.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:04:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:09:43Z",
+  "closed_at": "2026-04-24T21:09:43Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "security"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:04:25"
+    }
+  ]
+}

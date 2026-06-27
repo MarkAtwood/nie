@@ -1,0 +1,27 @@
+{
+  "id": "nie-x47.9",
+  "title": "/cat and /! bypass ClearMessage::Chat wrapper \u2014 inconsistent with main send path",
+  "description": "Main chat send path (commands.rs ~858): 'let line_bytes = serde_json::to_vec(&ClearMessage::Chat { text: line.clone() }).unwrap()' \u2014 wraps in ClearMessage. /cat (~743): 'let line_bytes = text.into_bytes()' \u2014 raw bytes, no wrapper. /! (~799): same raw bytes. Recipients try serde_json::from_slice::<ClearMessage>() which fails on raw bytes, falling to the legacy Err(_) arm with String::from_utf8_lossy. This works but creates an invisible split: /cat and /! are stored in history as raw bytes while normal messages store as ClearMessage JSON bytes. Suggested rewrite: wrap all three in ClearMessage::Chat before MLS encrypt, removing the legacy Err(_) arm from the receive path.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:47:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T04:19:03Z",
+  "closed_at": "2026-04-18T04:19:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:47:13"
+    }
+  ]
+}

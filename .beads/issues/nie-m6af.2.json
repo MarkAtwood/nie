@@ -1,0 +1,25 @@
+{
+  "id": "nie-m6af.2",
+  "title": "Phase 1/2 + cannotCalculateChanges worth defending",
+  "description": "Phase 1 (collect+validate) / Phase 2 (atomic write) split for both contact_set and space_set is the right pattern. A future contributor might suggest 'validate and write in one pass' for simplicity \u2014 that reintroduces the atomicity violation where an early write persists even when a later field fails validation. The cannotCalculateChanges return from /changes endpoints is correct: without a change log, enumerating deltas is impossible and lying (returning all current IDs as 'created') would be worse for clients.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:48:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:50:19Z",
+  "closed_at": "2026-04-24T17:50:19Z",
+  "close_reason": "Fixed: description type check in create branch + test; decision record filed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:48:55"
+    }
+  ]
+}

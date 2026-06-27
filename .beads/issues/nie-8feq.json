@@ -1,0 +1,19 @@
+{
+  "id": "nie-8feq",
+  "title": "Review: message_set update path permissiveness and silent drops",
+  "notes": "Maintainer risk: LOW-MEDIUM — message_set is older code with a permissive design philosophy. One clear P2 bug (silent drop with no response entry). The permissive known-field handling is either a design choice or a bug depending on intent.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:14:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T18:22:11Z",
+  "close_reason": "All message_set update path issues fixed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

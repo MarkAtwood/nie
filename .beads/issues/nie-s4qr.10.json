@@ -1,0 +1,24 @@
+{
+  "id": "nie-s4qr.10",
+  "title": "wasm: challenge PoW field silently ignored \u2014 WASM client cannot connect to PoW-enabled relay",
+  "description": "wasm/src/client.rs NieRelayClient::connect() extracts only the 'nonce' field from the challenge notification (line 67: v['params']['nonce'].as_str()). The 'difficulty' and 'server_salt' fields from ChallengeParams are never read. When the relay sends difficulty > 0, the WASM client ignores it and sends an authenticate request without a pow_token. The relay rejects this with POW_REQUIRED (-32030). The WASM client then receives an error response to the authenticate request, but send_request() returns Err(String) \u2014 the auth_result error is propagated as 'PoW token required' from connect(). No PoW mining is implemented in WASM. A relay with PoW enabled is completely inaccessible to WASM clients. This is not documented as a limitation \u2014 a deployer enabling PoW would silently break all browser clients.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:21:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:21:49Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:21:49"
+    }
+  ]
+}

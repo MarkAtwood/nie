@@ -1,0 +1,14 @@
+{
+  "id": "nie-0n0w",
+  "title": "(BUG) wasm/src/transport.rs: pending HashMap grows unbounded on unresponsive relay",
+  "description": "wasm/src/transport.rs maintains a pending: Rc\u003cRefCell\u003cHashMap\u003cu64, oneshot::Sender\u003c...\u003e\u003e\u003e\u003e for in-flight JSON-RPC requests. If the relay stops responding (slow server, network stall, or adversarial relay), requests accumulate in this map indefinitely because there is no per-request timeout. The onclose handler drains the map, but during a live stalled connection the growth is unbounded. Fix: attach a per-request timeout (e.g. via gloo_timers or wasm-timer) that removes and errors the sender after a deadline, bounding the map size to the number of concurrent requests times the timeout window.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:29:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:33:28Z",
+  "closed_at": "2026-04-26T09:33:28Z",
+  "close_reason": "Closed"
+}

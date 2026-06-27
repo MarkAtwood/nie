@@ -1,0 +1,27 @@
+{
+  "id": "nie-vmjq.2",
+  "title": "POW_DIFFICULTY invalid parse silently disables PoW",
+  "description": "main.rs:109-112 \u2014 POW_DIFFICULTY is parsed with .parse::<u8>().ok().unwrap_or(0). If the value is invalid (e.g. '20x', 'off', '300' which overflows u8), parse fails silently and 0 is used, disabling PoW entirely with no log warning. All other env vars (KEEPALIVE_SECS, RATE_LIMIT_MSG_PER_MIN, SUBSCRIPTION_DAYS) explicitly warn on parse failure and use a safe default. POW_DIFFICULTY is a security gate; silently disabling it when misconfigured is a footgun. An operator who sets POW_DIFFICULTY=20x gets no error message and no PoW gate. Fix: match the pattern used for KEEPALIVE_SECS (explicit warn\\! on parse failure) or use anyhow::bail\\! to refuse startup on invalid input.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:59:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:26Z",
+  "closed_at": "2026-04-25T03:44:26Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:59:34"
+    }
+  ]
+}

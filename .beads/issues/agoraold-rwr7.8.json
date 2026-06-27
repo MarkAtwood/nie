@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-rwr7.8",
+  "title": "Tests: room_hpke_keypair() \u2014 MLS epoch export determinism and isolation",
+  "description": "What: Test suite for MlsClient::room_hpke_keypair() verifying determinism across members and isolation between epochs.\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/core/src/mls.rs (especially test helpers)\n2. Add tests to mls.rs test module:\n3. Test 1: no_group_returns_err\n   - let client = MlsClient::new(\"test-pub-id\").unwrap()\n   - assert!(client.room_hpke_keypair().is_err())\n   - Oracle: method contract (no group \u2192 Err)\n4. Test 2: same_epoch_same_key (two members derive identical key)\n   - Create MlsClient admin (alice) and member (bob)\n   - Alice creates group; adds Bob (returns commit + welcome)\n   - Bob joins from welcome\n   - alice_keys = alice.room_hpke_keypair()?\n   - bob_keys = bob.room_hpke_keypair()?\n   - assert_eq!(alice_keys.0, bob_keys.0)  // same secret\n   - assert_eq!(alice_keys.1, bob_keys.1)  // same public key\n   - Oracle: MLS export_secret is deterministic for all members in same epoch\n5. Test 3: new_epoch_rotates_key (add member rotates key)\n   - Setup alice + bob in group (epoch 1)\n   - keys_epoch1 = alice.room_hpke_keypair()?\n   - Alice creates carol MlsClient, adds carol to group (epoch 2)\n   - keys_epoch2 = alice.room_hpke_keypair()?\n   - assert_ne!(keys_epoch1.1, keys_epoch2.1)  // public key changed\n   - Oracle: different MLS epochs produce different export_secret values\n6. Test 4: key_separation (X25519 key != Ed25519 identity seed)\n   - In Identity::generate(), the Ed25519 seed and X25519 seed must differ\n   - This test is in identity.rs, not mls.rs\n   - Verify: identity.hpke_secret_bytes() != identity.secret_bytes()\n7. Run cargo test -p nie-core mls (with the new tests included)\n\nDefensive programming rules:\n- Do NOT use room_hpke_keypair() as its own oracle; same_epoch test compares two INDEPENDENT clients\n- The two-member test is the critical validation: two clients independently call export_secret and get the same result\n- epoch_rotates test validates the automatic key rotation property\n- Tests must set up real MLS group state (not mock); use existing test infrastructure in mls.rs",
+  "acceptance_criteria": "cargo test -p nie-core passes; 3+ tests for room_hpke_keypair run; same-epoch test verifies two independent clients get identical keys; epoch-rotation test verifies keys differ",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T20:00:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:15:45Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:00:58"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:14"
+    }
+  ]
+}

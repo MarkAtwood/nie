@@ -1,0 +1,19 @@
+{
+  "id": "nie-jedt.6",
+  "title": "wasm: connect() closes old WS before new one authenticates \u2014 JS calls during async gap see stale closed client",
+  "description": "wasm/src/api.rs NieClient::connect() closes the existing connection (line 162) before the new NieRelayClient::connect() future completes (line 165). During the async gap (WebSocket open + challenge/auth handshake, typically 100-500ms on a live relay), inner still holds Some(old_closed_client). Any JS code that calls get_client() during this gap (e.g., send_message() triggered by a setTimeout or Promise continuation) gets the old, closed WasmTransport and its send_with_str() call fails. The error propagates to the JS caller as a rejection, but there is no indication that a reconnect is in progress. Additionally, messages arriving from the relay during the gap (e.g., queued offline messages) are delivered to the old transport's onmessage handler, which invokes the old (no-op) notify_cb installed at line 83 \u2014 they are silently discarded.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:55:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:55:52Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:55:52"
+    }
+  ]
+}

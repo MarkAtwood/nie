@@ -1,0 +1,24 @@
+{
+  "id": "nie-y9mn.8",
+  "title": "wasm NieClient.connect/on_event gap drops notifications between auth and callback install",
+  "description": "After NieClient.connect() resolves, any relay notifications arriving before on_event() is called are silently dropped (no-op callback is active). The API shape inherently creates this race window. Neither connect() nor on_event() document this. A JS developer who sets up the handler after await client.connect() in the natural way will miss early events. Fix: add a JSDoc warning to connect() that on_event() should be called immediately after the promise resolves.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:40:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:40:40Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:40:40"
+    }
+  ]
+}

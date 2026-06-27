@@ -1,0 +1,25 @@
+{
+  "id": "nie-ux95.3",
+  "title": "Space/set two-phase validation is worth defending",
+  "description": "Phase 1 (validate+collect) / Phase 2 (write) pattern in space_set is correct and should not be 'simplified'. A future contributor might suggest merging the validate and write loops. Don't. The only way to satisfy RFC 8620 \u00a77.1 atomicity for input errors \u2014 where a bad role or wrong-type name must reject the whole patch with zero writes \u2014 is to fully validate before touching the store. The SimplePropPatch enum with exhaustive match arms is also load-bearing: it makes compiler catch any new property added to is_simple_space_prop without a corresponding Phase 2 arm.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:11:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:19:21Z",
+  "closed_at": "2026-04-24T05:19:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:11:45"
+    }
+  ]
+}

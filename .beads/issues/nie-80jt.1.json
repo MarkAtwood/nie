@@ -1,0 +1,26 @@
+{
+  "id": "nie-80jt.1",
+  "title": "CLI: keyfiles created without 0600 permissions",
+  "description": "cli/src/commands.rs:117 and :3953 create identity.key and wallet.key with std::fs::write(), which respects the process umask. With a typical umask of 0022, the files are created 0644 \u2014 readable by all users on the system. The encrypted age ciphertext is exposed, enabling offline passphrase attacks. Fix: create with a restrictive mode before writing, e.g. use std::fs::OpenOptions + set_permissions(0o600) on Unix, or the nix crate's O_CREAT with mode 0600.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:05:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:20:27Z",
+  "closed_at": "2026-04-24T19:20:27Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:05:46"
+    }
+  ]
+}

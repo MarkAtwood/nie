@@ -1,0 +1,14 @@
+{
+  "id": "nie-j1tt",
+  "title": "scanner: witness map grows unboundedly for spent notes during live session",
+  "description": "wallet/src/scanner.rs:454 serializes all entries in self.witnesses back to DB on every block. Witnesses are added when notes are discovered but never removed when notes are spent (mark_note_spent updates DB but not in-memory map). Over a long session with many spends, the map grows to O(all ever-discovered notes). DB write on each block also persists witnesses for spent notes unnecessarily. On restart load_state correctly filters spent notes, but within a session the map is unbounded. Fix: remove the note's entry from self.witnesses when mark_note_spent is called.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T06:29:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:48:45Z",
+  "closed_at": "2026-04-26T06:48:45Z",
+  "close_reason": "Closed"
+}

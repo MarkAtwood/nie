@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.71",
+  "title": "activate_subscription_atomic unconditionally overwrites expires_at, downgrading longer subscriptions",
+  "description": "INSERT INTO subscriptions ON CONFLICT DO UPDATE SET expires_at = excluded.expires_at unconditionally overwrites. If user has subscription expiring 2026-06-01 and pays a second invoice expiring 2026-05-01 (shorter duration or past-dated), the activation overwrites the longer expiry with the shorter one, effectively cancelling paid time. Should use MAX(excluded.expires_at, subscriptions.expires_at) semantics.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:53:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:11:21Z",
+  "closed_at": "2026-04-25T01:11:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:53:33"
+    }
+  ]
+}

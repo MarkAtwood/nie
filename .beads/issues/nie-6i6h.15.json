@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.15",
+  "title": "wasm: WasmTransport has no Drop impl; WebSocket leaks on NieClient drop",
+  "description": "WasmTransport (transport.rs) does not implement Drop. When NieRelayClient is dropped (e.g., after a second connect() call or when the JS object is GC'd), the underlying WebSocket is not explicitly closed. The browser will eventually close it (TCP timeout or GC), but in the meantime the relay sees the connection as alive and continues routing messages to it. For reconnect scenarios this creates a window where the relay has two live sessions for the same identity. Implement Drop for WasmTransport that calls self.ws.close() to ensure the browser closes the WebSocket synchronously on drop.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:30:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:47:20Z",
+  "closed_at": "2026-04-26T05:47:20Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:30:20"
+    }
+  ]
+}

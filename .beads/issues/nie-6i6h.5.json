@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.5",
+  "title": "ffi: background task panic silently hangs client_next_event forever",
+  "description": "client_connect spawns a tokio::spawn task (client.rs:119) that bridges transport events to the NieEvent channel. If this task panics (e.g., due to a bug in map_notification), the task silently exits without closing event_tx. The mpsc channel stays open \u2014 event_tx is moved into the task and is dropped on panic, but tokio::spawn catches panics so the drop may not happen cleanly. Result: event_rx stays open with no sender, client_next_event hangs forever on recv(). Dart's isolate blocks permanently with no timeout. Fix: wrap the task body in panic::catch_unwind or explicitly drop event_tx on any exit path.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:27:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:46:53Z",
+  "closed_at": "2026-04-26T05:46:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:27:53"
+    }
+  ]
+}

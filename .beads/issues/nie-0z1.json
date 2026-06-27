@@ -1,0 +1,15 @@
+{
+  "id": "nie-0z1",
+  "title": "Infra: Horizontal relay scaling",
+  "description": "Single relay process is a single point of failure and a throughput ceiling. At scale with group chats, one process cannot serve all connections.\\n\\nRequired:\\n- Message bus between relay instances: NATS or Redis pub/sub\\n- When deliver_live() misses (client connected to different relay instance), publish to bus\\n- Subscribing relay instance picks up and delivers to its local client\\n- Shared SQLite won't work for multi-instance — migrate to PostgreSQL or shared Redis for message_queue\\n- DashMap becomes per-instance; cross-instance delivery via bus\\n\\nNot needed until: \u003e10k concurrent connections or group chats with large fan-out.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:51:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T17:04:09Z",
+  "closed_at": "2026-04-22T17:04:09Z",
+  "close_reason": "MessageBus abstraction added to relay; LocalBus default, RedisBus feature-gated; broadcast() publishes to bus after local delivery; all tests pass"
+}

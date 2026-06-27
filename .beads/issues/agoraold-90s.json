@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-90s",
+  "title": "Color-code sender names",
+  "description": "Assign a stable ANSI foreground color to each sender by hashing their pub_id to one of 6-8 distinct terminal colors. The same user always gets the same color across sessions. Makes busy channels scannable without reading names explicitly.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:04:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:59Z",
+  "closed_at": "2026-04-17T22:14:56Z",
+  "close_reason": "Closed"
+}

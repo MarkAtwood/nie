@@ -1,0 +1,24 @@
+{
+  "id": "nie-tb8e.15",
+  "title": "save_key_package_capped and count_and_create_invoice use manual BEGIN IMMEDIATE / COMMIT / ROLLBACK instead of sqlx pool.begin()",
+  "description": "relay/src/store.rs has three functions (save_key_package_capped, enqueue, count_and_create_invoice) that use pool.acquire() + raw sqlx::query('BEGIN IMMEDIATE') + manual COMMIT/ROLLBACK. sqlx does not natively support BEGIN IMMEDIATE via pool.begin(), but the pattern of matching on result.is_ok() to decide COMMIT vs ROLLBACK is error-prone: if result is Ok but COMMIT fails, the ROLLBACK in the else branch is never reached (there is no else branch for COMMIT failure). Rewrite: after acquiring the conn, set PRAGMA locking_mode=EXCLUSIVE on the connection, then use pool.begin() for the standard sqlx transaction API. Alternatively: accept the current approach but add a comment on why COMMIT failure is not handled and what the DB state would be.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:43:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:43:06Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:43:05"
+    }
+  ]
+}

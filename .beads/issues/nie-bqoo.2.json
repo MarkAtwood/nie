@@ -1,0 +1,26 @@
+{
+  "id": "nie-bqoo.2",
+  "title": "GROUP_LEAVE: leave notification enqueued for offline members without membership re-check",
+  "description": "GROUP_LEAVE calls broadcast_to_group with group_id=None (line ~2017 ws.rs), disabling the offline-enqueue membership re-check. This means if member B is offline when A leaves, B receives an offline-queued GROUP_DELIVER(leave) even if B already left the group between list_group_members and the enqueue. Contrast with GROUP_SEND, which correctly passes Some(&group_id) to trigger the membership guard. The leak is cosmetic (wrong leave notification delivered) but demonstrates the guard is present but not applied here.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:07:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:21:10Z",
+  "closed_at": "2026-04-26T08:21:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:07:42"
+    }
+  ]
+}

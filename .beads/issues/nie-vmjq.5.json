@@ -1,0 +1,23 @@
+{
+  "id": "nie-vmjq.5",
+  "title": "rate_limit check before DB ops in SUBSCRIBE_REQUEST prevents diversifier exhaustion",
+  "description": "ws.rs:1854 SUBSCRIBE_REQUEST calls check_rate_limit BEFORE validating duration_days and BEFORE allocating a diversifier index. This is correct ordering: a client sending duration_days=0 repeatedly would otherwise exhaust the diversifier counter with no invoice created. A contributor might 'simplify' by moving validation before rate-limit, but that would restore the exhaustion vector. The current order (rate-limit \u2192 validate \u2192 allocate) is the only safe order.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:02:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:02:01Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:02:01"
+    }
+  ]
+}

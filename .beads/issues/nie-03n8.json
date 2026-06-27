@@ -1,0 +1,17 @@
+{
+  "id": "nie-03n8",
+  "title": "Review: core/src/*.rs round 13",
+  "notes": "Maintainer risk: LOW — Two findings, both in the same zeroization class as nie-kef6.103. No new protocol bugs, no auth bypasses, no correctness issues found. The rest of the codebase (auth, hpke, mls, pow, messages, protocol, transport) is clean relative to previous rounds.\nConfidence: 85% chance no missed bug in scope. Uncertainty: hpke crate PrivateKey zeroization-on-drop not audited; openmls credential binding (nie-kef6.2) has additional surface; mine_token cancellation not tested. Would raise confidence with hpke crate source audit for PrivateKey drop behavior.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:54:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

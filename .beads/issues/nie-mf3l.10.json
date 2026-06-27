@@ -1,0 +1,24 @@
+{
+  "id": "nie-mf3l.10",
+  "title": "GOOD: cfg-gate wasm32-incompatible deps in nie-core",
+  "description": "nie-core gates tokio, tungstenite, rpassword, openmls, and transport/keyfile/mls modules under cfg(not(target_arch = \"wasm32\")) in both Cargo.toml and lib.rs. This lets nie-wasm reuse nie-core (identity, auth, messages, protocol) directly without a separate crate split or feature flags. The alternative was a nie-core-wasm shim crate or duplicating the shared types \u2014 both would create drift between web and native implementations of the wire protocol and identity primitives. The cfg-gate approach keeps a single source of truth for all shared types while allowing the wasm32 build to omit the std::fs, tokio, and native-TLS transitive deps that cannot compile to wasm32.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:30:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:09:45Z",
+  "closed_at": "2026-04-22T13:09:45Z",
+  "close_reason": "Documented in DESIGN.md \u00a7WebAssembly Client Invariants (\u00a7\u00a717-22)",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:30:49"
+    }
+  ]
+}

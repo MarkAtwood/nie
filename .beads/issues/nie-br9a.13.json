@@ -1,0 +1,22 @@
+{
+  "id": "nie-br9a.13",
+  "title": "FeeConvergence error gives no actionable recovery hint",
+  "description": "tx_error.rs TxBuildError::FeeConvergence prints 'fee convergence failed after N iterations'. A user seeing this at 2am has no idea what caused it or what to do. The comment in tx_builder.rs says 'this should not be possible in practice' \u2014 if true, it should say so in the error message and suggest 'please report this as a bug'. If it can happen with adversarial notes, the message should say 'try consolidating notes first'.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:05:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:05:14Z",
+  "labels": [
+    "readability"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:05:14"
+    }
+  ]
+}

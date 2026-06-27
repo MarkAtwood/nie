@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-0pne.3",
+  "title": "chat() param: lightwalletd \u2192 lightwalletd_url",
+  "description": "In commands.rs, chat() takes a parameter named 'lightwalletd: Option<String>'. The name matches the daemon, not the value it holds. 'lightwalletd_url' would make it clear this is a URL string, consistent with relay_url on the same function. The same rename would propagate to the two lwd_endpoints construction blocks inside the function.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T15:29:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:08Z",
+  "closed_at": "2026-04-22T13:43:44Z",
+  "close_reason": "Closed",
+  "labels": [
+    "opinion",
+    "readability"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 08:29:24"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "id": "nie-0tvc.5",
+  "title": "nie-daemon API: GET /api/whoami + GET /api/users",
+  "description": "**What:** Implement GET /api/whoami (daemon identity) and GET /api/users (online/offline directory from relay state).\n\n**Algorithm:**\n1. Create daemon/src/api.rs:\n2. #[derive(Serialize)] struct WhoamiResponse { pub_id: String, display_name: String }\n3. async fn handle_whoami(State(state): State<DaemonState>) -> Json<WhoamiResponse>:\n   - return Json(WhoamiResponse { pub_id: state.my_pub_id().to_string(), display_name: state.display_name().unwrap_or_else(|| state.my_pub_id()[..8].to_string() + '\u2026') })\n4. #[derive(Serialize)] struct UsersResponse { online: Vec<UserInfo>, offline: Vec<UserInfo> }\n5. async fn handle_users(State(state): State<DaemonState>) -> Json<UsersResponse>:\n   - let dir = state.directory_snapshot().await;\n   - return Json(UsersResponse { online: dir.online, offline: dir.offline })\n6. In main.rs Router: .route('/api/whoami', get(handle_whoami)).route('/api/users', get(handle_users))\n7. Auth middleware from W1-A already protects these routes\n\n**Defensive programming rules:**\n- Never return signing key, HPKE secret, or seed bytes in response\n- display_name fallback: pub_id[..8] + '\u2026' (8 chars of 64-char hex + ellipsis \u2014 never the full key)\n- If directory not yet received (empty), return { online: [], offline: [] } \u2014 not an error\n\n**Agent team:** Implementer only (straightforward handlers). Validator.\n\n**Tests (oracle: pub_id format is 64 lowercase hex chars = exactly 64 chars matching [0-9a-f]{64}):**\n- test_whoami_returns_valid_pubid: call handle_whoami with test state; verify response.pub_id.len()==64; verify all chars in '0'..'9','a'..'f'\n- test_whoami_display_name_fallback: state has no display_name; verify response.display_name == pub_id[..8] + '\u2026'\n- test_users_empty_before_directory: call handle_users before any DirectoryList received; verify online=[] offline=[]",
+  "acceptance_criteria": "cargo test -p nie-daemon passes; pub_id format test passes; cargo clippy -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:39:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:52:10Z",
+  "close_reason": "whoami + users handlers implemented; 5 tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:03"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:39:29"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:04"
+    }
+  ]
+}

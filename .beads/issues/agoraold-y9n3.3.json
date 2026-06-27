@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-y9n3.3",
+  "title": "mine-wait expect message says '5 minutes' but timeout is 10 minutes",
+  "description": "In e2e_testnet.rs line 470, the .expect() message reads \"tx must be mined within 5 minutes\" but MINE_WAIT_SECS = 600 (10 minutes). When this timeout fires, the panic message will claim only 5 minutes elapsed, misleading anyone debugging a real mine-wait timeout. The string is a stale copy-paste from when the budget was presumably 300 s.\n\nFix: change the message to \"tx must be mined within 10 minutes (MINE_WAIT_SECS)\" or derive it from the constant.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:21:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:44Z",
+  "closed_at": "2026-04-20T05:23:11Z",
+  "close_reason": "Duplicate of nie-y9n3.2 (same stale expect message defect)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:21:51"
+    }
+  ]
+}

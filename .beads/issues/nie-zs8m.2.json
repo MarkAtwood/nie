@@ -1,0 +1,28 @@
+{
+  "id": "nie-zs8m.2",
+  "title": "update_contact_fully leaks internal message via Err for programmer precondition",
+  "description": "update_contact_fully returns Err(anyhow::anyhow!(\"both blocked and display_name are None; ...\")) when the caller passes both args as None. The jmap.rs call site maps this to server_fail(&e.to_string()), which logs the message and returns a JMAP serverFail response to the client. This is a programmer precondition violation (the call site already guards against this with an if check), not a runtime DB error. Returning Err() for it: (1) leaks an internal debug message to JMAP clients, (2) conflates programmer errors with real DB failures in the error channel. Fix: use unreachable!() or debug_assert!() + unreachable!() \u2014 the precondition can only fire due to a programming mistake, not a runtime condition.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:26:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:34:01Z",
+  "closed_at": "2026-04-24T17:34:01Z",
+  "close_reason": "Fixed in store.rs: panic for precondition, exhaustive-match test, SELECT 1 for existence check; decision records filed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:26:25"
+    }
+  ]
+}

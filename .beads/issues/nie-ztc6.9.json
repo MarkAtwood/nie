@@ -1,0 +1,23 @@
+{
+  "id": "nie-ztc6.9",
+  "title": "PoW replay: DashMap::entry() for atomic check-and-insert eliminates TOCTOU",
+  "description": "The PoW replay set uses DashMap::entry() which holds a shard lock for the entire check+insert, eliminating the TOCTOU between contains_key() and insert(). A contributor might suggest replacing this with a separate contains_key/insert pair for 'readability' \u2014 resist: that reintroduces the race where two connections with the same token both pass the contains_key check before either inserts.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:54:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:54:35Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:54:34"
+    }
+  ]
+}

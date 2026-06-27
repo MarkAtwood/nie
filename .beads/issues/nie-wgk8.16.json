@@ -1,0 +1,23 @@
+{
+  "id": "nie-wgk8.16",
+  "title": "payment_watcher: activate_subscription_atomic is correct \u2014 uses invoice expires_at not runtime",
+  "description": "relay/src/payment_watcher.rs:370-428: activate_subscription correctly uses the invoice's own expires_at (set at creation time, shown to the user) rather than re-computing from current subscription_days. The max() at line 397 handles late payments by granting a fresh period. This correctly preserves the subscription promise made at invoice time. A contributor might suggest 'simplify by always computing from now + days' \u2014 this would silently break the duration promise for invoices created with a different operator setting.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:25:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:25:29Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:25:28"
+    }
+  ]
+}

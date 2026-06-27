@@ -1,0 +1,26 @@
+{
+  "id": "nie-hg3g.6",
+  "title": "cli: contact resolve() treats any 21+ char string as a pubkey",
+  "description": "cli/src/config.rs:122-125: `resolve()` treats any input longer than 20 chars as a raw pubkey. A contact named e.g. \"team-engineering-lead\" (22 chars) is silently passed as a pubkey, routing the message to a nonexistent destination with no error. Pubkeys are always exactly 64 lowercase hex chars; the fix is: `name_or_key.len() == 64 && name_or_key.chars().all(|c| c.is_ascii_hexdigit() && c.is_ascii_lowercase())` instead of the length-only check.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:37:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:45:52Z",
+  "closed_at": "2026-04-24T19:45:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:37:02"
+    }
+  ]
+}

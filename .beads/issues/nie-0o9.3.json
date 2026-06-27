@@ -1,0 +1,28 @@
+{
+  "id": "nie-0o9.3",
+  "title": "advance_diversifier_to uses no transaction; next_diversifier does",
+  "description": "Scenario: next_diversifier wraps its read-modify-write in a SQLite transaction (self.pool.begin()...tx.commit()). advance_diversifier_to does two separate queries with an await between them. With max_connections=1 this is safe because no other task can issue queries concurrently at the SQLite level. But the asymmetry is a footgun: if max_connections is ever raised (or if a second wallet task is added), advance_diversifier_to has a TOCTOU between its SELECT and INSERT. The inconsistency is documented in the code comment ('If concurrent wallet access is ever added, this will need a BEGIN IMMEDIATE transaction'), which prevents silent breakage, but the inconsistent pattern will confuse a future contributor who models advance_diversifier_to on next_diversifier.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:42:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T22:49:15Z",
+  "closed_at": "2026-04-18T22:49:15Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:42:47"
+    }
+  ]
+}

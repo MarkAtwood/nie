@@ -1,0 +1,26 @@
+{
+  "id": "nie-tj93.4",
+  "title": "TYPING not rate-limited allows one authed client to flood all N peers at wire speed",
+  "description": "ws.rs TYPING (~line 1918) is explicitly exempt from check_rate_limit per DESIGN.md. But TYPING calls state.broadcast() to ALL connected clients. A single authenticated client (no subscription needed) can send TYPING at full network speed, forcing O(N) mpsc channel sends per frame across all N connected client write tasks. At 1000 clients this saturates all write queues with typing notifications. The DESIGN.md exemption was motivated by UX latency, not an analysis of amplification cost. Fix: add a separate per-sender TYPING rate cap (e.g. 2/sec) independent of the broadcast counter, so normal usage is unaffected but abuse is blocked.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:56:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:12Z",
+  "closed_at": "2026-04-25T02:08:12Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:56:52"
+    }
+  ]
+}

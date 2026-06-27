@@ -1,0 +1,25 @@
+{
+  "id": "nie-ntho.2",
+  "title": "SpaceRole::all() centralizes role list; error messages stay in sync with parse",
+  "description": "Using SpaceRole::all() in validate_member_patch instead of a hardcoded string list is correct. Before this, the error message listed 'admin, moderator, member' independently of parse() \u2014 they could drift. Now they share the same source. A contributor might suggest reverting to a hardcoded list for simplicity; resist this. The one legitimate concern is that all() must be kept manually in sync (the docstring overclaims this), but that's a docstring bug, not a design flaw.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:04:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:05:06Z",
+  "closed_at": "2026-04-24T17:05:06Z",
+  "close_reason": "Decision record only",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:04:50"
+    }
+  ]
+}

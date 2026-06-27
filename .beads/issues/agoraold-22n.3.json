@@ -1,0 +1,32 @@
+{
+  "id": "agoraold-22n.3",
+  "title": "send_payment(): compose build_shielded_tx + memo + broadcast + record",
+  "description": "Implement the top-level send function that orchestrates: sync-lag check \u2192 note selection \u2192 tx build \u2192 broadcast \u2192 DB record.\n\npub async fn send_payment(\n    sk: &SaplingExtendedSpendingKey,\n    to_address: &str,\n    amount_zatoshi: u64,\n    session_id: Uuid,\n    store: &WalletStore,\n    client: &LightwalletdClient,\n    params_paths: &SaplingParamPaths,\n    network: ZcashNetwork,\n) -> Result<TxId, SendPaymentError>\n\npub enum SendPaymentError {\n    SyncLag(SyncLagError),\n    Build(TxBuildError),\n    Broadcast(BroadcastError),\n    Db(anyhow::Error),\n}\n\nAlgorithm:\n1. check_sync_lag(store, client, MAX_SYNC_LAG).await \u2192 propagate SyncLag\n2. store.spendable_notes(PAYMENT_ACCOUNT).await \u2192 notes\n3. Load params: load_sapling_params(params_paths) \u2192 propagate Build error\n4. Get anchor_height from the latest witness in notes (max block_height across selected notes)\n5. Build memo: session_id_to_memo(session_id)\n6. build_shielded_tx(sk, to_address, amount_zatoshi, &memo, &notes, &params, network, anchor_height) \u2192 propagate Build\n7. client.broadcast_tx(&tx_bytes).await \u2192 propagate Broadcast\n8. Mark spent notes: store.mark_note_spent(note_id, txid).await for each selected note\n9. store.insert_tx(TxRecord { txid, direction: Outgoing, amount_zatoshi, ... }).await\n10. Return TxId\n\nDefensive rules:\n- Log: 'payment initiated: amount={amount} zatoshi session={session_id}' at info level (amount and session_id are safe to log; recipient address is not)\n- Never log to_address, note plaintext, or sk bytes\n- If mark_note_spent fails after broadcast: log error at warn level with txid, continue \u2014 tx is already on chain\n- If insert_tx fails: log error at warn level, continue \u2014 balance will reconcile on next scan\n- Steps 8 and 9 use best-effort (log+continue) because the tx is already broadcast; aborting here would lose the txid\n\nTests (mock client + in-memory WalletStore):\n- Happy path: mock notes, mock broadcast returning known txid \u2192 Ok(txid)\n- SyncLag error propagates \u2192 SendPaymentError::SyncLag\n- Build error propagates \u2192 SendPaymentError::Build\n- Broadcast error propagates \u2192 SendPaymentError::Broadcast, notes NOT marked spent\n- After success: store.all_sessions() shows Outgoing tx record\n- After success: spent notes are marked spent in DB\n- Log test: verify 'payment initiated' appears in tracing output; verify no address or key material logged\n\nUse at minimum two parallel subagents: one to research BroadcastError variants from client.rs, one to research TxId type and how txid is returned from broadcast_tx.",
+  "acceptance_criteria": "happy path test passes with mock infrastructure; spent notes are marked; TxRecord is inserted; no to_address in log output",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:50:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T02:39:11Z",
+  "close_reason": "send_payment() in wallet/src/payment.rs with WalletClient trait, SendPaymentError, 4 tests passing (happy path, SyncLag, NoSpendableNotes, broadcast failure)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:50:55"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:50:55"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:50:37"
+    }
+  ]
+}

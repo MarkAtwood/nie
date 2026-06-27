@@ -1,0 +1,14 @@
+{
+  "id": "nie-s087",
+  "title": "R2: Update DESIGN.md to list U+FEFF in ZWS canonicalization",
+  "description": "DESIGN.md § Display Name Canonicalization lists zero-width chars as 'U+200B, U+200C, U+2060 are removed without error.' However, the implementation (relay/src/ws.rs) also includes U+FEFF with a security justification: 'it is invisible and can appear in copy-pasted text.' This creates documentation/code divergence. Update DESIGN.md step 3 to include U+FEFF in the list of stripped characters, or explain the relationship to U+2060. Also clarify that the comment 'U+2060 is equivalent to U+FEFF without byte-order semantics' is about format category (both Cf), not functional equivalence.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:07:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:29:01Z",
+  "closed_at": "2026-04-22T06:29:01Z",
+  "close_reason": "Already implemented: DESIGN.md §3 documents U+FEFF and bom_stripped_silently test exists in ws.rs"
+}

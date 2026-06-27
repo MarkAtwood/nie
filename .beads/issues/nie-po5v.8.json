@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.8",
+  "title": "store.rs: insert_message_ext: last_message_at and unread_count update not in same transaction as insert",
+  "description": "insert_message_ext inserts the message row, then in a separate statement (outside a transaction) updates chat.last_message_at and chat.unread_count. If the second statement fails (e.g. chat was deleted between the two statements, which is possible because ON DELETE CASCADE would have removed the message row), the chat metadata diverges from the message table. No transaction wraps both operations. Trigger: concurrent delete_space or delete_chat while a message is being inserted. Fix: wrap both statements in a single transaction.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:36:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:11Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:36:20"
+    }
+  ]
+}

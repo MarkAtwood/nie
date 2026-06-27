@@ -1,0 +1,16 @@
+{
+  "id": "nie-e2c6",
+  "title": "Review: relay round 12",
+  "notes": "Maintainer risk: MEDIUM — two P0 bugs (late-payment subscription expiry, diversifier consumed before validation) are silent correctness failures that affect paying users. The SEALED_WHISPER rate-limit gap mirrors an already-known WHISPER gap (nie-14sh.29). The GROUP_ADD TOCTOU has no security impact beyond minor invariant violation. The bus subscriber task being dead (nie-kef6.16) means cross-instance delivery is broken in multi-instance deployments.\nConfidence: 20% chance of missed bug. Uncertainty driven by: (1) bus.rs subscriber task is never spawned — cross-instance delivery path is untested dead code; if multi-instance is ever activated bugs there will surface. (2) payment_watcher scan-tip persistence and the INITIAL_LOOKBACK window mean a relay crash between payments-confirmed and scan-tip-persisted can cause double-activation — not checked in detail. Would raise confidence if: integration tests exercised the payment watcher with a mock lightwalletd, and if multi-instance bus subscriber lifecycle was exercised.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:33:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "review"
+  ]
+}

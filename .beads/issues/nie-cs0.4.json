@@ -1,0 +1,28 @@
+{
+  "id": "nie-cs0.4",
+  "title": "Account 0 hardcoded in three independent places with no documented invariant",
+  "description": "Scenario: multi-account support is added (or a different account is needed for a specific chain). The account index 0 is hardcoded independently in: (1) try_load_wallet_fvks derives from account 0, (2) dispatch_payment calls ensure_account(0) and next_diversifier(0). These three sites must stay in sync. No comment or type ties them together. A contributor adding account 1 support changes one and misses the others. Fix: pass account index as a parameter to dispatch_payment, or define a module-level const PAYMENT_ACCOUNT: u32 = 0 and reference it everywhere.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:06:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T22:30:09Z",
+  "closed_at": "2026-04-18T22:30:09Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:06:50"
+    }
+  ]
+}

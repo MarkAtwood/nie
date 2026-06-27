@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmq3.1",
+  "title": "daemon: CORS allow_headers Any lets any origin's JS read response body",
+  "description": "daemon/src/main.rs:56 \u2014 CorsLayer uses .allow_headers(tower_http::cors::Any). Combined with .allow_origin([localhost, 127.0.0.1]), any page served from localhost can set arbitrary request headers and read the response body with fetch(). Because the daemon token is in the Authorization header, an XSS bug on any localhost app would let it hit /api/send or /jmap with the bot's token. Fix: restrict to .allow_headers([AUTHORIZATION, CONTENT_TYPE]).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:53:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:03:42Z",
+  "closed_at": "2026-04-25T03:03:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:53:53"
+    }
+  ]
+}

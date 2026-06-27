@@ -1,0 +1,23 @@
+{
+  "id": "nie-wdw.6",
+  "title": "Sapling params loader: SaplingParamPaths \u2192 (SpendParameters, OutputParameters)",
+  "description": "Implement load_sapling_params(paths: &SaplingParamPaths) -> Result<(SpendParameters, OutputParameters), TxBuildError>.\n\nThe SaplingParamPaths struct (already in wallet/src/params.rs) holds the disk paths to sapling-spend.params and sapling-output.params. The zcash_primitives or sapling crate provides a way to load these into SpendParameters and OutputParameters for use with the builder's SpendProver and OutputProver traits.\n\nSteps:\n1. Spawn a research subagent to find the exact loading function \u2014 look for sapling::circuit::SpendParameters::read() or similar in ~/.cargo/git/checkouts/sapling-crypto-*/src/\n2. Read each param file into bytes (std::fs::read)\n3. Construct SpendParameters and OutputParameters\n4. Return the pair\n\nDefensive rules:\n- File not found \u2192 TxBuildError::ParamsNotLoaded('sapling-spend.params not found at PATH \u2014 run  to download')\n- File corrupt (read fails) \u2192 TxBuildError::ParamsNotLoaded with path and error\n- Parse error \u2192 TxBuildError::ParamsNotLoaded with details\n- Never load both files if the first fails \u2014 fail fast\n- Re-verify BLAKE2b hash after loading (use existing verify_blake2b from params.rs) \u2192 TxBuildError::ParamsNotLoaded('hash mismatch \u2014 file may be corrupt, delete and re-download')\n\nTests:\n- Mock params: use a tempdir with valid param bytes; confirm Ok is returned\n- Missing file: confirm TxBuildError::ParamsNotLoaded\n- Corrupt file (truncated bytes): confirm TxBuildError::ParamsNotLoaded, no panic\n- Hash mismatch: write valid bytes but fake a bad expected hash \u2192 TxBuildError::ParamsNotLoaded\nNote: actual param files are large (~50MB each) \u2014 use a test double or read the research subagent output to determine if a minimal valid params struct can be created programmatically for tests.",
+  "acceptance_criteria": "load_sapling_params succeeds with a valid params dir; all error paths return TxBuildError; hash re-verification is present",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:48:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T00:14:45Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:48:58"
+    }
+  ]
+}

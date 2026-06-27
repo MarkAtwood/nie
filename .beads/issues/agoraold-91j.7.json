@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-91j.7",
+  "title": "WalletClient trait enables CI-testable payment logic \u2014 do not remove",
+  "description": "payment.rs defines a WalletClient trait with latest_height + broadcast_tx, implemented by LightwalletdClient and MockClient in tests. This is what makes the sync_lag, no_spendable_notes, broadcast_failure, and happy_path tests runnable in CI without a live lightwalletd node. A contributor may suggest inlining LightwalletdClient calls directly to reduce abstraction. Do not do that \u2014 removing the trait collapses the test suite to network-dependent tests that cannot run in CI.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:58:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:51Z",
+  "closed_at": "2026-04-19T05:03:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:58:06"
+    }
+  ]
+}

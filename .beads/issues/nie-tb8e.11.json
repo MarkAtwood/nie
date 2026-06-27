@@ -1,0 +1,27 @@
+{
+  "id": "nie-tb8e.11",
+  "title": "cli commands.rs: incoming ClearMessage::Chat text written to history without size limit",
+  "description": "cli/src/commands.rs DELIVER handler: for ClearMessage::Chat, history.append_received(&from, text.as_bytes()) is called unconditionally. There is no upper bound on text length. An MLS peer can send a multi-megabyte text field through the relay and the CLI will write it all to the SQLite history DB. Combined with the existing nie-f0pz.9 finding (no size limit on /command output before MLS encryption), this means an attacker inside the MLS group can fill the history DB disk. The outbound direction has a MAX_TEXT_BYTES=65536 check in daemon/api.rs but the CLI receive path has none.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:42:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:06:49Z",
+  "closed_at": "2026-04-26T10:06:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:42:14"
+    }
+  ]
+}

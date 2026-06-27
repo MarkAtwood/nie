@@ -1,0 +1,12 @@
+{
+  "id": "nie-6jm9",
+  "title": "Review round 24",
+  "notes": "Round 24 review complete. Findings: (1) protocol.rs: nie-uhyi.4 tracks String field bounds; new issue nie-dpa3 filed for unbounded Vec\u003cUserInfo\u003e in DirectoryListParams. (2) ws.rs auth: timeout present (30s), pub_id format validated cryptographically by verify_challenge/decode_pub_key, no nonce replay possible (relay verifies against its own nonce, not params.nonce), no TOCTOU found. params.nonce field is dead/ignored but not a security issue. (3) tui/event.rs: /! uses shlex (no shell injection), output truncated 4096B. /cat rejects absolute/dotdot paths, truncated 4096B, from_utf8_lossy handles invalid UTF-8 safely. No panics. Clean. (4) bridge-jmap: nie-ld0c.1 (infinite loop) and nie-ld0c.2 (unbounded all_ids) remain open and unfixed in current code.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "epic",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:02:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:02:41Z"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-pf86.5",
+  "title": "Unit tests: pad() extended bucket + FileHeader/FileChunk roundtrip",
+  "description": "## What\nTests for the extended pad() bucket and new ClearMessage variants. Already partially described in nie-pf86.1 but extracted here for clarity.\n\n## Algorithm\nThese tests live in core/src/messages.rs:\n1. pad_accepts_65532_bytes: let data = vec![0xabu8; 65532]; let out = pad(&data).unwrap(); assert_eq!(out.len(), 65536); let back = unpad(&out).unwrap(); assert_eq!(back, data);\n2. pad_rejects_65533_bytes: let data = vec![0u8; 65533]; assert!(pad(&data).is_err());\n3. file_header_roundtrips: create FileHeader with all fields, serialize to JSON, deserialize, assert all fields equal.\n4. file_chunk_data_is_base64_in_json: create FileChunk with data = vec![0xffu8; 16], serialize, parse as serde_json::Value, assert value['data'] is a string (not array), assert B64.decode(the_string) == original data (using base64 engine). Oracle: RFC 4648 base64 is the encoding standard - ///// is 5 bytes of 0xFF... check exact value.\n5. file_chunk_roundtrips_48kb: create FileChunk with data = vec created by repeating [0..=255] enough times to fill 48*1024 bytes, roundtrip, assert data identical.",
+  "acceptance_criteria": "cargo test -p nie-core passes; all 5 tests pass",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T13:57:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:05Z",
+  "closed_at": "2026-04-22T14:05:23Z",
+  "close_reason": "All 5 tests (pad_accepts_65532_bytes, pad_rejects_65533_bytes, file_header_roundtrips, file_chunk_data_is_base64_in_json, file_chunk_roundtrips_binary_data) were implemented as part of nie-pf86.1",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 06:57:37"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 06:57:47"
+    }
+  ]
+}

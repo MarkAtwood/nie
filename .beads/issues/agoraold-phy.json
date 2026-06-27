@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-phy",
+  "title": "Review: fix: review fixes + scanner + balance query",
+  "notes": "Confidence: 90% chance no missed bugs in this diff. Remaining 10% is in dispatch_payment state machine paths not covered by this review (nie-phy scope was scanner/balance/cancel/bulk-expire). nie-phy.1 (balance/height-0) is real but unreachable with current scanner. nie-phy.2 (parameter order) is a future trap. nie-phy.3 (birthday height) will generate user reports eventually. P2 bucket is empty — no efficiency issues. P3-P4 are real but minor. Would raise confidence if: integration test scanning a real (or mocked) block stream existed to cover the scan_tip advance under crash simulation.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:07:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T17:13:04Z",
+  "close_reason": "Review complete: 0 P0 bugs, 3 P1 issues filed, 1 P3 elegance, 1 P4 typo, 4 decision records",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

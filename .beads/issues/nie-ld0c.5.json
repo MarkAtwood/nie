@@ -1,0 +1,27 @@
+{
+  "id": "nie-ld0c.5",
+  "title": "bridge-matrix: SentIds::persist_to_file blocks the async task on every outbound message",
+  "description": "bridge.rs:308 calls sent_ids.persist_to_file() synchronously on every Matrix\u2192nie message. persist_to_file does fs::write + fs::rename. These are blocking syscalls inside a tokio async task. On a slow filesystem (NFS, full disk), this blocks the task's thread and stalls all event processing for the bridge, including nie deliver notifications. Scenario: bridge deployed with keyfile on NFS or slow disk; under load, outbound messages stall the event loop.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:44:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:15:06Z",
+  "closed_at": "2026-04-26T07:15:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:44:33"
+    }
+  ]
+}

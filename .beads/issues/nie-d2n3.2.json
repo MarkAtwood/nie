@@ -1,0 +1,26 @@
+{
+  "id": "nie-d2n3.2",
+  "title": "TYPING is rate-limited but DESIGN.md explicitly exempts it",
+  "description": "relay/src/ws.rs:1715 calls check_rate_limit() on the TYPING method. DESIGN.md states rate-limited methods are only broadcast, sealed_broadcast, group_send. TYPING is not in that list and should be exempt. Fix: remove check_rate_limit() from the TYPING handler branch.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:53:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:01:03Z",
+  "closed_at": "2026-04-24T19:01:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:53:58"
+    }
+  ]
+}

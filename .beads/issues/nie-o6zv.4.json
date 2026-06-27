@@ -1,0 +1,21 @@
+{
+  "id": "nie-o6zv.4",
+  "title": "sessions_to_watch() SQL filter: hardcoded states create silent omission risk",
+  "description": "Location: wallet/src/db.rs \u2014 sessions_to_watch() hardcodes state IN ('address_provided', 'sent'). If a new PaymentState variant representing 'awaiting confirmation' is added later, it won't be included in the watcher unless a developer also updates this SQL string.\n\nThe code compiles cleanly on enum change. No test will catch the omission unless a test specifically inserts a session in the new state and calls sessions_to_watch().\n\nFix: Add a comment above the SQL explaining: 'These are the states that mean the payee is waiting for on-chain confirmation. Any new PaymentState representing in-flight confirmation must be added here.' This makes the invariant visible to the next contributor.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:32:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T08:37:14Z",
+  "closed_at": "2026-04-19T08:37:14Z",
+  "close_reason": "Invariant comment added above sessions_to_watch() SQL filter",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:32:10"
+    }
+  ]
+}

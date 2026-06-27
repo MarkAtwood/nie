@@ -1,0 +1,28 @@
+{
+  "id": "nie-bwaa.9",
+  "title": "START_NOT_STICKY: relay service not restarted after OS kill",
+  "description": "onStartCommand() returns START_NOT_STICKY. If the OS kills the service under memory pressure, it will not be automatically restarted. The foreground notification disappears, the relay is dead, and users receive no messages until they open the app. For a relay that should persist in the background, START_STICKY is more appropriate: the system will restart the service and re-deliver ACTION_START. The existing Dart-side _running guard and reconnect logic handles the re-init correctly.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:48:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:59:28Z",
+  "closed_at": "2026-04-23T23:59:28Z",
+  "close_reason": "changed START_NOT_STICKY to START_STICKY so OS restarts the service after kill",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:48:18"
+    }
+  ]
+}

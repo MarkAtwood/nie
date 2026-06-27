@@ -1,0 +1,28 @@
+{
+  "id": "nie-83e.5",
+  "title": "note_g_d column/field name is wrong \u2014 stores diversifier d, not g_d curve point",
+  "description": "The DB column, migration comment, struct field, and struct doc all say 'g_d' (the derived Jubjub curve point, 32+ bytes). The field actually stores the raw 11-byte diversifier d. PaymentAddress::from_bytes([d(11)|pk_d(32)]) is correct code, but the name is wrong. When someone writes the compact-block scanner and reads 'note_g_d BLOB \u2014 Sapling diversifier g_d = GH(diversifier_bytes)', they may store the 32-byte g_d curve point, causing NoteDeserialize('must be 11 bytes') errors and hours of debugging. The column name is now in the SQLite schema permanently. Fix: rename to note_diversifier everywhere (migration v7 with ALTER TABLE RENAME COLUMN if supported, or a data migration).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T00:48:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T00:58:26Z",
+  "closed_at": "2026-04-19T00:58:26Z",
+  "close_reason": "note_g_d renamed to note_diversifier in migration DDL, SpendableNote struct, SQL queries, and all tests across db.rs and tx_builder.rs",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 17:48:38"
+    }
+  ]
+}

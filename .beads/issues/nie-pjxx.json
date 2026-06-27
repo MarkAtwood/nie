@@ -1,0 +1,18 @@
+{
+  "id": "nie-pjxx",
+  "title": "MLS admin election: partition_point insertion preserves sequence order",
+  "description": "GOOD CHOICE: online list maintains ascending sequence order via partition_point insertion (event.rs 246-250), never in-place sort. The invariant comment in app.rs (84-86) explicitly warns: 'Never sort this Vec in place — only rebuild from DirectoryList or insert at partition_point'.\n\nThis is maintained across multiple files:\n- DirectoryList rebuilds the list from relay data (sorted by relay, line 148)\n- UserJoined inserts at partition_point (line 250)\n- Display code shows [A] marker at position 0 (ui.rs 65, event.rs 881)\n\nThe invariant ensures online[0] is the MLS admin across all peers even when UserJoined events arrive out-of-order. A contributor might want to 'simplify' by sorting in place for display, which would break the admin election.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:28:21Z",
+  "closed_at": "2026-04-22T06:28:21Z",
+  "close_reason": "Verified invariant holds; nie-5xf0 documented in DESIGN.md §16 UTF-8 cursor boundary invariant; nie-pjxx and nie-h0ci already documented in DESIGN.md",
+  "labels": [
+    "review"
+  ]
+}

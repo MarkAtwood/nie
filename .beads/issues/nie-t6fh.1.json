@@ -1,0 +1,27 @@
+{
+  "id": "nie-t6fh.1",
+  "title": "method_ok(\"error\", ...) is a misleading name for error returns",
+  "description": "message_query (line 2025) and message_query_changes (line 2080) use 'return method_ok(\"error\", json\\!({...}))' to return error responses. method_ok is named for success. A maintainer reading this is confused. The existing method_error() helper doesn't support custom bodies, so the fix is either: use (\"error\".to_string(), json\\!({...})) directly, or add a method_error_detail(type, body) helper. Suggested rewrite: (\"error\".to_string(), serde_json::json\\!({\"type\": \"unsupportedFilter\", \"description\": \"...\"}))",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:34:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T18:35:36Z",
+  "closed_at": "2026-04-24T18:35:36Z",
+  "close_reason": "Fixed: replaced method_ok(\"error\", ...) with (\"error\".to_string(), json!({...})) in both message_query and message_query_changes",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:34:58"
+    }
+  ]
+}

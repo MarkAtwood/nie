@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-3dgd.7",
+  "title": "TLS connector ordering relative to SOCKS5 tunnel is non-obvious (P1)",
+  "description": "Critical maintainability issue: Lines 272-287 apply the insecure TLS connector AFTER the SOCKS5 tunnel is established (correct order):\n\n  TCP \u2192 SOCKS5 tunnel \u2192 [insecure TLS applied here] \u2192 WebSocket\n\nA contributor refactoring this code might not realize the ordering is constrained. They could move the connector application to line 291 (the direct path TcpStream), breaking the insecure proxy path without realizing it.\n\nCurrent code is CORRECT, but the logic is a pitfall waiting to happen.\n\nFix: Add a comment at line 287 or 326 explaining:\n'The connector (TLS config) is applied AFTER the SOCKS5 tunnel. If insecure mode is enabled, the insecure TLS connector wraps the Socks5Stream output, not the raw TcpStream. The tunnel must complete before TLS negotiates.'\n\nThis prevents a subtle refactoring error that would pass all tests but break proxy + insecure mode together.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:11:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:47Z",
+  "closed_at": "2026-04-19T19:13:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:11:28"
+    }
+  ]
+}

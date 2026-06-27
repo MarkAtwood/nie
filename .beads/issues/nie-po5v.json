@@ -1,0 +1,18 @@
+{
+  "id": "nie-po5v",
+  "title": "Review: daemon/cli/tui/bot round 17",
+  "design": "Confidence Calibration (round 17):\n\nP0 issues filed: 3 (nie-po5v.1, nie-po5v.2-6, nie-po5v.12, nie-po5v.19 — 8 total across this round).\nP1 issues filed: 9. P2 issues filed: 2.\n\nThe TUI send_chat plaintext-broadcast finding (nie-po5v.19) is a P0 architectural gap — the comment in the code says 'MLS encryption will be added' confirming it was intentionally deferred, not overlooked by this review. The finding is high-confidence.\n\nThe balance TOCTOU (nie-po5v.2) and phantom event (nie-po5v.1) are high-confidence.\n\nThe DM-unencrypted findings (nie-po5v.15, nie-po5v.18) are high-confidence from code reading; no path through the code encrypts the /dm payload.\n\nConfidence that no P0 correctness bugs were missed in the scoped files: ~80%. Areas of residual uncertainty: (a) jmap.rs full message/set validation paths — only read in chunks, may have additional input validation gaps; (b) daemon/src/relay.rs federation dispatch paths — large file, complex routing logic; (c) any unsafe code in wallet or crypto dependencies that wasn't in scope.\n\nMaintainer burden summary: Heavy. The TUI E2E encryption stub (nie-po5v.19) is the highest-priority maintainer debt — users of the TUI believe they have E2E encryption but do not.",
+  "notes": "Good decisions worth defending in this codebase (round 17 scope):\n\n1. strip_unsafe_chars (tui/src/ui.rs): Strips ANSI escapes, bidi controls, zero-width chars from peer-supplied text before display. Correct approach; protects against terminal injection from adversarial peers.\n\n2. SpaceRole enum (daemon/src/store.rs): Typed enum instead of raw \u0026str for role values reaching the DB. Compiler-enforced exhaustive match. The space_role_all_is_complete() test guards against stale all() lists.\n\n3. Constant-time token comparison (daemon/src/token.rs): Uses subtle::ConstantTimeEq for Bearer token validation. Correct — prevents timing oracle attacks on the auth token.\n\n4. shlex + Command::new for shell hooks (bot/src/scripting.rs, cli/src/commands.rs): Word-splits the command string then uses Command::new, not sh -c. Prevents shell metacharacter injection. Tests verify semicolons are literal arguments.\n\n5. FK enforcement on every connection (daemon/src/store.rs): PRAGMA foreign_keys = ON set via after_connect hook on the SQLite pool, not just once at startup. Ensures FK checks fire even on connections acquired from the pool after the initial migrate() call.\n\n6. update_contact_fully panic on both-None (daemon/src/store.rs): Programmer-error guard panics instead of returning a soft error. Correct: calling with two None args is a coding mistake that should show up in tests, not be silently swallowed.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:30:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

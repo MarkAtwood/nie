@@ -1,0 +1,19 @@
+{
+  "id": "nie-sez5",
+  "title": "Review: Android foreground service + relay keep-alive",
+  "notes": "Confidence: 85% chance of no missed bug. Uncertainty driven by: (1) did not run the Android build or test the foreground service against a real device — Android behavior on Doze/battery-optimization edge cases can only be verified empirically; (2) did not audit the full jmap.rs space_set function beyond the extracted function and space_join fix — there may be other patch paths or creation paths with missing role validation. Would raise confidence if: integration test for BackgroundService/NieForegroundService on API 33 and 34 devices, and full jmap.rs space_set coverage for the creation-time member insertion path.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:38:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T02:25:44Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

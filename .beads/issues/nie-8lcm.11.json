@@ -1,0 +1,25 @@
+{
+  "id": "nie-8lcm.11",
+  "title": "explicit load_state() call has no comment; silent double-init risk",
+  "description": "In testnet_shielded_payment_end_to_end the receive-side block calls bob_scanner.load_state() explicitly before scan_to_tip(). No equivalent call appears for Alice. There is no comment explaining why load_state() must be called separately (rather than being implicit in scan_to_tip). If CompactBlockScanner is later changed to call load_state() internally at the start of scan_to_tip(), the explicit call becomes a double-init with undefined behavior \u2014 no error, no warning, silent corruption potential. Add a comment stating what load_state() does and why it must precede scan_to_tip() here.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:09:32Z",
+  "closed_at": "2026-04-20T05:09:32Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:42"
+    }
+  ]
+}

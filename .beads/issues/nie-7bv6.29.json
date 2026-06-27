@@ -1,0 +1,26 @@
+{
+  "id": "nie-7bv6.29",
+  "title": "SEC1: notify_closure leak on set_event_callback",
+  "description": "wasm/src/client.rs:250 \u2014 wire_notify_callback() calls notify_closure.forget() every time it is called. set_event_callback() (which calls wire_notify_callback) can be called multiple times (e.g. after reconnect). Each call leaks the previous Closure permanently \u2014 there is no drop path. Fix: store the Closure in a field on NieRelayClient instead of calling forget(); replace it on each set_event_callback call so the old Closure drops cleanly.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:34:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:37:41Z",
+  "closed_at": "2026-04-20T02:37:41Z",
+  "close_reason": "duplicate of nie-7bv6.28: same notify_closure forget() leak issue, SEC0 filing is more complete and higher priority",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:34:56"
+    }
+  ]
+}

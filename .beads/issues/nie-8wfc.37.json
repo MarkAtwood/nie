@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.37",
+  "title": "Blob upload endpoint has no size limit",
+  "description": "POST /jmap/upload/:account_id with a valid token accepts an unbounded body (body: Bytes is fully materialized before any size check). A token holder can POST gigabytes in a single request, exhausting disk space and crashing or hanging the daemon. Fix: add a ContentLengthLimit extractor or axum::body::Body::with_limit() before materializing the bytes.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:01:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:16:58Z",
+  "closed_at": "2026-04-24T22:16:58Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:01:14"
+    }
+  ]
+}

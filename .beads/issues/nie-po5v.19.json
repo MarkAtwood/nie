@@ -1,0 +1,27 @@
+{
+  "id": "nie-po5v.19",
+  "title": "tui: send_chat broadcasts plaintext even when mls_active \u2014 relay reads all TUI messages",
+  "description": "tui/src/event.rs send_chat() (line 956) builds a plaintext BroadcastParams payload and sends it via rpc_methods::BROADCAST with no encryption regardless of state.mls_active. The comment on line 955 says 'MLS encryption will be added when mls_active' but this was never implemented. Consequence: every TUI chat message is visible to the relay server, negating the E2E encryption guarantee that CLI users have. The CLI's main send path uses HPKE-sealed MLS ciphertext (sealed broadcast) when mls_active. Fix: in send_chat, when state.mls_active is true, encrypt via state.mls_client.encrypt() + pad(), then HPKE-seal to state.room_hpke_secret, and send via rpc_methods::SEALED_BROADCAST as the CLI does.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:46:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:07:44Z",
+  "closed_at": "2026-04-25T04:07:44Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:46:18"
+    }
+  ]
+}

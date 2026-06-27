@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.30",
+  "title": "Credentials in proxy URL produce cryptic DNS error",
+  "description": "When a user passes a proxy URL with embedded credentials (e.g. socks5://user:pass@127.0.0.1:9050), parse_proxy_addr uses rsplit_once(':') to find the port. This correctly extracts port=9050, but the host portion becomes 'user:pass@127.0.0.1'.\n\nThis credential-tainted host string is passed directly to Socks5Stream::connect as the proxy address. tokio-socks calls to_socket_addrs() on ('user:pass@127.0.0.1', 9050), which either fails with a DNS resolution error (name not found) or resolves unexpectedly. The user sees a cryptic network error with no indication that credentials-in-URL is the problem.\n\nThe existing test (proxy_addr_parses_port_ignores_credentials) checks only that port==9050 is extracted correctly and notes in a comment 'tokio-socks will fail at connect time'. This is true but does not help the user debug.\n\nThe preferred fix is to detect '@' in the addr string after scheme stripping and return an explicit error: 'proxy URL credentials are not supported; use connect_with_password API or omit credentials'. If credential support is desired in future, parse and forward them to Socks5Stream::connect_with_password. The test comment should be updated to match whichever behavior is chosen.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:22:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:31:26Z",
+  "closed_at": "2026-04-19T19:31:26Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:22:07"
+    }
+  ]
+}

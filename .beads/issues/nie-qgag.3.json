@@ -1,0 +1,26 @@
+{
+  "id": "nie-qgag.3",
+  "title": "PUBLISH_KEY_PACKAGE: no size limit on key package blob",
+  "description": "params.data in PUBLISH_KEY_PACKAGE is stored without any size validation. A 1 MiB WS frame (the max) goes directly to the key_packages table as a BLOB. Every subsequent GET_KEY_PACKAGE for that pub_id returns 1 MiB. At 100-member group with all devices publishing max blobs, get_all_key_packages returns 100 MiB. Enforce a per-blob cap (e.g. 1 KiB, matching real MLS key package sizes).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:52:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:35:47Z",
+  "closed_at": "2026-04-25T04:35:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:52:55"
+    }
+  ]
+}

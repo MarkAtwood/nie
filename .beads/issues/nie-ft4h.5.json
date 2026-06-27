@@ -1,0 +1,23 @@
+{
+  "id": "nie-ft4h.5",
+  "title": "SaplingExtendedSpendingKey stores bytes not live key: correct zeroization strategy",
+  "description": "address.rs: SaplingExtendedSpendingKey stores 169-byte serialization in Zeroizing<[u8;169]> and reconstructs ExtendedSpendingKey on each method call. A contributor might suggest caching the live ExtendedSpendingKey for performance. But the ExtendedSpendingKey struct (from sapling-crypto) may not implement Zeroize, meaning cached key material would persist in heap memory after use. Storing bytes in Zeroizing guarantees the bytes are wiped on drop regardless of the upstream crate's implementation. The reconstruction cost (~1 deserialization) is negligible compared to the proof generation step.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:37:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:37:40Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:37:39"
+    }
+  ]
+}

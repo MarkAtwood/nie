@@ -1,0 +1,21 @@
+{
+  "id": "nie-ea6a.6",
+  "title": "desktop: connect_relay spawns receive loop with no reconnection \u2014 WS drop is permanent",
+  "description": "## Bug\n\nIn desktop/src-tauri/src/lib.rs connect_relay(), the receive loop is:\n\n    tokio::spawn(async move {\n        let mut rx = conn.rx;\n        loop {\n            let Some(event) = rx.recv().await else { break };\n            match event {\n                ClientEvent::Reconnecting { delay_secs } => { /* log + emit status */ }\n                ClientEvent::Disconnected => {\n                    tracing::error!(\"relay disconnected\");\n                    break;\n                }\n                _ => {}\n            }\n        }\n        let _ = app.emit(\"nie://status\", \"Disconnected.\");\n    });\n\nWhen the underlying transport connection drops, the event loop receives Disconnected and breaks, terminating the loop permanently. The Tauri frontend receives 'Disconnected.' but there is no mechanism to reconnect \u2014 the tx channel stored in RelayState remains stale (pointing at the dead connection), and any subsequent send_chat() call will return a channel-closed error.\n\nContrast with the TUI, which handles Reconnecting/Reconnected events and republishes HPKE keys on reconnect.\n\n## Impact\n\nAny relay connection drop (network hiccup, relay restart) permanently disconnects the desktop app. The user must restart the app to reconnect.\n\n## Fix\n\nOn Disconnected, call connect_with_retry again and update the RelayState.tx with the new channel. Handle the Reconnected event to republish the HPKE key and key package.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:49:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:56:27Z",
+  "closed_at": "2026-04-26T10:56:27Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:49:15"
+    }
+  ]
+}

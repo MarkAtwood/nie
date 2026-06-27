@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.25",
+  "title": "SEC0: send_whisper not exposed in NieClient wasm_bindgen API",
+  "description": "File: wasm/src/api.rs (NieClient impl block) vs wasm/src/client.rs lines 281-301. NieRelayClient::send_whisper() is fully implemented and handles the 'whisper' RPC method and the 'whisper_received' event type is documented in the JS API (api.rs line 149). However, NieClient in api.rs has no send_whisper method. JavaScript callers cannot send direct messages \u2014 calling client.send_whisper() from JS results in 'undefined is not a function' at runtime. The NieClient impl block needs a pub fn send_whisper(&self, to: String, text: String) -> js_sys::Promise method analogous to send_message.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:32:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:45Z",
+  "closed_at": "2026-04-20T02:41:16Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:32:14"
+    }
+  ]
+}

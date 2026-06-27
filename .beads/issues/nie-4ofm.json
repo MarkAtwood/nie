@@ -1,0 +1,15 @@
+{
+  "id": "nie-4ofm",
+  "title": "TUI: strip bidi and zero-width chars from message bodies",
+  "description": "strip_unsafe_chars in tui/src/ui.rs strips ANSI escapes and C0/C1 control chars (is_control()), but Unicode format chars (category Cf) return is_control()=false and pass through unchecked. A malicious peer can send U+202E (RIGHT-TO-LEFT OVERRIDE) or similar bidi controls in a message body to reverse or reorder rendered text in the terminal. Zero-width chars (U+200B, U+200C, U+200D, U+2060, U+FEFF) also pass through. The nickname canonicalization path already handles this correctly — the same set of chars should be stripped in strip_unsafe_chars. Chars to strip: U+202A-U+202E (LRE, RLE, PDF, LRO, RLO), U+2066-U+2069 (isolates, PDI), U+200E, U+200F (LRM, RLM), U+200B, U+200C, U+200D (zero-width), U+2060 (word joiner), U+FEFF (BOM).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T21:18:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T21:53:31Z",
+  "closed_at": "2026-04-23T21:53:31Z",
+  "close_reason": "Closed"
+}

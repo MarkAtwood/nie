@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.82",
+  "title": "identity: from_secret_bytes leaves ed_seed and hpke_seed_bytes as unzeroized stack variables",
+  "description": "In Identity::from_secret_bytes, ed_seed and hpke_seed_bytes are plain [u8;32] stack variables. They are not wrapped in Zeroizing, so raw key material lingers on the stack after the function returns. SigningKey zeroizes on drop, but the source ed_seed array it was constructed from does not. x25519-dalek's StaticSecret only zeroizes on drop when its 'zeroize' feature is enabled; the workspace Cargo.toml only enables 'static_secrets', not 'zeroize'. Fix: wrap ed_seed and hpke_seed_bytes in Zeroizing<[u8;32]>, and enable the 'zeroize' feature for x25519-dalek.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:56:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:13:04Z",
+  "closed_at": "2026-04-25T01:13:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:56:18"
+    }
+  ]
+}

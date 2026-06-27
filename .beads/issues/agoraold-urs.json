@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-urs",
+  "title": "Review: fix(wallet): network guard, zero-pay, bulk note-spend + feat commit",
+  "notes": "Maintainer risk: LOW — the feat commit was already reviewed and fixed. The fix commit introduced one design mistake (network guard too aggressive) and two test gaps. No new safety or cryptographic issues.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:13:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T06:21:20Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "nie-uhyi",
+  "title": "Review: core round 20",
+  "notes": "Maintainer risk: MEDIUM -- Three unbounded deserialization paths remain: Chat.text, PeerGroupUpdate.role, and PaymentAction::Sent zero-amount. The broader deserialization hardening from previous rounds is thorough; these are residual gaps.\nConfidence: 15% chance of missed bug. Uncertainty: protocol.rs relay-facing structs not exhaustively enumerated; MLS library surface not reviewed. Would raise confidence with: full serde deserialize_with audit across all structs, openmls CVE check.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:39:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

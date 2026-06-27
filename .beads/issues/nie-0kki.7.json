@@ -1,0 +1,25 @@
+{
+  "id": "nie-0kki.7",
+  "title": "VALID_ROLES const + defence-in-depth double-validation is correct and should not be simplified",
+  "description": "VALID_ROLES as a single const referenced by both validate_member_patch and apply_member_patch is the right pattern. A contributor might suggest inlining the role list in one place or removing the re-validation in apply_member_patch as redundant. The re-check exists as defence-in-depth: if a future caller of apply_member_patch skips the validate step, invalid roles will still be caught before hitting the store. Removing it would leave the store's role validation solely as a doc comment (see upsert_space_member_with_role precondition). The redundancy is intentional and should be kept.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:19:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T03:41:36Z",
+  "closed_at": "2026-04-24T03:41:36Z",
+  "close_reason": "Decision recorded; no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:19:30"
+    }
+  ]
+}

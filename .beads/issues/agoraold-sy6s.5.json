@@ -1,0 +1,38 @@
+{
+  "id": "agoraold-sy6s.5",
+  "title": "guild.* JSON-RPC handlers in relay/src/ws.rs",
+  "description": "What: Implement guild.create, guild.list, guild.get, guild.join, guild.leave JSON-RPC handlers in relay/src/ws.rs. Also remove old GROUP_CREATE/GROUP_LIST/GROUP_ADD/GROUP_LEAVE/GROUP_SEND handlers.\n\nAlgorithm:\n1. Read /home/mark/PROJECT/Agora/relay/src/ws.rs \u2014 find the main dispatch match arm and existing GROUP_* handlers\n2. Remove handlers for: GROUP_CREATE, GROUP_ADD, GROUP_LIST, GROUP_LEAVE, GROUP_SEND, GROUP_DELIVER (they are replaced by guild.* and channel.*)\n3. Remove corresponding struct definitions from imports (GroupCreateParams, GroupAddParams, etc.) if they were in ws.rs directly\n4. Add new handlers in the match arm:\n\n   rpc_methods::GUILD_CREATE => {\n     // 1. Parse GuildCreateParams from params\n     // 2. Build GuildState with:\n     //    context = AGORA_CONTEXT, type_ = \"GuildState\", schema_version = \"1\"\n     //    name = params.name, description = params.description\n     //    owner = session.pub_id.0.clone()\n     //    admin_set = vec![]\n     //    channels = vec![]\n     //    mls_group_id = hex::encode(rand::random::<[u8; 32]>())  // random guild signaling group ID\n     //    seq = 0, created_at = Utc::now().to_rfc3339(), prev_state_cid = None, proof = None\n     //    id = \"agora://pending\"  // will be set to CID after signing\n     // 3. Sign with identity: sign_guild_state(&mut state, &session.pub_id.0, &session_signing_key)?\n     //    PROBLEM: ws.rs does not have access to the signing key after auth \u2014 see note below\n     // 4. Update state.id = format!(\"agora://{}\", guild_cid)\n     // 5. Store in DB: state.inner.store.create_guild(&guild_cid, &owner, &owner, &params.name, &state_json)\n     // 6. Add creator to members: state.inner.store.add_guild_member(&guild_cid, &owner)\n     // 7. Return GuildCreateResult { guild_cid }\n     //\n     // NOTE on signing key: The relay does NOT have the client's signing key.\n     // Two options:\n     //   A) Client sends a pre-signed GuildState document (client handles signing)\n     //   B) Relay creates an unsigned GuildState and client signs a hash\n     //   C) Relay has its own signing key (relay-created guilds, admin = relay)\n     // For Phase 1: Option C \u2014 the relay creates GuildState signed with relay's Ed25519 key\n     // (relay has its own keypair in AppState). The creator's DID is set as admin.\n     // This is a simplification for Phase 1; Phase 2 can support client-signed state.\n   }\n\n   rpc_methods::GUILD_LIST => {\n     // 1. Get session pub_id\n     // 2. guild_cids = state.inner.store.list_guilds_for_member(&pub_id).await?\n     // 3. For each guild_cid, fetch state_json, parse name/owner, build GuildInfo\n     // 4. Return GuildListResult { guilds }\n   }\n\n   rpc_methods::GUILD_GET => {\n     // 1. Parse GuildGetParams { guild_cid }\n     // 2. state_json = state.inner.store.get_guild(&guild_cid).await? (must exist)\n     // 3. Return GuildGetResult { guild_cid, state_json }\n   }\n\n   rpc_methods::GUILD_JOIN => {\n     // 1. Parse GuildJoinParams { guild_cid }\n     // 2. Verify guild exists (get_guild returns Some)\n     // 3. Add member: state.inner.store.add_guild_member(&guild_cid, &pub_id).await?\n     // 4. Return OkResult { ok: true }\n   }\n\n   rpc_methods::GUILD_LEAVE => {\n     // 1. Parse GuildLeaveParams { guild_cid }\n     // 2. Remove member: state.inner.store.remove_guild_member(&guild_cid, &pub_id).await?\n     // 3. Return OkResult { ok: true }\n   }\n\n5. Add AppState relay signing key:\n   In state.rs Inner struct, add: relay_signing_key: ed25519_dalek::SigningKey\n   In AppState::new(), generate: let relay_signing_key = ed25519_dalek::SigningKey::generate(&mut OsRng);\n   In ws.rs guild.create handler, use: state.inner.relay_signing_key.sign(...)\n   Relay DID: make_did_key(&state.inner.relay_signing_key.verifying_key().as_bytes())\n\nDefensive rules:\n- All params deserialized via serde_json::from_value \u2014 return INVALID_PARAMS error if Err\n- Guild existence check before join (return error if not found)\n- Owner check not needed for Phase 1 guild.create (caller becomes owner)\n- No user input string-interpolated into SQL\n\nRun: cargo check -p agora-relay 2>&1\nReport: pass/fail, list all new handler method names added, list all GROUP_* handlers removed.",
+  "acceptance_criteria": "cargo check -p agora-relay exits 0; guild.create/list/get/join/leave handlers present in ws.rs; GROUP_CREATE/GROUP_ADD/GROUP_LIST/GROUP_LEAVE/GROUP_SEND removed",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:45:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:00:14Z",
+  "close_reason": "guild.create/list/get/join/leave handlers implemented in ws.rs; relay_signing_key added to AppState",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:26"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:44"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:46"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:43"
+    }
+  ]
+}

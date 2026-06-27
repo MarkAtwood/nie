@@ -1,0 +1,25 @@
+{
+  "id": "nie-jq8m.7",
+  "title": "ffi/client.rs: client_send_message sends unencrypted payloads \u2014 no MLS or HPKE layer",
+  "description": "client_send_message() calls encode_chat_payload() which does serde_json + pad() and sends BROADCAST RPC with no MLS or HPKE. There is no group join flow in the FFI API (NieClient, NieEvent). Flutter users get a working-looking chat client with zero E2E encryption. The API surface has no room for encryption state. Needs to be a documented limitation or implemented before the FFI ABI is used in production.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:21:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:21:39Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:21:38"
+    }
+  ]
+}

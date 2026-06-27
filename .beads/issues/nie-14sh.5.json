@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.5",
+  "title": "matrix AS hs_token auth uses variable-time string comparison",
+  "description": "bridge-matrix/src/bridge.rs:98 compares hs_token with == on String \u2014 variable-time comparison enables timing oracle; attacker probing the AS endpoint can brute-force the homeserver token byte-by-byte; replace with constant_time_eq or subtle::ConstantTimeEq",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:22:13Z",
+  "closed_at": "2026-04-24T23:22:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:06"
+    }
+  ]
+}

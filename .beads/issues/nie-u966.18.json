@@ -1,0 +1,24 @@
+{
+  "id": "nie-u966.18",
+  "title": "get_contacts and get_spaces: N queries for N IDs",
+  "description": "Store::get_contacts(Some(ids)) and Store::get_spaces(Some(ids)) issue one SELECT per id in a for loop. A JMAP batch with ids=[id1, id2, ..., idN] fires N round-trips. At scale (N=50, which is below MAX_CALLS_IN_REQUEST=64) this is 50 SELECTs where 1 IN clause would do. Fix: use SELECT ... WHERE id IN (?,?,?) via sqlx QueryBuilder or build the IN clause for the batch path.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:54:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:54:39Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:54:28"
+    }
+  ]
+}

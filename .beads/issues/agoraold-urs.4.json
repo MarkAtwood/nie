@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-urs.4",
+  "title": "Dust-amount payment not rejected at /pay entry",
+  "description": "Zero zatoshi is now caught at /pay entry time. But sub-dust amounts (1\u2013999 zatoshi, below DUST_THRESHOLD=1000) are not. A user typing '/pay bob 0.000001' (100 zatoshi) broadcasts a PaymentAction::Request to all room members, receives an address back, then gets a TxBuildError::DustAmount rejection when send_payment() fires. The user has already leaked payment intent to the room for a payment that could have been rejected locally. Fix: read DUST_THRESHOLD from tx_builder at /pay entry and reject with a clear message ('amount must be at least X zatoshi').",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:16:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:50Z",
+  "closed_at": "2026-04-19T06:21:19Z",
+  "close_reason": "Fixed: DUST_THRESHOLD made pub in tx_builder.rs, imported in commands.rs. /pay handler now checks amount_zatoshi < DUST_THRESHOLD and prints 'amount must be at least 1000 zatoshi (0.00001000 ZEC)' before creating a session. Replaces the zero-only check.",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:16:36"
+    }
+  ]
+}

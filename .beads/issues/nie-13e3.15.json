@@ -1,0 +1,23 @@
+{
+  "id": "nie-13e3.15",
+  "title": "select_notes_spendable and select_notes in fees.rs are two independent implementations of FIFO coin selection",
+  "description": "There are two separate FIFO coin selection implementations: fees.rs::select_notes (operates on &[Note]) and tx_builder.rs::select_notes_spendable (operates on &[SpendableNote]). Both share identical logic: checked_add accumulation, FIFO sort by block_height, break when sum >= total_needed. The duplication means a bug fix to one does not propagate to the other. The error type from fees.rs is CoinSelectError; from tx_builder.rs is TxBuildError::InsufficientFunds. The fees.rs version returns shortfall in the error; tx_builder does not. The two types cannot be merged easily due to different input types, but the core algorithm could be extracted into a generic fn select_fifo<T>(items: &[T], value_fn: impl Fn(&T) -> u64, target: u64, fee: u64). Suggested rewrite: extract a generic selection kernel into a shared utility function in tx_builder.rs or a new coin_selection.rs module, with the two public wrappers calling through.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:28:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:28:41Z",
+  "labels": [
+    "elegance",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:28:41"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-4i0q",
+  "title": "P2: save_key_package sends INVALID_REQUEST code for DB error",
+  "description": "relay/src/ws.rs: save_key_package Err path sends rpc_errors::INVALID_REQUEST (-32600) but labels message 'internal error'. Wrong code — clients misclassify server fault as client error. Fix: change to INTERNAL_ERROR (-32603).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:22:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:22:51Z",
+  "closed_at": "2026-04-19T18:22:51Z",
+  "close_reason": "Fixed in same session: save_key_package now sends INTERNAL_ERROR (-32603); get_key_package now matches on Result and sends INTERNAL_ERROR on DB error instead of swallowing as None."
+}

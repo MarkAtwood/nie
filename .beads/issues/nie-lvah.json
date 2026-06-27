@@ -1,0 +1,14 @@
+{
+  "id": "nie-lvah",
+  "title": "fix: bridge-matrix AS token moved to Authorization header from URL query param",
+  "description": "Matrix appservice token was passed as a URL query param, appearing in server access logs. Moved to Authorization: Bearer header.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:54:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:55:12Z",
+  "closed_at": "2026-04-24T21:55:12Z",
+  "close_reason": "Closed"
+}

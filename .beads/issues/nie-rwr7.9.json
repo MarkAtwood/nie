@@ -1,0 +1,58 @@
+{
+  "id": "nie-rwr7.9",
+  "title": "Relay ws.rs: SEALED_BROADCAST + PUBLISH_HPKE_KEY + GET_HPKE_KEY handlers",
+  "description": "What: Add four new dispatch cases to relay/src/ws.rs read loop: sealed_broadcast, sealed_whisper, publish_hpke_key, get_hpke_key. Relay treats sealed bytes as fully opaque \u2014 never deserializes them.\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/relay/src/ws.rs and /home/mark/WORK/nie/relay/src/store.rs\n2. Add imports at top of ws.rs: SealedBroadcastParams, SealedDeliverParams, SealedWhisperParams, SealedWhisperDeliverParams, PublishHpkeKeyParams, GetHpkeKeyParams, GetHpkeKeyResult, and new rpc_methods constants\n3. In match req.method.as_str() block, add AFTER the existing BROADCAST arm:\n\n   rpc_methods::SEALED_BROADCAST => {\n     let params: SealedBroadcastParams = deserialize or send_client_error + continue;\n     if require_subscription && !is_subscribed { send_client_error + continue; }\n     let message_id = Uuid::new_v4().to_string();\n     // SECURITY: sealed bytes are opaque \u2014 relay must never unwrap them\n     let deliver = JsonRpcNotification::new(rpc_methods::SEALED_DELIVER, SealedDeliverParams { sealed: params.sealed });\n     let deliver_json = serde_json::to_string(&deliver).unwrap(); // derived Serialize, cannot fail\n     state.broadcast(Some(&pub_id.0), deliver_json).await;\n     let ack = JsonRpcResponse::success(req.id, BroadcastResult { message_id }).unwrap();\n     client_tx.send(serde_json::to_string(&ack).unwrap()).await.ok();\n   }\n\n4. Add SEALED_WHISPER arm (after WHISPER):\n   - Parse SealedWhisperParams { to, sealed }\n   - Validate to != pub_id.0 (no self-whisper)\n   - Forward as SealedWhisperDeliverParams { to: to.clone(), sealed } to state.deliver_live(&to, ...)\n   - Send OkResult back to sender\n\n5. Add PUBLISH_HPKE_KEY arm (after PUBLISH_KEY_PACKAGE):\n   - Parse PublishHpkeKeyParams { public_key }\n   - Validate public_key.len() == 32 (X25519 key must be exactly 32 bytes)\n   - store.save_hpke_key(&pub_id.0, &public_key)?  // persist to DB\n   - Send OkResult back to sender\n   - No broadcast needed (peers fetch on demand via GET_HPKE_KEY)\n\n6. Add GET_HPKE_KEY arm (after GET_KEY_PACKAGE):\n   - Parse GetHpkeKeyParams { pub_id: target }\n   - let key_data = store.get_hpke_key(&target)?  // Ok(None) if not published yet\n   - Send GetHpkeKeyResult { pub_id: target, public_key: key_data }\n   - No authentication required for this lookup (same as GET_KEY_PACKAGE)\n\n7. Run cargo check -p nie-relay; cargo test -p nie-relay\n\nDefensive programming rules:\n- SEALED_BROADCAST handler must NOT inspect params.sealed \u2014 opaque bytes only (CLAUDE.md \u00a73)\n- SEALED_WHISPER must NOT add a from field to SealedWhisperDeliverParams \u2014 doing so would expose sender\n- Relay NEVER calls any HPKE function \u2014 it only stores/forwards the sealed bytes\n- public_key.len() != 32 must return invalid_params error before any DB write\n- GET_HPKE_KEY is unauthenticated: any authenticated client can query any pub_id (like GET_KEY_PACKAGE)\n- serde_json::to_string on derived Serialize cannot fail \u2014 unwrap() is intentional (document with comment per CLAUDE.md \u00a711)\n- store errors must bubble up; use ? with map_err to RelayError or log + continue",
+  "acceptance_criteria": "cargo check -p nie-relay exits 0; cargo test -p nie-relay passes; sealed_broadcast forwards opaque bytes with no from field in SealedDeliverParams; publish_hpke_key validates 32-byte constraint",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T20:01:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:20:50Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:22"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:20"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:01:20"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:21"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:23"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:24"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:22"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:19"
+    }
+  ]
+}

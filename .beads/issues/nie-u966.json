@@ -1,0 +1,17 @@
+{
+  "id": "nie-u966",
+  "title": "Review: daemon/cli/tui/bot round 20",
+  "notes": "Maintainer risk: HIGH — three P0 correctness bugs (message_set ghost-send, DELIVER/MLS identity confusion, Space/get inconsistent snapshot) are user-visible failure modes that will generate support reports once the daemon is used with multi-chat or MLS-active setups.\nConfidence: 20% chance of missed bug. Uncertainty driven by: (1) jmap.rs is 2300+ lines and the message_query and message_queryChanges handlers were not read in full; (2) cli/src/commands.rs was not read (287KB file exceeded read limit) — command handlers may have their own issues; (3) tui/src/event.rs was not read. Would raise confidence if: commands.rs and tui/event.rs were reviewed, and message_query pagination edge cases were tested.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:39:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

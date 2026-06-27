@@ -1,0 +1,23 @@
+{
+  "id": "nie-43zd.7",
+  "title": "hpke: single_shot_seal is non-deterministic by construction; no nonce reuse risk",
+  "description": "hpke.rs uses X25519HkdfSha256 HPKE with single_shot_seal. HPKE generates a fresh ephemeral X25519 keypair per seal call (confirmed by seal_is_not_deterministic test). There is no shared nonce state. The INFO binding nie/sealed/v1 is correct context-binding, not a nonce. A future contributor might suggest adding a counter or random salt for belt-and-suspenders, but this would add complexity with no security benefit -- HPKE's security against nonce reuse does not apply here since each encapsulation is independent. Do not change this.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:11:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:11:12Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:11:12"
+    }
+  ]
+}

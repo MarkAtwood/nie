@@ -1,0 +1,25 @@
+{
+  "id": "nie-ms2c.8",
+  "title": "set_contact_display_name returning bool: correct API fix",
+  "description": "Changing set_contact_display_name from Result<()> to Result<bool> is correct: the old version bumped state_seq even when 0 rows were affected (spurious state token advance), and returned Ok(()) on not-found which made the caller falsely report success. The bool return makes the not-found case explicit at the type level and fixes both bugs. Defend against any suggestion to revert to Result<()> with an early Ok(()) return \u2014 that would re-introduce the silent false-success.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:29:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:44:25Z",
+  "closed_at": "2026-04-24T04:44:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 21:29:44"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nie-ozqt.11",
+  "title": "activate_subscription comment says step 1 then step 3 -- missing step 2",
+  "description": "payment_watcher.rs:354 comments '// 1. Write subscription...' and payment_watcher.rs:362 comments '// 3. Notify the client...'. Step 2 is absent. Either the numbering was wrong (there was a step 2 that was removed) or the comments were never correct. Remove step numbering or add the missing step label.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:50:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:50:48Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:50:48"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-0pne.18",
+  "title": "default testnet silently kills mainnet wallet payments",
+  "description": "Changing --network default from mainnet to testnet means users with an existing mainnet wallet who run 'nie chat' without --network mainnet get their payment features silently disabled (try_load_wallet_fvks returns None after printing a message). There is no session-aborting error, just a quiet degradation. A real mainnet user is unlikely to know they need to pass --network mainnet and will be confused when /pay does nothing. Fix: either revert the default to mainnet, or at startup print a prominent warning + suggestion when a wallet network mismatch is detected (the existing message at lines 2509-2516 is visible only to users who read stderr).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T15:30:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:49Z",
+  "closed_at": "2026-04-19T15:36:39Z",
+  "close_reason": "fixed in review fix wave",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 08:30:53"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "nie-rpm2.2",
+  "title": "GROUP_LEAVE leave notify via empty GROUP_DELIVER silently dropped",
+  "description": "relay/src/ws.rs:2093-2103: GROUP_LEAVE sends GROUP_DELIVER with payload: Vec::new() to notify remaining members that someone left. cli/src/commands.rs:1742-1763 receives GROUP_DELIVER and: (1) if MLS is active, passes the empty payload to process_for_group which returns Err (cannot deserialize empty bytes as MLS message) \u2192 warn and continue, silently discarding the notification; (2) if MLS is not active, passes empty bytes to serde_json::from_slice which returns Err \u2192 warn('unrecognized message format') and continue. In both cases the leave notification is silently dropped. Group members are never shown that a member departed. The GROUP_DELIVER wire format conflates three semantics (join invite = group name bytes, leave = empty bytes, message = actual payload) with no discriminator field, making correct client-side dispatch impossible. Fix: add a discriminator field to GroupDeliverParams (e.g. kind: join|leave|message) or send a dedicated GROUP_LEFT notification method.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:34:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:44:01Z",
+  "closed_at": "2026-04-26T10:44:01Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:34:27"
+    }
+  ]
+}

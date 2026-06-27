@@ -1,0 +1,23 @@
+{
+  "id": "nie-2y0i.1",
+  "title": "nie-tui crate bootstrap + workspace wiring",
+  "description": "**What:** Create the nie-tui binary crate in the workspace, add ratatui/crossterm to workspace deps, and expose nie-cli as a library so nie-tui can reuse config.rs and history.rs without duplication.\n\n**Algorithm:**\n1. Edit /home/mark/WORK/nie/Cargo.toml workspace members: add \"tui\" to the members array.\n2. Add to workspace [dependencies]: ratatui = \"0.29\", crossterm = { version = \"0.28\", features = [\"event-stream\"] }, futures = \"0.3\", tui-input = \"0.15\".\n3. Create tui/Cargo.toml: package name nie-tui, version 0.1.0, edition = \"2021\". [[bin]] with name=\"nie-tui\", path=\"src/main.rs\". Dependencies: nie-core, nie-wallet, nie-cli (as lib), ratatui, crossterm, futures, tui-input, clap={features=[\"derive\"]}, tokio={features=[\"full\"]}, serde, serde_json, tracing, tracing-subscriber, uuid={features=[\"serde\"]}, chrono, dirs, age, rpassword, dashmap, openmls, openmls_rust_crypto, openmls_basic_credential, shlex.\n4. Add [lib] section to cli/Cargo.toml: name=\"nie_cli_lib\", path=\"src/lib.rs\". Create cli/src/lib.rs that re-exports: pub mod config; pub mod history; pub mod profile; (and any other modules needed by nie-tui).\n5. Create tui/src/main.rs with a minimal stub: fn main() { println!(\"nie-tui stub\"); } (just enough to compile).\n6. Run cargo build --workspace to verify the crate compiles.\n\n**Defensive programming rules:**\n- Never add nie-cli as a binary dep \u2014 use the [lib] path.\n- Verify ratatui version matches crossterm version (ratatui 0.29 uses crossterm 0.28).\n- No unwrap() calls in stub code.\n- Cargo.toml must use workspace = true for deps already in workspace.\n\n**Agent team:** Standard (R+I+V). R reads existing Cargo.toml files. I adds the crate and deps. V runs cargo build --workspace.\n\n**Tests:** cargo build --workspace passes; cargo check -p nie-tui passes.\n",
+  "acceptance_criteria": "cargo build --workspace exits 0; cargo check -p nie-tui exits 0; no duplicate dep warnings",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:13:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:21:01Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:13:34"
+    }
+  ]
+}

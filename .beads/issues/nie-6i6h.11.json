@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.11",
+  "title": "bridge-matrix: is_bot_sender homeserver domain extraction is brittle",
+  "description": "is_bot_sender (bridge.rs:116-125) extracts the homeserver domain by trim_start_matches('https://').split('/').next(). If homeserver has a path prefix (e.g. 'https://matrix.example.com/_matrix'), split('/') yields 'matrix.example.com' \u2014 correct. But if homeserver has a port ('https://matrix.example.com:8448'), the extracted domain is 'matrix.example.com:8448', making bot_mxid '@bot:matrix.example.com:8448'. Matrix MXIDs do encode port in the server part, so this would actually match \u2014 but only if the homeserver field consistently includes the port. If the admin forgets the port in one place, the filter silently breaks and all outgoing messages are echoed back into nie. The validate() function in config.rs checks that homeserver starts with https:// but does not parse or normalise the URL. Use url::Url::parse().host_str() + port for reliable extraction.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:29:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:12:20Z",
+  "closed_at": "2026-04-26T06:12:20Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:29:39"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-5clb.1",
+  "title": "Add CallSignal variant to ClearMessage",
+  "description": "Add CallSignal + CallSignaling types to core/src/messages.rs.\n\nWhat: Extend ClearMessage enum with a CallSignal variant carrying WebRTC SDP/ICE signaling. Relay stays blind \u2014 these messages travel inside MLS-encrypted payloads.\n\nAlgorithm:\n1. Add to ClearMessage enum in messages.rs:\n   CallSignal { call_id: Uuid, signal: CallSignaling }\n2. Add new enum CallSignaling (serde tag=kind, snake_case):\n   - Offer { sdp: String } \u2014 caller\u2192callee\n   - Answer { sdp: String } \u2014 callee\u2192caller\n   - IceCandidate { sdp_mid: Option<String>, sdp_m_line_index: Option<u32>, candidate: String }\n   - Hangup { reason: Option<String> }\n   - Reject { reason: Option<String> }\n3. Add round-trip tests with known JSON test vectors (see acceptance criteria).\n\nDefensive rules: sdp strings are untrusted inputs on receive (malformed SDP must not panic); call_id must be fresh Uuid per session (not reused); relay never deserializes this.\n\nTests (with external oracle):\n- offer_roundtrip: ClearMessage::CallSignal { call_id: known_uuid, signal: CallSignaling::Offer { sdp: known_sdp }} \u2192 serialize \u2192 deserialize \u2192 must match. Oracle: manually construct expected JSON string.\n- ice_candidate_roundtrip: same approach with IceCandidate.\n- hangup_roundtrip: Hangup variant.\n- unknown_variant_rejected: add type=call_signal_bad \u2192 serde_json must return Err.\n\nAcceptance: cargo test -p agora-core; all ClearMessage tests pass including new ones.",
+  "acceptance_criteria": "cargo test -p agora-core::messages passes; no new warnings",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:22:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:23:51Z",
+  "close_reason": "CallSignal + CallSignaling added to ClearMessage; 3 round-trip tests pass; 96/96 core tests",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:22:28"
+    }
+  ]
+}

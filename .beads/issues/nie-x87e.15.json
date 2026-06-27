@@ -1,0 +1,21 @@
+{
+  "id": "nie-x87e.15",
+  "title": "load_state() skip comment says 'invalid witnesses' but should say 'absent witnesses'",
+  "description": "wallet/tests/e2e_testnet.rs line 483-484 comment says: 'skipping it would start from an empty tree and produce invalid Merkle witnesses.'\\n\\nThis is slightly inaccurate. If load_state() is skipped, the in-memory Sapling commitment tree starts empty, so scan_to_tip() would compute Merkle witnesses against an empty/fresh local tree rather than the chain-synchronized tree. The resulting witnesses would not be 'invalid' in a structural sense \u2014 they would be cryptographically inconsistent with the actual chain state, meaning the prover would reject them when building a spend proof (they would fail witness verification against the anchor). A more accurate description: 'skipping it causes scan_to_tip() to compute witnesses against an empty commitment tree; spend proofs built from those witnesses will be rejected by the prover because the witness root will not match any published anchor.' The current phrasing is close but 'invalid' is ambiguous.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:24:05Z",
+  "closed_at": "2026-04-20T05:24:05Z",
+  "close_reason": "P3/P4 deferred: below stopping threshold (P0=0, P1=0, SEC7 says STOP)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:50"
+    }
+  ]
+}

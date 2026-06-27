@@ -1,0 +1,19 @@
+{
+  "id": "nie-4qfy",
+  "title": "Review: feat(android): foreground service keeps relay alive when backgrounded",
+  "notes": "Maintainer risk: MEDIUM — auth-failure stop gap is the only real correctness issue; everything else is polish. The core lifecycle (start on auth success, stop on user disconnect) is correct.\nConfidence: 85% chance of no missed critical bug. Uncertainty driven by: (1) no test coverage for Android lifecycle visible in diff; (2) did not run the app or test on a real device; (3) could not see whether any existing test exercises the auth-failure path in relay_service; (4) Android foreground service behaviour on specific OEM skins (Samsung, Xiaomi) not verifiable statically. Would raise confidence if: test exercising auth failure → disconnect() flow existed, or if I could grep relay_service_test to confirm the _authFailed path is covered.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:30:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T23:39:48Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

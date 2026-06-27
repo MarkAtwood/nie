@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-phy.1",
+  "title": "balance(): block_height=0 note misclassified as confirmed when scan_tip < min_confirmations",
+  "description": "Trigger: insert a note with block_height=0 (the migration v4 DEFAULT), then call balance(scan_tip=3, min_confirmations=10). Expected: note is pending (0-0=0 < 10). Actual: threshold = saturating_sub(3,10) = 0; SQL condition 'block_height <= 0' is satisfied by block_height=0 \u2192 classified as confirmed. The implementation contradicts the documented formula 'depth = scan_tip - block_height >= min_confirmations' for this edge case. Trigger requires a note at exactly height 0, which currently only arises from the migration DEFAULT or a synthetic test note \u2014 not reachable by the live scanner \u2014 but the formula divergence is a silent trap for future test authors and any future path that generates height-0 notes.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:11:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:55Z",
+  "closed_at": "2026-04-18T17:31:07Z",
+  "close_reason": "Fixed: balance() uses threshold=-1 when scan_tip < min_confirmations; added regression test balance_height_zero_note_is_pending_when_tip_below_min_confirmations",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:11:44"
+    }
+  ]
+}

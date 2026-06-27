@@ -1,0 +1,23 @@
+{
+  "id": "nie-060.2",
+  "title": "Display estimated ZIP-317 fee in /pay confirmation prompt",
+  "description": "What: Compute and display the estimated ZIP-317 transaction fee to the user when they type /pay in the chat UI, before the payment request is sent.\n\nAlgorithm:\n1. In the /pay command handler in cli/src/commands.rs (near line 1264), after parsing amount_zatoshi, compute:\n   - logical_actions = sapling_logical_actions(1, 2)  // 1 input assumed, 2 outputs (recipient + change)\n   - estimated_fee_zatoshi = zip317_fee(logical_actions)\n2. Display fee to user before sending the payment request:\n   println!(\"[pay] Estimated fee: {estimated_fee_zatoshi} zatoshi ({:.4} ZEC)\", estimated_fee_zatoshi as f64 / 1e8);\n3. Import zip317_fee and sapling_logical_actions from nie_wallet::fees (or wherever they are re-exported).\n4. Keep the existing [pay] requesting ... output line; add the fee line before or after it.\n\nDefensive programming rules:\n- The fee estimate is a pre-flight estimate only; actual fee is computed by send_payment() from the real UTXO set. Make this clear in the display: 'Estimated fee (actual may vary based on note selection)'\n- Do not pass fee display through any unsafe path; it is purely a UI computation\n- Never log key material; this function only logs public data (zatoshi amounts)\n- The fee display must not block or error even if wallet is not initialized (use a const estimate in that case)\n\nAgent team: R (read /pay handler lines 1250-1360, identify exact insertion point and imports needed) + I (add fee display) + T (verify output contains fee line in integration test or unit test)\n\nTests:\n- test name: pay_command_displays_fee_estimate \u2014 oracle: direct formula computation zip317_fee(sapling_logical_actions(1,2)) = 10000; assertion: output contains '10000 zatoshi' or '0.0001 ZEC'",
+  "acceptance_criteria": "The /pay command outputs a line containing the estimated fee in zatoshi; cargo test --workspace passes; cargo clippy -D warnings clean; fee display clearly labeled as estimate",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:03:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T16:11:36Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:03:24"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "nie-7yv9",
+  "title": "Terminal I/O sanitization prevents injection via relay messages",
+  "description": "GOOD CHOICE: All relay message text is sanitized before display via strip_unsafe() (ui.rs 136-161). This removes ANSI escape sequences and control characters while preserving printable text and Unicode.\n\nStrip logic:\n- Detects ANSI escape (\\x1b) and skips until letter\n- Removes control chars except \\n and \\t\n- Preserves Unicode (e.g. emoji, accented chars)\n\nA contributor might skip sanitization for \"performance\" or assume the relay is trustworthy. But a compromised relay could send \\x1b[H (cursor home) + \\x1b[2J (clear screen) to corrupt the TUI, or send \\x07 (bell) to annoy the user.\n\nSanitization is essential for terminal injection defense.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:24:34Z",
+  "closed_at": "2026-04-22T06:24:34Z",
+  "close_reason": "Verified invariant holds in current code; documented in DESIGN.md §14 TUI terminal safety invariants",
+  "labels": [
+    "review"
+  ]
+}

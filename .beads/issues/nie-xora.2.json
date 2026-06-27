@@ -1,0 +1,26 @@
+{
+  "id": "nie-xora.2",
+  "title": "Duplicate Phase 2 comment header in contact_set",
+  "description": "The contact_set update loop has the banner '// \u2500\u2500 Phase 2 (writes, only if Phase 1 passed)' twice in a row \u2014 once before the empty-ops branch (which continues) and again before the actual write branch. A reader scanning down assumes the second banner marks a new section; instead it marks the same section as the first. Rewrite: label the empty-ops branch '// Phase 2a: empty patch \u2014 existence check only' and the write branch '// Phase 2b: apply ops atomically', or just remove the second banner and keep the explanatory comment on the write path.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T06:12:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T15:05:17Z",
+  "closed_at": "2026-04-24T15:05:17Z",
+  "close_reason": "Fixed in code; decision records documented",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 23:12:00"
+    }
+  ]
+}

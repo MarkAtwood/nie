@@ -1,0 +1,28 @@
+{
+  "id": "nie-4ui3.8",
+  "title": "E2E: nie routes relay connection through SOCKS5 proxy",
+  "description": "End-to-end test verifying that nie --proxy socks5h://... successfully connects to a relay via a real SOCKS5 proxy tunnel.\n\n## What\nAn end-to-end integration test that proves the entire proxy path works: CLI flag \u2192 config resolution \u2192 transport \u2192 SOCKS5 tunnel \u2192 relay WebSocket \u2192 auth handshake.\n\n## Oracle\nUse a simple in-process SOCKS5 proxy server (fast-socks5 crate's server feature, or a hand-rolled minimal SOCKS5 acceptor) that listens on a test port and forwards connections to a locally-running test relay. This avoids the need for Tor.\n\n## Algorithm\n1. In relay/tests/e2e_proxy.rs:\n   a. Spawn a test relay on a random port (like existing e2e tests)\n   b. Spawn a minimal SOCKS5 proxy server on another random port using tokio's TcpListener that implements the SOCKS5 CONNECT handshake (RFC 1928) and forwards to target\n   c. Call transport::connect() with proxy = Some('socks5h://127.0.0.1:<proxy_port>') and relay URL pointing to the test relay\n   d. After connect() succeeds, send a message and verify it arrives (using existing e2e test pattern)\n2. Test must fail if SOCKS5 handshake does not occur (verify proxy server actually received and processed the CONNECT command)\n3. Test must pass: client successfully authenticates with relay via the proxy tunnel\n\n## Acceptance criteria\n- transport::connect() with a valid SOCKS5 proxy to a reachable relay returns Ok(RelayConn)\n- The auth handshake completes (relay sends AuthOk)\n- Proxy server log/counter shows exactly one CONNECT was processed\n- The test does NOT require an external Tor installation or live internet access\n- cargo test --workspace exits 0; clippy exits 0\n\n## Defensive programming rules\n- Proxy server in test must bind to 127.0.0.1 only (not 0.0.0.0) \n- Use random ports (port 0) for both relay and proxy to avoid conflicts\n- Test timeout: 10 seconds max (add tokio::time::timeout wrapper)\n- If SOCKS5 proxy server implementation is complex (>100 lines), add it as a test helper in relay/tests/socks5_server.rs\n\n## Agent team\nResearcher (read e2e_jsonrpc.rs for test structure), Implementer (write test + minimal SOCKS5 server), Tester (verify coverage of SOCKS5 handshake), Validator",
+  "acceptance_criteria": "cargo test e2e_proxy -- --nocapture exits 0; SOCKS5 CONNECT is observed in proxy server; relay auth completes successfully; no Tor/external network required",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:36:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:09:40Z",
+  "closed_at": "2026-04-19T19:09:40Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:42"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:29"
+    }
+  ]
+}

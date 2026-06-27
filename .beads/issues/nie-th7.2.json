@@ -1,0 +1,23 @@
+{
+  "id": "nie-th7.2",
+  "title": "DB migration: groups + group_members tables",
+  "description": "What: Add two new SQLite tables to relay/src/store.rs via the existing migration pattern.\n\nAlgorithm:\n1. Find the highest existing migration version (PRAGMA user_version) in Store::new()\n2. Add new migration block at version N+1:\n   CREATE TABLE IF NOT EXISTS groups (\n     group_id   TEXT PRIMARY KEY,\n     created_by TEXT NOT NULL,\n     name       TEXT NOT NULL,\n     created_at TEXT NOT NULL DEFAULT (datetime('now'))\n   )\n3. Add:\n   CREATE TABLE IF NOT EXISTS group_members (\n     group_id  TEXT NOT NULL,\n     pub_id    TEXT NOT NULL,\n     joined_at TEXT NOT NULL DEFAULT (datetime('now')),\n     PRIMARY KEY (group_id, pub_id)\n   )\n4. Bump PRAGMA user_version to N+1\n\nDefensive rules:\n- Use IF NOT EXISTS; never ALTER existing tables\n- No RFC 3339 datetimes \u2014 datetime() only (CLAUDE.md \u00a79)\n- Migration is append-only (never modify prior migration blocks)\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-relay passes; tables exist after Store::new(); migration is idempotent (running twice does not error)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:50:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T11:58:09Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:50:38"
+    }
+  ]
+}

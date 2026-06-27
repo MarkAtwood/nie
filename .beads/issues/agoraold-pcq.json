@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-pcq",
+  "title": "Review: 4-commit wallet arc",
+  "notes": "Maintainer risk: MEDIUM — one P1 session-stall bug with clear trigger, one silent-failure maintenance trap, one stale test literal.\nConfidence: 15% chance of missed bug. Uncertainty driven by: payment state machine concurrency paths not exhaustively traced; scanner.rs not reviewed in this round (nullifier tracking remains absent). Would raise confidence if: full payment flow integration-tested end-to-end with a live lightwalletd.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:34:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T06:43:54Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

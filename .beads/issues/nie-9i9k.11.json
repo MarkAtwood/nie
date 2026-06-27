@@ -1,0 +1,25 @@
+{
+  "id": "nie-9i9k.11",
+  "title": "importFromSeedHex persist-before-update: defend this",
+  "description": "importFromSeedHex writes to SharedPreferences before updating in-memory state (_initFromSeed). Comment explains: if setString throws, old identity stays intact in both storage and memory \u2014 no torn state. A future contributor might reorder (update memory first, then persist) to 'fail fast in the UI'. Defend: the key invariant is that storage and memory agree. Writing storage first means on any failure, both remain pointing at the old key. Writing memory first leaves a window where the UI shows new identity but storage still has old \u2014 login on next app start uses old identity, which is a silent identity mismatch.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:50:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:55:24Z",
+  "closed_at": "2026-04-24T00:55:24Z",
+  "close_reason": "Decision records \u2014 informational only, no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:50:25"
+    }
+  ]
+}

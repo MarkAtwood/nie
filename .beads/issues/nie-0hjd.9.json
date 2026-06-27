@@ -1,0 +1,24 @@
+{
+  "id": "nie-0hjd.9",
+  "title": "relay/state: AppState.broadcast acquires all DashMap shard locks in flat_map for large fanout",
+  "description": "relay/src/state.rs:381-411: AppState::broadcast iterates the DashMap using .iter() and .flat_map() to collect all ClientTx senders. DashMap's iter() holds one shard lock at a time (not all at once), so this is correct. However: the collect() allocates a Vec<ClientTx> proportional to total connections before starting any send. For 10K concurrent connections, this is 10K Arc clones per broadcast. The subsequent join_all drives all 10K sends concurrently. If all channels are full (slow consumers), join_all blocks until all complete, not just until any complete. A single slow consumer with a full 8-item channel delays the entire broadcast. This is the correct tradeoff for fairness but warrants a comment. Documented in DESIGN.md \u00a78 \u2014 flagging here so it's tracked.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:06:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:06:22Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:06:21"
+    }
+  ]
+}

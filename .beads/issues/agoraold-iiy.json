@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-iiy",
+  "title": "Send PaymentAction::Confirmed on receipt",
+  "description": "What: Replace the auto-confirm stub in the payee dispatch_payment branch with real logic: receive ConfirmationEvent from watcher channel and send PaymentAction::Confirmed to the payer.\n\nAlgorithm:\n1. Remove the stub at cli/src/commands.rs ~line 1823: 'auto-confirming since chain watcher not yet implemented'.\n2. In the select! branch for conf_rx.recv() (added by nie-hov.2):\n   a. Call wallet_store.transition_session(ev.session_id, PaymentState::Complete).\n   b. Look up the payer pub_id from the session (session.peer_pub_id).\n   c. Call send_payment_message(ev.session_id, PaymentAction::Confirmed { tx_hash: ev.txid }, tx, mls_active, mls).await.\n   d. Log at info: 'Payment confirmed: session={} txid={}', ev.session_id, ev.txid.\n3. Also update payer side (~line 1872): when PaymentAction::Confirmed is received, verify tx_hash is 64 lowercase hex chars before accepting; log receipt.\n\nDefensive programming:\n- tx_hash must be exactly 64 lowercase hex chars; assert/validate before sending.\n- If send_payment_message fails (peer disconnected), log warn and continue \u2014 do not panic.\n- Do not resend Confirmed if session already in Complete state (idempotency guard).\n- Never log tx_hash alongside wallet key material.\n\nTests:\n- test_confirmed_message_format: given ConfirmationEvent with known txid, assert PaymentAction::Confirmed { tx_hash } serializes to expected JSON with action='confirmed' and tx_hash=64 hex chars. Oracle: serde_json output of manually constructed PaymentAction::Confirmed.\n- test_txhash_validation: tx_hash with 63 chars or uppercase rejected.\n\nAcceptance: cargo test passes; stub removed; PaymentAction::Confirmed tx_hash validated; clippy clean.",
+  "notes": "REQUIRED: After sending PaymentAction::Confirmed and transitioning session to Complete, call watch_registry.deregister(&session.address) to remove the completed session from the in-memory watch registry. This is the only cleanup path \u2014 see nie-o6zv.2 for rationale.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:37Z",
+  "closed_at": "2026-04-19T10:10:04Z",
+  "close_reason": "Implemented: conf_rx.recv() handler in chat loop transitions payee session to Confirmed and sends PaymentAction::Confirmed to payer. Auto-confirm stub removed. Payer-side tx_hash validation (64 lowercase hex). Address deregistered from watch_registry on confirm. 2 new acceptance tests.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:13:12"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:13:12"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:27"
+    }
+  ]
+}

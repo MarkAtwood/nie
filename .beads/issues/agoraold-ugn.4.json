@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-ugn.4",
+  "title": "load_sapling_params reads and hashes 51.5 MB synchronously on every payment",
+  "description": "load_sapling_params (tx_builder.rs) calls std::fs::read on both param files (47.9 MB + 3.6 MB) then BLAKE2b-512 hashes all 51.5 MB on every send_payment call. The std::fs::read is synchronous blocking I/O on the tokio async runtime. On cold page cache this is multi-second latency per payment. Fix: load and parse (SpendParameters, OutputParameters) once at chat() startup when wallet_fvks is Some; Arc-wrap and pass into the send_fn closure. Eliminates per-payment I/O entirely. Also: the blocking reads inside Box::pin(async move) should be tokio::task::spawn_blocking.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:13:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:31Z",
+  "closed_at": "2026-04-19T03:42:57Z",
+  "close_reason": "Moved Sapling params loading to chat() startup; Arc-shared into send_fn closure; send_payment takes Option<&(SpendParameters, OutputParameters)>",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:13:17"
+    }
+  ]
+}

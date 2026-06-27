@@ -1,0 +1,15 @@
+{
+  "id": "nie-6pr",
+  "title": "payment_sessions SQLite table in wallet DB",
+  "description": "Create nie-wallet/src/db.rs with a WalletStore struct (similar to relay/src/store.rs pattern). Open/create SQLite at wallet-data-dir/wallet.db. Create payment_sessions table: session_id TEXT PRIMARY KEY, peer_pub_id TEXT NOT NULL, role TEXT NOT NULL (payer|payee), state TEXT NOT NULL, chain TEXT NOT NULL, amount_zatoshi INTEGER NOT NULL, tx_hash TEXT, address TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL. Use Unix timestamps (i64) to avoid SQLite datetime format pitfalls. Expose upsert_session(PaymentSession) and all_sessions() -\u003e Vec\u003cPaymentSession\u003e.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:19:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T05:30:14Z",
+  "close_reason": "Closed"
+}

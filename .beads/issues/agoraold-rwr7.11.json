@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-rwr7.11",
+  "title": "E2E: sealed sender smoke test \u2014 relay blind to sender identity",
+  "description": "What: End-to-end integration test proving (1) sealed messages transit the relay without a from field visible, and (2) the recipient correctly identifies the sender after unsealing + MLS verification.\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/relay/tests/ for existing E2E test patterns (ws_integration or stress.rs)\n2. Create relay/tests/sealed_sender.rs (or add to existing integration test file)\n3. Test setup:\n   a. Spawn a test relay (same pattern as existing integration tests)\n   b. Create two test clients: Alice and Bob\n   c. Each client: generate Identity (64-byte keyfile with HPKE key), connect to relay, authenticate\n   d. Both clients: publish HPKE key via PUBLISH_HPKE_KEY\n4. MLS group setup:\n   a. Alice (admin, lower connection_seq): create_group()\n   b. Bob: publish key package via PUBLISH_KEY_PACKAGE\n   c. Alice: GET_KEY_PACKAGE for Bob, then add_member() \u2192 (commit, welcome)\n   d. Alice: broadcast commit, whisper welcome to Bob\n   e. Bob: join_from_welcome()\n   f. Both: derive room_hpke_keypair() from MLS state\n5. Sealed send:\n   a. Alice: encrypt \"hello from alice\" via MLS, seal with room HPKE pub key\n   b. Alice: send SealedBroadcastParams { sealed: ... }\n6. Verify relay blindness:\n   a. Intercept what the relay routes (check relay logs or capture the JSON at Bob's socket)\n   b. Assert: the JSON notification method is \"sealed_deliver\" (not \"deliver\")\n   c. Assert: the JSON does NOT contain alice's pub_id anywhere in plaintext\n   d. The sealed field is an opaque base64 blob\n7. Sealed receive:\n   a. Bob: receive SealedDeliverParams, unseal with room HPKE secret\n   b. Bob: process MLS ciphertext, verify MLS credential matches alice_pub_id\n   c. Assert: decrypted message == \"hello from alice\"\n8. Run cargo test -p nie-relay sealed_sender (or cargo test --workspace)\n\nDefensive programming rules:\n- Test must verify BOTH that (a) relay sees no from field AND (b) recipient recovers correct plaintext\n- Do not use sleep() for synchronization \u2014 use the two-barrier pattern from stress.rs or channel-based sync\n- Test must be fully offline (no network access)\n- The relay blindness check must inspect actual wire bytes, not just test that decryption works\n- Oracle: the plaintext 'hello from alice' is hardcoded; the MLS credential is Alice's known pub_id",
+  "acceptance_criteria": "cargo test -p nie-relay sealed_sender passes; test log shows relay routed sealed_deliver with no from field; Bob decrypts and identifies Alice correctly",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T20:01:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:23Z",
+  "closed_at": "2026-04-19T20:41:12Z",
+  "close_reason": "E2E test sealed_broadcast_relay_blind_and_recipient_recovers_sender: relay blindness verified (no from field, no alice pub_id in wire JSON), Bob recovers plaintext and sender identity. All workspace tests pass.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:25"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:01:58"
+    }
+  ]
+}

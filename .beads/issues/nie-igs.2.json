@@ -1,0 +1,28 @@
+{
+  "id": "nie-igs.2",
+  "title": "spendable_notes: 'as u64' casts violate established try_from pattern",
+  "description": "r.value_zatoshi as u64 and r.block_height as u64 in spendable_notes(). The stated codebase pattern (bd memory DESIGN-sqlite-amount-cast) uses i64::try_from(u64) for all zatoshi values to produce a descriptive error rather than a silent cast. The read direction inverts this: a negative value in the DB (e.g., from external corruption) silently wraps to a huge u64 with no diagnostic. The insert side prevents negative values via i64::try_from, so this is latent rather than exploitable today \u2014 but the inconsistency means future contributors see two different patterns and will follow the wrong one. Fix: replace both casts with u64::try_from(r.value_zatoshi).map_err(...) and u64::try_from(r.block_height).map_err(...).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:24:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T01:30:33Z",
+  "closed_at": "2026-04-19T01:30:33Z",
+  "close_reason": "igs.2: replaced 'as u64' casts with u64::try_from() + descriptive error per established pattern. igs.3: corrected 'eight' \u2192 'nine' in SAFETY comment; medium-term unsafe replacement deferred to separate issue",
+  "labels": [
+    "correctness",
+    "maintainer-burden",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 18:24:32"
+    }
+  ]
+}

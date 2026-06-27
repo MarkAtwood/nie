@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.31",
+  "title": "db.rs migration v6 note_rseed_after_zip212 DEFAULT 1 mis-classifies pre-existing stub notes",
+  "description": "db.rs migration v6 adds note_rseed_after_zip212 NOT NULL DEFAULT 1. Existing stub notes rows receive DEFAULT 1, meaning they are classified as post-ZIP-212 before the scanner decrypts them. spendable_notes() filters these out (note_rseed IS NOT NULL), so they never reach the builder today. But if any future code path fills in note_rseed without also setting note_rseed_after_zip212, the builder will use Rseed::AfterZip212 for what may actually be a pre-Canopy note (Rseed::BeforeZip212). The DEFAULT creates a silent correctness trap. Fix: change DEFAULT to NULL (nullable) so the flag is only set when the scanner explicitly writes it alongside note_rseed.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:57:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:03:25Z",
+  "closed_at": "2026-04-25T03:03:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:57:10"
+    }
+  ]
+}

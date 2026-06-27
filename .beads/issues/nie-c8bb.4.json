@@ -1,0 +1,32 @@
+{
+  "id": "nie-c8bb.4",
+  "title": "Bridge loop: bidirectional forwarding with loop detection",
+  "description": "## What\nImplement the bridge event loop in bridge-matrix/src/bridge.rs: nie\u2192Matrix forwarding and Matrix\u2192nie forwarding with loop detection.\n\n## Algorithm\n1. struct Bridge { config: BridgeConfig, matrix: MatrixClient, sent_ids: std::collections::HashSet<String> } \u2014 sent_ids tracks nie message_ids we sent (to avoid echo).\n2. fn format_for_matrix(from_pub_id: &str, text: &str, prefix: Option<&str>) -> String: '[{prefix}{short_id}] {text}' where short_id = from_pub_id[..8].\n3. fn format_for_nie(matrix_sender: &str, text: &str) -> ClearMessage: Chat { text: '[Matrix:{sender}] {text}' } \u2014 strips @localpart:domain to just localpart.\n4. fn is_own_message(msg_id: &str, sent_ids: &HashSet) -> bool: returns sent_ids.contains(msg_id).\n5. Bridge::run() connects to nie relay using nie_core::transport, starts axum HTTP server on config.listen_port (default 9000) for AS events, then runs select! loop: on nie ClearMessage::Chat from relay \u2192 forward to Matrix; on Matrix event from HTTP server \u2192 forward to nie relay.\n6. HTTP server: POST /_matrix/app/v1/transactions/{txn_id} \u2192 deserialize AsTransaction, iterate events, for each text message: send to nie via BROADCAST.\n7. Auth check on incoming: verify 'Authorization: Bearer {hs_token}' header before processing.\n\n## Defensive programming\n- never forward FileHeader/FileChunk or Payment messages to Matrix\n- sent_ids is bounded: limit to last 1000 entries (VecDeque with capacity 1000, HashSet for O(1) lookup)\n- always acknowledge AS transactions with {} even on error (or homeserver retries forever)\n- never log message content (only metadata: sender pub_id prefix, room_id)\n\n## Tests\n- format_for_matrix_uses_prefix: assert '[nie] ab12cd34 some text' format\n- format_for_nie_strips_domain: assert '@alice:example.com' produces '[Matrix:alice] text'\n- is_own_message_detects_sent: add id to sent_ids, assert returns true\n- is_own_message_allows_others: different id, assert returns false",
+  "acceptance_criteria": "cargo test -p nie-bridge-matrix passes; bridge logic tests pass",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T14:27:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T14:41:26Z",
+  "closed_at": "2026-04-22T14:41:26Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:27:59"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:27:51"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:28:00"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-itww",
+  "title": "space_join: invite code field has no length cap before DB lookup",
+  "description": "In daemon/src/jmap.rs space_join (line 1528-1531), the 'code' field is extracted from args as an arbitrary-length string and passed directly to store.use_space_invite_code(). The store function passes it as a bind parameter to a SELECT query, so SQL injection is not a risk, but there is no upper-bound on allocation before the DB round-trip. A hostile client can submit a multi-megabyte code string. Fix: reject codes longer than, e.g., 64 bytes (the current generated codes are 8 chars) with invalidArguments before touching the store.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:44:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:54:22Z",
+  "closed_at": "2026-04-26T04:54:22Z",
+  "close_reason": "Closed"
+}

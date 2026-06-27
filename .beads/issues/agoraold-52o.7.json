@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-52o.7",
+  "title": "Mnemonic display uses iter().position() instead of enumerate()",
+  "description": "The current code:\n  for row in words.chunks(4) {\n      let start = words.iter().position(|w| w == &row[0]).unwrap_or(0) + 1;\n      ...\n  }\nThis is O(N) per chunk to find the start index, when the index is already implicit in the chunk position. It also triggers the correctness bug (nie-52o.1) when words repeat.\n\nSuggested rewrite:\n  for (chunk_idx, row) in words.chunks(4).enumerate() {\n      let start = chunk_idx * 4 + 1;\n      for (j, word) in row.iter().enumerate() {\n          print!(\"{:2}. {:<12}\", start + j, word);\n      }\n      println!();\n  }\nThis is O(1) per chunk, avoids the duplicate-word bug, and makes the intent obvious.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:25:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:58Z",
+  "closed_at": "2026-04-18T03:37:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:25:11"
+    }
+  ]
+}

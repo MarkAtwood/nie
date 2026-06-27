@@ -1,0 +1,24 @@
+{
+  "id": "nie-nbqp.11",
+  "title": "daemon/store: get_contacts(ids=Some) runs N queries sequentially \u2014 no batch",
+  "description": "get_contacts(ids=Some(&[...]), ...) (store.rs line 1469) loops over each id and issues one SELECT per id with fetch_optional. If a JMAP ChatContact/get request contains 100 contact IDs, this issues 100 separate SQLite queries inside a loop. The None path uses a single query with LIMIT 1000. The same N+1 pattern exists in get_chats(ids=Some), get_messages(ids), and get_spaces(ids=Some). A batch IN(...) query (the same approach used in get_space_members_batch) would reduce N round-trips to 1. Trigger: JMAP ChatContact/get with large ids array. Bad behavior: O(N) DB round-trips where O(1) is possible.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:36:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:36:13Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:36:13"
+    }
+  ]
+}

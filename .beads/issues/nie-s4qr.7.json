@@ -1,0 +1,26 @@
+{
+  "id": "nie-s4qr.7",
+  "title": "nickname_rate_limits DashMap grows without bound \u2014 never evicted",
+  "description": "relay/src/state.rs AppState::disconnect() removes a pub_id from rate_limits (broadcast rate limit) when the last connection disconnects. But it does NOT remove the pub_id from nickname_rate_limits. Every user who ever sets a nickname leaves a permanent entry in the nickname_rate_limits DashMap until the relay restarts. At a relay with 100K historical users, this is 100K Instant values (16 bytes each on x86_64) = ~1.6 MB \u2014 small but unbounded. More importantly, the code comment says 'Per-pub_id SET_NICKNAME rate limit' but the eviction is missing. The broadcast rate_limits has a matching eviction at disconnect; this is an inconsistency that a contributor would copy as a pattern without realizing one has it and the other does not.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:14:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:39:07Z",
+  "closed_at": "2026-04-26T07:39:07Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:14:32"
+    }
+  ]
+}

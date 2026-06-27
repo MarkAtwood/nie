@@ -1,0 +1,28 @@
+{
+  "id": "nie-kzsp.1",
+  "title": "contact_query: inline error tuples bypass method_error helper; two patterns for same type",
+  "description": "method_error(type) produces errors without descriptions. The two new position/limit checks use inline ('error'.to_string(), json\\!({type,description})) because they need a description. This creates two patterns for invalidArguments errors: 6 call sites use method_error (no description) and 2 use inline construction (with description). A future contributor adding a new invalidArguments error will see method_error, use it, and silently drop the description. Fix: add fn invalid_args(description: &str) -> (String, Value) helper alongside method_error, and use it for the two position/limit sites.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:01:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:03:02Z",
+  "closed_at": "2026-04-24T17:03:02Z",
+  "close_reason": "Added invalid_args() helper; replaced two inline error tuples in contact_query with it",
+  "labels": [
+    "elegance",
+    "maintainer-burden",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:01:41"
+    }
+  ]
+}

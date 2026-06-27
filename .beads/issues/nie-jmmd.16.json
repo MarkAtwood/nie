@@ -1,0 +1,24 @@
+{
+  "id": "nie-jmmd.16",
+  "title": "write task jitter delays all messages including subscription_active notification",
+  "description": "ws.rs write task: every message incurs 0-50ms random delay. In a 64-message queue, the subscription_active notification can arrive up to 3.2 seconds late even though the flag is set immediately. Control-plane messages (subscription_active) should bypass the jitter delay.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:44:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:39Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:44:38"
+    }
+  ]
+}

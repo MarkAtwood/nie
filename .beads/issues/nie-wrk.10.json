@@ -1,0 +1,26 @@
+{
+  "id": "nie-wrk.10",
+  "title": "Two-barrier stress test (start + done) is the right design and must be defended",
+  "description": "The stress test uses two barriers: start_barrier (no sends until all N clients have DirectoryList) and done_barrier (no drain until all sends complete). The start_barrier was added after the first run showed 3 missing messages because low-jitter clients sent before all N clients were connected. A future contributor may suggest simplifying to one barrier or using a fixed sleep. Do not do that: the two-barrier design makes the test assertion exact (received == sent*(N-1)) without any timing dependency. The done_barrier prevents boundary races where a late message arrives after the drain window closes. Both barriers are load-bearing.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:54:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T00:11:26Z",
+  "closed_at": "2026-04-18T00:11:26Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:54:42"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.43",
+  "title": "server_fail() returns raw SQLite error strings in JMAP response",
+  "description": "In jmap.rs, server_fail(msg) returns the description field verbatim from the caller, and most call sites pass e.to_string() where e is a sqlx::Error. SQLite error strings contain table names, column names, and constraint names (e.g. 'UNIQUE constraint failed: messages.space_id, messages.channel_id'). A token holder who triggers an error path receives detailed schema information in the JMAP response body. Fix: log the full error server-side, return only a generic 'serverFail' type with no description to the client, or return a sanitized message without schema details.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:02:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:17:35Z",
+  "closed_at": "2026-04-24T22:17:35Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:02:10"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.6",
+  "title": "WHISPER/SEALED_WHISPER: user_exists before subscription check leaks enrollment oracle",
+  "description": "ws.rs WHISPER and SEALED_WHISPER both call user_exists DB query BEFORE the subscription check. An unsubscribed client can enumerate whether arbitrary pub_ids are registered by observing whether they get 'recipient not found' or 'subscription required'. The subscription check should come before the existence check to prevent unauthenticated directory enumeration.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:40:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:21Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:40:53"
+    }
+  ]
+}

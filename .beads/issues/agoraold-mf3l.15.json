@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-mf3l.15",
+  "title": "GOOD: partition_point insert preserves MLS admin election invariant",
+  "description": "The user_joined handler in client.rs uses partition_point to find the correct insertion index that keeps online_users sorted ascending by sequence, then inserts at that index. This matches the relay's guarantee that DirectoryList sends online sorted by connection_seq. The result is that online_users[0] is always the peer with the globally-lowest connection sequence \u2014 the MLS group admin \u2014 at all times, without a separate sort pass. The alternative of appending and re-sorting would work functionally but opens the window where an intermediate state (between append and sort) has the wrong admin at index 0, which could be observed if any code reads the list between those two operations.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:17Z",
+  "closed_at": "2026-04-22T13:09:47Z",
+  "close_reason": "Documented in DESIGN.md \u00a7WebAssembly Client Invariants (\u00a7\u00a717-22)",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:35"
+    }
+  ]
+}

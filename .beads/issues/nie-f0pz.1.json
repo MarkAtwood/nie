@@ -1,0 +1,26 @@
+{
+  "id": "nie-f0pz.1",
+  "title": "dispatch_peer_deliver: no chat_id existence check before insert_message_ext",
+  "description": "relay.rs dispatch_peer_deliver passes chat_id directly to insert_message_ext without verifying the chat exists. A peer can broadcast a PeerDeliver with an arbitrary chat_id string; if the chat does not exist, the insert either silently fails (FK constraint) or creates an orphaned message row \u2014 the error is only logged at warn level and execution continues. The stored_id returned on error is the peer-supplied message_id (unsanitised). This is distinct from nie-po5v.1 which concerns unvalidated chat_id in dispatch_peer_deliver in context of the daemon dispatcher; confirming it is the same path.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:21:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:54Z",
+  "closed_at": "2026-04-26T05:11:54Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:21:27"
+    }
+  ]
+}

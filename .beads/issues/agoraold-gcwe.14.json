@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.14",
+  "title": "transport: port parse errors omit the bad value",
+  "description": "In core/src/transport.rs, both parse_proxy_addr (line 434) and parse_relay_addr (line 456) produce error messages that do not include the string that failed to parse:\n\n  .context(\"proxy URL port is not a valid number\")\n  .context(\"relay URL port is not a valid number\")\n\nWhen these errors surface, the user sees no indication of what the bad input was. Should include port_str in the message, e.g.:\n\n  .with_context(|| format!(\"proxy URL port '{}' is not a valid u16\", port_str))\n\nThis matters in practice: a user who accidentally passes socks5://host:port/path would see the port parsing fail on the path component with no indication of what was wrong.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:25Z",
+  "closed_at": "2026-04-19T19:31:56Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:04"
+    }
+  ]
+}

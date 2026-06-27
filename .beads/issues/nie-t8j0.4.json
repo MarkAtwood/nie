@@ -1,0 +1,26 @@
+{
+  "id": "nie-t8j0.4",
+  "title": "messages: FileHeader.size_bytes uncapped; receiver may pre-allocate u64::MAX bytes",
+  "description": "FileHeader.size_bytes: u64 has no enforced upper bound at deserialization. A hostile peer can send size_bytes: u64::MAX with total_chunks: 1. The CLI receiver checks size_bytes > 10 MiB and drops the transfer (cli/src/commands.rs:1225), but (1) the message is fully deserialized including allocation of the FileHeader struct before that check runs \u2014 not a problem for the struct itself, but (2) a receiver that pre-allocates a Vec::with_capacity(size_bytes) based on this field before the application-level check would OOM. The safe fix is to reject size_bytes > max_chunk_size * total_chunks at the protocol boundary, or at minimum cap size_bytes to match the total_chunks*10MiB product.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:33:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:07:29Z",
+  "closed_at": "2026-04-25T04:07:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:33:56"
+    }
+  ]
+}

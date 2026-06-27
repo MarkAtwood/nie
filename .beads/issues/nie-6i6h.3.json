@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.3",
+  "title": "bridge-teams: channel-full drops message and returns 200 to Teams",
+  "description": "teams_webhook (bridge.rs:88-93) uses try_send to enqueue messages. When the channel is full, try_send returns Err, the code logs a warning and falls through to return Json({}), which is HTTP 200. Teams treats a 200 as successful delivery and does not retry. The message is permanently lost with no indication to the sender. The Slack bridge correctly uses .send().await and returns 500 on failure so Slack retries. Teams bridge must do the same: use .send().await and return StatusCode::INTERNAL_SERVER_ERROR on failure.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:27:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:03:12Z",
+  "closed_at": "2026-04-25T07:03:12Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:59"
+    }
+  ]
+}

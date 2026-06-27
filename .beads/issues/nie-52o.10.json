@@ -1,0 +1,25 @@
+{
+  "id": "nie-52o.10",
+  "title": "Paranoid write-verify after wallet.key write \u2014 defend against removing it as redundant",
+  "description": "wallet_init and wallet_restore both immediately decrypt wallet.key after writing it and compare the bytes to the original. A contributor may suggest removing this as 'redundant' since age is well-tested.\n\nThe check is load-bearing for a different reason: the mnemonic is displayed after the verify. If the write fails silently (disk full, FS corruption, permission change between write and future read), the user will dismiss the mnemonic thinking the wallet is safely backed up on disk. The write-verify runs before the mnemonic display, ensuring the user sees the mnemonic only after the file is confirmed readable. Removing it would create a window where the user could dismiss the mnemonic with a corrupt wallet.key.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:25:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T06:18:45Z",
+  "closed_at": "2026-04-18T06:18:45Z",
+  "close_reason": "Already implemented and documented correctly in code",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:25:46"
+    }
+  ]
+}

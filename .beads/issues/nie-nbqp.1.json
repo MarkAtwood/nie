@@ -1,0 +1,26 @@
+{
+  "id": "nie-nbqp.1",
+  "title": "ws.rs WHISPER has no rate limit \u2014 DB-amplified offline queue flood",
+  "description": "WHISPER handler (line 1312 ws.rs) calls user_exists + enqueue with no check_rate_limit. SEALED_BROADCAST, GROUP_SEND, and every other write handler all call check_rate_limit; WHISPER was missed. A single authenticated client can send WHISPER at the 1 MiB/frame WebSocket cap speed, forcing a user_exists DB query + an enqueue DB write + O(1 offline queue insert) per frame until the 1000-message cap is hit. At 60 req/min (the relay default) this is tolerable, but without the rate limit it is unbounded. The enqueue DROP at 1000 is a flood cap, not a rate limit \u2014 it does not protect the DB write throughput. Trigger: attacker calls WHISPER in a tight loop after auth. Bad behavior: relay SQLite pool saturated; legitimate operations queued behind flood.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:31:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:48:28Z",
+  "closed_at": "2026-04-26T08:48:28Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:31:46"
+    }
+  ]
+}

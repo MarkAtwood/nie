@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.47",
+  "title": "create_space_full bumps Space and SpaceMember state_seq on INSERT OR IGNORE no-ops",
+  "description": "store.rs create_space_full uses INSERT OR IGNORE for both the space and creator membership rows but always calls bump_state_seq('Space') and bump_state_seq('SpaceMember') after the transaction commits, even when the INSERT OR IGNORE is a no-op (space already exists); same class of bug as nie-kef6.24 and nie-kef6.25 applied to the create_space_full path \u2014 spurious state token increments cause clients to unnecessarily re-fetch",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:23:19Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:18"
+    }
+  ]
+}

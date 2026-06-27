@@ -1,0 +1,16 @@
+{
+  "id": "agoraold-zz8",
+  "title": "Fee calculation and note selection for shielded tx",
+  "description": "Implement coin selection: select_notes(available: \u0026[Note], target_zatoshi: u64, fee: u64) -\u003e Result\u003cVec\u003cNote\u003e\u003e. Must select the minimum number of notes whose sum covers target + fee, preferring older notes first (FIFO) to minimize witness depth. Fee must use ZIP-317 conventional fee: max(MARGINAL_FEE * (inputs + outputs), GRACE_ACTIONS * MARGINAL_FEE). Use a subagent to look up current ZIP-317 MARGINAL_FEE and GRACE_ACTIONS constants from the zip317 crate or zcash spec. Defensive programming: if no combination of notes covers the amount, return Err(InsufficientFunds) with exact shortfall; never panic on empty note list; log note count selected (not amounts); add an assertion that sum(selected_notes) \u003e= target + fee before returning.",
+  "acceptance_criteria": "Property test (proptest or quickcheck): for random note sets where sum \u003e= target+fee, selection always succeeds. Test: exact amount (sum == target+fee) works. Test: sum \u003c target+fee returns Err. Test: fee matches ZIP-317 formula for varying input/output counts.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:20:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T18:33:41Z",
+  "close_reason": "Closed"
+}

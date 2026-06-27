@@ -1,0 +1,27 @@
+{
+  "id": "nie-lflg.5",
+  "title": "PeerGroupUpdate.role is an unbounded Option<String>",
+  "description": "PeerGroupUpdate.role is Option<String> with no serde length guard. space_id, action, and contact_id are all guarded (deserialize_bounded_id / deserialize_group_action), but role is a bare Option<String>. A hostile peer can send a multi-MiB role string. Low-severity because role is optional and only set on 'role_change', but the pattern is inconsistent: every other string field in the same struct is bounded.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:19:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:40:42Z",
+  "closed_at": "2026-04-26T09:40:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:19:04"
+    }
+  ]
+}

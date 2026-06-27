@@ -1,0 +1,27 @@
+{
+  "id": "nie-9i9k.5",
+  "title": "Typing timers not cancelled on normal disconnect",
+  "description": "Trigger: Peer sends typing=true. Client calls disconnect() (user-initiated or network drop without auth error). _typingTimers is not cleared in disconnect() \u2014 only in the auth failure path. The 4-second Timers continue to run after disconnect, call _typingUsers.remove() and notifyListeners(). Minor: the UI will show a stale typing indicator briefly after disconnect and then have an extra rebuild. Not a crash. Fix: move the timer cancellation code from the auth failure block into disconnect() to handle both paths.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:47:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:56:38Z",
+  "closed_at": "2026-04-24T00:56:38Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:47:42"
+    }
+  ]
+}

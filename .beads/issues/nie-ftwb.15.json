@@ -1,0 +1,24 @@
+{
+  "id": "nie-ftwb.15",
+  "title": "message_set update: message re-fetched for ownership then again inside edit_message_body \u2014 double read per edit",
+  "description": "jmap.rs message_set update: ownership is validated by calling store.get_messages (1 SELECT per message). Then for the 'body' patch path, edit_message_body does another SELECT inside its own transaction (to get old_body and edit_history for the history append). This is two reads of the same row for a single body edit. The outer ownership check is redundant since edit_message_body already returns EditBodyResult::Forbidden if sender_id doesn't match. Suggested fix: remove the outer get_messages ownership check for the body path and rely solely on edit_message_body's Forbidden result; generalize the same pattern for other patch paths.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:57:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:57:41Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:57:40"
+    }
+  ]
+}

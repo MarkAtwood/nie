@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmwv.9",
+  "title": "state: broadcast_to_group membership_cache not shared across live and offline legs",
+  "description": "broadcast_to_group() builds a membership_cache (HashMap) during the live-delivery loop to avoid N DB calls for users with multiple connections. However that cache is NOT reused in the subsequent offline-enqueue loop. For each offline recipient the is_group_member query is issued fresh. This means the same DB query is called twice for any user who has connections that all fail delivery (once in the live loop, once in the offline loop). This is a performance issue, not a correctness issue, but for large groups it adds significant DB load and could trigger the SQLite connection pool limit (max 5 connections) under load.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:49:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:02:58Z",
+  "closed_at": "2026-04-26T12:02:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:49:15"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-7bv6.34",
+  "title": "SEC1: idb_request_result hangs forever on IDB abort",
+  "description": "wasm/src/storage.rs:36-37: idb_request_result() uses forget() on both on_success and on_error Closures. If an IndexedDB transaction is aborted (e.g. storage quota exceeded, browser shutdown, or a concurrent open_db() call during onupgradeneeded), neither onsuccess nor onerror fires. The oneshot rx.await in idb_request_result() then hangs forever \u2014 the load_identity() or save_identity() Promise never resolves or rejects. The JS caller hangs silently. Fix: handle the IDBTransaction abort event and send an Err through the oneshot, or add a timeout via gloo-timers.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:35:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:42:17Z",
+  "closed_at": "2026-04-20T02:42:17Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:35:22"
+    }
+  ]
+}

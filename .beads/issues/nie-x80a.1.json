@@ -1,0 +1,26 @@
+{
+  "id": "nie-x80a.1",
+  "title": "ivk_bytes() returns plain [u8;32] \u2014 caller has no zeroization hook",
+  "description": "address.rs:197 SaplingDiversifiableFvk::ivk_bytes() returns [u8;32] by value. The IVK is key material. The returned array lands on the caller's stack with no Zeroizing wrapper and is not wiped when dropped. The comment says 'do not log, print, or store' but has no mechanical enforcement. Any caller that stores the return value in a local variable \u2014 as SaplingIvkDecryptor::new() does by dereferencing it into a Zeroizing \u2014 passes through an intermediate plain [u8;32] on the stack before the Zeroizing wrapper is applied. Fix: return Zeroizing<[u8;32]> so the IVK is erased regardless of how callers handle it.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:52:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:24Z",
+  "closed_at": "2026-04-25T02:08:24Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:52:36"
+    }
+  ]
+}

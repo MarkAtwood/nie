@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-3om.4",
+  "title": "next_diversifier increments DB before tx build; failed build silently skips index",
+  "description": "payment.rs step 4 calls next_diversifier() which atomically reads, increments, and persists the diversifier index BEFORE the tx is built. If build_shielded_tx fails (e.g. ParamsNotLoaded, WitnessDeserialize), the diversifier was consumed but never used for a change address on-chain. The DB counter is already at current+1. The advance_diversifier_to in step 9 (best-effort) calls advance_diversifier_to(change_di+1) = advance_diversifier_to(current+1) which is a no-op (already stored). So the behavior is actually correct \u2014 each call to next_diversifier produces a unique, non-reused index even across failures. But the comment in send_payment describing the advance in step 9 as 'advance diversifier past the one used for change' is misleading: it makes it sound like step 9 does the advancing, when in fact next_diversifier already did. A contributor may 'simplify' step 9 by removing the advance_diversifier_to call, believing it is redundant, which would be harmless here but breaks the guarantee if the code is later refactored to delay the increment.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:54:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:52Z",
+  "closed_at": "2026-04-19T04:10:35Z",
+  "close_reason": "Fixed: removed the always-no-op advance_diversifier_to call (next_diversifier already atomically advanced the DB counter). Renumbered steps 7\u21926 (broadcast) and 9\u21928 (post-broadcast) to match.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:54:30"
+    }
+  ]
+}

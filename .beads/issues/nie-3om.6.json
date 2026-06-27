@@ -1,0 +1,27 @@
+{
+  "id": "nie-3om.6",
+  "title": "SendPaymentError::Db used for both DB and lightwalletd network errors",
+  "description": "payment.rs maps client.latest_height() failures to SendPaymentError::Db (line 160) and store.scan_tip() failures to Db (line 159). Both are mapped identically. The Connect variant exists on SendPaymentError but is only used in send_fn_box (commands.rs LightwalletdClient::connect). A new operator troubleshooting a lightwalletd network issue during send_payment will see 'database error: <network error message>' in the logs, not 'could not connect to lightwalletd'. This makes it harder to triage whether the failure is DB corruption or a network partition. Maintenance consequence: when adding new lightwalletd calls in send_payment, a contributor following the existing pattern will map them all to Db, further muddying the error taxonomy.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:54:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:06:14Z",
+  "closed_at": "2026-04-19T04:06:14Z",
+  "close_reason": "Duplicate of nie-3om.1, which is now fixed: latest_height() correctly maps to SendPaymentError::Connect.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:54:48"
+    }
+  ]
+}

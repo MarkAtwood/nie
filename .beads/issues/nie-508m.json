@@ -1,0 +1,14 @@
+{
+  "id": "nie-508m",
+  "title": "(BUG) cli: in-flight file_transfers never expire or get cleared on reconnect",
+  "description": "The file_transfers HashMap (transfer_id → FileReceiveState) is populated when a FileHeader arrives and entries are removed only when the last FileChunk arrives and assembly succeeds. Two problems: (1) It is never cleared on Reconnecting, so if a sender disconnects mid-transfer, the partial FileReceiveState (and its pre-allocated chunks Vec) lives forever in memory. Each entry pre-allocates vec![None; total_chunks as usize] up to 230 Nones (FILE_MAX_CHUNKS). (2) A malicious peer can open up to 2^122 concurrent transfers (Uuid key space) because there is no cap on the number of simultaneous in-flight transfers — only the per-transfer size is bounded. Fix: (a) clear file_transfers in the Reconnecting handler; (b) add a maximum concurrent-transfers cap (e.g., 16) and reject new FileHeaders when exceeded. Lines 1230 and 1460 in cli/src/commands.rs.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:15:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:24:05Z",
+  "closed_at": "2026-04-26T09:24:05Z",
+  "close_reason": "Closed"
+}

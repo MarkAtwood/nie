@@ -1,0 +1,26 @@
+{
+  "id": "nie-73ri.3",
+  "title": "DESIGN.md \u00a79 violation: api.rs and jmap.rs store sent_at as RFC 3339 not SQLite datetime format",
+  "description": "api.rs:131 and jmap.rs:2124 call to_rfc3339() for sent_at passed to insert_message/insert_message_ext. DESIGN.md \u00a79 only names expires_at and created_at, so this is not a strict \u00a79 violation. However sent_at rows from relay-delivered messages arrive in the sender's format (which may be SQLite format), creating mixed formats in the same column. sent_at is never used in SQL datetime() comparisons so no functional breakage, but cross-row sorting by sent_at could give wrong order when formats are mixed. Severity: low.",
+  "notes": "2026-04-26 round-66 assessment: Not worth fixing with a normalization helper. sent_at is display-only; no SQL date arithmetic is performed on it anywhere in the codebase. Normalization would add code complexity (a helper, migration, or on-read transform) with no functional benefit. Leave as informational tracking; the mixed-format cosmetic issue is acceptable at current usage.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:33:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:57:11Z",
+  "labels": [
+    "daemon",
+    "my-oss",
+    "review",
+    "security"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:33:25"
+    }
+  ]
+}

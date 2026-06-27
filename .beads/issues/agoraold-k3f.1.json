@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-k3f.1",
+  "title": "Network guard missing from chat wallet-load path",
+  "description": "nie --network mainnet chat with a testnet wallet.json present: chat() calls try_load_wallet_fvks() without calling check_network_guard() first. Testnet FVKs are loaded and testnet Unified Addresses are derived and shown to the user (via /receive) as if they are mainnet addresses. User pastes the address to a mainnet block explorer or sends real ZEC to it \u2014 funds are unrecoverable. Guard exists and is called in wallet init and wallet restore but not in chat. Fix: call check_network_guard() in chat() before try_load_wallet_fvks().",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:55:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:38Z",
+  "closed_at": "2026-04-19T06:05:27Z",
+  "close_reason": "Fixed: added network: &str param to chat(), call check_network_guard(data_dir, network)? before try_load_wallet_fvks(). Updated main.rs call site to pass &cli.network. Tests pass.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:55:22"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-0o9.1",
+  "title": "PAYMENT_ACCOUNT const steals dispatch_payment's opening rustdoc paragraph",
+  "description": "Trigger: const PAYMENT_ACCOUNT was inserted into the middle of dispatch_payment's multi-paragraph doc comment. In Rust, /// lines before an item attach to that item. Result: PAYMENT_ACCOUNT's rustdoc reads 'Route an incoming ClearMessage::Payment to the correct session handler. ZIP-32 account index...' \u2014 the first sentence describes dispatch_payment, not the const. dispatch_payment loses its opening paragraph. cargo doc generates wrong documentation for both items. Fix: move PAYMENT_ACCOUNT before the dispatch_payment doc block entirely, giving it its own standalone doc comment.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:42:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T22:49:12Z",
+  "closed_at": "2026-04-18T22:49:12Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:42:32"
+    }
+  ]
+}

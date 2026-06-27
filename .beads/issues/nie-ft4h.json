@@ -1,0 +1,17 @@
+{
+  "id": "nie-ft4h",
+  "title": "Review: wallet/src/*.rs security/correctness round 13",
+  "notes": "Maintainer risk: MEDIUM — sessions_to_watch SQL filter is non-exhaustive over PaymentState variants; balance() counts undecrypted stubs and witness-free notes (tracked separately). New findings: 1 task-level risk filed.\nConfidence: 85% chance of no missed bugs in the code reviewed. Uncertainty driven by: (1) could not run the test suite to verify all tests pass, (2) the db.rs migration correctness depends on SQLite's transactional DDL behavior which I verified by reading the migration code but not by running it against a real DB with version \u003c N, (3) the select_with_fee convergence proof relies on zip317_fee being monotone-non-decreasing which holds for the current formula but was verified analytically not empirically. Would raise confidence if: (a) ran cargo test --package nie-wallet to confirm all tests pass, (b) inspected what happens at the sqlx transaction DEFERRED→IMMEDIATE boundary with WAL mode.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:33:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

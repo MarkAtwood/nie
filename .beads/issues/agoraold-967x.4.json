@@ -1,0 +1,32 @@
+{
+  "id": "agoraold-967x.4",
+  "title": "pow: transport.rs mine PoW in connect flow",
+  "description": "Wire PoW mining into core/src/transport.rs ws_upgrade_and_auth.\n\nWhat: After receiving ChallengeParams, extract server_salt and difficulty; mine PoW in blocking thread; add pow_token to AuthenticateParams.\n\nAlgorithm in ws_upgrade_and_auth():\n1. After receiving Challenge notification and extracting params (ChallengeParams),\n   decode params.server_salt from base64 to Vec<u8>; on error return Err\n   let difficulty = params.difficulty;\n2. If difficulty == 0 (PoW disabled): pow_token = None\n3. If difficulty > 0:\n   a. Get pub_key_bytes from identity.verifying_key().to_bytes()\n   b. Compute ts_floor = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() / 60 as u32\n   c. Clone pub_key_bytes, server_salt_bytes for move into blocking thread\n   d. let token_str = tokio::task::spawn_blocking(move || {\n         nie_core::pow::mine_token(&pub_key_bytes, &server_salt_bytes, difficulty, ts_floor)\n      }).await.expect('spawn_blocking never fails');\n   e. pow_token = Some(token_str)\n4. Construct AuthenticateParams with pow_token field set\n5. Continue with signing and sending as before\n\nNote: mine_token is CPU-bound. spawn_blocking offloads to Tokio's blocking thread pool.\nAt diff=20, expect ~1M SHA256 doublings (~100-300ms on modern hardware). This is acceptable.\n\nDefensive programming:\n- server_salt decode failure returns transport::Error (not unwrap)\n- spawn_blocking await unwrap is safe: task only fails on panic, and mine_token does not panic\n- ts_floor as u32: truncation is safe for many decades; use explicit cast with comment\n- If relay sends difficulty > 30: mine_token will return a valid token with diff=30 cap? No \u2014 mine_token should just iterate normally; the relay's verify_token will reject tokens where token.diff > 30. The client should mine what the relay asks. If relay sends absurd difficulty, client mines forever. Document: relay is trusted for difficulty value (it's not an adversarial protocol).\n\nNote: pub_key_bytes is available from sign_challenge() return: it returns (pub_key_b64, sig_b64); decode pub_key_b64 back to bytes for PoW; OR expose identity.verifying_key().to_bytes() from the identity type. Check which is cleaner.",
+  "acceptance_criteria": "cargo test -p nie-core passes; transport.rs calls mine_token when challenge.difficulty > 0; pow_token set in AuthenticateParams",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:35:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:45:18Z",
+  "close_reason": "transport.rs: ws_upgrade_and_auth now mines PoW when challenge.difficulty > 0; pow_token included in AuthenticateParams",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:36:01"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:36:00"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:34:59"
+    }
+  ]
+}

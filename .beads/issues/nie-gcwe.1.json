@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.1",
+  "title": "parse_proxy_addr: credentials in URL silently ignored, no SOCKS5 auth",
+  "description": "If a user passes socks5://user:pass@host:port, parse_proxy_addr uses rsplit_once(':') which correctly extracts the port, but the userinfo (user:pass@) is folded into the host string passed to Socks5Stream::connect(). tokio-socks never sees the credentials as SOCKS5 username/password auth (RFC 1929) \u2014 it just tries to connect to the literal string 'user:pass@host', which fails with an opaque TCP connection error.\n\nTwo distinct problems:\n1. Credentials are not used for SOCKS5 username/password authentication (RFC 1929). A proxy that requires auth silently fails with a misleading error.\n2. No input validation rejects or warns about user:pass@ in the URL, so users who include credentials receive no feedback that they are being silently dropped.\n\nThe connection error message will say 'SOCKS5 tunnel connect failed' with a TCP-level error, giving no indication that the proxy rejected authentication.\n\nFile: core/src/transport.rs, function parse_proxy_addr (~line 423).\nThe existing test proxy_addr_parses_port_ignores_credentials (line 562) explicitly documents this behavior as known but does not flag it as a bug.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:31:17Z",
+  "closed_at": "2026-04-19T19:31:17Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:15"
+    }
+  ]
+}

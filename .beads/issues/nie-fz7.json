@@ -1,0 +1,23 @@
+{
+  "id": "nie-fz7",
+  "title": "Sapling extended spending key \u2192 payment address derivation",
+  "description": "Given a SaplingExtendedSpendingKey for account 0, derive: (1) full viewing key (FVK), (2) incoming viewing key (IVK), (3) default payment address (diversifier index 0). Use the zcash_primitives spending key API. This is a prerequisite sub-step of nie-3ft (Unified Address). Use a subagent to read core/src/ and wallet/ to understand the current type hierarchy and integration points before writing any code. Defensive programming: all key material types must NOT implement Debug; derive() must return Err not panic on invalid diversifier (loop to find a valid one per ZIP-32 spec, bounded to 256 iterations max before returning Err).",
+  "acceptance_criteria": "Unit test: derive default address from a known test spending key, compare against known-good address from zcash test vectors (external oracle). Test that invalid-diversifier loop terminates and returns Err, not an infinite loop.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:19:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T19:15:13Z",
+  "close_reason": "Implemented SaplingExtendedSpendingKey, SaplingDiversifiableFvk, default_address, find_address (bounded 256). Tests pass against ZIP-32 test vectors.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:21"
+    }
+  ]
+}

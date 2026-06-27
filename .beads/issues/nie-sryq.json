@@ -1,0 +1,14 @@
+{
+  "id": "nie-sryq",
+  "title": "(BUG) cli: received file saved to CWD, not data-dir",
+  "description": "In commands.rs, when a FileChunk transfer completes, the assembled file is written via `tokio::fs::write(\u0026safe, \u0026assembled)` where `safe` is just a filename (no directory prefix). This writes to the process's current working directory, not the data directory or any user-configured downloads folder. A remote peer can name a file 'bashrc' or 'authorized_keys' and — if the process happens to have been started from $HOME or $HOME/.ssh — overwrite those files. Even without that race, the file location is surprising and undocumented. Fix: prefix the path with a configured downloads directory (e.g., data_dir.join('downloads').join(\u0026safe)) and create the directory at startup. Lines 1270 and 1500 in cli/src/commands.rs.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:14:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:24:04Z",
+  "closed_at": "2026-04-26T09:24:04Z",
+  "close_reason": "Closed"
+}

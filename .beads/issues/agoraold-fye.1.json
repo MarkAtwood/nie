@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-fye.1",
+  "title": "expire_stale_sessions_before: negative max_age_secs mass-expires all sessions",
+  "description": "Trigger: call expire_stale_sessions_before(now_ts, -86400) \u2014 e.g. a sign error at a new call site, or passing a pre-negated value. Actual behavior: cutoff = now_ts - (-86400) = now_ts + 86400 (a future timestamp). SQL condition updated_at < future matches every row ever written. All non-terminal sessions transition to Expired immediately. The type i64 accepts negative values silently; the old cutoff: i64 API required the caller to compute the cutoff explicitly and would produce a future cutoff only with a deliberate sign error. The new API hides the arithmetic inside the function, making the sign error less visible. Fix: change max_age_secs to u64 (a duration cannot be negative). Compute: cutoff = now_ts.saturating_sub(max_age_secs as i64) or add an anyhow::bail! if max_age_secs == 0 is also nonsensical.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:57:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:55Z",
+  "closed_at": "2026-04-18T18:11:33Z",
+  "close_reason": "Fixed: max_age_secs: i64 \u2192 u64; cutoff computed via now_ts.saturating_sub(max_age_secs as i64)",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:57:24"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-yh0y",
+  "title": "(BUG) daemon/ws_events: broadcast channel lag drops events silently to slow SSE clients",
+  "description": "In daemon/src/ws_events.rs, the WebSocket event loop handles RecvError::Lagged(n) (line 69) by logging a warning and continuing — it does not disconnect the slow client or send the client any signal that events were lost. The broadcast channel has capacity 256 (BROADCAST_CAPACITY in state.rs). A slow browser client that does not drain its WebSocket fast enough will silently miss up to n events. This is particularly problematic for message delivery events: the browser UI will appear to miss messages with no indication anything went wrong. Fix: on Lagged, send the client a synthetic 'events_dropped' JSON frame before continuing so the client knows it needs to refetch state, OR disconnect the client and let it reconnect and refetch.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:16:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:23:39Z",
+  "closed_at": "2026-04-26T09:23:39Z",
+  "close_reason": "Closed"
+}

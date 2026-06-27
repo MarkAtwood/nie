@@ -1,0 +1,14 @@
+{
+  "id": "nie-535c",
+  "title": "store: purge_expired_invoices never runs when payment_watcher is disabled",
+  "description": "purge_expired_invoices() is called exclusively from payment_watcher.rs, once every 100 scanned blocks. If the relay operator does not configure a merchant wallet (MERCHANT_IVK not set), spawn_payment_watcher() returns early without starting the watcher loop. In that configuration, subscription_invoices rows for SUBSCRIBE_REQUEST calls (if the relay accepts those) accumulate indefinitely and are never purged. The table can grow without bound across process restarts. Even with the count_and_create_invoice cap of 5 per user, a relay with many users never cleans up expired invoices. Fix: add a periodic background task (tokio::spawn + interval) in main.rs or relay bootstrap that calls purge_expired_invoices independently of the payment watcher. Alternatively, call it from register_user on reconnect as a piggyback cleanup.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:53:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:59:37Z",
+  "closed_at": "2026-04-26T04:59:37Z",
+  "close_reason": "Closed"
+}

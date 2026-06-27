@@ -1,0 +1,31 @@
+{
+  "id": "agoraold-e4x",
+  "title": "Shielded transaction builder and broadcaster",
+  "description": "Implement send_payment(to_address, amount, memo) using zcash transaction builder. Fetch Sapling parameters (spend.params, output.params). Sign with spending key. Broadcast via lightwalletd SendTransaction RPC. Return txid.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T04:35:08Z",
+  "close_reason": "Done: Shielded tx builder+broadcaster in wallet/src/tx_builder.rs and payment.rs. Commit bc8db12 feat(wallet): shielded tx builder. send_payment() wired into /pay.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:43:21"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:43:33"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:40"
+    }
+  ]
+}

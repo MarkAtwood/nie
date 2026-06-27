@@ -1,0 +1,23 @@
+{
+  "id": "nie-lflg.8",
+  "title": "profile fields custom visitor correctly rejects at parse boundary",
+  "description": "deserialize_profile_fields uses a hand-rolled MapAccess visitor that checks entry count and key/value lengths during next_entry(). A simpler HashMap deserialize + post-check would allocate the full map first. This is the correct pattern and should not be simplified.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:24:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:24:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:24:37"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.6",
+  "title": "payment: mark_notes_spent failure after broadcast leaves permanent double-spend state",
+  "description": "payment.rs send_payment() line ~253: if mark_notes_spent() fails after a successful broadcast, the error is logged at warn level and the txid is returned as success. The scanner has no nullifier-detection logic (acknowledged in comment at line ~142), so the spent notes remain in unspent_notes() and spendable_notes() indefinitely. On the next send_payment() call, the same notes will be re-selected and the transaction will be broadcast again, receiving a double-spend rejection from the node. The user gets a cryptic BroadcastFailed error with no actionable hint. Recovery requires a full wallet rescan from seed. The comment says '(Long-term fix: add nullifier scanning to scanner.rs)' but no issue was filed. This needs a tracking issue and a user-visible error path that blocks subsequent sends until recovery.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:37:03Z",
+  "closed_at": "2026-04-24T22:37:03Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:08"
+    }
+  ]
+}

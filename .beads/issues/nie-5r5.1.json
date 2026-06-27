@@ -1,0 +1,27 @@
+{
+  "id": "nie-5r5.1",
+  "title": "check_sync_lag is dead code with wrong concrete type and misleading module doc",
+  "description": "sync_guard.rs exports check_sync_lag(store, &mut LightwalletdClient) but nothing calls it \u2014 only check_lag (the pure lower-level function) is used by payment.rs. Three problems compound: (1) the module-level doc says 'Call check_sync_lag before building a transaction' which is wrong \u2014 payment.rs calls check_lag directly. (2) The function takes &mut LightwalletdClient (the concrete type) instead of impl WalletClient, so it is untestable via MockClient and inconsistent with the WalletClient trait pattern established in payment.rs. (3) Its return type is anyhow::Error (type-erased), meaning callers cannot pattern-match SyncLagError \u2014 the lower-level check_lag is strictly more useful. Fix: delete check_sync_lag, update the module doc to describe check_lag as the primary API.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:10:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T05:22:17Z",
+  "closed_at": "2026-04-19T05:22:17Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:10:56"
+    }
+  ]
+}

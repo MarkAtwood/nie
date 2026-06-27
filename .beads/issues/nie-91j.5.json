@@ -1,0 +1,26 @@
+{
+  "id": "nie-91j.5",
+  "title": "double select_with_fee call invariant not documented",
+  "description": "payment.rs calls select_with_fee(&all_notes, amount_zatoshi) to get selected_ids for mark_note_spent, then passes all_notes to build_shielded_tx which calls select_with_fee again internally. The comment explains why all_notes is passed (standalone correctness) but does not state the safety invariant: 'both calls receive the same all_notes slice and amount_zatoshi, and select_with_fee is deterministic (FIFO by block_height), therefore both calls produce identical selected_notes.' Without this invariant documented, a contributor who caches or filters all_notes before the second call will silently mark the wrong notes spent. Add a // INVARIANT comment at the pre-selection step.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:57:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T05:03:02Z",
+  "closed_at": "2026-04-19T05:03:02Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:57:53"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-0o9",
+  "title": "Review: diversified address + WalletFvks payment wiring",
+  "notes": "Maintainer risk: LOW — The only runtime-visible defect is the PAYMENT_ACCOUNT doc comment placement (nie-0o9.1), which is a documentation error with no operational impact. The advance_diversifier_to doc promise for idx=0 (nie-0o9.2) is a latent trap but unreachable given current callers. Everything else is style/consistency. The core logic (monotonic advance, fatal-on-skip, generate_fresh_address abstraction) is correct and well-tested.\nConfidence: 8% chance of missed bug. Uncertainty driven by: (1) cannot verify the sapling-crypto find_address bound behavior under adversarially constructed FVKs — the 256-attempt limit is a ZIP-32 convention but the actual distribution of invalid diversifiers for real-world seeds is untested; (2) advance_diversifier_to correctness under concurrent access is asserted-by-comment not by test — if max_connections is ever changed the code breaks silently. Would raise confidence if: a property test randomizing FVK seeds and verifying distinctness across 10000 consecutive calls were added; and if advance_diversifier_to were converted to use a transaction (matching next_diversifier).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:41:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T22:49:24Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

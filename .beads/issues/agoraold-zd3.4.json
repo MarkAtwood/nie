@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-zd3.4",
+  "title": "ensure_account failure at startup silently continues; later payments fail with opaque error",
+  "description": "If ensure_account(PAYMENT_ACCOUNT) fails at startup (e.g., DB locked, migration incomplete), the warn\\! is logged and chat proceeds. The first payment request then hits next_diversifier which calls bail\\!('account X not found; call ensure_account() first'). That error propagates to generate_fresh_address as PaymentAction::Unknown{reason: 'wallet error'}, which the payer receives \u2014 no actionable text for the user. The fix: if ensure_account fails, set wallet_fvks = None and print a user-visible warning so the session-start failure is associated with the cause.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:17:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:33Z",
+  "closed_at": "2026-04-18T23:36:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:17:00"
+    }
+  ]
+}

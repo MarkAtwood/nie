@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.11",
+  "title": "GROUP_LIST: member_counts_for_user failure silently uses empty map, understating member counts",
+  "description": "ws.rs GROUP_LIST handler: if member_counts_for_user() returns Err, the code uses an empty HashMap (line 1628-1630) and warns. All group member_counts in the response become 0, which is silently wrong data. The client sees groups with 0 members and cannot tell if it is real or a transient DB error. Should return an internal error instead of silently presenting stale/wrong data.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:42:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:06:22Z",
+  "closed_at": "2026-04-25T04:06:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:42:24"
+    }
+  ]
+}

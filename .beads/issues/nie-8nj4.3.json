@@ -1,0 +1,24 @@
+{
+  "id": "nie-8nj4.3",
+  "title": "set_subscription enforces SQLite-compatible datetime format to prevent silent expiry bugs",
+  "description": "relay/src/store.rs:236-247: The method requires a DateTime<Utc> parameter and formats it internally as YYYY-MM-DD HH:MM:SS, not as raw string. This prevents the CLAUDE.md \u00a79 invariant violation: RFC 3339 format (with 'T' separator) would compare as > datetime('now') on the same calendar day (position 10: 0x54 > 0x20), making expired subscriptions appear active. The format-enforcing approach compiles safely; the string-accepting alternative looks correct in tests until it silently corrupts production subscription gating.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:37:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T21:40:25Z",
+  "closed_at": "2026-04-19T21:40:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:37:07"
+    }
+  ]
+}

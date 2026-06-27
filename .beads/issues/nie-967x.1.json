@@ -1,0 +1,22 @@
+{
+  "id": "nie-967x.1",
+  "title": "pow: error codes + protocol struct extensions",
+  "description": "Add PoW error codes to protocol.rs and extend ChallengeParams/AuthenticateParams.\n\nWhat: Add 4 new stable error codes and 3 new fields to existing wire structs.\n\nAlgorithm:\n1. In core/src/protocol.rs, add after RATE_LIMITED:\n   pub const POW_REQUIRED: i32 = -32030;  // enrollment requires PoW token\n   pub const POW_INVALID: i32 = -32031;   // token failed hash or format check\n   pub const POW_STALE: i32 = -32032;     // ts_floor outside \u00b1600s\n   pub const POW_REPLAYED: i32 = -32033;  // h16 already seen\n2. Add fields to ChallengeParams:\n   pub server_salt: String  (base64-encoded 32 random bytes)\n   pub difficulty: u8       (leading zero bits required, default 20)\n3. Add field to AuthenticateParams:\n   pub pow_token: Option<String>  (base64url 31-byte token; None = no PoW required)\n\nDefensive programming:\n- Use Option<String> for pow_token (not String) to allow old relays to interop and for test helpers\n- Add #[serde(default)] on pow_token so old Authenticate messages without the field still parse\n- Error codes are stable wire API \u2014 values must never change\n\nTests: none needed for struct definitions; serialization round-trips tested by existing serde derives",
+  "acceptance_criteria": "cargo test -p nie-core passes; protocol.rs has POW_REQUIRED=-32030, POW_INVALID=-32031, POW_STALE=-32032, POW_REPLAYED=-32033; ChallengeParams has server_salt+difficulty; AuthenticateParams has pow_token: Option<String>",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:34:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:40:32Z",
+  "close_reason": "protocol.rs: added POW_REQUIRED/INVALID/STALE/REPLAYED error codes; extended ChallengeParams with server_salt+difficulty; extended AuthenticateParams with pow_token: Option<String>",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:34:32"
+    }
+  ]
+}

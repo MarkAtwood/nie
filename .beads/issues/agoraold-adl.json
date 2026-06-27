@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-adl",
+  "title": "ZIP-316 Unified Address assembly and encoding",
+  "description": "Combine a Sapling payment address and an Orchard payment address into a ZIP-316 Unified Address using the zcash_address crate. Expose get_default_address() -> UnifiedAddress on WalletHandle. Unified Address must include both Sapling and Orchard receivers. Encoding must be bech32m with the correct human-readable part (u for mainnet, utest for testnet). Use a subagent to verify the exact zcash_address UnifiedAddress builder API (from receiver types). Defensive programming: assert the encoded UA round-trips through zcash_address parse back to the same receivers; return Err if either receiver is missing; never return a partial UA with only one receiver.",
+  "acceptance_criteria": "Test: encode a known UA from ECC test vectors and compare byte-for-byte. Test: round-trip (encode \u2192 parse \u2192 encode) is stable. Test: attempting to build UA with zero receivers returns Err, not panic.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:20:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T19:26:36Z",
+  "close_reason": "encode_unified_address (Sapling+Orchard \u2192 UA string), decode_unified_address, sapling_receiver, orchard_receiver. 5 tests pass including ZIP-316 test-vector oracle and round-trip.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:24"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:24"
+    }
+  ]
+}

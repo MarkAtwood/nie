@@ -1,0 +1,25 @@
+{
+  "id": "nie-80jt.8",
+  "title": "ffi: encode_chat_payload serde_json unwrap can crash Dart VM",
+  "description": "ffi/src/api/client.rs encode_chat_payload (called by client_send_message) uses serde_json::to_vec(&ClearMessage::Chat {...}).unwrap(). A panic in Dart FFI code propagates as an unhandled C abort signal that crashes the Flutter app. Fix: return a null pointer or error code on serialization failure instead of panicking.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:09:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:20:46Z",
+  "closed_at": "2026-04-24T19:20:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:09:07"
+    }
+  ]
+}

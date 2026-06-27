@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.47",
+  "title": "connection_device_ids.contains linear scan on every PublishKeyPackage",
+  "description": "ws.rs PUBLISH_KEY_PACKAGE: connection_device_ids.contains(&params.device_id) performs a linear scan. In practice a connection publishes at most a handful of device IDs, so this is harmless. But using a HashSet<String> instead of Vec<String> would make intent clearer (uniqueness set) and scale better if the design ever allows many devices per connection.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:58:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:58:18Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:58:18"
+    }
+  ]
+}

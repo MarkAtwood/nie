@@ -1,0 +1,27 @@
+{
+  "id": "nie-83e.4",
+  "title": "UnsupportedAddressType error message claims Orchard is supported when it is not",
+  "description": "TxBuildError::UnsupportedAddressType says 'only Sapling and Unified Addresses with a Sapling or Orchard receiver are supported'. Orchard is not supported \u2014 build_shielded_tx only adds Sapling outputs. A UA with only an Orchard receiver returns InvalidRecipient, not UnsupportedAddressType. The message on UnsupportedAddressType is wrong and will be seen by users providing transparent addresses. Fix: change the message to 'only Sapling addresses and Unified Addresses with a Sapling receiver are supported'.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T00:48:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T00:58:24Z",
+  "closed_at": "2026-04-19T00:58:24Z",
+  "close_reason": "UnsupportedAddressType error string corrected: removed 'or Orchard'",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 17:48:29"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-pyuo",
+  "title": "HPKE sealed-sender from field is unauthenticated \u2014 verify via MLS sender identity",
+  "description": "In tui/src/event.rs SEALED_DELIVER handler, the 64-byte from prefix in the HPKE plaintext is adversary-controlled. HPKE base mode provides no sender auth. The from field must be derived from MLS process_incoming() return value, not from the unsealed prefix. Requires extending MlsClient::process_incoming to return sender leaf identity.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:14:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:43Z",
+  "closed_at": "2026-04-22T05:45:38Z",
+  "close_reason": "HPKE sealed-sender authentication fixed: removed unauthenticated 64-byte pub_id prefix from wire format; process_incoming now returns MLS-authenticated sender credential; all call sites updated; P0 stale comments fixed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 22:28:13"
+    }
+  ]
+}

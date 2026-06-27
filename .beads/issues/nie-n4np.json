@@ -1,0 +1,19 @@
+{
+  "id": "nie-n4np",
+  "title": "Review: space/contact set correctness, SimplePropPatch, SQL dedup",
+  "notes": "Maintainer risk: LOW-MEDIUM — Core correctness work (nonexistent IDs, atomicity, type validation) is solid. One P0 bug found: validate_member_patch accepts non-object member values. Otherwise the design patterns (SimplePropPatch enum, Phase 1/2 split, BUMP_STATE_SEQ_SQL constant) are well-chosen.\nConfidence: 85% no missed bugs. Uncertainty driven by: did not trace all paths through space_set create/destroy branches (only update branch). Did not check whether ChatContact/changes has the same lying-changes bug that Space/changes had before cannotCalculateChanges fix.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:42:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T17:46:19Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

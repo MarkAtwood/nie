@@ -1,0 +1,21 @@
+{
+  "id": "nie-qdcf.2",
+  "title": "ws.rs: SEALED_WHISPER consumes rate-limit quota before subscription check \u2014 unsubscribed clients can drain their rate budget",
+  "description": "In relay/src/ws.rs the SEALED_WHISPER handler checks rate-limit BEFORE checking subscription (lines ~1477-1518):\n\n  1. check_rate_limit() \u2014 consumes a token\n  2. pub_id format validation\n  3. subscription check\n\nCompare with WHISPER (lines ~1335-1459):\n\n  1. pub_id format validation\n  2. subscription check  (before rate limit)\n  3. check_rate_limit()\n\nFor SEALED_WHISPER, an unsubscribed client can repeatedly call SEALED_WHISPER (with any valid-format recipient pub_id) and burn through their rate-limit budget even though the subscription gate will always block the actual message. Once the rate-limit budget is consumed, the same client cannot perform other rate-limited operations (GET_KEY_PACKAGE, PUBLISH_KEY_PACKAGE, BROADCAST, etc.) that they ARE legitimately allowed to do without a subscription.\n\nThis is inconsistent with WHISPER (subscription checked first, no rate-limit consumed), BROADCAST (subscription checked first), GROUP_SEND (subscription checked first), and GROUP_CREATE (subscription checked first).\n\nFix: move the subscription check before check_rate_limit in SEALED_WHISPER, matching the ordering in WHISPER.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:22:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:29:06Z",
+  "closed_at": "2026-04-26T11:29:06Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:22:57"
+    }
+  ]
+}

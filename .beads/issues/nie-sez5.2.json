@@ -1,0 +1,28 @@
+{
+  "id": "nie-sez5.2",
+  "title": "No test for apply_member_patch role validation",
+  "description": "apply_member_patch is the only enforcement point preventing arbitrary role strings from being persisted in the space_members table and returned to clients. There is no test exercising the invalidArguments path for bad roles, the invalidPatch path for unknown patch paths, or the remove-member null-value path. Maintenance consequence: any extension to the patch loop that bypasses apply_member_patch, or any store refactor, can introduce invalid role values with no failing test.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:38:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:22:00Z",
+  "closed_at": "2026-04-24T02:22:00Z",
+  "close_reason": "Tests added and passing: relay/tests/e2e_jsonrpc.rs::typing_phantom_cleared_on_disconnect, daemon/src/jmap.rs::test_space_member_patch_{invalid_role,unknown_path,add_and_remove_roundtrip}",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:38:59"
+    }
+  ]
+}

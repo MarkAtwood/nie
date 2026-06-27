@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-wdw.9",
+  "title": "build_shielded_tx tests: all error paths",
+  "description": "Exhaustive error-path tests for build_shielded_tx. Every TxBuildError variant must have at least one test that:\n(a) constructs the exact triggering condition\n(b) asserts the specific variant is returned (not just 'is_err()')\n(c) does not panic under any circumstance\n\nTests:\n\n1. dust_amount_rejected\n   - amount_zatoshi = DUST_THRESHOLD - 1 \u2192 TxBuildError::DustAmount { amount, threshold }\n   - amount_zatoshi = 0 \u2192 also DustAmount\n   - amount_zatoshi = DUST_THRESHOLD exactly \u2192 Ok (boundary)\n\n2. insufficient_funds_exact\n   - total_note_value = amount + fee - 1 (one zatoshi short) \u2192 TxBuildError::InsufficientFunds { have, need }\n   - Verify have < need in the error\n\n3. no_spendable_notes\n   - Empty notes slice \u2192 TxBuildError::NoSpendableNotes\n\n4. invalid_recipient_address\n   - 'not_an_address' \u2192 TxBuildError::InvalidRecipient\n   - Empty string \u2192 TxBuildError::InvalidRecipient\n   - A mainnet address passed to a testnet builder (or vice versa) \u2192 TxBuildError::InvalidRecipient or UnsupportedAddressType\n\n5. transparent_address_rejected\n   - A valid t1... transparent address \u2192 TxBuildError::UnsupportedAddressType\n\n6. anchor_mismatch\n   - Two notes with witnesses at different block heights (different Merkle roots) \u2192 TxBuildError::AnchorMismatch\n\n7. amount_overflow\n   - amount_zatoshi = u64::MAX \u2192 TxBuildError::AmountOverflow (cannot add fee)\n\n8. corrupt_witness_data\n   - SpendableNote with witness_data = vec![0x00; 5] (too short) \u2192 TxBuildError::WitnessDeserialize\n\n9. corrupt_note_plaintext\n   - SpendableNote with note_g_d = wrong length \u2192 TxBuildError::NoteDeserialize\n\nDefensive: each test must assert the exact enum variant, not just is_err(). Use matches!() macro for variant matching.",
+  "acceptance_criteria": "each TxBuildError variant has at least one test; all tests assert exact variant; running under cargo test --workspace --release also passes (no debug-only behavior)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:49:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:32Z",
+  "closed_at": "2026-04-19T01:10:36Z",
+  "close_reason": "error-path tests for build_shielded_tx implemented and passing (134 tests total)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:51"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:42"
+    }
+  ]
+}

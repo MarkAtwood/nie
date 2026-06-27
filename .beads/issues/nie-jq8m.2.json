@@ -1,0 +1,27 @@
+{
+  "id": "nie-jq8m.2",
+  "title": "identity.rs: debug_assert_ne\\! on HPKE/Ed25519 seed equality is stripped in release builds",
+  "description": "In Identity::generate(), the invariant check 'Ed25519 and HPKE seeds must differ' is wrapped in debug_assert_ne\\!. This assertion fires in test/debug builds but is compiled out in release. If the RNG produces identical 32-byte values for both seeds (astronomically unlikely but not impossible for a broken RNG), a release build silently produces a keypair where signing and HPKE keys share material, violating the key-separation invariant stated in DESIGN.md. The fix is assert_ne\\! or an anyhow::ensure\\! that returns Err and resamples.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:19:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:33:00Z",
+  "closed_at": "2026-04-26T08:33:00Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:19:53"
+    }
+  ]
+}

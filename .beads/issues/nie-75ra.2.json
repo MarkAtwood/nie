@@ -1,0 +1,28 @@
+{
+  "id": "nie-75ra.2",
+  "title": "Atomicity gap: name written before member-patch store error",
+  "description": "Trigger: Space/set patch {\"name\":\"New\",\"members/x\":{\"role\":\"admin\"}} where upsert_space_member_with_role returns a DB error. Phase 2 writes name first (update_space_props succeeds), then apply_member_patch fails. Result: notUpdated is returned but the name change has already been persisted \u2014 RFC 8620 \u00a77.1 violated for server errors. Pre-existing issue not introduced by this commit, but the commit claims \"space_set atomicity\" without acknowledging this remaining gap. Users will observe name-changed + notUpdated and file issues. Needs acknowledgment in commit message or doc comment; proper fix requires a transaction across update_space_props + upsert_space_member_with_role.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:01:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T03:07:34Z",
+  "closed_at": "2026-04-24T03:07:34Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:01:32"
+    }
+  ]
+}

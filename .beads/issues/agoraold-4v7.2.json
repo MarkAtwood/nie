@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-4v7.2",
+  "title": "core: pad() and unpad() payload padding utilities",
+  "description": "What: Add pad() and unpad() functions to core/src/messages.rs for length-prefix bucket padding of opaque payload bytes.\n\nAlgorithm:\n1. Add pub fn pad(plaintext: &[u8]) -> anyhow::Result<Vec<u8>>:\n   a. If plaintext.len() > 4096: return Err(anyhow!(\"payload too large: {} bytes (max 4096)\", plaintext.len()))\n   b. Choose bucket: match plaintext.len() { 0..=256 => 256, 257..=512 => 512, 513..=1024 => 1024, _ => 4096 }\n   c. Encode original_len as u32 little-endian: 4 bytes\n   d. Build output: original_len_bytes (4) + plaintext (N) + zero bytes (bucket - 4 - N)\n   e. Return Ok(output)\n\n2. Add pub fn unpad(padded: &[u8]) -> anyhow::Result<Vec<u8>>:\n   a. If padded.len() < 4: return Err(anyhow!(\"padded message too short\"))\n   b. Read original_len = u32::from_le_bytes(padded[0..4]) as usize\n   c. If original_len > padded.len() - 4: return Err(anyhow!(\"length prefix {} exceeds message bounds\", original_len))\n   d. Return Ok(padded[4..4+original_len].to_vec())\n\n3. Add unit tests in #[cfg(test)] mod tests:\n   - pad_empty: pad(&[]) \u2192 256-byte output with len prefix 0x00000000 then 252 zero bytes\n   - pad_256_boundary: pad(&[0u8; 256]) \u2192 260-byte output with len 0x00010000 then 0 padding bytes \u2014 WAIT this is wrong. 256 bytes + 4 byte prefix = 260 bytes. Bucket 256 is too small. Actually bucket must hold prefix + data. So bucket should be chosen based on prefix+data size: choose smallest bucket >= 4 + plaintext.len().\n   - pad_1024_max: pad(&[1u8; 1024]) \u2192 1028 bytes? No... Let me reconsider.\n\nREVISED ALGORITHM for bucket selection:\n- total = 4 + plaintext.len()  (4 bytes for length prefix + data)\n- bucket = smallest B in {260, 516, 1028, 4100} where B >= total\n  OR simpler: choose smallest B in {256, 512, 1024, 4096} where B >= 4 + plaintext.len()\n  - This means max payload size is 4096 - 4 = 4092 bytes\n  - Reject if plaintext.len() > 4092\n\nRevised algorithm:\n1. pad(plaintext):\n   a. If plaintext.len() > 4092: Err (4092 = 4096 - 4 byte prefix)\n   b. total_needed = 4 + plaintext.len()\n   c. bucket = first B in [256, 512, 1024, 4096] where B >= total_needed\n   d. output = u32le(plaintext.len()) + plaintext + zeros(bucket - total_needed)\n   e. assert output.len() == bucket\n   f. Return Ok(output)\n\n2. unpad(padded):\n   a. if padded.len() < 4: Err\n   b. original_len = u32le(padded[0..4])\n   c. if 4 + original_len > padded.len(): Err\n   d. Return Ok(padded[4..4+original_len].to_vec())\n\nTests (oracle = manual byte computation, independent of implementation):\n- pad_empty: input = [], expected output = [0,0,0,0] + [0u8;252] (256 bytes total)\n- pad_1_byte: input = [0x42], expected = [1,0,0,0, 0x42, 0,0,...(251 zeros)] = 256 bytes\n- pad_252_bytes: input = [1u8;252], expected = [252,0,0,0] + [1u8;252] = 256 bytes (exact bucket)\n- pad_253_bytes: input = [1u8;253], expected = [253,0,0,0] + [1u8;253] + [0u8;3] = 260 bytes? No wait, 4+253=257, next bucket is 512. So 512 bytes total.\n- pad_too_large: input = [0u8;4093], expected = Err\n- unpad_roundtrip: unpad(pad(x)?) == x for x in {[], [42u8], [1u8;252], [1u8;253]}\n- unpad_too_short: unpad(&[0,0,0]) = Err\n- unpad_length_overflow: unpad(&[255,255,255,255,0,0,0,0]) = Err (claims 4GB but only 4 bytes after prefix)\n\nDefensive rules:\n- Never unwrap() in pad/unpad \u2014 all error paths return Err\n- Input is untrusted (payload bytes come from client-controlled message content)\n- Do not log the payload bytes (may contain user message content)\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-core passes; pad_empty, pad_1_byte, unpad_roundtrip, unpad_too_short tests all pass; clippy -D warnings clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T15:41:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T15:45:49Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:41:12"
+    }
+  ]
+}

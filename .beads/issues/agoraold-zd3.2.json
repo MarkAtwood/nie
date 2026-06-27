@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-zd3.2",
+  "title": "advance_diversifier_to silently ignores corrupt diversifier_index",
+  "description": "advance_diversifier_to reads diversifier_index with .and_then(|s: String| s.parse().ok()), turning a parse failure into None. A None current bypasses the monotonicity guard and overwrites with idx, even if the corrupt string encoded a value larger than idx. This violates the monotonicity invariant the function exists to protect, without any error signal to the caller. next_diversifier and get_diversifier_index both propagate parse errors with ?; the inconsistency means a corrupt DB causes silent address reuse in advance_diversifier_to but a hard failure in next_diversifier \u2014 the worst combination. Fix: propagate the parse error (use the same ? pattern as next_diversifier).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:16:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:54Z",
+  "closed_at": "2026-04-18T23:35:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:16:47"
+    }
+  ]
+}

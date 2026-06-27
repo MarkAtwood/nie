@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.23",
+  "title": "SEC0: onerror never resolves open_rx \u2014 connect hangs forever on WS failure",
+  "description": "File: wasm/src/transport.rs, lines 123-127 and 43-55. The onerror closure does not hold a clone of open_tx_cell and never sends Err(...) into the open oneshot. When a WebSocket connection fails (bad URL, TLS error, server down), the browser fires onerror followed by onclose. The onclose closure (lines 131-138) only drains the pending in-flight request map \u2014 it has no access to open_tx_cell either. Result: open_rx.await in client.rs line 29-31 blocks forever. NieRelayClient::connect() hangs with no timeout, no error, no cancellation path. Correct behavior: the onerror closure must receive a clone of open_tx_cell and send Err(String) into it when the error fires. The onclose closure should also send Err('disconnected') if the oneshot has not yet been resolved.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:37Z",
+  "closed_at": "2026-04-20T02:40:54Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:56"
+    }
+  ]
+}

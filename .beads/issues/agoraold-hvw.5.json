@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-hvw.5",
+  "title": "Relay: payment watcher Tokio task",
+  "description": "Background Tokio task in the relay that scans Zcash compact blocks for subscription payments and calls set_subscription() on confirmed payment.\n\nWhat: new file relay/src/payment_watcher.rs; spawned from main.rs after relay starts.\n\nAlgorithm:\n1. pub fn spawn_payment_watcher(state: AppState, lightwalletd_url: String) -> JoinHandle<()>\n   - Returns early (no-op) if state.inner.merchant is None.\n2. Extract merchant IVK bytes from dfvk: dfvk.ivk_bytes() -> [u8;32].\n   - NEVER log these bytes.\n3. Create SaplingIvkDecryptor::new(&ivk_bytes).expect('merchant IVK must be valid').\n4. Connect LightwalletdClient::connect(&lightwalletd_url).await.\n5. Create CompactBlockScanner::new(lwd_client, merchant_wallet_store, Box::new(decryptor)).\n6. Call scanner.load_state().await \u2014 required before scan_to_tip().\n7. Loop forever with tokio::time::interval(Duration::from_secs(30)):\n   a. Call scanner.scan_to_tip().await \u2014 scan until tip reached.\n   b. For each new note discovered (scanner stores them; query wallet_store.unspent_notes() after scan):\n      - Reconstruct the payment address from note.note_diversifier + note.note_pk_d (see note below).\n      - Look up state.inner.store.get_invoice_by_address(&address_string).await.\n      - If None: note is not for a subscription invoice \u2014 skip.\n      - If Some(invoice): check note.value_zatoshi >= invoice.amount_zatoshi (reject under-payment).\n      - Check confirmation depth: scanner returns current tip; note.block_height must be <= tip - 10.\n      - If all checks pass: call state.inner.store.set_subscription(&invoice.pub_id, Utc::now() + 30 days).\n      - Call state.inner.store.delete_invoice(&invoice.address).\n      - Call wallet_store.mark_note_spent(note_id, 'subscription').await (prevents re-processing).\n      - Send subscription_active notification to live client: state.deliver_live(&invoice.pub_id, ...).\n   c. Call state.inner.store.purge_expired_invoices().await periodically (every 5 minutes).\n8. On scanner error: log warn!, sleep 30s, reconnect and retry.\n\nNote on address reconstruction from note:\n- note.note_diversifier is Option<Vec<u8>> (11 bytes); note.note_pk_d is Option<Vec<u8>> (32 bytes).\n- A PaymentAddress can be reconstructed via sapling::PaymentAddress::from_parts(diversifier, pk_d).\n- Encode as UA string using the same sapling_address_as_testnet_ua pattern from wallet/tests/e2e_testnet.rs.\n- If note_diversifier or note_pk_d is None, skip the note (incomplete decryption).\n\nDefensive rules:\n- IVK bytes must NEVER appear in log output.\n- Confirmation depth check must use current tip from scanner, not a stale value.\n- set_subscription() must only be called after amount AND confirmations checks pass.\n- On panic inside the watcher task, log error and restart (use loop + catch_unwind or tokio::spawn with restart logic).\n- The watcher owns its WalletStore handle; do not share with relay's request handlers.\n\nTests:\n- Unit: given a mock store with an invoice and a matching note, confirm set_subscription is called.\n- Unit: under-paid note does not trigger set_subscription.\n- Unit: note with insufficient confirmations does not trigger set_subscription.\n(Tests can mock the store \u2014 the payment watcher logic is pure enough to test without a real scanner.)",
+  "acceptance_criteria": "cargo build -p nie-relay passes; relay starts watcher task without panicking",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:53:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T06:13:33Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:34"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:34"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:53:18"
+    }
+  ]
+}

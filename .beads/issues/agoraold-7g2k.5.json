@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-7g2k.5",
+  "title": "SEC6: make_did_key/validate_did_key separation preserves auditability",
+  "description": "make_did_key() [identity.rs:152-157] is pure encoding; validate_did_key() [identity.rs:166-190] is pure validation. Separation allows each to be tested and audited independently. Encoding logic is deterministic (verified by test_make_did_key_deterministic), validation is strict. This split makes it impossible for validation to accidentally accept invalid formats or for encoding to produce non-canonical output.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:15:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:03Z",
+  "closed_at": "2026-04-23T00:22:54Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:52"
+    }
+  ]
+}

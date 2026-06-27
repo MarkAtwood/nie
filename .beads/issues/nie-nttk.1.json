@@ -1,0 +1,21 @@
+{
+  "id": "nie-nttk.1",
+  "title": "tx_builder: DUST_THRESHOLD check is < not <=; amount==fee sends 0 to recipient",
+  "description": "In tx_builder.rs line 293:\n\n  if amount_zatoshi < DUST_THRESHOLD {  // DUST_THRESHOLD = 10_000\n\nThis allows amount_zatoshi == 10_000 through. The ZIP-317 minimum conventional fee for a 1-spend-2-output tx is exactly 10_000 zatoshi (grace floor). So sending exactly DUST_THRESHOLD means:\n  change = input - 10_000 (amount) - 10_000 (fee) = input - 20_000\n  recipient gets 10_000 zatoshi but pays 10_000 fee net cost to sender.\n\nThe comment on line 292 says 'sending <= 10 000 zatoshi means the fee meets or exceeds the amount' -- so the intent is to block amount <= fee (i.e. <= DUST_THRESHOLD). The code should use <= not <.\n\nThe test at line 1134 tests DUST_THRESHOLD - 1 but does NOT test amount == DUST_THRESHOLD, so this boundary case is untested.\n\nImpact: users can send a payment where 100% of the amount is consumed by the fee and the recipient receives exactly the dust floor -- an economically irrational transaction that the dust check was intended to prevent.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:39:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:50:05Z",
+  "closed_at": "2026-04-26T10:50:05Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:39:51"
+    }
+  ]
+}

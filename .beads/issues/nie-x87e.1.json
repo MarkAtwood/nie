@@ -1,0 +1,21 @@
+{
+  "id": "nie-x87e.1",
+  "title": "RPC calls lack per-call timeout after connect",
+  "description": "wallet/src/client.rs: connect() now has a 15s tokio::time::timeout wrapping the full DNS+TCP+TLS handshake. However, latest_height(), get_block_range(), and broadcast_tx() have no per-call timeout. After a successful connect, if the lightwalletd server becomes unresponsive mid-session (no data, no RST, just silence), any of these RPCs can block indefinitely.\n\nConcretely:\n- scan_to_tip() calls get_block_range() which returns a tonic::Streaming; iterating .message().await in the scanner loop has no timeout.\n- latest_height() called in the mine-wait loop in e2e_testnet.rs is protected by the outer tokio::time::timeout, but a caller in production scan code is not.\n- broadcast_tx() in production has no wall-clock bound; a stalled broadcast blocks the payment path with no recovery.\n\nThe timeout gap means connect() hardening (the recent change) is incomplete: it prevents connection-phase hangs but not post-connection hangs.\n\nFix: add a per-RPC timeout constant (e.g. 30s) and wrap each self.inner.* .await with tokio::time::timeout. Alternatively, set a tonic channel-level keep-alive (http2_keep_alive_interval + http2_keep_alive_timeout) on the Endpoint before connecting \u2014 this causes the OS to detect dead connections within a bounded time and return an error to the gRPC layer.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:16:15Z",
+  "closed_at": "2026-04-20T05:16:15Z",
+  "close_reason": "E2E test paths are all bounded by outer timeouts (MINE_WAIT_SECS, BOB_SCAN_SECS). Production per-call RPC timeout is a pre-existing architecture concern \u2014 filed as standalone issue nie-xyza for tracking.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:06"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-bwaa.8",
+  "title": "No WakeLock: relay service killed in Doze mode",
+  "description": "NieForegroundService holds no WakeLock. On Android 6+, Doze mode aggressively kills background work including foreground services under certain power states. The WebSocket connection will be silently closed by the OS and the app will not detect it until the next I/O attempt \u2014 users see the foreground notification saying 'connected' while actually disconnected. Fix: acquire a PARTIAL_WAKE_LOCK in onCreate() and release in onDestroy(). Requires WAKE_LOCK permission in AndroidManifest.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:48:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:59:34Z",
+  "closed_at": "2026-04-23T23:59:34Z",
+  "close_reason": "added PARTIAL_WAKE_LOCK acquired in onCreate/released in onDestroy; added WAKE_LOCK permission to manifest",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:48:11"
+    }
+  ]
+}

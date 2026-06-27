@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.15",
+  "title": "payment_watcher scan_block does not persist tip after stream exhaustion: tip advances but scan_height lags",
+  "description": "payment_watcher.rs run_watcher_loop: set_payment_scan_tip() is called inside the block processing loop (line 178), once per block. But if the inner block stream errors mid-range (Err branch at line 165), we break out of the block loop without persisting the tip for partially-scanned blocks. The outer loop then breaks too (line 193). On reconnect, last_scanned_height in memory is correct but the persisted DB tip may lag by up to (scan_end - scan_start) blocks. On process restart, the watcher re-scans those blocks. This is idempotent (activate_subscription_atomic is idempotent) but causes redundant DB load after every crash.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:44:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:24:58Z",
+  "closed_at": "2026-04-26T06:24:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:44:07"
+    }
+  ]
+}

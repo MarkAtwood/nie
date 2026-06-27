@@ -1,0 +1,24 @@
+{
+  "id": "nie-felh.7",
+  "title": "Extract payment_action_overlay_text helper",
+  "description": "Lines 626-668 in decrypt_and_display contain a nested match over PaymentAction variants, each generating an overlay notification string. This 42-line pattern:\n- Mixes message formatting with state updates\n- Makes it hard to test message text independently\n- Complicates i18n or localization changes\n\nExtract: fn payment_action_overlay_text(action: &PaymentAction, from_name: &str) -> String\n\nThis will:\n- Separate formatting from side effects\n- Allow testing message text without full event handler\n- Make it easier to add i18n later\n- Keep decrypt_and_display focused on MLS/JSON handling",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T04:36:50Z",
+  "closed_at": "2026-04-20T04:36:50Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:59:53"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "nie-f94l",
+  "title": "nie-jmap: JMAP bridge",
+  "description": "Bridge nie rooms to JMAP-based mail/messaging servers. A bridge bot authenticates to a JMAP server, relays messages bidirectionally between nie MLS-encrypted rooms and JMAP mailboxes or threads. Users on either side can participate without adopting the same client.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-20T17:45:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T15:52:12Z",
+  "closed_at": "2026-04-22T15:52:12Z",
+  "close_reason": "bridge-jmap crate complete: JMAP Email/query/get/set client, polling loop, 14 tests pass"
+}

@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-hhmj.9",
+  "title": "READABILITY: Clarify pre-auth frame handling error cases",
+  "description": "relay/src/ws.rs:64-77 \u2014 The frame matching in the pre-auth phase catches Message::Text separately, then uses a catch-all for all other cases (binary, close, etc.). The catch-all sends INVALID_REQUEST, but it's not obvious why non-text frames are invalid at this point \u2014 it's the auth phase, so only text JSON-RPC requests make sense. A reader unfamiliar with WebSocket framing might wonder: why not just ignore binary/ping/pong as we do in the main loop? Fix: add a comment explaining that pre-auth phase must have JSON-RPC request in text form; other frame types are protocol violations at this point.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:05Z",
+  "closed_at": "2026-04-19T18:24:18Z",
+  "close_reason": "P4 readability/comment items. Not blocking correctness. Deferred \u2014 file separately if prioritized.",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:40"
+    }
+  ]
+}

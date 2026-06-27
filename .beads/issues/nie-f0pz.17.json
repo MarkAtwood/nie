@@ -1,0 +1,24 @@
+{
+  "id": "nie-f0pz.17",
+  "title": "jmap.rs: not_created/not_destroyed inline tracing::error + json in single expression is hard to read",
+  "description": "Multiple places in space_set and message_set use the pattern: { tracing::error!(\"database error: {e}\"); serde_json::json!({\"type\":\"serverFail\",...}) } as an inline block expression. This is syntactically valid Rust but visually surprising \u2014 the tracing call appears to be part of a value expression. The pattern should be factored out into db_error(e) (which already exists and does exactly this) or at minimum formatted as a let-block. The current style makes code review harder because the tracing call is hidden inside what appears to be a json! macro argument.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:29:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:29:16Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:29:15"
+    }
+  ]
+}

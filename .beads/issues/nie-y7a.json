@@ -1,0 +1,21 @@
+{
+  "id": "nie-y7a",
+  "title": "Client: Outbox with retry on reconnect",
+  "description": "If the relay is unreachable when the user sends, the message is lost. No retry, no buffering.\\n\\nRequired:\\n- Outbox table in local SQLite: (id, to, payload, created_at, sent_at nullable)\\n- On send: write to outbox first, then attempt relay delivery\\n- On connect: drain outbox and attempt relay delivery for unsent rows\\n- On SendAck: mark outbox row as sent\\n- Prune sent rows older than 7 days\\n- Show pending count in chat prompt: '(3 pending) > '",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T07:11:39Z",
+  "closed_at": "2026-04-16T07:11:39Z",
+  "close_reason": "outbox references SendAck which was removed in broadcast redesign. Broadcast model has no per-message acks. Local outbox needs a fresh design once MLS and at-least-once semantics are defined.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 22:51:30"
+    }
+  ]
+}

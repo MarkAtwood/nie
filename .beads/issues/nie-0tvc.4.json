@@ -1,0 +1,33 @@
+{
+  "id": "nie-0tvc.4",
+  "title": "nie-daemon relay connector: connect_with_retry + event dispatch loop",
+  "description": "**What:** Load identity from encrypted keyfile, connect to relay via connect_with_retry(), and run a background tokio task that converts ClientEvents to DaemonEvents and broadcasts them.\n\n**Algorithm:**\n1. Create daemon/src/relay.rs:\n   - pub async fn start_relay_connector(keyfile: &str, relay_url: &str, insecure: bool, proxy: Option<String>, data_dir: &Path, state: DaemonState) -> Result<()>:\n     a. Load identity: read keyfile bytes (64B), construct Identity::from_secret_bytes(); never log identity\n     b. Publish HPKE key: build JsonRpcRequest for PUBLISH_HPKE_KEY with identity.hpke_pub_key_bytes()\n     c. Call transport::connect_with_retry(relay_url.to_string(), identity, insecure, proxy) \u2192 RelayConnRetry\n     d. Store relay_tx in state via DaemonState::set_relay_tx()\n     e. tokio::spawn(relay_event_loop(conn.rx, state, relay_url.to_string()))\n     f. Return Ok(()) (background task runs independently)\n   - async fn relay_event_loop(mut rx: mpsc::Receiver<ClientEvent>, state: DaemonState, relay_url: String):\n     a. Loop: let Some(event) = rx.recv().await else { state.broadcast_event(ConnectionStateChanged{status:'disconnected',...}); return; }\n     b. Match event:\n        - Reconnecting{delay_secs} \u2192 broadcast ConnectionStateChanged{status:'reconnecting', relay_url, timestamp}\n        - Reconnected \u2192 broadcast ConnectionStateChanged{status:'connected',...}; republish HPKE key\n        - Message(notif) \u2192 dispatch_relay_notification(notif, &state).await\n        - Response(_) \u2192 trace!('relay response received')  // ignore in event loop\n2. Create daemon/src/relay_dispatch.rs (or inline in relay.rs):\n   - async fn dispatch_relay_notification(notif: JsonRpcNotification, state: &DaemonState):\n     - match notif.method.as_str():\n       - BROADCAST/DELIVER: parse DeliverParams from notif.params; base64-decode payload; deserialize as ClearMessage; match ClearMessage::Chat{text} \u2192 broadcast MessageReceived{from, from_display_name: display_name_for(from, state), text, timestamp, message_id}; other variants \u2192 debug!\n       - DIRECTORY_LIST: parse DirectoryListParams; build online/offline UserInfo vecs; update state.update_directory(); broadcast DirectoryUpdated\n       - USER_JOINED: parse UserJoinedParams; insert into online at partition_point by sequence; broadcast UserJoined\n       - USER_LEFT: parse UserLeftParams; remove from online; broadcast UserLeft\n       - SEALED_DELIVER/SEALED_BROADCAST: decrypt with identity HPKE secret; extract first 64 bytes as from_pub_id (ASCII hex); deserialize remaining as ClearMessage; broadcast MessageReceived\n       - _ \u2192 debug!('unknown relay method: {}', notif.method)\n3. Add helper fn display_name_for(pub_id: &str, state: &DaemonState) -> String: check state nicknames map, fallback to pub_id[..8].to_string() + '\u2026'\n4. Wire start_relay_connector into main.rs after server state setup\n\n**Defensive programming rules:**\n- Never log identity.secret_bytes() or hpke_secret_bytes() \u2014 only log identity.pub_id()\n- DELIVER payload deserialization failure: warn!('failed to deserialize payload') + continue, never crash\n- USER_JOINED insert: use Vec::partition_point to maintain ascending sequence order (invariant for MLS admin election)\n- rx.recv() returning None is clean shutdown, not an error\n- SEALED_DELIVER payload shorter than 64 bytes: warn! and skip, never panic\n\n**Agent team:** Researcher (reads cli/src/commands.rs relay event dispatch loop + transport.rs) + Implementer + Validator.\n\n**Tests (oracle: serde_json output for ClearMessage tag is 'chat'):**\n- test_dispatch_broadcast: build mock BROADCAST notification with Chat payload; call dispatch; verify MessageReceived event broadcast\n- test_dispatch_directory_list: build mock DIRECTORY_LIST; verify state.directory updated and DirectoryUpdated broadcast\n- test_dispatch_user_joined_sorted: two UserJoined events with seq 5 then 3; verify online[0].sequence==3 (partition_point insertion)\n- test_dispatch_unknown_method: unknown method \u2192 no event broadcast, no panic",
+  "acceptance_criteria": "cargo test -p nie-daemon passes including relay dispatch tests; cargo clippy -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:39:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:48:57Z",
+  "close_reason": "relay connector implemented with event dispatch loop; tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:40:59"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:00"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:39:17"
+    }
+  ]
+}

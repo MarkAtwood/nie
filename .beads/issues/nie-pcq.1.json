@@ -1,0 +1,27 @@
+{
+  "id": "nie-pcq.1",
+  "title": "payer Sent state missing from retransmit_in_flight_payments",
+  "description": "retransmit_in_flight_payments() resends pending PaymentActions on reconnect, but skips payer sessions in Sent state. Trigger: payer broadcasts tx, transitions to Sent, persists to DB, then send_payment_message() fails (channel closed mid-send or disconnect). On reconnect the payer resumes in Sent state; retransmit has no arm for (Payer, Sent), so the PaymentAction::Sent message is never re-broadcast to the payee. Payee waits in AddressProvided indefinitely with no feedback, session times out 24 h later. The payer has a confirmed tx hash but no payee acknowledgment. Recovery requires manual session inspection.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:37:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:43:50Z",
+  "closed_at": "2026-04-19T06:43:50Z",
+  "close_reason": "false positive: (Payer, Sent) arm already exists in resync_sessions() at line 1546-1557; subagent invented a function name that doesn't exist",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:37:02"
+    }
+  ]
+}

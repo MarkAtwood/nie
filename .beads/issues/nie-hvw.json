@@ -1,0 +1,22 @@
+{
+  "id": "nie-hvw",
+  "title": "Phase 3: Relay subscription payments",
+  "description": "Monetize relay access via Zcash subscription payments. Wyoming LLC operator posture: we sell relay access, we cannot read messages.\\n\\nRequired:\\n- Payment watcher daemon: poll lightwalletd for incoming transactions to relay's merchant wallet\\n- Per-invoice address generation: each user gets a unique shielded address for their subscription\\n- Invoice TTL: invoices expire after 24h if unpaid, removed from DB\\n- Wire SubscribeRequest / SubscribeInvoice / SubscriptionActive relay messages\\n- set_subscription() already exists in Store \u2014 wire it to payment confirmations\\n- Alternative path: BTCPay Server integration (avoids implementing wallet logic in-house)\\n\\nDecision needed before implementation: own wallet vs BTCPay Server.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T06:28:11Z",
+  "close_reason": "all steps complete",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 22:51:31"
+    }
+  ]
+}

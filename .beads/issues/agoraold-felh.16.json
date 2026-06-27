@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-felh.16",
+  "title": "Extract scroll_page_size constant and unify scroll calculations",
+  "description": "Scroll calculations appear in multiple places with inconsistent logic:\n\n1. draw_chat (ui.rs:83-89) computes visible height from area\n2. handle_key (event.rs:700-708) hardcodes page size as terminal_height.saturating_sub(6)\n\nThe magic number 6 represents input box (3 lines) + status bar (1 line) + padding.\n\nIssues:\n- If layout changes, both calculations may diverge\n- PageUp/PageDown amount may not match visible scroll area\n- No single source of truth for layout dimensions\n\nSolution:\n- Define const SCROLL_PAGE_SIZE_ADJUSTMENT: u16 = 6;  // input 3 + status 1 + margin 2\n- Or better: pass actual visible area height from draw() to handle_key via AppState\n\nThis ensures:\n- Scroll amount matches render area exactly\n- Single source of layout truth\n- Easier to adjust spacing",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:45Z",
+  "closed_at": "2026-04-20T04:37:05Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:30"
+    }
+  ]
+}

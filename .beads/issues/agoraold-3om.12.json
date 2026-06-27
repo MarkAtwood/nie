@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-3om.12",
+  "title": "TxBuildError::NoSpendableNotes message says 'received notes but none decrypted' \u2014 misleading",
+  "description": "tx_error.rs NoSpendableNotes Display says 'wallet has received notes but none have been decrypted; wait for the scanner to catch up'. In send_payment, this error is also returned when all_notes.is_empty() \u2014 the wallet may genuinely have no notes at all (fresh wallet, no incoming transactions). The message implies notes exist but are undecrypted, which is wrong for a fresh wallet. A user with a brand-new wallet who tries to send ZEC will see this message and be told to 'wait for the scanner to catch up' when the real issue is they have no ZEC at all. What would make it clear: split into two errors \u2014 NoNotes (no transactions received) and NotYetDecrypted (notes exist but scanner hasn't decrypted them) \u2014 or make the check in send_payment distinguish the two cases before returning NoSpendableNotes.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:55:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:09Z",
+  "closed_at": "2026-04-19T04:10:40Z",
+  "close_reason": "Fixed: NoSpendableNotes message now covers both cases: 'wallet has no received notes, or received notes have not been decrypted yet'.",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:55:45"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-83e.1",
+  "title": "select_with_fee: 2-pass convergence fails when pass-2 selects more notes than pass-1",
+  "description": "Amount=40000, notes=[20000,20000,10000,10000]: pass1 selects 3 notes at fee=10000 (need=50000), then fee2=15000, pass2 selects 4 notes at fee2=15000 (need=55000). Returns (4 notes, fee=15000). Builder computes zip317_fee(max(4,2))=20000 and checks 60000\u226040000+5000+20000=65000 \u2192 builder error. The user has enough ZEC but gets a confusing BuilderError instead of a clean send.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T00:48:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:38Z",
+  "closed_at": "2026-04-19T00:58:19Z",
+  "close_reason": "select_with_fee replaced 2-pass with convergence loop; fee re-computed from actual selected.len() each iteration until stable",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 17:48:14"
+    }
+  ]
+}

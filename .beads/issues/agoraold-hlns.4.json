@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-hlns.4",
+  "title": "nie-hlns W1C: CLI update to JSON-RPC",
+  "description": "## What\nUpdate cli/src/commands.rs to use the new transport API (RelayConn.tx: Sender<JsonRpcRequest>, ClientEvent::Message(JsonRpcNotification)). Update all 13 send sites and all 10 match arms.\n\n## Algorithm\n1. Update all 13 tx.send() sites. Pattern for each:\n   - Generate method string from rpc_methods:: constant\n   - Serialize typed param struct to serde_json::Value via serde_json::to_value()\n   - Create JsonRpcRequest { version:\"2.0\".into(), id: next_id(), method: ..., params: Some(value) }\n   - tx.send(request).await (fire-and-forget; no need to await response for broadcast/whisper/set_nickname)\n   - For requests where the CLI needs the response (none in Phase 1 \u2014 all are fire-and-forget): use a separate mechanism\n   Specific sends:\n   - PublishKeyPackage (\u00d72): BroadcastParams \u2192 PUBLISH_KEY_PACKAGE request\n   - SetNickname (\u00d71): SetNicknameParams \u2192 SET_NICKNAME request\n   - Broadcast (\u00d7multiple): BroadcastParams with encrypted payload \u2192 BROADCAST request\n   - GetKeyPackage (\u00d71): GetKeyPackageParams \u2192 GET_KEY_PACKAGE request\n   - Whisper (\u00d71): WhisperParams \u2192 WHISPER request\n2. Update all 10 match arms on ClientEvent::Message(notification):\n   Each arm now: ClientEvent::Message(ref notif) if notif.method == METHOD_CONSTANT\n   Extract fields from notif.params using serde_json::from_value::<TypedParamStruct>(params.clone())?\n   Specific arms:\n   - DIRECTORY_LIST: from_value::<DirectoryListParams>() \u2192 rebuild online/offline lists\n   - USER_JOINED: from_value::<UserJoinedParams>() \u2192 insert at partition_point by sequence\n   - USER_LEFT: from_value::<UserLeftParams>() \u2192 remove from online\n   - KEY_PACKAGE_READY: from_value::<KeyPackageReadyParams>() \u2192 admin fetches\n   - KEY_PACKAGE_RESPONSE: from_value::<GetKeyPackageResult>() \u2192 admin creates commit\n   - WHISPER_DELIVER: from_value::<WhisperDeliverParams>() \u2192 non-admin receives Welcome\n   - DELIVER: from_value::<DeliverParams>() \u2192 decrypt, display\n   - USER_NICKNAME: from_value::<UserNicknameParams>() \u2192 update nickname cache\n   - error responses: match on notification.method (relay sends errors differently now)\n3. Add simple ID counter to chat() function:\n   let mut request_id: u64 = 0;\n   let next_id = || { request_id += 1; request_id };\n4. Handle KEY_PACKAGE_RESPONSE: in JSON-RPC this is a response to a GET_KEY_PACKAGE request, not a notification. Transport delivers it as ClientEvent::Message because the relay broadcasts it via deliver_live. Verify this is consistent.\n   NOTE: GET_KEY_PACKAGE response is sent back to the requesting client via deliver_live in relay/ws.rs (it's not a broadcast). The transport should handle this correctly since the relay sends a JsonRpcResponse with the request id; the transport routes it to the pending oneshot.\n   DECISION: The CLI needs to await the GetKeyPackage response. Use a oneshot pattern: send GET_KEY_PACKAGE request via a separate mechanism that waits for the JsonRpcResponse.\n   Implementation: Add a helper to RelayConn: pub async fn send_request_await(&self, req: JsonRpcRequest) -> Result<JsonRpcResponse>\n   Use this for GetKeyPackage in CLI.\n\n## Defensive programming rules\n- Never pass 'from' in Broadcast or Whisper params (relay ignores it, but don't confuse future readers)\n- Handle from_value() failures gracefully: warn! and continue (don't crash chat on unknown notification)\n- request_id counter is per-connection; reset on reconnect\n- All match arms must be exhaustive; add a catch-all that warns on unknown methods\n\n## Agent team: Standard (R + I + T)\n- R: Read cli/src/commands.rs lines 420\u2013900 and 1020\u20131800; document every send site and match arm\n- I: Implement the 13 send site updates and 10 match arm updates\n- T: Write integration tests that verify DIRECTORY_LIST, USER_JOINED, DELIVER arms parse correctly from realistic JsonRpcNotification structs\n\n## Tests\n- parse_directory_list_params: construct JsonRpcNotification with method='directory_list', realistic params \u2192 verify parsed correctly\n- parse_deliver_params_binary: notification with binary payload (base64) \u2192 payload bytes match original\n- send_broadcast_request_has_no_from_field: verify serialized JsonRpcRequest for broadcast does not include 'from' in params\n- unknown_notification_does_not_crash: send notification with unknown method \u2192 warn! but chat continues",
+  "acceptance_criteria": "cargo build -p nie-cli passes; all 13 send sites use JsonRpcRequest; all 10 match arms use JsonRpcNotification; no RelayMessage references in cli/src/commands.rs; clippy clean",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T17:43:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:01:28Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:43:40"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:39"
+    }
+  ]
+}

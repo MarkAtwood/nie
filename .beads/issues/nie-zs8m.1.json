@@ -1,0 +1,27 @@
+{
+  "id": "nie-zs8m.1",
+  "title": "space_role_all_is_complete test gives false compiler-enforcement guarantee",
+  "description": "store.rs test comment claims 'The exhaustive match below fails to compile if a new variant is added without updating this test' \u2014 but the code is an array literal, not a match expression. Adding a new SpaceRole variant (e.g. SpaceRole::Owner) compiles fine without touching the test array. If a developer adds a variant, updates parse/as_str (forced by exhaustive match arms), but forgets all() AND the test array, the test still passes. The test only catches stale all() when the developer also manually updates the test array \u2014 which is exactly as hard as updating all() directly. Fix: replace the array literal with an exhaustive match expression so the compiler rejects unhandled variants; or remove the false comment and document the limitation honestly.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:26:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:33:58Z",
+  "closed_at": "2026-04-24T17:33:58Z",
+  "close_reason": "Fixed in store.rs: panic for precondition, exhaustive-match test, SELECT 1 for existence check; decision records filed",
+  "labels": [
+    "correctness",
+    "maintainer-burden",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:26:19"
+    }
+  ]
+}

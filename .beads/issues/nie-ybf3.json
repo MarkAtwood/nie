@@ -1,0 +1,27 @@
+{
+  "id": "nie-ybf3",
+  "title": "Auto-add authenticated users as SpaceMembers",
+  "description": "When a user authenticates with the relay (user_joined event), auto-add them as a SpaceMember of the default Space with @everyone role if not already present. When user_left fires, update presence but do NOT remove membership \u2014 directory is persistent. This means Space.members reflects every user who has ever connected, matching nie's existing directory semantics.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T21:14:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T21:47:24Z",
+  "closed_at": "2026-04-23T21:47:24Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 14:14:21"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 14:14:22"
+    }
+  ]
+}

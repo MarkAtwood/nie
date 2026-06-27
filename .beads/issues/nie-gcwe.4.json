@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.4",
+  "title": "PERF: double-parse in parse_incoming hot path",
+  "description": "parse_incoming() (transport.rs:606) deserializes every incoming text frame twice: first as serde_json::Value to inspect for 'id'/'method' fields, then as JsonRpcNotification or JsonRpcResponse via from_value(). This allocates an intermediate Value on every message.\n\nA single-pass fix: deserialize into a thin envelope struct with optional 'id', 'method', and 'params'/'result'/'error' fields as raw serde_json::Value, then branch on field presence. Alternatively, use serde_json::from_str with a #[serde(untagged)] enum.\n\nIn practice: at human typing speed this is never measurable. At stress-test throughput (hundreds of messages/sec per client) the intermediate Value allocation would show up in a profiler. Filing for completeness; fix only if profiling confirms it matters.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:36:36Z",
+  "closed_at": "2026-04-19T19:36:36Z",
+  "close_reason": "Pre-existing two-pass parse in parse_incoming predates the proxy feature; perf is negligible at human chat speed. Deferred as separate task if ever needed.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:34"
+    }
+  ]
+}

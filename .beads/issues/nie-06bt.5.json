@@ -1,0 +1,27 @@
+{
+  "id": "nie-06bt.5",
+  "title": "store.rs precondition doc cross-references validate_member_patch by name",
+  "description": "store.rs upsert_space_member_with_role doc says 'See validate_member_patch in jmap.rs'. If that function is renamed or the validation moves, the store doc becomes silently wrong \u2014 a contributor reading the store in isolation would follow a dead pointer. The store should document its own precondition inline ('role must be one of admin/moderator/member') without referencing a specific function in another module. Fix: replace the cross-reference sentence with an inline statement of the invariant.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:55:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:10:15Z",
+  "closed_at": "2026-04-24T04:10:15Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:55:06"
+    }
+  ]
+}

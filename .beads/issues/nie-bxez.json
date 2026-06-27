@@ -1,0 +1,14 @@
+{
+  "id": "nie-bxez",
+  "title": "fix: max_age_secs as i64 narrowing cast",
+  "description": "wallet/src/db.rs expire_sessions_older_than casts u64 max_age_secs to i64 with a silent as-cast. Values above i64::MAX (~292 years) wrap to negative, immediately expiring all sessions. Fix: i64::try_from(max_age_secs).unwrap_or(i64::MAX).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:34:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:37:18Z",
+  "closed_at": "2026-04-24T21:37:18Z",
+  "close_reason": "Closed"
+}

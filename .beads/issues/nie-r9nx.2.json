@@ -1,0 +1,21 @@
+{
+  "id": "nie-r9nx.2",
+  "title": "payment_watcher: scan_tip advances past blocks where activate_subscription fails",
+  "description": "relay/src/payment_watcher.rs scan_block() swallows activate_subscription failures: warn + continue. After scan_block() returns, last_scanned_height is unconditionally set to block.height and persisted. On restart, scanning resumes from the persisted tip, skipping the block where the payment was seen but activation failed. If the invoice is still present in the DB (not yet purged), it will be found again if the same block is rescanned \u2014 but because last_scanned_height was already advanced past that block, the block is never rescanned. If purge_expired_invoices then deletes the invoice before a manual recovery, the confirmed payment is permanently lost with no subscription granted. The fix is to either (a) not advance the scan tip when activate_subscription fails, or (b) record the failed activation for retry before advancing. Currently there is no retry path.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:04:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:16:09Z",
+  "closed_at": "2026-04-26T11:16:09Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:04:58"
+    }
+  ]
+}

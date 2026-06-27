@@ -1,0 +1,26 @@
+{
+  "id": "nie-lflg.2",
+  "title": "PeerTyping.chat_id and PeerRetract.message_id unbounded",
+  "description": "PeerTyping.chat_id and PeerRetract.message_id are bare String fields with no serde deserialization bound. PeerReceipt.at and PeerDeliver.*_id fields are correctly guarded by deserialize_bounded_id, but these two variants missed the same treatment. Trigger: craft a PeerTyping or PeerRetract message with a multi-MiB chat_id or message_id. Bad outcome: unbounded heap allocation before any application-layer check runs.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:17:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:02:13Z",
+  "closed_at": "2026-04-25T07:02:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:17:57"
+    }
+  ]
+}

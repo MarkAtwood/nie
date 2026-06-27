@@ -1,0 +1,26 @@
+{
+  "id": "nie-wgk8.3",
+  "title": "space invite code never consumed \u2014 unlimited redemptions",
+  "description": "daemon/src/store.rs:1163-1244: use_space_invite_code adds the member to space_member and COMMITs, but never deletes the invite row from space_invite. An invite code meant to be single-use can be redeemed by unlimited distinct users. Each new user gets added (AlreadyMember prevents double-adding the same user, but new users are added freely). Fix: DELETE FROM space_invite WHERE code = ? inside the transaction before COMMIT, or add a uses_remaining column if multi-use invites are intended.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:19:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:35:53Z",
+  "closed_at": "2026-04-26T10:35:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:19:17"
+    }
+  ]
+}

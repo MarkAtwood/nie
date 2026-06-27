@@ -1,0 +1,27 @@
+{
+  "id": "nie-phy.5",
+  "title": "scanner.rs doc comment: 'zie nie-m91' should be 'see nie-m91'",
+  "description": "What is unclear and for whom: scanner.rs line 10 reads 'zie nie-m91'. 'zie' is Dutch for 'see'; a GitHub contributor who finds this will not know if it is a typo, a Dutch reference, or a sigil with special meaning. The rest of the codebase uses 'see' for cross-references. Fix: change 'zie' to 'see'.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:12:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T17:31:08Z",
+  "closed_at": "2026-04-18T17:31:08Z",
+  "close_reason": "Fixed: 'zie nie-m91' \u2192 'see nie-m91' in scanner.rs module doc",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:12:12"
+    }
+  ]
+}

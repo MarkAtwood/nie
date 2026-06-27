@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-4iod.6",
+  "title": "bot: payment amount_zatoshi parsing silently truncates non-numeric input",
+  "description": "In dispatcher.rs line 58, amount.trim().parse().unwrap_or(0) silently converts any non-numeric string to 0. A PaymentRequest with amount=\"0.1 ZEC\" is interpreted as 0 zatoshi. Per CLAUDE.md section 2, missing error paths that silently swallow failures are bugs. Correct behavior: reject non-parseable amounts with a debug log and return None or emit an error event.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:37Z",
+  "closed_at": "2026-04-20T01:21:07Z",
+  "close_reason": "duplicate of nie-4iod.25",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:15"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.12",
+  "title": "wasm: JS JSON.parse failure for event silently delivers JsValue::NULL to callback",
+  "description": "In client.rs set_event_callback (line 242-250), if js_sys::JSON::parse fails, the code falls back to JsValue::NULL and calls js_cb.call1(&JsValue::NULL, &JsValue::NULL). The JS callback receives null instead of an event object. A callback that reads event.type will throw a TypeError (cannot read property 'type' of null), which is caught by the if let Err(err) = js_cb.call1(...) on line 251 and logged to console.error \u2014 but the error message says nothing useful about which event was lost. This silently drops relay events with no indication to the caller. If JSON.parse can fail on well-formed serde_json output, it indicates a bug elsewhere; if it can't, the fallback is dead code. Either document that the fallback is unreachable, or propagate a typed error instead of NULL.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:29:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:47:14Z",
+  "closed_at": "2026-04-26T05:47:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:29:49"
+    }
+  ]
+}

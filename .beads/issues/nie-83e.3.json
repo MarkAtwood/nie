@@ -1,0 +1,27 @@
+{
+  "id": "nie-83e.3",
+  "title": "NoSpendableNotes variant is dead code \u2014 never returned by build_shielded_tx",
+  "description": "TxBuildError::NoSpendableNotes is defined in tx_error.rs with a doc comment that implies it is returned when the scanner hasn't decrypted notes yet. But build_shielded_tx never returns it \u2014 when notes is empty, select_notes_spendable returns InsufficientFunds{have:0, need:N}. A caller checking for NoSpendableNotes as the signal to wait for the scanner will never see it. The variant is either dead code to be removed, or InsufficientFunds{have:0} needs to be changed to NoSpendableNotes to distinguish 'no notes at all' from 'notes exist but not enough'.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T00:48:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T00:58:23Z",
+  "closed_at": "2026-04-19T00:58:23Z",
+  "close_reason": "build_shielded_tx returns NoSpendableNotes immediately when notes.is_empty()",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 17:48:26"
+    }
+  ]
+}

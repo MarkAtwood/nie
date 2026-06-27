@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-wdw.5",
+  "title": "Note reconstruction: SpendableNote DB row \u2192 sapling::Note",
+  "description": "Implement spendable_note_to_sapling(row: &SpendableNote) -> Result<sapling::Note, TxBuildError>.\n\nA sapling::Note requires: recipient PaymentAddress (diversifier g_d + pk_d), value NoteValue, and Rseed (or old rcm). All three are stored in the new note_g_d / note_pk_d / note_rseed / note_rseed_after_zip212 columns from migration v6.\n\nSteps:\n1. Spawn a research subagent to find sapling::Note construction API \u2014 specifically Note::from_parts(recipient, value, rseed) or equivalent in ~/.cargo/git/checkouts/sapling-crypto-*/\n2. Construct PaymentAddress from g_d (11 bytes) and pk_d (32 bytes): sapling::keys::PaymentAddress::from_bytes or equivalent\n3. Construct Rseed from rseed bytes: Rseed::AfterZip212(bytes) or Rseed::BeforeZip212(rcm)\n4. Construct sapling::value::NoteValue from value_zatoshi (u64)\n5. Construct sapling::Note from parts\n\nDefensive rules:\n- PaymentAddress::from_bytes returning None \u2192 TxBuildError::NoteDeserialize('invalid payment address in stored note \u2014 DB may be corrupt')\n- Any invalid byte length \u2192 TxBuildError::NoteDeserialize with the column name and actual length\n- value_zatoshi overflow when converting to NoteValue \u2192 TxBuildError::NoteDeserialize\n\nTests (oracle: derive expected PaymentAddress bytes from known DFVK + diversifier index, verify round-trip):\n- Construct a known sapling::Note from known key material, extract g_d/pk_d/rseed, reconstruct via spendable_note_to_sapling, verify value and address match\n- NULL-equivalent bytes (all zeros) for g_d \u2192 TxBuildError::NoteDeserialize\n- Wrong length for pk_d \u2192 TxBuildError::NoteDeserialize\n- value_zatoshi = u64::MAX \u2192 must succeed (NoteValue supports full range) or return clear error\n",
+  "acceptance_criteria": "round-trip test passes with known key material; all invalid-input paths return TxBuildError; no panics on any input",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:48:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T00:14:43Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:48:42"
+    }
+  ]
+}

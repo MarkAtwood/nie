@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.55",
+  "title": "send_payment has 8 arguments suppressed by allow(too_many_arguments)",
+  "description": "payment.rs send_payment takes 8 arguments with #[allow(clippy::too_many_arguments)]. The arguments can be grouped into a SendPaymentRequest struct holding to_address, amount_zatoshi, session_id, network, and optionally params. This removes the lint suppression, improves call-site readability, and makes it easier to add future fields without growing the argument list further.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:59:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:59:10Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:59:09"
+    }
+  ]
+}

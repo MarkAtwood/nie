@@ -1,0 +1,28 @@
+{
+  "id": "nie-2y0i.7",
+  "title": "nie-tui relay message handler: directory, chat, MLS, sealed sender",
+  "description": "**What:** Implement handle_relay_event() in event.rs \u2014 dispatches ClientEvent variants to AppState mutations, handling directory updates, message delivery, MLS group management, sealed sender, and reconnection lifecycle.\n\n**Algorithm:**\n1. Implement async fn handle_relay_event(state: &mut AppState, tx: &mpsc::Sender<JsonRpcRequest>, event: ClientEvent) -> anyhow::Result<()>:\n2. Match event:\n   - ClientEvent::Reconnecting { delay_secs }:\n     state.connection = ConnectionState::Reconnecting { delay_secs };\n     state.mls_active = false;\n     state.online.clear(); state.online_seq.clear();\n     state.mls_client = MlsClient::new(&state.my_pub_id)?; // reset ephemeral MLS\n     state.room_hpke_secret = None;\n     state.push_message(ChatLine::System(format!(\"[!] disconnected. reconnecting in {delay_secs}s...\")));\n\n   - ClientEvent::Reconnected:\n     state.connection = ConnectionState::Connected;\n     state.push_message(ChatLine::System(\"[!] reconnected\".to_string()));\n\n   - ClientEvent::Message(notif): dispatch on notif.method:\n     - DIRECTORY_LIST \u2192 parse DirectoryListParams; rebuild state.online sorted by sequence; rebuild state.online_seq and nicknames maps; publish_key_package(state, tx).await?; publish_hpke_key(state, tx).await?; if !state.ever_connected { state.ever_connected = true; load_and_display_history(state).await?; } if state.my_pub_id == state.online.first().map(|u| u.pub_id.as_str()).unwrap_or(\"\") { admin_create_group(state, tx).await?; }\n     - USER_JOINED \u2192 parse UserJoinedParams; insert user at partition_point (maintaining ascending seq order) into state.online; state.online_seq.insert(pub_id.clone(), sequence); if !state.mls_active { publish_key_package(state, tx).await?; } if state.my_pub_id == state.online[0].pub_id && state.mls_active { admin_add_member(state, tx, pub_id).await?; }\n     - USER_LEFT \u2192 parse UserLeftParams; retain in state.online; remove from state.online_seq;\n     - USER_NICKNAME \u2192 parse; update state.nicknames;\n     - DELIVER \u2192 parse DeliverParams; decrypt payload; push ChatLine;\n     - SEALED_DELIVER \u2192 parse SealedDeliverParams; HPKE unseal; extract sender pub_id from first 64 bytes; decrypt MLS payload; push ChatLine;\n     - WHISPER_DELIVER \u2192 parse WhisperDeliverParams; if not mls_active, try join_from_welcome; else decrypt;\n     - SEALED_WHISPER_DELIVER \u2192 HPKE unseal with identity secret; handle whisper;\n     - KEY_PACKAGE_READY \u2192 parse KeyPackageReadyParams; if admin: get_key_package_and_add(state, tx, pub_id).await?;\n   - ClientEvent::Response(resp): match pending request by resp.id for GET_KEY_PACKAGE result etc.\n\n3. Sub-functions:\n   - async fn publish_key_package(state, tx): generate fresh KP bytes, send PublishKeyPackageParams.\n   - async fn publish_hpke_key(state, tx): send state.hpke_identity_pub as PublishHpkeKeyParams.\n   - async fn decrypt_payload(state, payload: Vec<u8>, sealed: bool) -> Result<Option<ClearMessage>>: MLS decrypt if active, else plaintext; deserialize ClearMessage; return Ok(None) for MLS commits.\n   - async fn admin_create_group(state, tx): mls_client.create_group()?; state.mls_active = true; derive room_hpke from mls_client.room_hpke_keypair()?;\n   - async fn admin_add_member(state, tx, pub_id): fetch KP, add via mls_client.add_member(), broadcast commit, whisper welcome.\n\n**Defensive programming rules:**\n- INVARIANT: never sort state.online in place \u2014 only read from it; rebuild from DirectoryList sorts naturally.\n- Never deserialize relay payload in relay code \u2014 only in decrypt_payload (client side).\n- publish_key_package uses mls_client.key_package_bytes()? \u2014 new KP each time.\n- tx.send() errors: log warn, continue (relay may be gone).\n- partition_point for USER_JOINED: use sequence field, not insertion time.\n- Out-of-order events (USER_LEFT before USER_JOINED): guard with if let Some(pos) = online.iter().position.\n\n**Agent team:** Standard (R+I+V). R reads cli/src/commands.rs event loop, core/src/protocol.rs method constants, core/src/mls.rs. I mirrors cli event dispatch logic adapted for TUI state. V runs cargo test -p nie-tui.\n\n**Tests:**\n- Test: Reconnecting clears online list and resets mls_active.\n- Test: DirectoryList sets ever_connected.\n- Test: USER_JOINED inserts at correct sorted position (sequence=5 between seq=3 and seq=7).\n- Test: USER_LEFT removes correct entry.\n- Test: decrypt_payload with plaintext JSON ClearMessage::Chat returns Some(Chat).\n- Test: decrypt_payload with malformed bytes returns Err (handled gracefully, push System message).\n",
+  "acceptance_criteria": "cargo test -p nie-tui relay_event_tests all pass; cargo clippy -p nie-tui exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:16:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:40:11Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:25"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:16:02"
+    }
+  ]
+}

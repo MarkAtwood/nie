@@ -1,0 +1,23 @@
+{
+  "id": "nie-tj93.7",
+  "title": "activate_subscription_atomic: CASE expression correctly preserves max expiry across renewals",
+  "description": "store.rs activate_subscription_atomic (~line 807): the UPSERT uses CASE to keep whichever expiry is greater (new vs existing). This means a subscriber who pays before their current subscription expires gets an additive extension rather than an overwrite. A contributor might 'simplify' this to always overwrite with the new expiry, which would incorrectly shorten an existing subscription. The CASE expression is load-bearing and should be defended.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:58:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:58:07Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:58:06"
+    }
+  ]
+}

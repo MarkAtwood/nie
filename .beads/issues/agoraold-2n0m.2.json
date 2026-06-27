@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-2n0m.2",
+  "title": "Add iOS platform to Flutter project",
+  "description": "Add iOS platform support to the existing android/ Flutter project.\n\nAlgorithm:\n1. cd android/ && fvm flutter create --platforms ios .\n   This adds the ios/ directory to the existing Flutter project.\n2. Verify ios/Runner.xcodeproj exists.\n3. Create ios/Runner/Info.plist additions for background modes (UIBackgroundModes: fetch, voip).\n4. Run fvm flutter analyze to confirm no new Dart issues.\n   Note: flutter build ios requires Xcode on macOS; analyze should still pass.\n\nAcceptance: android/ios/ directory created with Runner.xcodeproj; fvm flutter analyze clean.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:20:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:21:16Z",
+  "close_reason": "iOS platform added to Flutter project; UIBackgroundModes (fetch/remote-notification/voip) added to Info.plist",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:20:18"
+    }
+  ]
+}

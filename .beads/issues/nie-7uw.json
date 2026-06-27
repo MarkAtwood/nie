@@ -1,0 +1,27 @@
+{
+  "id": "nie-7uw",
+  "title": "Address watch registry",
+  "description": "What: Implement AddressWatchRegistry \u2014 an in-memory, thread-safe map from diversified Sapling address (bech32 string) to payment session UUID.\n\nAlgorithm:\n1. Define struct AddressWatchRegistry(DashMap<String, Uuid>) in cli/src/commands.rs or a new cli/src/watcher.rs.\n2. Methods:\n   - register(address: String, session_id: Uuid): insert into map.\n   - deregister(address: &str): remove from map.\n   - lookup(address: &str) -> Option<Uuid>: get.\n3. Wrap in Arc<AddressWatchRegistry> for sharing between chat() main task and watcher task.\n4. On startup: call register() for every Watching session loaded from DB (nie-fc4 does this).\n\nDefensive programming:\n- DashMap is Sync + Send; no additional locking needed.\n- deregister on unknown address is a no-op (not an error).\n- Do not store any key material in the registry \u2014 addresses only, session UUIDs only.\n\nTests:\n- test_register_lookup_hit: register address A -> session X, lookup A, assert Some(X).\n- test_lookup_miss: lookup unregistered address, assert None.\n- test_deregister_removes: register then deregister, lookup returns None.\n- test_concurrent_access: 2 threads register/lookup concurrently, no data race (run with --test-threads=N).\n\nAcceptance: cargo test passes for registry unit tests; DashMap accessed without mutex; clippy clean.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T08:24:46Z",
+  "close_reason": "AddressWatchRegistry (DashMap wrapper) added with register/deregister/lookup; 6 unit tests pass; clippy clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:13:05"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:22"
+    }
+  ]
+}

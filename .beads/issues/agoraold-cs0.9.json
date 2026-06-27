@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-cs0.9",
+  "title": "dispatch_payment Vacant branch: address generation buried in 4-deep nesting",
+  "description": "The address generation block inside Vacant is a match-within-match-within-match, 4 levels deep, ~80 lines. Each error path has an identical send_payment_message(Unknown) call. This makes it hard to follow the happy path. Rewrite as a helper: async fn generate_address(wallet_fvks: Option<&WalletFvks>, store: &WalletStore) -> Result<String, PaymentAction> returning Ok(ua) or Err(PaymentAction::Unknown{reason}) \u2014 the Vacant branch becomes a flat match on the result. All 4 error-path send_payment_message calls collapse into one.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:07:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:55Z",
+  "closed_at": "2026-04-18T22:34:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:07:32"
+    }
+  ]
+}

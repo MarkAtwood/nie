@@ -1,0 +1,15 @@
+{
+  "id": "nie-1kf",
+  "title": "Wire: WebSocket ping/pong keepalive",
+  "description": "No heartbeat is currently sent. Mobile clients behind NAT will have their TCP connections silently killed by carrier NAT after ~30-90 seconds of idle. The relay will not know the client disconnected until the next send attempt fails.\\n\\nRequired:\\n- Relay sends WebSocket Ping frame every 30 seconds\\n- Client (axum/tokio-tungstenite) auto-responds with Pong (tungstenite does this by default)\\n- If no Pong received within 10 seconds, disconnect and clean up client entry from DashMap\\n- Add keepalive interval as env var: KEEPALIVE_SECS=30",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T07:14:41Z",
+  "closed_at": "2026-04-16T07:14:41Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,29 @@
+{
+  "id": "nie-5clb",
+  "title": "1:1 video calls",
+  "description": "Peer-to-peer video and audio calls negotiated in-band over the existing encrypted message channel. Relay stays blind to call content -- it only routes WebRTC signaling messages, which are encrypted ClearMessage payloads like any other message. Required: ICE candidate exchange and SDP offer/answer travel as ClearMessage::CallSignal variants inside MLS-encrypted messages; STUN server URL in client config with optional TURN for symmetric NAT; /call <pubid> to initiate with incoming call notification; VP8/Opus baseline codecs; mute, camera toggle, end call controls; mobile requires libwebrtc bindings in Android/iOS clients.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "epic",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-20T17:13:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:39Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 10:14:11"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 10:14:12"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 10:14:10"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-52o.4",
+  "title": "wallet restore uses hidden input for 24-word mnemonic \u2014 unusable",
+  "description": "Scenario: user runs 'nie wallet restore'. They are prompted for 24 words with rpassword::prompt_password (hidden input, no echo). A typical 24-word mnemonic is ~200 characters. With zero visual feedback, there is no way to detect and correct a typo short of completing the full entry, submitting, and getting a checksum error from bip39. Most users will attempt this multiple times, fail, and assume the feature is broken.\n\nMaintenance consequence: high rate of 'nie wallet restore does not work' issues. The user's mnemonic is correct; the UX is broken. rpassword is appropriate for passphrases (short, known in advance). It is not appropriate for 24 randomly ordered words typed from a paper backup.\n\nFix: use a visible readline prompt (rustyline is already a dependency) for mnemonic input. The mnemonic is on paper; shoulder-surfing is not the threat model here. Alternatively, accept mnemonic as a file path argument: 'nie wallet restore --mnemonic-file /path/to/backup.txt'.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:24:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T03:28:25Z",
+  "closed_at": "2026-04-18T03:28:25Z",
+  "close_reason": "Changed rpassword to rustyline visible input. Decision: mnemonic is on paper, shoulder-surfing not the threat model, usability wins.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:24:47"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.2",
+  "title": "GROUP_ADD member cap check is not atomic with add_group_member",
+  "description": "ws.rs GROUP_ADD: member_count() is checked (<= MAX_GROUP_MEMBERS), then add_group_member() is called in a separate query. Two concurrent GROUP_ADD requests for the same group can both observe count=99, both pass the cap check, and both insert, leaving the group at 101 members. Fix: enforce the cap with a conditional INSERT inside a single transaction (INSERT only if COUNT(*) < 100).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:54:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:22:02Z",
+  "closed_at": "2026-04-24T23:22:02Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:54:55"
+    }
+  ]
+}

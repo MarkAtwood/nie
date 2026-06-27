@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-8le.12",
+  "title": "Broadcast lock-free design: collect channels before awaiting is correct",
+  "description": "state.rs broadcast() collects all ClientTx clones into a Vec before awaiting any sends, releasing the DashMap lock before any async work. A contributor might 'simplify' this to iterate DashMap and await inside the iterator, but that would hold a DashMap shard lock across an await point \u2014 a deadlock if any send path tries to acquire the same shard. The current pattern is the correct idiom for async fan-out over a DashMap. Why it should be defended: holding DashMap shard locks across await is undefined behavior (deadlock) in this design.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:08:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:59Z",
+  "closed_at": "2026-04-17T23:35:08Z",
+  "close_reason": "decision already recorded in CLAUDE.md / architecture is intentional; no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:08:30"
+    }
+  ]
+}

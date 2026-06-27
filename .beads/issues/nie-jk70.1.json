@@ -1,0 +1,26 @@
+{
+  "id": "nie-jk70.1",
+  "title": "FileChunk.data has no size cap at deserialization",
+  "description": "messages.rs: ClearMessage::FileChunk.data is Vec<u8> with no size limit enforced at serde deserialization. A hostile peer inside an MLS group can send a FileChunk with data containing hundreds of MB, causing the allocator to run before any application-layer check. The CLI checks size_bytes > 10 MB in commands.rs, but that guard runs AFTER serde_json::from_slice has already allocated the Vec. The daemon relay.rs also deserializes ClearMessage at line 130 with no pre-check. Fix: add a deserialize_chunk_data function similar to deserialize_total_chunks, capping data at e.g. 48*1024 bytes (consistent with the CLI's 45 KB chunk size).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:34:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:50:07Z",
+  "closed_at": "2026-04-25T02:50:07Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:34:49"
+    }
+  ]
+}

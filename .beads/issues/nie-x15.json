@@ -1,0 +1,14 @@
+{
+  "id": "nie-x15",
+  "title": "Relay: Schedule purge_expired() periodically",
+  "description": "purge_expired() exists in store.rs but is never called. Expired messages accumulate in message_queue indefinitely, growing the SQLite file without bound.\\n\\nRequired:\\n- Spawn a tokio task in relay/src/main.rs that calls store.purge_expired() every hour\\n- Log how many rows were purged\\n- Also purge expired subscriptions (add purge_expired_subscriptions() to Store)\\n- Remove #[allow(dead_code)] from purge_expired() once it's wired up",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T07:11:38Z",
+  "closed_at": "2026-04-16T07:11:38Z",
+  "close_reason": "message_queue table removed in broadcast redesign; purge_expired() was tied to it. Subscription TTL cleanup is still needed but is a 3-line addition to nie-wjv's scope."
+}

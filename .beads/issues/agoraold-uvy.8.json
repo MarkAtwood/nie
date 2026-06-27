@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-uvy.8",
+  "title": "INNER JOIN on witnesses in spendable_notes is a correctness constraint",
+  "description": "spendable_notes() uses JOIN witnesses w ON n.note_id = w.note_id. A contributor may suggest LEFT JOIN to 'also return notes whose witness hasn't arrived yet.' Do not do that. A note without a witness cannot produce a valid Merkle inclusion proof. Passing such a note to build_shielded_tx would succeed the note-reconstruction step but fail in add_sapling_spend with an anchor mismatch or cause undefined anchor computation. The INNER JOIN is not an optimization \u2014 it is a correctness filter. Notes with no witness are structurally unspendable and must not appear in the result.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:07:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:53Z",
+  "closed_at": "2026-04-19T02:18:02Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:07:25"
+    }
+  ]
+}

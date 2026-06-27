@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.27",
+  "title": "SEC0: test_parse_auth_success_response asserts sequence field that relay never sends",
+  "description": "File: wasm/tests/wasm.rs, lines 52-63. The test hand-crafts a JSON string containing 'sequence':5 in the auth result and then asserts v['result']['sequence'].as_u64() == Some(5). However, AuthenticateResult in core/src/protocol.rs (lines 182-185) has only pub_id and subscription_expires \u2014 no sequence field. The relay constructs AuthenticateResult with those two fields only (relay/src/ws.rs line 175-179). The sequence field belongs to UserInfo in DirectoryList params, not the authenticate response. The test asserts a field that does not exist in the actual relay response, creating a false confidence that the auth result contains sequence. If code ever consumed the real relay response and expected a sequence field in auth, it would get None/0 silently. The test must be corrected to reflect the actual AuthenticateResult wire format.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:32:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:41:06Z",
+  "closed_at": "2026-04-20T02:41:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:32:31"
+    }
+  ]
+}

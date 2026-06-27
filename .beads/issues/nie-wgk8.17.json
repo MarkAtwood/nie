@@ -1,0 +1,23 @@
+{
+  "id": "nie-wgk8.17",
+  "title": "bot/scripting: deadlock-safe pipe drain before wait() is correct",
+  "description": "bot/src/scripting.rs:55-80: spawning stdout and stderr drain tasks before calling child.wait() is the correct pattern to prevent OS pipe buffer deadlock (> ~64 KiB output blocks the child on write, wait() blocks on child exit \u2014 neither can proceed). The comment explains exactly why. A future contributor might 'simplify' by moving the reads after wait() \u2014 this creates a latent deadlock for hook scripts with large output. The pattern must stay.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:25:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:25:38Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:25:38"
+    }
+  ]
+}

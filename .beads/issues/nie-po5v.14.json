@@ -1,0 +1,24 @@
+{
+  "id": "nie-po5v.14",
+  "title": "jmap.rs: eventsource ping parameter unbounded \u2014 DoS via huge interval",
+  "description": "handle_jmap_eventsource accepts ping as Option<u64> with no upper bound. A caller sends ?ping=18446744073709551615 (u64::MAX). Duration::from_secs(u64::MAX) panics in debug mode (overflowing Duration) and in release mode creates a timer that will never fire. RFC 8620 specifies ping as seconds with a minimum of 5; a reasonable max is 3600. Fix: clamp ping to a sane range (e.g. 5..=3600) before passing to Duration::from_secs.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:43:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:17Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:43:28"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-9wvr",
+  "title": "Update CLI /pay and /receive to support --chain flag",
+  "description": "Add --chain zcash|monero option to /pay command in cli/src/commands.rs. For Chain::Monero: Bob generates subaddress via MoneroKeys and sends it in PaymentAction::Address; Alice prints address and says 'send XMR manually' (sending stub). Update /receive to show Monero primary address when --chain monero is active.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T14:51:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:04Z",
+  "closed_at": "2026-04-22T15:20:44Z",
+  "close_reason": "CLI /pay chains without Zcash wallet, /receive monero added, dispatch_payment handles Monero address gen and manual-send flow",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:51:43"
+    }
+  ]
+}

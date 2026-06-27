@@ -1,0 +1,21 @@
+{
+  "id": "nie-ea6a.1",
+  "title": "jmap: Message/set deletedAt patch has no ownership check \u2014 any message can be soft-deleted",
+  "description": "## Bug\n\nIn daemon/src/jmap.rs message_set(), the 'deletedAt' patch path (line ~2344) calls store.soft_delete_message(msg_id, false) with no check that the caller is the message sender.\n\nThe 'destroy' path (line ~2395-2418) correctly fetches the message and compares rows[0].sender_id != account_id before deleting. The 'body' patch correctly uses edit_message_body() which has an internal ownership check (EditBodyResult::Forbidden).\n\nBut 'deletedAt' has no such guard: any authenticated user can soft-delete any message in the system by sending a Message/set update patch with {'deletedAt': '<timestamp>'}.\n\n## Impact\n\nAn authenticated daemon user can soft-delete chat messages they did not author, effectively silencing other users.\n\n## Fix\n\nBefore calling soft_delete_message(), check that the message sender_id matches the caller's account_id (same pattern as the destroy path). Add a store method that combines the ownership check and the soft-delete atomically, or reuse the same fetch + check pattern.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:47:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:56:14Z",
+  "closed_at": "2026-04-26T10:56:14Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:47:22"
+    }
+  ]
+}

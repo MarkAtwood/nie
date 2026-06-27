@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-8lcm.5",
+  "title": "reuse lwd_client for Bob scanner scan",
+  "description": "In testnet_shielded_payment_end_to_end (e2e_testnet.rs line 461), a second LightwalletdClient::connect() call is made for Bob's scanner while Alice's client (lwd_client) is still live. HTTP/2 supports multiplexed streams so both scanners could share one connection. The second TLS handshake and TCP connection setup is unnecessary. The root cause is that CompactBlockScanner::new takes LightwalletdClient by value; changing it to take a shared reference or Arc would allow connection reuse and eliminate the extra handshake.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:14Z",
+  "closed_at": "2026-04-20T05:09:21Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:23"
+    }
+  ]
+}

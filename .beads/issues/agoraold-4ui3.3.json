@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-4ui3.3",
+  "title": "Plumb proxy param through transport.rs signatures",
+  "description": "Add proxy: Option<String> parameter to all four transport functions in core/src/transport.rs and update all call sites to pass None. No proxy logic yet \u2014 this is pure signature plumbing.\n\n## What\nThread the proxy parameter through connect(), connect_with_retry(), connection_manager(), and open_authenticated_ws() so it is available when the SOCKS5 implementation lands.\n\n## Algorithm\n1. In core/src/transport.rs:\n   a. Add 'proxy: Option<String>' as the last param to open_authenticated_ws()\n   b. Add 'proxy: Option<String>' as the last param to connection_manager() \u2014 pass it through to open_authenticated_ws\n   c. Add 'proxy: Option<String>' as the last param to connect() \u2014 pass it through to open_authenticated_ws call\n   d. Add 'proxy: Option<String>' as the last param to connect_with_retry() \u2014 pass it through to connection_manager spawn\n2. Update all external call sites to pass None:\n   a. relay/tests/e2e_jsonrpc.rs \u2014 all connect() calls (lines ~84-89, ~150-155): add None as last arg\n   b. relay/tests/stress.rs \u2014 connect_with_retry() call (line ~165): add None as last arg\n   c. cli/src/commands.rs line ~260 \u2014 connect_with_retry() call: add None as last arg\n3. Run: cargo build --workspace exits 0; cargo test --workspace exits 0.\n\n## Defensive programming rules\n- proxy param is Option<String>, not ProxyConfig \u2014 validation happens in main.rs before this layer\n- Do not add any proxy parsing or logic in this bead \u2014 leave a TODO comment '// proxy tunneling: see open_authenticated_ws impl bead'\n- Do not remove or alter the existing accept_invalid_certs path\n- All new None arguments must compile without clippy warnings\n\n## Agent team\nResearcher (read transport.rs + all call sites), Implementer (add params + update call sites), Validator (cargo build/test)\n\n## Tests\nAcceptance: cargo build --workspace exits 0; cargo test --workspace exits 0. The test suite must not change in behavior \u2014 all existing tests still pass with None proxy.",
+  "acceptance_criteria": "cargo build --workspace exits 0; cargo test --workspace exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:35:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:43:16Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:35:11"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:37"
+    }
+  ]
+}

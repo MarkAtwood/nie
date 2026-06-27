@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.23",
+  "title": "spawn_scanner does not enforce load_state() precondition",
+  "description": "spawn_scanner() takes ownership of a CompactBlockScanner but does not call load_state() before entering the scan loop. The caller is expected to call load_state() first, but there is no enforcement. Forgetting to call load_state() on an existing wallet means the Sapling commitment tree starts empty \u2014 all witnesses created during the resumed scan will be rooted in the wrong tree, making every discovered note unspendable. The fix is for spawn_scanner to call load_state() itself (it already holds mut access), or at minimum document the precondition prominently at the call site.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:50:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:16:01Z",
+  "closed_at": "2026-04-25T00:16:01Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:50:28"
+    }
+  ]
+}

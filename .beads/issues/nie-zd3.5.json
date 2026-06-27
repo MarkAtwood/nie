@@ -1,0 +1,27 @@
+{
+  "id": "nie-zd3.5",
+  "title": "generate_fresh_address map_err closure has broken indentation",
+  "description": "The map_err closure on diversified_address has the body at the same indent level as map_err itself rather than one level in. Cosmetic but inconsistent with the next_diversifier map_err directly above it. Suggested rewrite: align closure body two more spaces to match the existing style.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:17:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T23:36:59Z",
+  "closed_at": "2026-04-18T23:36:59Z",
+  "close_reason": "cargo fmt confirmed indentation is canonical; opinion label correct",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "opinion",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:17:10"
+    }
+  ]
+}

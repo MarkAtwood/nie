@@ -1,0 +1,15 @@
+{
+  "id": "nie-0ip",
+  "title": "Cargo.toml files: workspace + 3 crates",
+  "description": "Write workspace Cargo.toml and per-crate Cargo.toml for nie-core, nie-relay, nie-cli. Must include all deps (dashmap, clap, dirs were missing from scaffold).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T04:37:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-16T04:37:34Z",
+  "close_reason": "Closed"
+}

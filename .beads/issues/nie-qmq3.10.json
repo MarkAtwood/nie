@@ -1,0 +1,24 @@
+{
+  "id": "nie-qmq3.10",
+  "title": "cli: history.db stored unencrypted \u2014 comment promises Phase 2 at-rest encryption but never tracks it",
+  "description": "cli/src/history.rs:1-7 \u2014 The Phase 2 comment 'at-rest encryption keyed from the identity key is Phase 2' is load-bearing: it promises users their message history will be encrypted at rest but there is no open issue tracking it. The comment has been in the file since Phase 1 and will remain indefinitely. Risk: if a user's data directory is exfiltrated, all cleartext chat history is readable. Action: file a Beads issue for local history encryption so the promise has a tracking artifact, or reword the comment to say 'not planned for this implementation'.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:55:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:55:42Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:55:41"
+    }
+  ]
+}

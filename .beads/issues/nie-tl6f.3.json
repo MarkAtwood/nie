@@ -1,0 +1,21 @@
+{
+  "id": "nie-tl6f.3",
+  "title": "store.rs: use_space_invite_code deletes invite but doesn't bump SpaceInvite state token",
+  "description": "daemon/src/store.rs use_space_invite_code() (line 1233): the consumed invite is deleted from space_invite inside the transaction, but no bump_state_seq(\"SpaceInvite\") is issued before COMMIT.\n\nCompare:\n- delete_space_invite() (line 1117): correctly calls self.bump_state_seq(\"SpaceInvite\").await? after DELETE\n- create_space_invite() (line 1042): correctly calls self.bump_state_seq(\"SpaceInvite\").await?\n\nBut use_space_invite_code() only bumps SpaceMember (line 1229-1231), not SpaceInvite.\n\nEffect: after a user redeems an invite code, the SpaceInvite state counter remains unchanged. Any JMAP client polling SpaceInvite/changes will not see the deleted invite until some other SpaceInvite mutation occurs, leaving a stale invite visible in the client's list indefinitely.\n\nFix: add bump_state_seq(\"SpaceInvite\") inside the transaction after the DELETE, before COMMIT. The bump must use the raw connection (not self.pool) since the transaction uses a manually-acquired connection.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:15:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:23:39Z",
+  "closed_at": "2026-04-26T11:23:39Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:15:00"
+    }
+  ]
+}

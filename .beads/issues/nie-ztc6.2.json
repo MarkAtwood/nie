@@ -1,0 +1,27 @@
+{
+  "id": "nie-ztc6.2",
+  "title": "SEALED_WHISPER has no payload size check before offline enqueue",
+  "description": "The SEALED_WHISPER handler validates recipient pub_id and subscription but never checks params.sealed.len(). A subscribed attacker can send up to MAX_WS_MESSAGE_BYTES (1 MiB) per sealed whisper. When the recipient is offline, the payload is persisted to offline_messages verbatim. The 1000-message queue cap limits row count but not per-row size; 1000 x 1 MiB = 1 GiB in the offline_messages table. WHISPER already has this gap (filed as nie-nbqp.8); SEALED_WHISPER shares the same code path without the fix.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:50:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:05:01Z",
+  "closed_at": "2026-04-26T09:05:01Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:50:45"
+    }
+  ]
+}

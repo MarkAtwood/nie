@@ -1,0 +1,26 @@
+{
+  "id": "nie-bqoo.4",
+  "title": "next_diversifier: deferred transaction allows concurrent callers to return same index",
+  "description": "next_diversifier uses pool.begin() which issues a deferred SQLite transaction. Two concurrent callers can both read the same diversifier_idx value before either commits, then both return the same index and both write next=current+1. The result is two addresses allocated to the same diversifier index \u2014 payments sent to the duplicate address are received (the wallet sees two invoices for the same address) or one invoice silently shadows the other in get_invoice_by_address. alloc_diversifier_and_create_invoice correctly uses BEGIN IMMEDIATE, but next_diversifier standalone is still racy. It is called directly by send_payment in wallet/src/payment.rs.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:08:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:21:47Z",
+  "closed_at": "2026-04-26T08:21:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:08:04"
+    }
+  ]
+}

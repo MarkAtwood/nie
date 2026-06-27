@@ -1,0 +1,25 @@
+{
+  "id": "nie-jq8m.1",
+  "title": "hpke.rs: room key AAD is hex(X25519_pk), not recipient PubId \u2014 cross-client interop broken",
+  "description": "In tui/src/event.rs, the sealed_deliver and send_chat paths compute the HPKE AAD for the room key as: pk.iter().map(|b| format!(\"{b:02x}\")).collect() \u2014 a hex encoding of the raw X25519 public key bytes. unseal_message requires this AAD to match exactly. Any other client (wasm, daemon, FFI) that seals to the room key using a different AAD string (e.g., the actual PubId, or a different encoding) will produce a ciphertext that the TUI cannot open. The convention is documented nowhere. A second TUI client on the same relay session will work (it uses the same formula), but any future client that guesses the AAD should be a standard PubId will silently fail decryption on every sealed broadcast.",
+  "status": "in_progress",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:19:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:41:11Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:19:43"
+    }
+  ]
+}

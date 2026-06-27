@@ -1,0 +1,25 @@
+{
+  "id": "nie-06bt.6",
+  "title": "Two-phase validate-then-apply is the right RFC 8620 \u00a77.1 atomicity architecture",
+  "description": "Phase 1 validates all member patch paths and values before Phase 2 touches the store. This is the correct architecture for input-error atomicity: a combined {name + bad members/* role} patch must not write the name even though name is individually valid. A future contributor might suggest 'just validate inline in apply_member_patch and return early' \u2014 that would re-introduce the atomicity violation. The two-pass approach is load-bearing.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:55:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:10:18Z",
+  "closed_at": "2026-04-24T04:10:18Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:55:10"
+    }
+  ]
+}

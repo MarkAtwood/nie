@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-4ui3",
+  "title": "SOCKS5 proxy support for Tor / I2P",
+  "description": "Add a --proxy flag so nie clients route their relay WebSocket connection through a SOCKS5 proxy (Tor, I2P, or any SOCKS5 proxy). The relay sees only the exit node IP, not the client's real IP. Highest-value privacy improvement with minimal code change.\n\n## Scope\n\n### CLI flag\n  --proxy <url>    SOCKS5 proxy URL, e.g. socks5://127.0.0.1:9050 for Tor\n                   or socks5h://127.0.0.1:9050 (socks5h = proxy resolves DNS, recommended for Tor)\n  Also readable from config.toml: proxy = 'socks5h://127.0.0.1:9050'\n\n### Implementation\n- tokio-tungstenite supports SOCKS5 via the tokio-socks crate (pure async, no C deps)\n- In transport.rs: if proxy is set, create a Socks5Stream wrapping the TcpStream before the WebSocket upgrade\n- TLS still applies on top: proxy tunnels the TCP connection, TLS encrypts the payload\n- For .onion addresses (socks5h://): DNS resolution happens inside Tor; the client never resolves the hostname directly\n\n### Lightwalletd proxy\n- Optionally: also proxy the lightwalletd gRPC connection through SOCKS5\n- tonic supports custom connectors; a Socks5 connector wrapping the gRPC channel hides Zcash wallet sync from the ISP\n- This is a separate flag: --lwd-proxy (lightwalletd may need a different proxy than the relay)\n\n### Warn on clearnet .onion\n- If relay URL is a .onion address and no proxy is set: warn!() that the .onion address will not resolve without a SOCKS5 proxy\n- Do not hard-error (user may have a split DNS setup)\n\n## Security notes\n- socks5h (proxy-side DNS resolution) is required for Tor; socks5 (client-side DNS) leaks the hostname to local DNS\n- Log a warning if socks5:// is used with a .onion relay URL (should be socks5h://)\n- Never log the proxy URL at INFO level (it may contain auth credentials in future)\n\n## Dependencies\n- nie-hlns (JSON-RPC migration) \u2014 transport layer is being reworked there; proxy support lands cleanly on top",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:53:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T19:37:17Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:54:53"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "agoraold-16yn",
+  "title": "Relay channel closure treated as disconnect, not error",
+  "description": "GOOD CHOICE: When the relay event channel closes (None case), this is treated as a clean exit, not a fatal error (event.rs 43-50). The client sets connection state to Offline and displays a system message, then the loop continues until state.quit is set.\n\nA contributor might treat None as a fatal error and break the loop or propagate it as RelayMessage::Error to other clients. But that would be wrong: the relay connection manager handles reconnection asynchronously; a closed channel just means this select branch is done.\n\nThis is non-obvious but essential for the reconnection semantics where the client event loop continues even when temporarily offline.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:15Z",
+  "closed_at": "2026-04-22T06:24:34Z",
+  "close_reason": "Verified invariant holds in current code; documented in DESIGN.md §14 TUI terminal safety invariants",
+  "labels": [
+    "review"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "nie-jk70",
+  "title": "Review: core/src/*.rs security/correctness round 12",
+  "notes": "Maintainer risk: LOW — All new findings are contained in a single module each and have clear, bounded fixes. The two P1 items (FileChunk no cap, auth deadline) affect data received from authenticated peers inside MLS-encrypted sessions and from relay connections respectively. No authentication bypass or privilege escalation found.\nConfidence: 85% chance no missed bug in scope. Uncertainty driven by: (1) MLS library (openmls) internals not reviewed — the credential binding issue (nie-kef6.2) may have additional surface not visible here; (2) hpke crate PrivateKey zeroization on drop is crate-internal and not verified; (3) interaction between pow.rs verify_token and relay's replay set not tested end-to-end. Would raise confidence with: access to openmls source to verify credential validation path, and an integration test that verifies auth handshake times out on a misbehaving relay.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:32:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

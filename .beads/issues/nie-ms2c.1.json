@@ -1,0 +1,27 @@
+{
+  "id": "nie-ms2c.1",
+  "title": "member-only Space/set patch on non-existent space returns updated",
+  "description": "Trigger: Space/set update with only members/* paths (no name/description) for a space_id that does not exist. update_space_fully skips the existence check when name=None && description=None, runs the member INSERT against space_member (no FK to space), returns Ok(true). space_set records updated[space_id]=null \u2014 false success \u2014 and creates orphaned space_member rows. RFC 8620 \u00a77.1 requires notFound.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:28:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:41:04Z",
+  "closed_at": "2026-04-24T04:41:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 21:28:57"
+    }
+  ]
+}

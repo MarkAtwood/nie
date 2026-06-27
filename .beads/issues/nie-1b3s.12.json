@@ -1,0 +1,23 @@
+{
+  "id": "nie-1b3s.12",
+  "title": "HPKE AAD recipient_pub_id binding prevents replay to different recipient",
+  "description": "hpke.rs:22-50: recipient_pub_id is bound into the AEAD AAD on both seal and unseal. This means a ciphertext sealed for Alice cannot be decrypted by Bob even if Bob obtains Alice's secret key \u2014 the AAD mismatch causes the AEAD verify to fail. A contributor might suggest removing the AAD to simplify the API (it's not strictly required for confidentiality), but it closes an important attack: a relay operator who obtains a user's HPKE secret cannot redirect sealed messages addressed to that user to themselves. Keep the AAD binding.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:15:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:15:24Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:15:23"
+    }
+  ]
+}

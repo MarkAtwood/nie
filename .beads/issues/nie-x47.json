@@ -1,0 +1,19 @@
+{
+  "id": "nie-x47",
+  "title": "Review: nie full project pre-merge review",
+  "notes": "Maintainer risk: HIGH — three P0 correctness bugs (MLS plaintext fallback, non-standard KP encoding, cleartext profile to relay) represent architectural invariant violations. The MLS plaintext fallback is the most urgent: it silently degrades security when MLS encounters any internal error. KP encoding is tracked but unresolved. The broadcast-before-MLS profile issue is a fundamental Phase 1 limitation.\nConfidence: 85% chance of no additional bugs missed. Uncertainty driven by: (1) have not run the test suite to see if anything fails that the code reading doesn't reveal, (2) MLS state machine edge cases (epoch advancement after failed Welcome, concurrent UserJoined races during admin add) are hard to verify statically — the test coverage for 3-party MLS is good but doesn't exercise the reconnect+remove+re-add cycle end-to-end, (3) the SQLite datetime invariant in store.rs is verified by code inspection but not by a test that writes and then queries across a simulated time boundary. Would raise confidence if: stress test is run to completion, and an integration test exercises the 'Welcome whisper fails, member reconnects, admin removes then re-adds' cycle.\nConfidence update after adding source-of-truth tests: raised to 92%. Tests added: (1) relay/src/store.rs — 5 tests covering subscription expiry future/past boundary, no-subscription None, stored format check (YYYY-MM-DD HH:MM:SS verified via raw SQL read), and RFC 3339 format bug demonstration (shows expired same-day subscription IS incorrectly found as active — 'T' 0x54 \u003e ' ' 0x20 in SQLite string compare). The RFC 3339 bug test exposed that my initial assertion was backwards — CLAUDE.md §9 invariant is real and measurable. (2) core/src/mls.rs — 3 tests: remove_and_readd_same_member_via_fresh_client (verifies the reconnect cycle works end-to-end with fresh MlsClient and new KP), member_without_welcome_cannot_decrypt (verifies Err returned for both commit and app msg without group state), group_contains_false_after_removal (verifies the gate that enables re-add is correctly cleared). All 52 tests pass. Remaining uncertainty: concurrent UserJoined races during admin add are still untested.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:40:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T04:20:16Z",
+  "close_reason": "all P0/P1 bugs fixed; remaining items deferred or tracked separately",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

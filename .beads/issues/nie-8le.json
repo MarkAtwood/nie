@@ -1,0 +1,19 @@
+{
+  "id": "nie-8le",
+  "title": "Review: nie Phase 1 pre-merge",
+  "notes": "Maintainer risk: HIGH — Three P0 correctness bugs: (1) admin diverges after reconnect under concurrent joins, (2) MLS Commit+Welcome non-atomic, (3) history will silently corrupt all messages when MLS lands. The first two are Phase-1-visible under real use; the third is a Phase-2 time bomb baked into the current schema.\nConfidence: 25% chance of missed bug. Uncertainty driven by: MLS state machine edge cases not exercised by current tests (malformed Welcome, epoch skip, concurrent add+remove), and the relay's concurrent DashMap + async send interaction under high load. Would raise confidence if: negative MLS tests exist (bad Welcome, wrong epoch, remove self), and if the admin election race is addressed before merging.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:04:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-17T23:35:14Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

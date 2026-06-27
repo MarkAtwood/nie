@@ -1,0 +1,26 @@
+{
+  "id": "nie-u966.13",
+  "title": "space_set: TOCTOU between space_exists and get_space_member_role",
+  "description": "In space_set update and destroy, space_exists is called first (read), then get_space_member_role (read), then update_space_fully / delete_space (write). These three calls are not wrapped in a transaction. Trigger: Admin A is removed between the existence check and the role check; the role check returns Admin on a stale result from a prior query. This window is tiny but the fix is to fold the existence+role check into a single read transaction or to use FOR UPDATE semantics. Currently a race can allow a former admin to perform one last update/destroy before their removal is visible.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:50:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:03:52Z",
+  "closed_at": "2026-04-26T07:03:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:50:59"
+    }
+  ]
+}

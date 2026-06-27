@@ -1,0 +1,24 @@
+{
+  "id": "nie-qdlu.13",
+  "title": "scanner.rs mixes into_option().expect() and Option::from() for CtOption conversion",
+  "description": "scanner.rs line 210: uses fr.into_option().expect(...) to unwrap a CtOption<Fr>. The rest of the codebase (lines 471, 867, 890) consistently uses Option::from(node).expect(...). The two forms are semantically equivalent but the inconsistency means a future contributor looking for CtOption usage will miss line 210 when grepping for Option::from. Fix: replace .into_option().expect() with Option::from(...).expect() to match the established pattern.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:44:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:52Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:44:52"
+    }
+  ]
+}

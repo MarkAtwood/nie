@@ -1,0 +1,21 @@
+{
+  "id": "nie-tl6f.1",
+  "title": "identity.rs: to_secret_bytes_64() returns plain [u8;64] \u2014 callers must manually zeroize",
+  "description": "Identity::to_secret_bytes_64() (core/src/identity.rs:96) returns [u8; 64] instead of Zeroizing<[u8; 64]>. The export methods secret_bytes() and hpke_secret_bytes() similarly return [u8; 32] by value.\n\nCallers that forget to zeroize leave key material (Ed25519 seed + X25519 seed) on the stack until the frame is reused. Known callers:\n\n- cli/src/commands.rs:151 \u2014 does call seed.zeroize() correctly\n- core/src/keyfile.rs:104,132 \u2014 in tests; seed is never zeroized\n- wasm/src/api.rs:23 \u2014 passes to B64.encode() and returns; no zeroize\n- ffi/src/api/identity.rs:20 \u2014 same pattern\n\nThe return type of to_secret_bytes_64() should be Zeroizing<[u8; 64]> to enforce zeroization at drop. This is already the pattern used by decrypt_keyfile() (returns Zeroizing<[u8; 64]>).\n\nNote: nie-r9nx.6 covers a different location (hpke.rs internal stack copy). This issue is the public API of Identity itself.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:13:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:23:33Z",
+  "closed_at": "2026-04-26T11:23:33Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:13:50"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-fye.4",
+  "title": "balance() threshold=-1 fix: correct and well-explained; regression test has proper independent oracle",
+  "description": "Why this choice is correct: using -1 (rather than saturating_sub to 0) as the threshold when scan_tip < min_confirmations is the minimal precise fix. It makes 'block_height <= -1' structurally impossible, which directly mirrors the documented formula 'depth >= min_confirmations is unsatisfiable when scan_tip < min_confirmations'. A contributor might suggest 'just add block_height > 0 to the SQL' \u2014 wrong, because that breaks min_confirmations=0 semantics (a note at height 0 with 0 required confirmations should be confirmed). The regression test derives expected values from the formula independently of balance(), which is the correct oracle discipline.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:58:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T18:11:35Z",
+  "closed_at": "2026-04-18T18:11:35Z",
+  "close_reason": "Decision record \u2014 no code change required",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:58:00"
+    }
+  ]
+}

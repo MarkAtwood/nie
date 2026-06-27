@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.14",
+  "title": "parse_incoming swallows JSON-RPC errors when id is null",
+  "description": "transport.rs parse_incoming: v.get('id').is_some() returns true when the id key is present with JSON null value. A server error response with id:null (spec-allowed for parse errors) triggers the response branch, fails JsonRpcResponse deserialization (id: u64 rejects null), emits a warn, and returns None. The error is silently discarded instead of delivered as ClientEvent::Response.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:13:21Z",
+  "closed_at": "2026-04-24T23:13:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:53"
+    }
+  ]
+}

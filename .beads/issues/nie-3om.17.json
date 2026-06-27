@@ -1,0 +1,25 @@
+{
+  "id": "nie-3om.17",
+  "title": "anchor mismatch pre-checked in Rust before builder.build() for clearer error",
+  "description": "tx_builder.rs build_shielded_tx computes each note's Merkle path root and checks all anchors match before calling builder.build(). The zcash_primitives builder would catch this itself, but with a cryptic internal error message. The pre-check gives TxBuildError::AnchorMismatch with actionable text ('restart and let the scanner fully catch up'). A contributor might suggest removing this check as 'duplicating builder logic'; that would replace a user-actionable error with an opaque builder rejection that gives no guidance.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:56:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:11:09Z",
+  "closed_at": "2026-04-19T04:11:09Z",
+  "close_reason": "Observation, no action: anchor pre-check with user-actionable error message is correctly documented in code.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:56:30"
+    }
+  ]
+}

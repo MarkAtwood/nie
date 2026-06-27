@@ -1,0 +1,21 @@
+{
+  "id": "nie-r9nx.1",
+  "title": "relay.rs: PeerGroupUpdate accepted from any MLS group member without admin check",
+  "description": "daemon/src/relay.rs dispatch_notification BROADCAST arm handles ClearMessage::PeerGroupUpdate (lines 337-343) by calling dispatch_peer_group_update unconditionally. sender_pub_id is the MLS-authenticated sender, but no check is performed against the space's member roles \u2014 any group member can send a PeerGroupUpdate to add, remove, or change the role of any contact in any space_id. Compare with PeerRetract (lines 311-335) which checks store.message_sender_id to verify the sender owns the message. PeerGroupUpdate has no equivalent authorization check. A compromised or malicious peer can escalate their own role to admin, demote admins to member, or eject members from spaces without holding the admin role.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:04:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:16:05Z",
+  "closed_at": "2026-04-26T11:16:05Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:04:46"
+    }
+  ]
+}

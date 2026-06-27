@@ -1,0 +1,28 @@
+{
+  "id": "nie-ntho.1",
+  "title": "SpaceRole::all() docstring claims automatic inclusion; literal slice is not compiler-enforced",
+  "description": "The doc comment on SpaceRole::all() says 'A new variant added here is automatically included in both validation (parse) and any error text that calls this function.' This is false for all(). parse and as_str use exhaustive match arms \u2014 the compiler enforces their completeness. But all() is a static literal slice: adding a new SpaceRole variant to the enum compiles fine while all() silently omits the new variant. A developer who adds SpaceRole::Owner, fixes the two compile errors in parse/as_str, reads this docstring, and ships \u2014 will produce error messages that omit 'owner' from the list of valid roles. Fix: (1) correct the docstring to state that all() must be updated manually; (2) add a test that asserts all().len() == SpaceRole variant count as a runtime regression guard.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:04:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:05:40Z",
+  "closed_at": "2026-04-24T17:05:40Z",
+  "close_reason": "Fixed docstring to accurately describe manual update requirement; added space_role_all_is_complete test as regression guard",
+  "labels": [
+    "correctness",
+    "maintainer-burden",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:04:41"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-57b",
+  "title": "nie workspace: build from scratch",
+  "description": "Bootstrap the full nie workspace (nie-core, nie-relay, nie-cli) from scratch. Reference scaffold exists in nie.zip but we are writing fresh code. Goal: cargo build --workspace clean, two-instance smoke test passing.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "feature",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T04:37:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T04:41:27Z",
+  "closed_at": "2026-04-16T04:41:27Z",
+  "close_reason": "Closed"
+}

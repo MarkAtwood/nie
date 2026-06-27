@@ -1,0 +1,15 @@
+{
+  "id": "nie-lzd",
+  "title": "Phase 1: Encrypted keyfile storage",
+  "description": "Currently identity.key is stored as raw 32-byte Ed25519 seed with no passphrase protection. If the file is read, the identity is fully compromised.\\n\\nRequired:\\n- Passphrase prompt on  and on every command that loads the key\\n- Key derivation: argon2id with tuned parameters\\n- Encryption: xchacha20poly1305 or age (filippo.io/age)\\n- Prefer age: battle-tested, good Rust support, human-friendly format\\n- Store encrypted blob, not raw seed\\n-  flag for testing/CI only, prints loud warning",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:49:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T06:55:37Z",
+  "closed_at": "2026-04-16T06:55:37Z",
+  "close_reason": "Closed"
+}

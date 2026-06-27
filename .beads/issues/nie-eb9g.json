@@ -1,0 +1,19 @@
+{
+  "id": "nie-eb9g",
+  "title": "Review: jmap/space_set correctness, contact_set, ecb97a8–18000ea",
+  "notes": "Maintainer risk: LOW — one P2 survives to HEAD (bare invalidArguments with no field name). The known gaps in intermediate commits (member-only existence check, description:null no-op) were all fixed in subsequent commits in the same push. Chain is coherent.\nConfidence: 80% chance of no missed bug. Uncertainty: (1) contact_query_changes still queries all contacts to compute total even when returning empty added[] — correct behavior but unnecessary work at scale; (2) ChatContact/changes uses 'removed' not 'destroyed' — consistent within this codebase but diverges from standard RFC 8620 Foo/changes key name. Neither is a bug given the custom capability namespace. Would raise confidence if: there were a test for the saturating_add case with i64::MAX inputs (test_contact_query_large_position_limit_does_not_panic covers it — good) and a test for contact_changes with sinceState slightly stale but not 0.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T15:21:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T15:34:02Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

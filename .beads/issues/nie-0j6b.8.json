@@ -1,0 +1,27 @@
+{
+  "id": "nie-0j6b.8",
+  "title": "daemon starts with pub_id='no_identity' when keyfile absent",
+  "description": "daemon/src/main.rs falls back to my_pub_id='no_identity' when keyfile absent. This non-hex string becomes the JMAP accountId. Any write (Message/set create, Space/set, etc.) stores sender_id='no_identity' in the DB. A later session with a real key will have corrupt contact/message rows associating messages with a phantom sender. Expected: refuse to start or disable all write routes when keyfile is absent.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:56:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:55:08Z",
+  "closed_at": "2026-04-26T09:55:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:56:06"
+    }
+  ]
+}

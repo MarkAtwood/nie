@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.11",
+  "title": "send_payment returns Err on MarkSpentFailed; txid is buried in error string, not machine-readable",
+  "description": "payment.rs send_payment: when broadcast succeeds but mark_notes_spent fails, the function returns Err(SendPaymentError::MarkSpentFailed(msg)) where msg is a string containing the txid. The payment is on-chain and cannot be recalled. The caller has no way to extract the txid programmatically from the error variant \u2014 it is embedded in a human-readable string. Callers that need to display or record the confirmed txid (e.g. to show the user 'your payment was sent, txid=...') must parse the error string, which is fragile. MarkSpentFailed should carry the txid as a separate field: MarkSpentFailed { txid: String, detail: String }.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:48:17Z",
+  "closed_at": "2026-04-26T06:48:17Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:31"
+    }
+  ]
+}

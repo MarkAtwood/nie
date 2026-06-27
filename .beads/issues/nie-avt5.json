@@ -1,0 +1,14 @@
+{
+  "id": "nie-avt5",
+  "title": "PUBLISH_HPKE_KEY accepts all-zero (low-order) X25519 public key",
+  "description": "relay/src/ws.rs:1100 validates public_key is 32 bytes but does not check for the all-zero value. An X25519 all-zero key is a degenerate low-order point: the shared secret for any DH exchange with it is also all-zero, meaning any HPKE ciphertext encrypted to this key is trivially compromised. A malicious user can register this key. Fix: reject if params.public_key.iter().all(|b| *b == 0), returning INVALID_REQUEST. Optionally also reject the full set of 7 small-subgroup points from RFC 7748 §6.1.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T06:29:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:48:44Z",
+  "closed_at": "2026-04-26T06:48:44Z",
+  "close_reason": "Closed"
+}

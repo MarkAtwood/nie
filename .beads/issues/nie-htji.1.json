@@ -1,0 +1,28 @@
+{
+  "id": "nie-htji.1",
+  "title": "update_contact_fully: debug_assert\\! doesn't protect release from spurious state bump",
+  "description": "If a future caller passes (None, None) to update_contact_fully in a release build, the debug_assert\\! is compiled out, the function runs the existence SELECT, skips both UPDATE branches, then unconditionally bumps the ChatContact state-token \u2014 a spurious JMAP push notification with no field change. The current caller (contact_set Phase 2b) correctly guards with 'if blocked.is_none() && display_name.is_none()' before calling, so this cannot be triggered today. But the function signature and docstring document this as accepted behavior ('calling with both None is a no-op (existence is checked and ChatContact state is bumped, but no field changes)') rather than fixing it. A future caller that does not know this contract will silently trigger unnecessary client refreshes.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:55:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:00:22Z",
+  "closed_at": "2026-04-24T17:00:22Z",
+  "close_reason": "Replaced debug_assert! with runtime Err guard; added store unit test to verify precondition enforcement in both debug and release builds",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:55:32"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-tb8e.8",
+  "title": "store.rs list_group_members has no cap \u2014 unbounded result set on large groups",
+  "description": "relay/src/store.rs list_group_members() does SELECT pub_id FROM group_members WHERE group_id = ?1 with no LIMIT. add_group_member_capped enforces a cap at write time, but if the cap was changed or the DB was manipulated, a single list_group_members call can return an unbounded Vec<String>. The GROUP_LEAVE handler calls list_group_members and forwards the result to the relay wire response. A group with 10K members produces a 10K-element JSON array in a single response. Should add LIMIT matching the add_member cap.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:41:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:54:48Z",
+  "closed_at": "2026-04-26T07:54:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:41:42"
+    }
+  ]
+}

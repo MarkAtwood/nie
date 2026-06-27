@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.41",
+  "title": "daemon starts with no_identity fallback pub_id causing silent JMAP account failures",
+  "description": "main.rs lines 77-83: when the keyfile is absent the daemon sets my_pub_id to the string 'no_identity' and continues startup. All JMAP account validation that compares accountId against my_pub_id will silently fail or produce nonsensical results. The daemon should refuse to start (or at minimum log a prominent error) rather than operating with a placeholder identity that will cause hard-to-diagnose failures for every JMAP client.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:57:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:57:55Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:57:54"
+    }
+  ]
+}

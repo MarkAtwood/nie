@@ -1,0 +1,25 @@
+{
+  "id": "nie-cp2h.6",
+  "title": "update_space_fully single-transaction atomicity for both prop and member writes should be defended",
+  "description": "update_space_fully wraps prop updates and member inserts/deletes in one SQLite transaction with a single state-token bump per type. A future contributor might split this back into separate store calls (update_space_props + upsert_space_member_with_role) to 'simplify'. That would reintroduce the pre-existing partial-write bug: name change committed, then member op fails \u2192 notUpdated returned but name already persisted. The previous version of this code had this bug and documented it as a 'known limitation'. The combined transaction is the fix; preserve it.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:54:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T06:07:05Z",
+  "closed_at": "2026-04-24T06:07:05Z",
+  "close_reason": "decision recorded in beads, no code action needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:54:53"
+    }
+  ]
+}

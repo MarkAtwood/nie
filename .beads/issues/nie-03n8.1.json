@@ -1,0 +1,25 @@
+{
+  "id": "nie-03n8.1",
+  "title": "decrypt_wallet_key returns plain [u8;64]; spending key not zeroized on caller drop",
+  "description": "cli/src/commands.rs:decrypt_wallet_key() returns [u8;64] (not Zeroizing<[u8;64]>). Its internal Vec<u8> plaintext buffer is also unzeroized. On every wallet unlock the 64-byte ZIP-32 spending key + chain code remain in process memory until the stack frame is reclaimed. Trigger: normal wallet use (wallet send, payment). Fix: wrap return type and internal buffer in Zeroizing; same fix class as nie-kef6.103 for identity.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:54:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:51Z",
+  "closed_at": "2026-04-25T03:44:51Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:54:48"
+    }
+  ]
+}

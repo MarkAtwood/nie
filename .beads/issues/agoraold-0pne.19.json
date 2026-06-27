@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-0pne.19",
+  "title": "e2e test: Alice stdout piped but never read \u2014 deadlock risk",
+  "description": "In cli/tests/e2e_payment.rs, alice_proc.stdout is set to Stdio::piped() (line 209) but is never consumed. The chat loop prints multiple lines to stdout (connecting message, MLS events, payment status lines) over the 120-second test window. On Linux, an OS pipe buffer is 64 KB. If Alice's process fills the pipe buffer, write() blocks, stalling Alice's tokio runtime \u2014 /pay never completes, and the test times out with no useful error. Fix: either set alice_proc.stdout to Stdio::inherit() (which also makes Alice's output visible in test failures, aiding diagnosis), or spawn a task that drains alice_proc.stdout.take() in a loop.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T15:32:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:29Z",
+  "closed_at": "2026-04-19T15:36:42Z",
+  "close_reason": "fixed in review fix wave",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 08:32:57"
+    }
+  ]
+}

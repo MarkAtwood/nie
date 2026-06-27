@@ -1,0 +1,22 @@
+{
+  "id": "nie-13e3.19",
+  "title": "Atomic witness+note insert in scan_tx is correct design: defend against simplification",
+  "description": "scanner.rs scan_tx() calls insert_note_with_witness() which runs note INSERT + witness INSERT in a single SQLite transaction. This is the correct design: a note without a witness row is permanently excluded from spendable_notes() by the INNER JOIN, so the note is permanently unspendable if the witness insert fails separately. A contributor might suggest splitting this into two calls (insert_note then upsert_witness) for simplicity. Defend: the atomic insert is load-bearing for correctness. The orphaned-note scenario is not recoverable without a full rescan. Keep the combined insert.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:29:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:29:34Z",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:29:34"
+    }
+  ]
+}

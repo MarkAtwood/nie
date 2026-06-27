@@ -1,0 +1,26 @@
+{
+  "id": "nie-hhmj.10",
+  "title": "RISK: connection_manager never logs reconnection attempts after first; no retry diagnostics",
+  "description": "core/src/transport.rs lines 226-229: on Err(..) from open_authenticated_ws(), only a warn\\!() is logged with no context (url, error details, attempt count). If reconnection loops silently for hours (e.g., relay permanently down but client doesn't exit), a solo maintainer sees no logs indicating the failure rate or duration. The delay_secs backoff is capped at 60s (line 252), but there's no final-failure log ('gave up after N attempts') or exponential-backoff-cap warning. If the relay is unavailable for a day, the operator has no way to know the client was reconnecting, vs. crashed, vs. never tried. Risk: silent reconnection loops with no operator visibility or diagnostic trail.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:16:59Z",
+  "closed_at": "2026-04-19T18:16:59Z",
+  "close_reason": "Out of scope for JSON-RPC migration epic. Real concern but not introduced by this epic \u2014 file as separate issue if prioritized.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:44"
+    }
+  ]
+}

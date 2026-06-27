@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-zd3.8",
+  "title": "oracle test for Orchard DI correctness uses a real skipping case, not a synthetic one",
+  "description": "A contributor might suggest simplifying the test by constructing a synthetic skipping case (e.g., mocking the skip) or removing it as redundant with the 1000-chain test. Do not do this. The oracle test finds a real skipping index (where Sapling rejects the index and advances) from actual ZIP-32 derivation, then verifies the Orchard receiver in the returned UA matches an independent Orchard key schedule call. It tests a specific bug class (using start instead of found_di for Orchard) that the 1000-chain distinctness test cannot detect (distinct addresses from wrong derivation would still be distinct). The test's complexity is the price of testing the right thing.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:17:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:54Z",
+  "closed_at": "2026-04-18T23:37:05Z",
+  "close_reason": "decision records, no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:17:33"
+    }
+  ]
+}

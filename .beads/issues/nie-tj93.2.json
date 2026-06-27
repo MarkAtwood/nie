@@ -1,0 +1,26 @@
+{
+  "id": "nie-tj93.2",
+  "title": "WHISPER/SEALED_WHISPER accept phantom recipient pub_ids, polluting offline queue",
+  "description": "ws.rs WHISPER (~line 1093) and SEALED_WHISPER (~line 1165): the recipient pub_id is validated as 64 lowercase hex chars but is NOT checked against user_exists(). An authenticated client can address whispers to any hex string that is not in the users table. deliver_live() returns false, so enqueue() is called. The offline_messages table has no FK to users; the per-recipient cap (1000) limits growth per fake target but there are 2^256 valid pub_id values, allowing unbounded table growth across many fake recipients. Fix: call user_exists() on params.to before routing, same as GROUP_ADD does for member_pub_id.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:54:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:07Z",
+  "closed_at": "2026-04-25T02:08:07Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:54:51"
+    }
+  ]
+}

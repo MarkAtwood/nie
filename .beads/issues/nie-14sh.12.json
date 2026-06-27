@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.12",
+  "title": "remove_member_and_maybe_delete_group: dead DELETE on group_members when remaining=0",
+  "description": "store.rs: when remaining==0, a second DELETE FROM group_members runs after the member was already deleted. It is always a no-op; the subsequent DELETE FROM groups CASCADE-deletes any residual rows anyway. Dead code that misrepresents what the function does.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:09:07Z",
+  "closed_at": "2026-04-24T23:09:07Z",
+  "close_reason": "Dead DELETE in remaining==0 branch is a no-op not a correctness bug; cascade DELETE from groups handles residual rows. Downgraded from P0 to non-issue.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:35"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.10",
+  "title": "payment watcher scan height not persisted: payments missed after restart",
+  "description": "payment_watcher.rs last_scanned_height is entirely in-memory. On relay restart, the watcher starts fresh at tip - INITIAL_LOOKBACK (100 blocks). Any payment confirmed in a block older than 100 blocks before restart is never scanned again. The invoice remains pending until it expires; the subscription never activates and the user has no recourse. Fix: persist last_scanned_height to the store (e.g. a new payment_watcher_state table) and restore it on startup, falling back to tip-INITIAL_LOOKBACK only when no persisted value exists.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:37:12Z",
+  "closed_at": "2026-04-24T22:37:12Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:30"
+    }
+  ]
+}

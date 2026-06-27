@@ -1,0 +1,26 @@
+{
+  "id": "nie-wrk.14",
+  "title": "MLS KP republication on UserJoined elegantly solves the missing-KP race for late-joining admin",
+  "description": "When a new admin joins an existing session, existing members have already published their KPs and the relay has stored them, but their KeyPackageReady events were broadcast before the admin arrived and were not replayed. The solution: existing members call key_package_bytes() and republish on every UserJoined while !mls_active. When the new admin joins, a UserJoined{admin} event triggers all pre-existing members to republish, generating new KeyPackageReady events that the admin receives and can act on. This avoids a replay mechanism on the relay. A contributor may try to add KP replay on connect; do not do that \u2014 the republication approach keeps the relay stateless about KP delivery.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:54:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T00:10:45Z",
+  "closed_at": "2026-04-18T00:10:45Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:54:45"
+    }
+  ]
+}

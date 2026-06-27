@@ -1,0 +1,15 @@
+{
+  "id": "nie-txd",
+  "title": "Client: Reconnect with exponential backoff",
+  "description": "transport::connect() makes one attempt and returns an error on failure. The chat command gives up immediately. No reconnection loop.\\n\\nRequired:\\n- Reconnect loop in transport.rs with exponential backoff: 1s, 2s, 4s, 8s, ... cap at 60s\\n- Jitter: multiply delay by rand(0.8..1.2) to avoid thundering herd\\n- Max retries: configurable, default unlimited\\n- On reconnect: re-authenticate, drain server queue, flush local outbox\\n- Emit reconnecting... and reconnected. messages to the chat UI\\n- SIGINT cancels reconnect loop cleanly",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-16T07:01:07Z",
+  "close_reason": "Closed"
+}

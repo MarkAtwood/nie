@@ -1,0 +1,26 @@
+{
+  "id": "nie-8fbh.7",
+  "title": "send_payment: INSERT OR IGNORE on tx silently drops peer_pub_id and session memo",
+  "description": "payment.rs send_payment calls store.insert_tx() which uses INSERT OR IGNORE. If the scanner has already indexed this txid (unlikely for an outgoing tx but possible on rescan), the INSERT is silently ignored. The outgoing TxRecord carries peer_pub_id and the session UUID memo, which are not set by the scanner. On rescan, those fields are never stored, so the tx history permanently shows outgoing payments without session attribution.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:54:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:48:39Z",
+  "closed_at": "2026-04-26T06:48:39Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:54:34"
+    }
+  ]
+}

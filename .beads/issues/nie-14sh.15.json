@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.15",
+  "title": "FileHeader::name not validated for path traversal at deserialization",
+  "description": "messages.rs FileHeader.name is documented as 'basename only \u2014 no path components' but no enforcement exists at deserialization or struct construction. A malicious sender can set name: '../../../etc/passwd'. Receiver code that uses this field as a filename without further sanitization will write outside the intended directory. Validation (reject anything containing '/' or '\\') must be enforced in the deserialization layer or in a constructor, not left entirely to callers.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:56:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:06:25Z",
+  "closed_at": "2026-04-24T23:06:25Z",
+  "close_reason": "Fixed this session: deserialize_file_name added to messages.rs",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:56:00"
+    }
+  ]
+}

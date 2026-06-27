@@ -1,0 +1,24 @@
+{
+  "id": "nie-qmq3.9",
+  "title": "bot: BotCommand::Quit calls process::exit(0), skips Disconnected event and cleanup",
+  "description": "bot/src/main.rs:242 \u2014 handle_command for Quit calls std::process::exit(0). This skips the BotEvent::disconnected(\"shutdown\").emit() at line 137, so consumers reading NDJSON never see a Disconnected event. SQLite connections are dropped without flush. Fix: set a quit flag or send a oneshot signal so the select! loop exits normally and emits the shutdown event.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:55:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:55:33Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:55:33"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.93",
+  "title": "prune_inactive_users leaves orphan group rows",
+  "description": "store.rs prune_inactive_users() deletes from users; FK ON DELETE CASCADE removes group_members rows but NOT the groups row itself \u2014 if the pruned user was the last member, the group row remains with 0 members and no path to deletion, leaking storage and polluting GROUP_LIST results for other members who also left",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:22:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:46:46Z",
+  "closed_at": "2026-04-25T01:46:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:22:11"
+    }
+  ]
+}

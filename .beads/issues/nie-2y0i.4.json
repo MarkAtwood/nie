@@ -1,0 +1,28 @@
+{
+  "id": "nie-2y0i.4",
+  "title": "nie-tui main.rs: CLI args, terminal init, panic hook",
+  "description": "**What:** Implement tui/src/main.rs \u2014 clap CLI argument parsing, terminal initialization (crossterm raw mode + alternate screen), panic hook that restores terminal, and startup sequence.\n\n**Algorithm:**\n1. Define Cli struct with clap::Parser:\n   - --relay URL (default ws://127.0.0.1:3210/ws, from config.toml or flag)\n   - --keyfile PATH (default: data_dir/identity.key)\n   - --data-dir PATH (override XDG data dir)\n   - --network [mainnet|testnet] (default: testnet)\n   - --lightwalletd URL\n   - --proxy URL (socks5h://... for Tor)\n   - --insecure (hidden, skip TLS cert check)\n   - --no-passphrase (hidden, skip passphrase)\n2. #[tokio::main] async fn main() -> anyhow::Result<()>:\n   a. Parse Cli args.\n   b. Load AppConfig from config_dir (use nie_cli_lib::config::AppConfig).\n   c. Resolve relay URL: flag > config > default.\n   d. Resolve keyfile path: flag > data_dir/identity.key.\n   e. Load identity: nie_core::keyfile::load_identity(&keyfile, no_passphrase)?.\n   f. Extract hpke keys before moving identity: let hpke_secret = identity.hpke_secret_bytes(); let hpke_pub = identity.hpke_pub_key_bytes();\n   g. Set up panic hook BEFORE terminal init:\n      std::panic::set_hook(Box::new(|info| {\n          // restore terminal synchronously\n          let _ = crossterm::terminal::disable_raw_mode();\n          let _ = crossterm::execute!(std::io::stderr(), crossterm::terminal::LeaveAlternateScreen);\n          // print panic info to stderr (NOT stdout, which is the terminal)\n          eprintln!(\"panic: {info}\");\n      }));\n   h. Enable raw mode: crossterm::terminal::enable_raw_mode()?\n   i. Execute EnterAlternateScreen: crossterm::execute!(stdout, crossterm::terminal::EnterAlternateScreen)?\n   j. Create Terminal: let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(std::io::stdout()))?\n   k. Create MlsClient: nie_core::mls::MlsClient::new(&identity.pub_id().0)?\n   l. Create AppState::new(identity.pub_id().0, hpke_secret, mls_client).\n   m. Connect with retry: transport::connect_with_retry(relay, identity, insecure, proxy).\n   n. Call run(&mut terminal, &mut state, conn).await? (event loop, defined in event.rs).\n   o. On exit (run() returns): restore terminal.\n      crossterm::execute!(stdout, crossterm::terminal::LeaveAlternateScreen)?;\n      crossterm::terminal::disable_raw_mode()?;\n3. Restore terminal on both normal exit and panic \u2014 never leave raw mode active.\n\n**Defensive programming rules:**\n- Panic hook must run synchronously \u2014 no async code in hook.\n- Panic hook writes to stderr, not stdout (stdout is the terminal in alternate screen mode).\n- Never log key material. identity must be moved into transport before any logging.\n- Validate relay URL starts with ws:// or wss:// before connecting.\n- If terminal init fails, DO NOT leave partial state \u2014 restore before propagating error.\n- Ensure raw mode is disabled even if EnterAlternateScreen fails.\n\n**Agent team:** Standard (R+I+V). R reads cli/src/main.rs for flag patterns and nie-core/keyfile.rs. I implements main.rs. V runs cargo build -p nie-tui.\n\n**Tests:** Integration test: run nie-tui --help exits 0; cargo build -p nie-tui succeeds; test that missing keyfile gives a clear error (not a panic).\n",
+  "acceptance_criteria": "cargo build -p nie-tui exits 0; nie-tui --help shows all required flags; nie-tui without a valid identity.key prints clear error and exits non-zero",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:14:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:27:10Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:14:44"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:22"
+    }
+  ]
+}

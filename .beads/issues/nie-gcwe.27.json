@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.27",
+  "title": "transport.rs: parse_incoming defined after #[cfg(test)] block",
+  "description": "In core/src/transport.rs, the function parse_incoming (line 606) is defined after the #[cfg(test)] mod tests block (lines 502-604). While this compiles correctly (parse_incoming is in the top-level module, not inside the test module), the placement is confusing: a reader scanning the file sees the test module appear to be the last thing, then finds a non-test function after it. Standard Rust convention is to place all non-test code before the test module. Low-risk cosmetic issue but could cause a reviewer to think parse_incoming is test-only.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:31:53Z",
+  "closed_at": "2026-04-19T19:31:53Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:40"
+    }
+  ]
+}

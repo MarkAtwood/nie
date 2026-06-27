@@ -1,0 +1,26 @@
+{
+  "id": "nie-43zd.1",
+  "title": "messages: deserialize_profile_fields missing; crate fails to compile",
+  "description": "Profile variant in ClearMessage references deserialize_profile_fields via #[serde(deserialize_with = ...)] at core/src/messages.rs:37, but this function is never defined anywhere in the codebase. cargo check produces E0425 (cannot find function). The entire nie-core crate fails to build. Trigger: any cargo build or cargo test invocation. Root cause: the fix agent for nie-t8j0.2 wired up the custom deserializer attribute but never wrote the function body.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:54:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:12:12Z",
+  "closed_at": "2026-04-26T05:12:12Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:54:36"
+    }
+  ]
+}

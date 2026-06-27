@@ -1,0 +1,24 @@
+{
+  "id": "nie-nbqp.12",
+  "title": "transport.rs: recv_text_frame skips binary/other frames indefinitely, not just ping/pong",
+  "description": "recv_text_frame (transport.rs line 621) has arms for Ping and Pong (continue), and a catch-all Other branch that bails with an error. The comment says 'skipping ping/pong frames' but the loop never terminates on an unexpected binary frame without waiting for the timeout (30s) \u2014 the bail\\! arm returns an error immediately on 'other' frames, so it does terminate. Actually this is fine. The real concern: the function has a 30-second timeout that applies to the entire wait including pings, but a server sending only Ping frames (no Text) will cause the function to loop until timeout with no log. A single log line at WARN level when the ping loop count exceeds a small threshold would make debugging easier. Low impact \u2014 file as elegance.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:37:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:37:14Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:37:21"
+    }
+  ]
+}

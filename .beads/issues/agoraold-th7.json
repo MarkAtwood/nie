@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-th7",
+  "title": "Phase 5: Group chat / channel fan-out",
+  "description": "Multi-party group messaging. Relay fans out each message to all group members. E2E encryption via MLS group state.\\n\\nRequired relay-side:\\n- Channel membership table: channels(id, name, created_by), memberships(channel_id, pub_id, joined_at)\\n- GroupSend relay message: relay fan-out to all online members, queue for offline members\\n- O(N) deliver_live() calls per GroupSend \u2014 acceptable up to ~1000 members\\n- For larger groups: consider pub/sub (NATS, Redis) as message bus between relay instances\\n\\nRequired client-side:\\n- MLS group state management: add/remove members, epoch tracking\\n- CLI: nie group create <name>, nie group add <contact>, nie group chat <name>\\n- Group key packages exchanged via relay (not out-of-band)\\n\\nDepends on: MLS Phase 1 two-party foundation.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:51:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:21:18Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 22:51:30"
+    }
+  ]
+}

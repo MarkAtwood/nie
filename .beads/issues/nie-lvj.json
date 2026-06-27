@@ -1,0 +1,18 @@
+{
+  "id": "nie-lvj",
+  "title": "Spike: evaluate zcash dep workarounds for core2 breakage",
+  "description": "nie-m91 is deferred due to zcash_primitives 0.26.x / zcash_address 0.10.x being broken because all 0.3.x versions of transitive dep core2 are yanked. Three options must be evaluated: (a) git dep from zcash/librustzcash main branch (check whether their Cargo.toml has moved past core2), (b) in-house ZIP-32 child derivation using blake2b_simd + jubjub crates (no core2 dep), (c) wait for ECC to publish a fix to crates.io. Use TWO parallel subagents: subagent-A fetches and parses zcash/librustzcash main/Cargo.lock to check whether core2 0.4+ or a replacement is present; subagent-B spikes option (b) by grepping the jubjub and blake2b_simd crate docs for the API surface needed for ZIP-32 PRF^expand and key derivation. Both agents report findings; main agent writes a recommendation doc as output notes.",
+  "design": "Do not touch Cargo.toml until recommendation is approved. Spike only.",
+  "acceptance_criteria": "Written recommendation names one workaround with evidence. Cargo.lock or API surface excerpt included as proof. No code written yet.",
+  "notes": "## Spike Results (2026-04-18)\n\n### Subagent A: librustzcash main branch status\n\nlibrustzcash PR #2306 'corez_migration' just merged. The main branch now declares:\n- zcash_primitives = \"0.26.4\" (same version series, post-migration)\n- core2: ZERO occurrences in Cargo.lock\n- corez = \"0.1.1\" pinned in workspace Cargo.toml; corez is on crates.io (not yanked)\n\nOption (a) — git dep from librustzcash main — will resolve cleanly without any yanked crates.\n\n### Subagent B: blake2b_simd + jubjub API surface\n\nBoth crates are available locally and have zero core2 transitive deps:\n- blake2b_simd 1.0.4: supports personalization via Params::new().personal(b\"ZcashIP32Sapling\") — exactly what ZIP-32 needs\n- jubjub 0.10.0: has Fr::from_bytes_wide(\u0026[u8; 64]) — the key scalar reduction needed for ask/nsk derivation\n\nOption (b) — in-house ZIP-32 — is feasible at ~120-150 lines of safe Rust.\n\n### Recommendation: OPTION (A) — git dep from librustzcash main\n\nRationale:\n1. Uses official ECC code — audited, battle-tested, has correct test vectors\n2. Unblocks all wallet work NOW (no weeks waiting for crates.io release)\n3. Drop path is clear: when ECC publishes 0.26.5 or 0.27.0 to crates.io, replace git dep with version dep in one line\n4. Option (b) is tempting but writing our own crypto is higher risk — even simple BLAKE2b + scalar arithmetic can have subtle bugs (wrong byte ordering, wrong endianness on scalar reduction, off-by-one on PRF input)\n\nOption (c) — wait — is rejected: unknown timeline, blocks all Phase 2 work.\n\n### Git dep to use (when approved):\n\nIn workspace Cargo.toml:\n```toml\n[patch.crates-io]\nzcash_primitives = { git = \"https://github.com/zcash/librustzcash\", rev = \"d849151\" }\nzcash_address = { git = \"https://github.com/zcash/librustzcash\", rev = \"d849151\" }\n```\n(rev d849151 = the corez_migration merge commit tip)\n\n### No code written — this is a spike. Cargo.toml not touched. Awaiting approval.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:19:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T18:27:13Z",
+  "close_reason": "Spike complete. Recommendation: use git dep from librustzcash main (PR #2306 corez_migration merged; core2 replaced by corez 0.1.1). Option (b) in-house is viable fallback (~120 lines). Option (c) wait rejected. See notes for full evidence and git dep snippet. Awaiting user approval before touching Cargo.toml."
+}

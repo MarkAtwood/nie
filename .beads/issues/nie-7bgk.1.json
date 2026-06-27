@@ -1,0 +1,22 @@
+{
+  "id": "nie-7bgk.1",
+  "title": "update_contact_fully: unenforced (None,None) precondition bumps state spuriously",
+  "description": "update_contact_fully is pub and documents 'callers must ensure at least one of blocked or display_name is Some', but does not enforce it. If called with (None, None), the function opens a transaction, checks existence, writes nothing, bumps the ChatContact state token, and returns Ok(true) \u2014 a spurious state bump with no field change. The current caller (Phase 2b in contact_set) cannot trigger this because Phase 2a guards ops.is_empty(), but any future caller can. Fix: add a debug_assert\\! or return early with Err if both are None.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:37:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:48:44Z",
+  "closed_at": "2026-04-24T16:48:44Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:37:18"
+    }
+  ]
+}

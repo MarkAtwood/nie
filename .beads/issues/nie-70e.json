@@ -1,0 +1,19 @@
+{
+  "id": "nie-70e",
+  "title": "Review: feat: payment expiry/cancel, wallet DB v2, gRPC",
+  "notes": "## Section 7: Confidence Calibration\n\n**HIGH confidence (verified against spec or code):**\n- nie-70e.1: sapling_logical_actions uses sum not max — confirmed against ZIP-317 §4. The (1,1) test accidentally passes because sum=max=2; the (1,2) case exposes the divergence.\n- nie-70e.2: cancel+disconnect state split — the break precedes the upsert_session call; path is unambiguous.\n- nie-70e.3: mark_note_spent silent no-op — sqlx execute() never checks rows_affected.\n- nie-70e.4: PRAGMA foreign_keys per-connection — SQLite behavior is documented and deterministic.\n- nie-70e.7: N upsert calls — loop structure is clear.\n- nie-70e.8: fees.rs docstring — sapling_bundle_count term absent from ZIP-317 §4.\n- nie-70e.10: resync_sessions precondition — comment-only enforcement confirmed.\n\n**MEDIUM confidence (inferred, not externally verified):**\n- nie-70e.5: na./eu. endpoints — I could not verify these hostnames against ECC docs from within the codebase. High probability they are speculative but not certain.\n- nie-70e.6: payment privacy — mechanism (Broadcast) is confirmed; whether this violates user expectations is a product judgment.\n- nie-70e.9: reason string perspective — UX judgment; reasonable people may disagree.\n\n**False positive risk:**\n- nie-70e.4 is not a current bug (max_connections=1 is enforced); it is a maintenance trap. May be too speculative for immediate action.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:50:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T16:00:00Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

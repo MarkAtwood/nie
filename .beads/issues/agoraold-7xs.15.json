@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7xs.15",
+  "title": "age format for keyfile encryption: correct choice, resist NIH pressure",
+  "description": "commands.rs uses the age crate (RFC draft) for passphrase-based keyfile encryption. A reviewer might suggest rolling a custom solution (argon2 + XChaCha20-Poly1305) for 'fewer dependencies' or 'more control'. Do not do this: age is specifically designed for this use case, has a published test suite, uses scrypt for key derivation (appropriate for passphrase strength), and the crate is audited. The alternative adds implementation complexity and risk without benefit. The three test cases (roundtrip, wrong passphrase rejected, corrupt ciphertext rejected) provide adequate coverage of the AEAD contract.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T08:00:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:00Z",
+  "closed_at": "2026-04-16T09:07:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 01:00:04"
+    }
+  ]
+}

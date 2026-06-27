@@ -1,0 +1,26 @@
+{
+  "id": "nie-gsyn.10",
+  "title": "TYPING has no subscription check; unsubscribed users can broadcast presence to all peers",
+  "description": "When require_subscription=true, BROADCAST/WHISPER/GROUP_SEND are subscription-gated but TYPING is not. An unsubscribed user can repeatedly send TYPING {typing:true} at the rate limit (120/min), broadcasting presence notifications to every connected client for free. This bypasses the subscription gate on message sending and leaks the sender's presence/activity. Fix: add require_subscription check to TYPING before the rate limit check.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:27:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:18:48Z",
+  "closed_at": "2026-04-26T07:18:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:27:43"
+    }
+  ]
+}

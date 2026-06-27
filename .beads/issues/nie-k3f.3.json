@@ -1,0 +1,26 @@
+{
+  "id": "nie-k3f.3",
+  "title": "Zero-amount payment accepted without validation",
+  "description": "User runs /pay bob 0 or /pay bob 0.00000000: parse_zec_to_zatoshi() returns Ok(0), a PaymentSession is created with amount_zatoshi=0 and persisted to the DB, a PaymentAction::Request is broadcast to the peer. The peer derives a fresh address and returns it. A ZIP-317-fee transaction for 0 ZEC is attempted. There is no application-layer guard rejecting zero amounts. Should be caught at parse time or at the top of the /pay handler before upsert_session() is called.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:55:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:05:29Z",
+  "closed_at": "2026-04-19T06:05:29Z",
+  "close_reason": "Fixed: added amount_zatoshi == 0 guard after parse_zec_to_zatoshi in /pay handler. Prints '[pay] amount must be greater than 0' and continues.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:55:31"
+    }
+  ]
+}

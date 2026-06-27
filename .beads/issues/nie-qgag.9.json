@@ -1,0 +1,27 @@
+{
+  "id": "nie-qgag.9",
+  "title": "HPKE key overwrite not rate-limited per-key; silent clobber",
+  "description": "PUBLISH_HPKE_KEY uses ON CONFLICT DO UPDATE \u2014 silently replacing any existing key. An attacker who steals or borrows a session can replace a victim's HPKE public key with their own, then intercept all subsequent sealed-sender messages. There is no audit log, no notification to the key owner, and no key version/timestamp returned to the caller. At minimum, returning the prior key's updated_at lets the owner detect unexpected changes. Consider requiring the caller to supply the previous key hash as a precondition.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:54:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:19:02Z",
+  "closed_at": "2026-04-26T07:19:02Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:54:16"
+    }
+  ]
+}

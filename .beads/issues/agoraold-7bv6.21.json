@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.21",
+  "title": "SEC4: is_ascii_hexdigit in test does not enforce lowercase",
+  "description": "tests/wasm.rs lines 60-62 and 192-194: both assertions use is_ascii_hexdigit() or a manual range check, with assertion messages claiming 'must be lowercase hex'. is_ascii_hexdigit() accepts A-F as well as a-f, so the predicate does not actually enforce lowercase. The correct predicate is matches!(c, '0'..='9' | 'a'..='f'). Test Set C (line 192-194) already uses the correct range check, but Test Set A (line 60-62) uses is_ascii_hexdigit(). A maintainer reading both will not notice the inconsistency and may trust the weaker assertion. Fix: replace is_ascii_hexdigit() in line 61 with matches!(c, '0'..='9' | 'a'..='f') to match the predicate in test_pub_id_derivation and correctly enforce lowercase.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:03Z",
+  "closed_at": "2026-04-22T13:45:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:49"
+    }
+  ]
+}

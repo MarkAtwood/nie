@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-hvw.8",
+  "title": "E2E smoke test: subscription invoice creation (offline)",
+  "description": "Offline integration test verifying the full invoice creation path end-to-end without live Zcash network access.\n\nWhat: relay integration test that starts a relay with MERCHANT_DFVK configured, sends subscribe_request, verifies a valid invoice is returned and stored in DB, and that two requests produce distinct addresses.\n\nAlgorithm:\n1. Generate a deterministic test merchant seed (use [0u8;64] \u2192 derive DFVK \u2192 encode as 256-char hex).\n2. Start a test relay (same pattern as relay/tests/stress.rs) with MERCHANT_DFVK set to this test value.\n3. Connect a test client and authenticate.\n4. Send subscribe_request (SubscribeRequestParams { duration_days: 30 }).\n5. Assert response is SubscribeInvoiceResult with:\n   - address starts with 'u1' (testnet UA) \u2014 valid bech32m\n   - amount_zatoshi > 0\n   - expires_at is a valid YYYY-MM-DD HH:MM:SS string approximately 24h in the future\n6. Query relay store directly: assert get_pending_invoice(pub_id) returns a row with the same address.\n7. Send a second subscribe_request. Assert response is SUBSCRIPTION_REQUIRED error (-32010).\n8. Verify: two different authenticated clients each send subscribe_request; assert addresses are distinct (uniqueness guarantee).\n\nDefensive rules:\n- Test uses a synthetic DFVK derived from known seed \u2014 deterministic, no real wallet.\n- No live Zcash network access \u2014 this is a relay-logic test only.\n- Test must clean up temp DB files.\n\nOracle:\n- UA address format verified by decoding with zcash_address::ZcashAddress::decode().\n- Address uniqueness verified by asserting two returned addresses are != .\n- expires_at format verified by chrono::NaiveDateTime::parse_from_str.",
+  "acceptance_criteria": "cargo test -p nie-relay -- e2e_subscription passes without network access",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:54:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:11Z",
+  "closed_at": "2026-04-20T06:28:09Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:24"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:40"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:39"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-91j.6",
+  "title": "/receive silently swallows get_diversifier_index DB error",
+  "description": "wallet_store.get_diversifier_index(PAYMENT_ACCOUNT).await.unwrap_or(0) \u2014 if the DB query fails, the error is silently dropped and the command displays the address at index 0 as if nothing went wrong. The user sees a valid address (index 0 is always safe) but has no indication the DB read failed. Fix: match the Result and print a [wallet] error message on Err, identical to how /balance handles its error paths.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:58:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:09Z",
+  "closed_at": "2026-04-19T05:03:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:58:00"
+    }
+  ]
+}

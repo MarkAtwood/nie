@@ -1,0 +1,22 @@
+{
+  "id": "nie-as6",
+  "title": "--network flag: testnet / mainnet selection",
+  "description": "Add --network <testnet|mainnet> global CLI flag. Default: testnet during Phase 2. Controls: lightwalletd endpoint, address HRP (ZEC vs TAZ), consensus parameters passed to zcash_primitives. Refuse to mix testnet keys with mainnet network and vice versa (detect via address HRP check).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T15:19:00Z",
+  "closed_at": "2026-04-19T15:19:00Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:32"
+    }
+  ]
+}

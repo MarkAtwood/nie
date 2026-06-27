@@ -1,0 +1,21 @@
+{
+  "id": "nie-b2t",
+  "title": "/pay <handle> <amount> command",
+  "description": "Parse /pay alice 0.01 (handle from contact book, amount in ZEC). Validate amount > 0, handle resolves to a known pub_id. Create a new PaymentSession as payer. Send PaymentAction::Request via the normal chat broadcast to that peer. Display 'Payment request sent to alice for 0.01 ZEC' in chat.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:37:45Z",
+  "closed_at": "2026-04-19T04:37:45Z",
+  "close_reason": "Done: /pay implemented in commands.rs including parse_zec_to_zatoshi, handle resolution, session creation, PaymentAction::Request broadcast, and wallet-guard check.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:43:11"
+    }
+  ]
+}

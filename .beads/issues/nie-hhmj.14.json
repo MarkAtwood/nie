@@ -1,0 +1,25 @@
+{
+  "id": "nie-hhmj.14",
+  "title": "READABILITY: Document wait_for_directory_list as synchronization primitive",
+  "description": "relay/tests/e2e_jsonrpc.rs:54-69 \u2014 The helper function wait_for_directory_list() filters events until a DirectoryList notification arrives. The function-level comment doesn't explain that this is a *synchronization point* that establishes happens-before between auth completion and message assertions. Readers of the helper alone don't understand why it's critical: if you don't wait for DirectoryList, online registration may not be complete when you send a message, causing a race. Fix: expand the doc comment to include 'This call blocks until the client receives and processes DirectoryList, guaranteeing the relay has registered them as online. Essential for eliminating races in subsequent message tests.'",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:24:08Z",
+  "closed_at": "2026-04-19T18:24:08Z",
+  "close_reason": "P4 readability/comment items. Not blocking correctness. Deferred \u2014 file separately if prioritized.",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:59"
+    }
+  ]
+}

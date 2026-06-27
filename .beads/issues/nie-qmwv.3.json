@@ -1,0 +1,26 @@
+{
+  "id": "nie-qmwv.3",
+  "title": "store: COMMIT issued even when inner async block returns Ok but result may be a soft-success lie",
+  "description": "The pattern used throughout store.rs (try_set_nickname, save_key_package_capped, enqueue, drain, add_group_member_capped, remove_member_and_maybe_delete_group, etc.) commits the transaction when result.is_ok() and rolls back on Err. However some paths return Ok(false) or Ok(AlreadyMember) as soft-no-op outcomes that should still commit (they are correct). The real risk is the inverse: if any of those inner blocks return Ok but have silently skipped a write (due to INSERT OR IGNORE), the COMMIT is issued and no rollback occurs. This is by design for idempotency in most places, but is load-bearing for correctness proofs \u2014 no single issue here beyond the specific rows_affected checks above. This issue tracks the pattern for future audit.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:48:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:01:32Z",
+  "closed_at": "2026-04-26T12:01:32Z",
+  "close_reason": "informational pattern audit; specific instances fixed in nie-qmwv.1 and nie-qmwv.2",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:48:08"
+    }
+  ]
+}

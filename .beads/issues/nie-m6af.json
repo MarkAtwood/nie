@@ -1,0 +1,19 @@
+{
+  "id": "nie-m6af",
+  "title": "Review: space_set create/destroy, batch limit, cannotCalculateChanges",
+  "notes": "Maintainer risk: LOW — The batch of fixes is correct and well-tested. One P2 bug: space_set create drops wrong-type description silently instead of rejecting. Everything else is either correct or already fixed in later commits.\nConfidence: 92% no missed bugs. Uncertainty: did not audit the space_set create branch for all property types beyond name/description. Would raise confidence with a test matrix of create with various wrong-type properties.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:48:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T17:50:20Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-uvy.5",
+  "title": "call_build_for_error: MaybeUninit::assume_init_ref() is UB by Rust rules",
+  "description": "In tests, call_build_for_error takes &(SpendParameters, OutputParameters) but tests for early-return errors pass MaybeUninit::<(SpendParameters, OutputParameters)>::uninit().assume_init_ref(). The comment explains all nine tested error variants return before params is dereferenced. In practice no read occurs. However, Rust's reference rules state that creating a reference to uninitialized memory is immediate UB regardless of whether you read through it \u2014 the language permits the compiler to assume all references are valid and exploit that for optimization. This is technically unsound even if current rustc does not miscompile it. Suggested rewrite: split call_build_for_error into two separate helpers \u2014 one for pre-param errors that takes no params argument, and one for post-param errors that takes &Params. Alternatively, pass Option<&Params> and return BuilderError('params unavailable') when None \u2014 which is what the function already does for load_sapling_params failures.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:07:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T02:17:47Z",
+  "closed_at": "2026-04-19T02:17:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:07:03"
+    }
+  ]
+}

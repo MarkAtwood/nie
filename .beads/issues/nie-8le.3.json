@@ -1,0 +1,27 @@
+{
+  "id": "nie-8le.3",
+  "title": "history.rs uses from_utf8_lossy: silently corrupts MLS ciphertext in Phase 2",
+  "description": "history.rs append_received() calls String::from_utf8_lossy(payload) and stores the result as TEXT in SQLite. MLS ciphertexts are arbitrary bytes; from_utf8_lossy replaces invalid UTF-8 sequences with U+FFFD, permanently destroying data. Triggered the moment Phase 2 sends any MLS-encrypted message \u2014 which is all messages. Bad behavior: scrollback history is silently garbled for all messages once MLS is active. Schema must change from TEXT to BLOB before Phase 2 lands or history is unusable.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:07:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T23:19:42Z",
+  "closed_at": "2026-04-17T23:19:42Z",
+  "close_reason": "Changed history.rs payload column from TEXT to BLOB; removed from_utf8_lossy from storage path; updated HistoryEntry.payload to Vec<u8>; display callers use String::from_utf8_lossy for rendering; added binary_payload_roundtrip regression test.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:07:26"
+    }
+  ]
+}

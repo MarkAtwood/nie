@@ -1,0 +1,27 @@
+{
+  "id": "nie-8le.7",
+  "title": "broadcast() fan-out is sequential: one slow client head-blocks all others",
+  "description": "state.rs broadcast() collects ClientTx senders then awaits each tx.send() in a for loop. If one client's 64-message mpsc buffer is full (e.g., slow consumer, overloaded CI machine), the loop blocks at that client's send until space is available. All subsequent clients in the iteration wait behind it. With N=16 and one lagging client, up to 15 other clients are delayed for each message broadcast. Expected impact at scale: message delivery latency for all users is bounded by the slowest connected client's consume rate.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:07:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T23:32:22Z",
+  "closed_at": "2026-04-17T23:32:22Z",
+  "close_reason": "Replaced sequential for loop with futures::future::join_all. All channel sends now run concurrently \u2014 a full channel on one slow client no longer delays delivery to all others.",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:07:55"
+    }
+  ]
+}

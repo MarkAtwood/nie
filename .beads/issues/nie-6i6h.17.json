@@ -1,0 +1,23 @@
+{
+  "id": "nie-6i6h.17",
+  "title": "Slack constant-time HMAC comparison is correct and should be defended",
+  "description": "verify_slack_signature (slack.rs:126-134) uses XOR fold for constant-time comparison. A contributor might replace with ==. Do not: == short-circuits enabling timing side-channels. The Teams bridge uses subtle::ConstantTimeEq \u2014 consider migrating Slack to match for consistency.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:31:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:31:02Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:31:02"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmq3.2",
+  "title": "tui/app.rs: hpke_identity_secret stored as plain [u8;32], not Zeroizing",
+  "description": "tui/src/app.rs:109 and tui/src/main.rs:124-131 \u2014 AppState.hpke_identity_secret is [u8;32], not Zeroizing<[u8;32]>. The field comment says 'KEY MATERIAL \u2014 never log' but the type does not guarantee zeroing on drop. Identity::hpke_secret_bytes() also returns [u8;32] (tracked as nie-kef6.103). Consequence: the X25519 secret key lives in heap memory for the session duration and may end up in a core dump or swap. Same issue as room_hpke_secret, which IS Zeroizing \u2014 this inconsistency means one survives drop and the other does not. Fix: change hpke_identity_secret to Zeroizing<[u8;32]>.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:54:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:03:57Z",
+  "closed_at": "2026-04-25T03:03:57Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:54:03"
+    }
+  ]
+}

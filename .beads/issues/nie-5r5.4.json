@@ -1,0 +1,25 @@
+{
+  "id": "nie-5r5.4",
+  "title": "check_lag pure function is the right abstraction \u2014 do not collapse into check_sync_lag",
+  "description": "check_lag(local_tip, chain_tip, max_lag_blocks) is a pure u64->Result function. All 7 tests exercise it directly with no DB or network dependency. A contributor refactoring sync_guard may suggest replacing check_lag with check_sync_lag (which wraps the DB and network calls together) to eliminate the caller needing to fetch scan_tip and chain_tip separately. Do not do that: the pure function is what makes all sync_guard tests fast and network-free. The check_sync_lag wrapper adds no value (it's dead code) and erases type information.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:11:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T05:22:20Z",
+  "closed_at": "2026-04-19T05:22:20Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:11:18"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.6",
+  "title": "wasm: NieClient::connect does not close existing connection before replacing it",
+  "description": "NieClient::connect (api.rs:146-166) replaces the inner client if called a second time, but WasmTransport has no Drop impl, so the old WebSocket is not closed \u2014 it's simply leaked to the JS GC. Two concurrent connections to the relay from the same identity result; the relay will see a duplicate authentication from the same pub_id. The relay may or may not handle this correctly. The correct behavior is to call close() on the old client before replacing it.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:28:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:03:20Z",
+  "closed_at": "2026-04-25T07:03:20Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:28:20"
+    }
+  ]
+}

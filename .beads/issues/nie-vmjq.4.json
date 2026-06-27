@@ -1,0 +1,26 @@
+{
+  "id": "nie-vmjq.4",
+  "title": "GROUP_ADD missing subscription check: unsubscribed users can invite others",
+  "description": "ws.rs:1368 GROUP_ADD has rate_limit check but no require_subscription check. GROUP_CREATE (line 1317) and GROUP_SEND (line 1736) both enforce subscription when require_subscription is set. An expired-subscription user who knows a valid group_id (from their subscribed period) can still call GROUP_ADD to add new members, bypassing payment gating for the invite operation. Consistent with GROUP_CREATE and GROUP_SEND, GROUP_ADD should check subscribed_flag when require_subscription is true.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:01:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:32Z",
+  "closed_at": "2026-04-25T03:44:32Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:01:43"
+    }
+  ]
+}

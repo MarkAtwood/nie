@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-9m0p.6",
+  "title": "nie-bot: BotConfig unit tests",
+  "description": "What: Unit test suite for BotConfig TOML parsing and env override logic.\n\nAlgorithm:\n1. In bot/src/config.rs #[cfg(test)] module:\n   - test_full_toml_parse: parse TOML with all fields set, assert each field\n   - test_empty_toml_returns_defaults: parse empty string, assert relay=ws://127.0.0.1:3210/ws\n   - test_env_relay_overrides_file: set env RELAY=wss://test.example.com/ws, load config, assert relay\n   - test_invalid_relay_scheme_returns_err: relay=\"ftp://bad\", assert Err(BotError::Config(_))\n   - test_missing_keyfile_uses_default: no keyfile in TOML, assert keyfile = data_dir/identity.key\n\nDefensive: use temp dirs for config paths; unset env vars after each test (use serial test or std::env guards).\n\nAgent team: T (tester \u2014 derives expected values from TOML spec, not from BotConfig code).\nTests: oracle is the TOML spec and the algorithm above. Expected values are hardcoded constants.",
+  "acceptance_criteria": "cargo test -p nie-bot bot::config passes; all 5 test cases present and passing",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:42:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:55:58Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:32"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:30"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:42:50"
+    }
+  ]
+}

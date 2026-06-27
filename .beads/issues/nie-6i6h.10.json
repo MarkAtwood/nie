@@ -1,0 +1,25 @@
+{
+  "id": "nie-6i6h.10",
+  "title": "wasm: IndexedDB key stored as JSON string, not structured value",
+  "description": "save_identity (storage.rs:141-142) stores the identity as a JSON string: JsValue::from_str(json). load_identity reads it back as result.as_string() and then parses the JSON. IDB get() on a string key stored with put_with_key returns the stored JS value \u2014 but JS IDB stores strings as-is, so the round-trip works. However if the IDB value is ever accessed from JS directly (e.g., devtools), it appears as a JSON string of a JSON object: '{\"secret_b64\":\"...\"}' \u2014 double-encoded. This is confusing for debugging and migration. The correct approach is to store the object directly using JsValue serialized via serde-wasm-bindgen, not as a JSON string inside a JS string.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:29:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:29:19Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:29:19"
+    }
+  ]
+}

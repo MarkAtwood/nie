@@ -1,0 +1,28 @@
+{
+  "id": "nie-4qfy.3",
+  "title": "Notification icon uses deprecated system drawable (ic_menu_send)",
+  "description": "android.R.drawable.ic_menu_send is deprecated and semantically wrong (a 'send' icon for a connection-alive notification). On Android 5+ it renders as a white blob in the status bar. Maintenance consequence: repeated user bug reports about wrong/missing notification icon; fix requires adding an app-specific res/drawable.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:32:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:36:17Z",
+  "closed_at": "2026-04-23T23:36:17Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:32:58"
+    }
+  ]
+}

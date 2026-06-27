@@ -1,0 +1,25 @@
+{
+  "id": "nie-8lcm.13",
+  "title": "connect_timeout(15s) in client.rs has no comment explaining the value",
+  "description": "LightwalletdClient::connect now sets .connect_timeout(Duration::from_secs(15)) but the value 15 is uncommented. The doc-comment for connect() mentions that TLS handshake is performed but says nothing about the timeout. Maintainers need to know: why 15s and not 5s or 30s? Is this large enough to cover Tor circuit build time (which can be 20-30s)? If nie-relay later supports a Tor-only mode, 15s may be too short. Document the rationale: typical internet TLS \u2248 1-3s, added buffer for high-latency paths; note that Tor is not covered by this timeout (transport-layer proxy timeout is separate).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:09:36Z",
+  "closed_at": "2026-04-20T05:09:36Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:49"
+    }
+  ]
+}

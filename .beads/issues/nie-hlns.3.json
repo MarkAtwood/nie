@@ -1,0 +1,28 @@
+{
+  "id": "nie-hlns.3",
+  "title": "nie-hlns W1B: Transport layer to JSON-RPC",
+  "description": "## What\nRewrite core/src/transport.rs to send JsonRpcRequest and receive JsonRpcResponse/JsonRpcNotification. Add a lightweight request-ID tracker. Keep the mpsc channel architecture; demux responses vs notifications in the read task.\n\n## Algorithm\n1. Add RequestTracker to transport (not public):\n   - next_id: AtomicU64 (start at 1)\n   - pending: DashMap<u64, oneshot::Sender<JsonRpcResponse>>\n   fn next_id(&self) -> u64 { self.next_id.fetch_add(1, Ordering::SeqCst) }\n   fn register(&self, id: u64) -> oneshot::Receiver<JsonRpcResponse> { ... }\n   fn resolve(&self, response: JsonRpcResponse) { ... }  // looks up id, sends on oneshot\n2. Rewrite open_authenticated_ws():\n   a. Receive frame; parse as JsonRpcNotification; verify method==CHALLENGE; extract nonce\n   b. Sign nonce; create AuthenticateParams { pub_key, nonce, signature }\n   c. Generate id=1; create JsonRpcRequest { version:\"2.0\", id, method:AUTHENTICATE, params:... }\n   d. Send JSON; wait for response (parse as JsonRpcResponse with matching id=1)\n   e. If response.error \u2192 return Err(AuthFailed)\n   f. If response.result \u2192 extract AuthenticateResult { pub_id, subscription_expires }; return Ok\n3. Update reader task:\n   a. Try deserialize frame as JsonRpcResponse (has 'result' OR 'error' field, has 'id')\n   b. If it matches: call tracker.resolve(response); do NOT send on client_rx\n   c. Else: try deserialize as JsonRpcNotification (has 'method', no 'id')\n   d. If notification: convert to ClientEvent::Message(notification) and send on client_rx\n   e. Unknown JSON: warn! and continue\n4. Update send side (writer task):\n   - Incoming from tx: already a JsonRpcRequest (type changes from RelayMessage to JsonRpcRequest)\n   - Serialize to JSON string; send as text frame\n5. Change RelayConn and RelayConnRetry public types:\n   - tx: mpsc::Sender<JsonRpcRequest>  (was RelayMessage)\n   - rx: mpsc::Receiver<ClientEvent>  (ClientEvent::Message now carries JsonRpcNotification, not RelayMessage)\n6. Update ClientEvent:\n   - Message(JsonRpcNotification)  (was RelayMessage)\n   - Reconnecting { delay_secs: u64 }  (unchanged)\n   - Reconnected  (unchanged)\n\n## Defensive programming rules\n- Never reuse a request id within a session (monotonic counter)\n- If a response arrives for an unknown id: warn! and discard\n- If the read task drops a pending request (disconnect): all pending oneshotsreceive Err (drop the sender)\n- Auth failure must produce a descriptive Err, not a panic\n- serde_json::from_str failures on notifications: warn! + continue (don't crash)\n- No unwrap() on response parsing (can fail on malformed JSON)\n\n## Agent team: Critical-path (R + I_A + I_B + T + DIFF)\n- R: Read core/src/transport.rs in full; document current auth flow, channel types, reconnection manager\n- I_A: Implement transport rewrite from R's summary\n- I_B: Implement transport rewrite independently from R's summary\n- T: Write unit tests for RequestTracker (ID generation, resolve, unknown ID); integration test auth flow with mock relay\n- DIFF: Compare I_A and I_B; verify both handle the auth handshake identically\n\n## Tests\n- request_id_monotonic: generate 100 ids, assert each > previous\n- response_routes_to_correct_waiter: register two ids, send responses out-of-order, verify each waiter gets its own response\n- unknown_response_id_discarded: send response with unregistered id, verify no panic, client_rx stays clean\n- notification_passes_through: receive JsonRpcNotification, verify it appears in client_rx\n- auth_failure_propagates: mock relay sends error response to authenticate \u2192 connect() returns Err",
+  "acceptance_criteria": "cargo build -p nie-core passes; RelayConn.tx type is mpsc::Sender<JsonRpcRequest>; auth handshake tests pass; clippy clean; no RelayMessage in transport.rs",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T17:43:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:01:26Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:43:12"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:38"
+    }
+  ]
+}

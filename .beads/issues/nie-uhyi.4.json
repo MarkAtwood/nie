@@ -1,0 +1,26 @@
+{
+  "id": "nie-uhyi.4",
+  "title": "protocol.rs relay-facing String fields unbounded",
+  "description": "Structs deserialized from relay messages (SetNicknameParams.nickname, UserNicknameParams.nickname, GroupCreateParams.name, SubscribeInvoiceResult.address/invoice_id/expires_at, GroupInfo.name/created_at, DeliverParams.from, WhisperDeliverParams.from, etc.) are plain String with no size cap. A rogue or compromised relay sends a multi-megabyte nickname or group name; the client allocates without limit before any handler runs. ClearMessage fields were hardened in previous rounds; the relay-facing protocol.rs structs were not. These are lower priority than ClearMessage because the relay is chosen by the user, but a compromised relay is a real threat model concern. Fix: add bounded deserializers mirroring the ClearMessage pattern for all String fields in protocol.rs structs.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:44:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:05Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:44:23"
+    }
+  ]
+}

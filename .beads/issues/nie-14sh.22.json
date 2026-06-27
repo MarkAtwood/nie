@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.22",
+  "title": "DirectoryList sequence stamp races with concurrent disconnect",
+  "description": "ws.rs directory build: online[] is partitioned from all_users, then each entry's sequence is stamped by calling state.connection_seq(). Between the partition step and the stamp step, a user can disconnect. connection_seq() returns u64::MAX for a disconnected user, which sorts them last (appearing to be the most-recent admin) instead of removing them. The stamped DirectoryList sent to the newly connected client may include a 'zombie' online user with sequence=u64::MAX, causing incorrect admin election on the receiving client until the UserLeft notification arrives.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:56:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:56:35Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:56:34"
+    }
+  ]
+}

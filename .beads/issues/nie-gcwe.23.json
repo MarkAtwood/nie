@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.23",
+  "title": "README.md: no mention of proxy/Tor support",
+  "description": "README.md has no mention of the --proxy flag, SOCKS5 support, or Tor usage, despite this being a privacy-focused product. Users would not know proxy/Tor support exists. Fix: add a bullet or section noting --proxy socks5h://127.0.0.1:9050 for Tor and the socks5h vs socks5 DNS distinction for .onion addresses.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:36:16Z",
+  "closed_at": "2026-04-19T19:36:16Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:27"
+    }
+  ]
+}

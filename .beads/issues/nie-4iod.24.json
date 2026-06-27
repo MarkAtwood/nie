@@ -1,0 +1,25 @@
+{
+  "id": "nie-4iod.24",
+  "title": "MAINTAINER: run_self_test has duplicate connection retry logic, not parameterized",
+  "description": "In main.rs, run_self_test() (line 240) duplicates the connect_with_retry() call and the recv/send loop from the main event handler. If the retry logic or timeout thresholds change, maintainers must update both places. There's no shared constant or helper for the 10-second timeout (line 269). In 6 months, if someone adds exponential backoff to main connection retry, they won't remember to update self-test. Fix: extract the sentinel message send/recv logic into a helper function to avoid duplication and make timeout a named constant with a comment explaining its purpose.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:14:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:21:24Z",
+  "closed_at": "2026-04-20T01:21:24Z",
+  "close_reason": "by design: connect_with_retry is called in two different contexts (main loop vs self-test), no actual duplicate logic",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:14:26"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "nie-43zd",
+  "title": "Review: core round 18",
+  "notes": "Maintainer risk: HIGH -- nie-43zd.1 is a build-breaking compile error that prevents cargo test from running at all; nie-43zd.2 is a resource-exhaustion DoS on the relay's auth handshake path.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) relay/src/ws.rs was not in scope so the auth handshake timeout (nie-43zd.2) came from cross-reference, not deep relay review; (2) MLS credential validation by openmls internals was not traceable without reading the openmls library source; (3) the age KDF work factor is library-controlled and not verified. Would raise confidence if: the full relay ws.rs was in scope, and if the openmls credential validation path was traced to confirm non-nie credentials cannot cause panics.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:51:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

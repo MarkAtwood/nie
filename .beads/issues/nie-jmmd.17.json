@@ -1,0 +1,27 @@
+{
+  "id": "nie-jmmd.17",
+  "title": "prune_inactive_users: redundant explicit group_members DELETE alongside ON DELETE CASCADE",
+  "description": "store.rs prune_inactive_users: deletes group_members explicitly AFTER deleting users, but v2 migration adds ON DELETE CASCADE for the same relationship. With FKs active, the cascade already runs on user DELETE; the explicit DELETE is redundant and the comment's logic is inverted. A future contributor who disables FKs will rely on the explicit DELETE, not understanding the cascade dependency. Pick one path and document it.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:45:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:24:21Z",
+  "closed_at": "2026-04-26T10:24:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:45:10"
+    }
+  ]
+}

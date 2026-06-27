@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.33",
+  "title": "daemon store use_space_invite_code is non-atomic TOCTOU race",
+  "description": "use_space_invite_code (store.rs lines 963-989) first checks invite expiry and use count in a SELECT, then separately calls upsert_space_member_with_role in a second transaction. Two concurrent callers with the same single-use invite code can both pass the expiry/count check before either increments the use count, allowing the invite to be redeemed more than the allowed number of times. Fix: wrap both the check and the upsert in a single BEGIN IMMEDIATE transaction with re-validation inside.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:57:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:23:32Z",
+  "closed_at": "2026-04-24T23:23:32Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:57:19"
+    }
+  ]
+}

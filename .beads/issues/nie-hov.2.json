@@ -1,0 +1,23 @@
+{
+  "id": "nie-hov.2",
+  "title": "cli: ConfirmationEvent type + mpsc channel + select! branch",
+  "description": "What: Define ConfirmationEvent struct and wire an mpsc channel from the background watcher to the chat() select! loop in cli/src/commands.rs.\n\nAlgorithm:\n1. Define: pub struct ConfirmationEvent { pub session_id: Uuid, pub txid: String, pub block_height: u64 } near the top of commands.rs.\n2. In chat() startup (before spawning watcher): let (conf_tx, mut conf_rx) = tokio::sync::mpsc::channel::<ConfirmationEvent>(32);\n3. Pass Arc::clone of conf_tx (or clone) to the watcher task when spawning it.\n4. In the main select! loop, add branch: event = conf_rx.recv() => { if let Some(ev) = event { handle_confirmation(&ev, ...) } else { /* watcher exited */ } }\n5. handle_confirmation: transition session state to Complete in wallet DB, call send_payment_message(ev.session_id, PaymentAction::Confirmed { tx_hash: ev.txid }, tx, mls_active, mls).await.\n\nDefensive programming:\n- Channel buffer 32 prevents watcher from blocking on slow UI.\n- conf_rx.recv() returning None means watcher exited cleanly; do not panic, just log at debug level.\n- txid in ConfirmationEvent must be 64 lowercase hex chars; assert in tests.\n- Do NOT log session_id alongside any wallet key material.\n\nTests: compilation + integration (E2E bead); this bead is complete when cargo build --workspace passes and no new clippy warnings.\n\nAcceptance: cargo build --workspace succeeds with no new warnings; ConfirmationEvent struct is pub and derives Debug.",
+  "acceptance_criteria": "cargo build --workspace succeeds; ConfirmationEvent struct exists and is accessible from watcher task; no new clippy warnings",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:12:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T08:22:13Z",
+  "close_reason": "ConfirmationEvent struct + mpsc channel + select! branch added to chat(); clippy clean; all 261 tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:12:07"
+    }
+  ]
+}

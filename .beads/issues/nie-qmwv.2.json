@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmwv.2",
+  "title": "store: alloc_diversifier_and_create_invoice does not check INSERT OR IGNORE rows_affected",
+  "description": "In alloc_diversifier_and_create_invoice (store.rs ~line 1343), after the Phase 2 re-read passes and the diversifier is advanced, the invoice is inserted with INSERT OR IGNORE. If a duplicate invoice_id is supplied (collision with a prior row), rows_affected == 0 and the function returns Ok(Some(address)) \u2014 telling the caller that a new invoice was created while actually nothing was inserted. The diversifier was already advanced irreversibly. Compare to count_and_create_invoice (line 1210) which correctly errors on rows_affected == 0. Trigger: caller passes a duplicate invoice_id (e.g. deterministic UUID derived from user pubkey without sufficient entropy).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:47:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:00:37Z",
+  "closed_at": "2026-04-26T12:00:37Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:47:56"
+    }
+  ]
+}

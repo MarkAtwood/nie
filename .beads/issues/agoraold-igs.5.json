@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-igs.5",
+  "title": "Convergence loop in select_with_fee is provably correct; 2-pass was a real P0 bug",
+  "description": "The 2-pass strategy (pass-1: estimate fee with 1 input; pass-2: re-select with actual count) was the original design and has a concrete failure case: if pass-2 selects more notes than pass-1, the fee used (based on pass-1 count) is wrong for pass-2's input count, causing builder.build() to reject with a balance error. Concrete example: amount=40_000, notes=[20k,20k,10k,10k]. Pass-1 selects 3 notes at fee=10_000; pass-2 sees 3 inputs \u2192 fee should be 15_000, but the builder receives fee=10_000 for 3 inputs and rejects. The convergence loop fixes this by iterating until required_fee == fee, which is guaranteed to terminate (zip317_fee is monotone-non-decreasing in note count, finitely many notes). A future contributor might suggest reverting to 2-pass 'for simplicity' \u2014 it is not simpler, it is wrong.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:25:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:53Z",
+  "closed_at": "2026-04-19T01:30:54Z",
+  "close_reason": "decision records documented in beads; no code change required",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 18:25:17"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-n4np.2",
+  "title": "update_space_fully existence check fetches id column unnecessarily",
+  "description": "store.rs update_space_fully uses 'SELECT id FROM space WHERE id = ?' with (String,) to check existence. The id string is fetched and allocated but never used \u2014 only the Some/None result matters. Same pattern as the update_contact_fully fix in ca15355. Fix: 'SELECT 1 FROM space WHERE id = ?' with (i32,).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:43:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:46:15Z",
+  "closed_at": "2026-04-24T17:46:15Z",
+  "close_reason": "Fixed: is_object guard in validate_member_patch + test; SELECT 1 in update_space_fully; decision record filed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:43:05"
+    }
+  ]
+}

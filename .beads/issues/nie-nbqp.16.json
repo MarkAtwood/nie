@@ -1,0 +1,23 @@
+{
+  "id": "nie-nbqp.16",
+  "title": "relay/store: activate_subscription_atomic prevents double-grant via single transaction",
+  "description": "activate_subscription_atomic (relay/store.rs line 1049) atomically sets the subscription expiry AND deletes the invoice in one transaction with a monotonic-max UPDATE (takes whichever expiry is later). This correctly handles the edge case where a second payment arrives for the same invoice (payment confirmed twice by watcher), a slow watcher that rescans the same block, and the case where the user already has a longer subscription than the new payment would provide. A contributor might suggest splitting into two operations for 'simplicity'. That would re-open the double-grant window. This design is correct and must not be simplified.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:39:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:39:01Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:39:01"
+    }
+  ]
+}

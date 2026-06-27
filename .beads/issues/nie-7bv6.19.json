@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.19",
+  "title": "SEC4: send_whisper not exposed in NieClient public API",
+  "description": "api.rs: NieClient exposes send_message, set_nickname, on_event, connect, disconnect \u2014 but client.rs has a fully implemented send_whisper() method that is not wired up in the JS-facing API. There is no comment or TODO explaining whether this is intentional (waiting for a future phase) or an oversight. A JS consumer who reads the NieClient doc comment listing event types including 'whisper_received' will reasonably expect a corresponding send_whisper() method. Fix: either expose send_whisper in NieClient with the same pattern as send_message, or add a comment on NieClient struct: // send_whisper is implemented in NieRelayClient but not yet exposed here \u2014 Phase N.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:38:03Z",
+  "closed_at": "2026-04-20T02:38:03Z",
+  "close_reason": "duplicate of nie-7bv6.25: same missing send_whisper on NieClient; nie-7bv6.25 is the primary P1 bug report",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:41"
+    }
+  ]
+}

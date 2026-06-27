@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-felh.11",
+  "title": "Cursor position calculation ignores multi-cell Unicode width",
+  "description": "ui.rs line 37 calculates cursor column as chars().count(), but this ignores display width of emoji, combining marks, and wide characters (e.g., CJK). In narrow terminals with multi-cell input, the cursor will render at the wrong screen column. Should use unicode_width crate or similar for accurate display column calculation.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:15Z",
+  "closed_at": "2026-04-20T04:08:18Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:07"
+    }
+  ]
+}

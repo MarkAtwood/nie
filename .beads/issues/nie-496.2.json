@@ -1,0 +1,27 @@
+{
+  "id": "nie-496.2",
+  "title": "DUST_THRESHOLD 1000 < ZIP-317 min fee 10000; comment misleads",
+  "description": "DUST_THRESHOLD = 1000 zatoshi but ZIP-317 minimum fee is 10000 zatoshi. The in-code comment says amounts below DUST_THRESHOLD are 'below dust threshold (fee would exceed transfer value)' \u2014 but the fee also exceeds the transfer value for amounts 1001\u20139999 zatoshi, which are silently accepted. Either raise DUST_THRESHOLD to 10000 (= ZIP-317 min fee) or change the comment to 'uneconomical: fee exceeds transfer value at typical fee levels' to accurately describe what the threshold guards.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:27:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:33:56Z",
+  "closed_at": "2026-04-19T06:33:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:27:48"
+    }
+  ]
+}

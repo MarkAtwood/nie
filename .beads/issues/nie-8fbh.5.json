@@ -1,0 +1,26 @@
+{
+  "id": "nie-8fbh.5",
+  "title": "send_payment: scan_tip/spendable_notes TOCTOU can use mismatched anchor",
+  "description": "payment.rs send_payment reads scan_tip (await 1) then spendable_notes (await 2). Between the two awaits the scanner task can run save_block_state and advance witnesses to scan_tip+1. spendable_notes() then returns witnesses at the new tip while anchor_height still holds the old scan_tip. The builder receives witnesses rooted at N+1 but anchor_height=N. Although the builder uses the actual witness root (not anchor_height) for the Sapling proof, the mismatch can cause a subtle proof failure if the anchor_height is used for any fee or expiry logic. Mitigation already noted in code comment but no guard implemented.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:53:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:03:42Z",
+  "closed_at": "2026-04-26T07:03:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:53:34"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-3dgd.9",
+  "title": "parse_proxy_addr doesn't strip path component",
+  "description": "The parse_proxy_addr function at transport.rs:403-415 doesn't strip the path component from the proxy URL before parsing the port. If a user provides 'socks5://127.0.0.1:9050/' (with trailing slash) or other path component, the rsplit_once(':') at line 409 will include the path in port_str and fail to parse. Compare to parse_relay_addr which correctly strips the path on line 430 using split('/').next(). This will cause connection failure with misleading 'port is not a valid number' error. The fix: strip path before rsplit_once, similar to parse_relay_addr line 430.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:11:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:38Z",
+  "closed_at": "2026-04-19T19:13:30Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:11:48"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-52o.2",
+  "title": "Key separation check silently disabled in production (passphrase mode)",
+  "description": "Scenario: Normal wallet_init flow (with passphrase, which is the non-hidden default). The nie-dfu key separation assertion only runs when no_passphrase=true. In the standard passphrase flow the check is completely skipped.\n\nMaintenance consequence: CLAUDE.md \u00a7Key separation invariant says this is a 'runtime assertion.' A contributor reading the docs will assume the assertion is always active. When they later add a code path that touches both keys, they will not add their own check, trusting that wallet_init already enforced it. The comment in code says 'avoid a second passphrase prompt' which is a real UX concern, but the consequence is that the assertion documented as a security guarantee is only active in --no-passphrase (CI/test) mode.\n\nThe check should either: (a) run unconditionally and be documented as a one-time cost at init time, or (b) be removed from the code and the comments should say 'enforced by independent entropy, not runtime assertion in passphrase mode' so a future reader does not misunderstand the guarantee.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:24:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:57Z",
+  "closed_at": "2026-04-18T03:37:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:24:20"
+    }
+  ]
+}

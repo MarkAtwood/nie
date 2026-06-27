@@ -1,0 +1,26 @@
+{
+  "id": "nie-3om.9",
+  "title": "select_with_fee assumes 2 outputs but change=0 path produces 1 output; implicit coupling",
+  "description": "tx_builder.rs select_with_fee hardcodes n_outputs=2 in sapling_logical_actions(n, 2), assuming there will always be a change output. build_shielded_tx only adds the change output when change > 0. The math happens to be safe because max(n,2) == max(n,1) for n>=2 (and for n=1: max(1,2)=2==max(1,1)*grace_floor=2). But the coupling is implicit: if someone changes the output count calculation (e.g. adds an Orchard output) without updating select_with_fee, the fee will disagree with the builder. Suggested rewrite: pass n_outputs as a parameter to select_with_fee, defaulting to 2 (the change case). Or: compute the actual expected output count before calling select_with_fee and pass it explicitly.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:55:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:10:52Z",
+  "closed_at": "2026-04-19T04:10:52Z",
+  "close_reason": "Duplicate of nie-3om.3 (same issue: 2-output assumption in select_with_fee; math happens to be correct). Keeping nie-3om.3 as the tracking item.",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:55:20"
+    }
+  ]
+}

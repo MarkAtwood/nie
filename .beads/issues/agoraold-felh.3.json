@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-felh.3",
+  "title": "Explain magic constant 6 in page scroll calculation",
+  "description": "File: tui/src/event.rs, lines 701-707 \u2014 page scroll size is calculated as terminal_size.1.saturating_sub(6). The constant 6 accounts for borders/input/status line height but is unexplained. Document why 6 is the correct offset so future contributors understand if terminal layout changes would require adjustment.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:03Z",
+  "closed_at": "2026-04-20T04:36:34Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "readability"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:59:28"
+    }
+  ]
+}

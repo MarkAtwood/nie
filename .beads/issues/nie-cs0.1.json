@@ -1,0 +1,27 @@
+{
+  "id": "nie-cs0.1",
+  "title": "Address reuse when set_diversifier_index write fails after Sapling skip",
+  "description": "Trigger: set_diversifier_index(0, found_u128+1) fails (non-fatal warn) AND Sapling skipped invalid diversifiers (found_di > start). Result: DB stays at start+1. Next next_diversifier() returns start+1; find_address(start+1) finds the same found_di again; identical UA is sent to second payer. Reuse continues until DB write succeeds or process restarts. The condition found_u128+1 > start+1 is always true when skipping occurred, so every skip event is vulnerable if the subsequent set_diversifier_index fails. In practice SQLite writes rarely fail, but under DB pressure or filesystem issues this silently breaks payment address unlinkability \u2014 the core privacy guarantee.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:06:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T22:30:08Z",
+  "closed_at": "2026-04-18T22:30:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:06:27"
+    }
+  ]
+}

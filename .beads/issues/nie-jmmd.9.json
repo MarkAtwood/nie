@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.9",
+  "title": "connection_counter Relaxed ordering: admin election can observe wrong sequence on weak-memory arch",
+  "description": "state.rs: connection_counter.fetch_add(1, Relaxed). Relaxed provides no ordering relative to surrounding DashMap writes. On ARM/POWER, a concurrent connection_seq() reader may see the incremented counter before the DashMap entry is visible. Admin election depends on coherent visibility; Acquire/Release ordering is needed for the fetch_add/get pair.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:42:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:04Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:42:00"
+    }
+  ]
+}

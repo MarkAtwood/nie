@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmwv.4",
+  "title": "wasm/client: challenge nonce extracted as raw string without PoW token support",
+  "description": "In wasm/src/client.rs connect(), the WASM auth handshake at step 3 parses only v['params']['nonce'] from the challenge notification. If the relay requires PoW (difficulty > 0 in params), the WASM client sends an authenticate request with no pow_token field. The relay will then reject authentication with POW_REQUIRED or similar. The native transport (core/src/transport.rs) correctly handles the difficulty field and mines a token. The WASM client has no PoW mining path at all. Trigger: any relay with POW_DIFFICULTY > 0 causes WASM clients to fail authentication silently (they get a JSON-RPC error back but the error is surfaced as a general auth failure).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:48:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:07:39Z",
+  "closed_at": "2026-04-26T12:07:39Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:48:19"
+    }
+  ]
+}

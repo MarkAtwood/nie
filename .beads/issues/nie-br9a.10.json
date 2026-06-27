@@ -1,0 +1,22 @@
+{
+  "id": "nie-br9a.10",
+  "title": "scan_block witnesses snapshot clones entire HashMap on every block",
+  "description": "scanner.rs scan_block: clones both tree and witnesses at the start of every block to enable rollback on save_block_state failure. IncrementalWitness<sapling::Node, 32> serializes to ~4 KB per note. With 1000 unspent notes that is 4 MB cloned on every block (~75 seconds on mainnet). The rollback path (save_block_state failure) is a rare DB error; normal scanning always discards the snapshot. Alternative: serialize only on demand (lazy snapshot) or accept the semantic of re-scanning the block instead of holding the full snapshot. At large note counts this becomes a significant per-block allocation.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:03:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:03:34Z",
+  "labels": [
+    "efficiency"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:03:33"
+    }
+  ]
+}

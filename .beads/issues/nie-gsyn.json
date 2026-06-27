@@ -1,0 +1,17 @@
+{
+  "id": "nie-gsyn",
+  "title": "Review: relay round 19",
+  "notes": "Maintainer risk: MEDIUM — Two P0 correctness bugs (group cap overflow via deferred tx, SEALED_WHISPER user enumeration) need fixing before merge. The payment loss scenario (corrupt expires_at) is P0 but requires DB corruption to trigger. TYPING subscription bypass is a policy inconsistency. Core auth, crypto, and payment atomicity are solid.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) could not run cargo test to verify behavior; (2) SQLite transaction isolation semantics depend on pool configuration and connection reuse which I cannot verify without running code; (3) payment_watcher block-processing logic has implicit ordering dependencies with the scan-height persistence that are hard to verify statically. Would raise confidence with: full test run, SQLite WAL vs journal mode confirmation, and a test for add_group_member_capped concurrency.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:16:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

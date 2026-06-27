@@ -1,0 +1,26 @@
+{
+  "id": "nie-qdlu.11",
+  "title": "WalletStore::new silently opens DB from newer schema \u2014 no downgrade guard",
+  "description": "WalletStore::new applies migrations with if version < N. A DB from future schema v9+ opened by current code (max v8) silently proceeds: all migration blocks are skipped, code queries columns that do not exist or ignores new ones, no error is raised. Rolling back software after a schema-bumping release becomes silently unsafe. Fix: after all migrations, check if version > CURRENT_SCHEMA_VERSION and return an explicit error.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:43:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:55:40Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:43:34"
+    }
+  ]
+}

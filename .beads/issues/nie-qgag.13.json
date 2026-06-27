@@ -1,0 +1,26 @@
+{
+  "id": "nie-qgag.13",
+  "title": "GROUP_SEND: offline enqueue does not check recipient subscription",
+  "description": "In broadcast_to_group (state.rs), offline members always get messages enqueued regardless of their subscription status. A subscribed group sender can enqueue messages for unsubscribed offline recipients. This is a design question: does subscription gate sending or receiving? If receiving, offline unsubscribed users should not accumulate messages in the queue. Current behavior allows message storage for unsubscribed users, which contradicts require_subscription if intended to gate all message flow.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:55:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:20:46Z",
+  "closed_at": "2026-04-26T07:20:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:55:25"
+    }
+  ]
+}

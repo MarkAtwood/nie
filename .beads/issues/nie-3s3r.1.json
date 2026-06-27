@@ -1,0 +1,22 @@
+{
+  "id": "nie-3s3r.1",
+  "title": "Add device_id field to PublishKeyPackageParams",
+  "description": "Add device_id: String field to PublishKeyPackageParams in core/src/protocol.rs.\n\nWhat: Add one field to the struct so clients can declare which device is publishing a KeyPackage.\n\nAlgorithm:\n1. In core/src/protocol.rs, add device_id: String to PublishKeyPackageParams after data field\n2. The field is plain serde String (no Base64 encoding) \u2014 it is a 64-char hex string\n\nDefensive rules:\n- No validation here (relay-side validation is a separate bead)\n- Field is required (not Option) \u2014 the client must always provide it\n\nTests: serialization roundtrip \u2014 PublishKeyPackageParams { device_id: 'a'*64, data: vec![1,2,3] } serializes and deserializes back correctly.",
+  "acceptance_criteria": "cargo test -p nie-core passes; PublishKeyPackageParams JSON includes device_id field; cargo clippy -p nie-core clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T23:56:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T00:13:17Z",
+  "closed_at": "2026-04-23T00:13:17Z",
+  "close_reason": "superseded by nie-3s3r.2",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 16:56:50"
+    }
+  ]
+}

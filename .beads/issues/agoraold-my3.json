@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-my3",
+  "title": "Config file for relay URL and defaults",
+  "description": "Read relay URL and other session defaults from ~/.config/nie/config.toml (or data_dir/config.toml). Currently relay URL requires --relay flag on every invocation with a hardcoded fallback. Needed before handing the tool to anyone else.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:04:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:59Z",
+  "closed_at": "2026-04-22T14:43:30Z",
+  "close_reason": "Already implemented: AppConfig::load() in cli/src/config.rs reads relay/lightwalletd/proxy from ~/.config/nie/config.toml. Priority chain: --flag \u003e config.toml \u003e compiled default."
+}

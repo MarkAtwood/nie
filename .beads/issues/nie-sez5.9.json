@@ -1,0 +1,27 @@
+{
+  "id": "nie-sez5.9",
+  "title": "space_set: name/description patch entries hit apply_member_patch and return invalidPatch",
+  "description": "In space_set(), the update loop first extracts new_name and new_desc from patch_map, calls store.update_space_props if either is present, then iterates ALL of patch_map through apply_member_patch. Any 'name' or 'description' key that doesn't start with 'members/' returns Err(invalidPatch), setting update_err and landing the space in notUpdated. Result: sending {\"name\": \"Foo\"} as a patch (1) correctly writes the new name to the store, but (2) returns notUpdated with type:invalidPatch to the client \u2014 a partial write with a false error. Fix: skip 'name' and 'description' keys in the apply_member_patch loop since they are already handled by update_space_props above.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T02:22:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:23:41Z",
+  "closed_at": "2026-04-24T02:23:41Z",
+  "close_reason": "Fixed: skip 'name' and 'description' in apply_member_patch loop. Regression test test_space_set_update_name_succeeds added and passing.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 19:22:40"
+    }
+  ]
+}

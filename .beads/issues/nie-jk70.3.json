@@ -1,0 +1,26 @@
+{
+  "id": "nie-jk70.3",
+  "title": "keyfile load_identity reads file with no size cap",
+  "description": "core/src/keyfile.rs line 18: std::fs::read(keyfile_path) has no size limit. If the keyfile path is replaced by an adversary or is a symlink to a large file, the entire contents are read into memory before the age Decryptor sees them. For a legitimate keyfile this is harmless (~200 bytes), but a replaced file of any size causes a full allocation. Fix: open the file, check metadata length (expecting <=512 bytes), and error before reading if too large, e.g. File::open + Read::take(512) + BufReader.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:35:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:50:13Z",
+  "closed_at": "2026-04-25T02:50:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:35:14"
+    }
+  ]
+}

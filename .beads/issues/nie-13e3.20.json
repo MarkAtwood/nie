@@ -1,0 +1,22 @@
+{
+  "id": "nie-13e3.20",
+  "title": "select_with_fee iterative convergence is correct: defend against replacing with 2-pass",
+  "description": "tx_builder.rs select_with_fee() uses an iterative loop (up to 20 rounds) to converge on a self-consistent (selection, fee) pair. A contributor might suggest replacing with a fixed 2-pass approach (estimate fee for 1 note, select, recompute, done). The loop is correct and necessary: selecting N notes may require a fee computed for N notes, but the fee for N notes may require N+1 notes, etc. The loop terminates because zip317_fee is monotone-non-decreasing in note count and there are finitely many notes. The 2-pass approach is insufficient in the general case where a note-count jump causes the fee to jump discontinuously. Do not simplify to 2 passes.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:29:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:29:45Z",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:29:45"
+    }
+  ]
+}

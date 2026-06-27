@@ -1,0 +1,19 @@
+{
+  "id": "nie-nttk.9",
+  "title": "db.rs: mark_notes_spent uses individual per-note UPDATE in a loop; N round-trips for N notes",
+  "description": "In db.rs, mark_notes_spent() issues one UPDATE statement per note_id:\n\n  let mut txn = self.pool.begin().await?;\n  for &note_id in note_ids {\n      let result = sqlx::query(\"UPDATE notes SET spent = 1, spending_txid = ? WHERE note_id = ?\")\n          .bind(spending_txid)\n          .bind(note_id)\n          .execute(&mut *txn)\n          .await?;\n      ...\n  }\n  txn.commit().await?;\n\nWith N notes selected (e.g. 20 notes for a dust-consolidation transaction), this issues N sequential await points. While all are within a single SQLite transaction (so atomicity is maintained), the N round-trips to the DB are unnecessary. A single UPDATE...WHERE note_id IN (?, ?, ...) would accomplish the same result with one round-trip.\n\nComparison: spent_note_ids_in() already uses IN (...) correctly. mark_notes_spent() should follow the same pattern.\n\nThis is particularly relevant in the dust-attack/consolidation scenario where 50-100 small notes might be spent in a single transaction, requiring 50-100 individual awaits.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:43:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:43:00Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:42:59"
+    }
+  ]
+}

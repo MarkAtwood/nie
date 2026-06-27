@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-i6p",
+  "title": "Show timestamps on chat messages",
+  "description": "Display [HH:MM] prefix on every received message in the chat loop. history.db already stores Unix timestamps on every row; the Deliver handler just needs to format and prepend them. Affects the println! in the Deliver arm of commands.rs.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:04:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:59Z",
+  "closed_at": "2026-04-17T22:14:56Z",
+  "close_reason": "Closed"
+}

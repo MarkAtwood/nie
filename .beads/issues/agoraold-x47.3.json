@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-x47.3",
+  "title": "Profile broadcast sent cleartext to relay before MLS established",
+  "description": "At connect time, send_profile_broadcast() is called with mls_active=false, so the profile payload is sent as cleartext Broadcast. The relay receives and fans out the raw profile bytes. Trigger: any user with a non-empty profile connecting to the relay. Bad behavior: relay reads user-defined profile fields (can contain arbitrary personal data) in plaintext, violating invariant #3 ('server never sees plaintext message content'). A secondary effect: MLS-active receivers call mls.process_incoming(&payload) on these cleartext bytes, get an error, and silently drop the profile \u2014 so peers never see the newcomer's profile until the next UserJoined event re-broadcast (which may also arrive before MLS join, creating the same drop).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:46:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:39Z",
+  "closed_at": "2026-04-18T04:16:27Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:46:28"
+    }
+  ]
+}

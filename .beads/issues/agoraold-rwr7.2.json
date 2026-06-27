@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-rwr7.2",
+  "title": "Protocol types: SealedBroadcast/Deliver/Whisper + RPC constants",
+  "description": "What: Add sealed sender protocol structs and RPC method constants to core/src/protocol.rs. No functional code \u2014 types only.\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/core/src/protocol.rs to understand existing pattern\n2. In rpc_methods module add after existing constants:\n   pub const SEALED_BROADCAST: &str = \"sealed_broadcast\";\n   pub const SEALED_DELIVER: &str = \"sealed_deliver\";\n   pub const SEALED_WHISPER: &str = \"sealed_whisper\";\n   pub const SEALED_WHISPER_DELIVER: &str = \"sealed_whisper_deliver\";\n   pub const PUBLISH_HPKE_KEY: &str = \"publish_hpke_key\";\n   pub const GET_HPKE_KEY: &str = \"get_hpke_key\";\n3. Add new param/result structs (after existing BroadcastParams/DeliverParams):\n   - SealedBroadcastParams { sealed: Vec<u8> }  // #[serde_as(as=\"Base64\")]\n   - SealedDeliverParams { sealed: Vec<u8> }    // #[serde_as(as=\"Base64\")]\n   - SealedWhisperParams { to: String, sealed: Vec<u8> }\n   - SealedWhisperDeliverParams { to: String, sealed: Vec<u8> }\n   - PublishHpkeKeyParams { public_key: Vec<u8> }  // #[serde_as(as=\"Base64\")]\n   - GetHpkeKeyParams { pub_id: String }\n   - GetHpkeKeyResult { pub_id: String, public_key: Option<Vec<u8>> }  // #[serde_as(as=\"Option<Base64>\")]\n4. Follow existing #[serde_as] + #[derive(Debug, Clone, Serialize, Deserialize)] pattern\n5. Run cargo check -p nie-core\n\nDefensive programming rules:\n- SealedDeliverParams must NOT have a from field (sealed sender hides origin)\n- SealedWhisperDeliverParams: to field is unencrypted (routing); no from field\n- All Vec<u8> fields use #[serde_as(as=\"Base64\")] \u2014 no raw byte arrays in JSON\n- No serde tag issues: these are plain structs, not tagged enums\n- Follow exact struct naming from existing codebase (PascalCase, suffix Params/Result)",
+  "acceptance_criteria": "cargo check -p nie-core exits 0; 6 new RPC constants exist in rpc_methods module; 7 new structs compile with serde_as Base64",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:59:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:03:47Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:59:05"
+    }
+  ]
+}

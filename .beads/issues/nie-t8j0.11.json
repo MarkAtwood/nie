@@ -1,0 +1,25 @@
+{
+  "id": "nie-t8j0.11",
+  "title": "mls: room_hpke_keypair shared key misuse risk for sealed_whisper",
+  "description": "room_hpke_keypair() derives a shared HPKE key all group members can compute. A future contributor building sealed_whisper might call this assuming it provides per-user sealing, breaking sender anonymity within the group. Function should be renamed to group_shared_hpke_keypair() so the shared-by-all-members property is visible at the call site.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:37:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:37:18Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:37:17"
+    }
+  ]
+}

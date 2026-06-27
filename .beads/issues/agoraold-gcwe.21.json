@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.21",
+  "title": "proxy Option<String> should be part of a ConnectConfig struct",
+  "description": "The proxy parameter (Option<String>) is threaded through four function signatures: connect(), connect_with_retry(), connection_manager(), and open_authenticated_ws(). In connection_manager it is cloned on every reconnect attempt. This design accumulates cost as new per-connection options are added (timeout, keep-alive interval, proxy authentication, etc.) \u2014 each new option requires updating all four signatures. A ConnectConfig struct holding url, accept_invalid_certs, and proxy would reduce churn, make the API more stable, and eliminate the per-reconnect clone of the full string. This is a design concern, not a correctness bug.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:25Z",
+  "closed_at": "2026-04-19T19:36:56Z",
+  "close_reason": "ConnectConfig struct refactor is a future extensibility improvement, not a correctness issue. Deferred.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:19"
+    }
+  ]
+}

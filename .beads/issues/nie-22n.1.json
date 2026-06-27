@@ -1,0 +1,23 @@
+{
+  "id": "nie-22n.1",
+  "title": "Memo encoding: session UUID \u2192 MemoBytes ([u8; 512])",
+  "description": "Implement memo encoding and decoding for payment session tracking per ZIP-302.\n\npub fn session_id_to_memo(session_id: Uuid) -> [u8; 512]\n  - Encode the session UUID as its hyphenated string form ('550e8400-e29b-41d4-a716-446655440000', 36 bytes)\n  - Place those bytes at memo[0..36]\n  - Fill memo[36..512] with 0x00 (right-padded, ZIP-302 text memo format)\n  - First byte will be 0x35 ('5'), which is \u2264 0xF4 \u2014 valid UTF-8 text memo marker per ZIP-302\n\npub fn memo_to_session_id(memo: &[u8; 512]) -> Option<Uuid>\n  - Extract bytes[0..36], trim trailing nulls, attempt Uuid::parse_str\n  - Return None (not Err) if not a valid UUID \u2014 memo may be from a different sender\n\nDefensive rules:\n- session_id_to_memo must never panic \u2014 Uuid::to_string() is infallible, length is fixed\n- memo_to_session_id must never panic on any 512-byte input \u2014 all parse failures return None\n- First byte of output must be \u2264 0xF4 (assert in debug builds)\n\nTests (oracle: ZIP-302 spec for encoding, Uuid crate for parsing):\n- Roundtrip: encode then decode returns the original UUID\n- Bytes[0..36] match expected UTF-8 encoding of the UUID string\n- Bytes[36..512] are all 0x00\n- memo_to_session_id([0u8; 512]) \u2192 None (all-zero is not a UUID)\n- memo_to_session_id([0xF6, 0x00, ...]) \u2192 None (empty memo sentinel)\n- memo_to_session_id(arbitrary random bytes) \u2192 None, no panic\n- Test that first byte of output is \u2264 0xF4 (valid ZIP-302 text memo)",
+  "acceptance_criteria": "roundtrip test passes; memo_to_session_id never panics on fuzz-like inputs (run with 1000 random inputs in test); bytes layout matches ZIP-302 text memo spec",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:50:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T02:24:11Z",
+  "close_reason": "session_id_to_memo + memo_to_session_id in wallet/src/memo.rs, 7 tests all passing",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:50:05"
+    }
+  ]
+}

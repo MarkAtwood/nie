@@ -1,0 +1,27 @@
+{
+  "id": "nie-7xs.7",
+  "title": "Nickname length check uses byte count, not character count",
+  "description": "ws.rs line 173: nickname.len() > 32 uses byte length. The error message says '1-32 characters'. A nickname of 9 emoji characters (each 4 bytes = 36 bytes) is rejected as too long even though it's only 9 display characters. A nickname of 32 ASCII chars is exactly 32 bytes, accepted. A nickname of 11 three-byte CJK characters (33 bytes) is rejected. The behavior differs from the documented invariant. A future contributor adding nickname validation anywhere else in the stack (CLI, mobile) could use char count and create a mismatch where the relay rejects nicknames the client considers valid. Fix: nickname.chars().count() > 32.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:59:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:04:06Z",
+  "closed_at": "2026-04-16T09:04:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:59:15"
+    }
+  ]
+}

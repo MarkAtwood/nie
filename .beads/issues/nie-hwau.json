@@ -1,0 +1,14 @@
+{
+  "id": "nie-hwau",
+  "title": "jmap Space/get: no membership filter — returns all spaces, not just caller's spaces",
+  "description": "space_get() in daemon/src/jmap.rs calls store.get_spaces(None) when ids=null. get_spaces(None) in daemon/src/store.rs runs: SELECT id, name, description, created_at FROM space ORDER BY created_at ASC — no WHERE clause, no join with space_member. This returns every space ever created, regardless of whether the caller is a member. In the current single-user daemon this is only a latent concern, but if multi-account or multi-user configurations are ever supported, any authenticated caller can enumerate all spaces and their full member lists (space_to_json includes the memberList array). Even in single-user mode, spaces the daemon owner was removed from or never joined are returned. Fix: filter by membership — only return spaces where the account_id appears in space_member with any role. Same issue applies to space_query() and space_query_changes() which also call query_spaces() without a membership filter.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:52:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:59:38Z",
+  "closed_at": "2026-04-26T04:59:38Z",
+  "close_reason": "Closed"
+}

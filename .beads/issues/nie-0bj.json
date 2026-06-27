@@ -1,0 +1,27 @@
+{
+  "id": "nie-0bj",
+  "title": "Payment session timeout and cancellation",
+  "description": "Sessions that have not advanced in 24 hours are marked Expired. Payer can /cancel <session-id> which sends a PaymentAction::Cancelled (add this variant). On receiving Cancelled, payee discards the session. Display timeout/cancellation in chat.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:25:37Z",
+  "close_reason": "Cancelled action + /cancel command + 24h expiry implemented; all tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:54"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:53"
+    }
+  ]
+}

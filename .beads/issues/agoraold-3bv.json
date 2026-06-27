@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-3bv",
+  "title": "Lightwalletd endpoint configuration",
+  "description": "Support --lightwalletd <url> flag and lightwalletd field in config.toml. Testnet default: https://lightwalletd.testnet.z.cash:443. Mainnet default: (TBD, multiple public endpoints). Validate URL scheme is https or grpc+tls.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:36Z",
+  "closed_at": "2026-04-19T15:19:00Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:34"
+    }
+  ]
+}

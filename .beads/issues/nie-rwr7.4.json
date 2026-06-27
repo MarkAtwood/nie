@@ -1,0 +1,28 @@
+{
+  "id": "nie-rwr7.4",
+  "title": "Identity: add X25519 HPKE keypair field + 64-byte keyfile",
+  "description": "What: Add an independent X25519 HPKE keypair to the Identity struct and update the keyfile format from 32 bytes to 64 bytes (Ed25519 seed || X25519 seed).\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/core/src/identity.rs\n2. Add field to Identity struct (after signing_key):\n   hpke_secret: x25519_dalek::StaticSecret  // separate entropy, never Debug\n3. Update Identity::generate() to also generate 32 random bytes for X25519:\n   let hpke_seed: [u8; 32] = rand::random();\n   let hpke_secret = x25519_dalek::StaticSecret::from(hpke_seed);\n4. Add Identity::from_secret_bytes to accept 64-byte input (Ed25519_seed || X25519_seed):\n   Update signature: pub fn from_secret_bytes(bytes: &[u8; 64]) -> Self\n   bytes[0..32] -> Ed25519 signing_key\n   bytes[32..64] -> X25519 hpke_secret\n5. Add methods:\n   pub fn hpke_secret_bytes(&self) -> [u8; 32]  // StaticSecret::to_bytes()\n   pub fn hpke_pub_key_bytes(&self) -> [u8; 32]  // x25519_dalek::PublicKey::from(&self.hpke_secret).to_bytes()\n6. Update load_identity() in CLI or wherever keyfile is read:\n   - Must now validate len == 64 (not 32)\n   - Clear error: 'keyfile corrupt: expected 64 bytes'\n7. Update save/init code to write 64-byte keyfile\n8. Add runtime assertion: hpke_secret_bytes() != signing_key.to_bytes()[0..32] (key separation)\n9. Run cargo check --workspace\n\nDefensive programming rules:\n- StaticSecret must NOT implement Debug (same as SigningKey)\n- Never log hpke_secret_bytes() \u2014 add a comment wherever hpke_secret_bytes() is called\n- key separation assertion: panic! if Ed25519 seed == X25519 seed (astronomically unlikely but required by CLAUDE.md wallet security rules)\n- hpke_secret_bytes() is for keyfile storage only; clear error if called in wrong context\n- from_secret_bytes now takes [u8; 64] \u2014 this is a breaking change; update all callers (load_identity, tests)\n- 64-byte file: first 32 = Ed25519 seed, last 32 = X25519 seed (document in a comment)",
+  "acceptance_criteria": "cargo check --workspace exits 0; Identity::generate() produces 64-byte keyfile content; from_secret_bytes accepts [u8;64]; hpke_pub_key_bytes() returns 32-byte X25519 public key; load_identity rejects 32-byte files with descriptive error",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:59:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:10:20Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:59:45"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:11"
+    }
+  ]
+}

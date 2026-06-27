@@ -1,0 +1,22 @@
+{
+  "id": "nie-34mi",
+  "title": "Unit tests for canonicalize_display_name",
+  "description": "Why: security invariant must be verified by tests with external oracles. What: add unit tests to relay (same module as implementation). Test cases \u2014 oracle is the Unicode spec + acceptance criteria: (1) clean_name_passes: 'Alice' -> Ok('Alice'); (2) rtl_override_rejected: 'group\\u{202E}name' -> Err; (3) rlo_rejected: 'a\\u{202E}b' -> Err; (4) zws_stripped_silently: 'alice\\u{200B}bob' -> Ok('alicebob'); (5) nfc_normalizes_homoglyph_form: NFC('e\\u{0301}') -> Ok('\u00e9') (composed form); (6) name_33_chars_rejected: 'a'.repeat(33) -> Err; (7) name_32_chars_passes: 'a'.repeat(32) -> Ok; (8) empty_rejected; (9) whitespace_only_rejected. Each test must have its expected value from an external oracle (Unicode spec), NOT derived from the function under test.",
+  "acceptance_criteria": "All 9+ tests pass; no test uses code under test as its own oracle",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T05:50:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T05:54:47Z",
+  "closed_at": "2026-04-22T05:54:47Z",
+  "close_reason": "unit tests for canonicalize_display_name pass; external oracles documented",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 22:50:51"
+    }
+  ]
+}

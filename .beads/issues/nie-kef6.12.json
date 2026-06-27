@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.12",
+  "title": "save_tree_state is dead code after save_block_state refactor",
+  "description": "After the scan_block refactor (save_block_state now atomically writes tree_state + witnesses + tip), save_tree_state() is no longer called in any production code path. It remains a public API that partially duplicates save_block_state (updates only tree_state, not witnesses or tip_height). A caller using save_tree_state() directly would advance the tree snapshot without updating the tip \u2014 an inconsistent partial write. Either deprecate/remove the method or make it private and for test-only use.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:49:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:11:50Z",
+  "closed_at": "2026-04-25T00:11:50Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:49:28"
+    }
+  ]
+}

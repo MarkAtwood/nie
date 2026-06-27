@@ -1,0 +1,26 @@
+{
+  "id": "nie-cp2h.3",
+  "title": "try_parse_simple_space_prop _ arm comment claims compile-time enforcement that does not exist",
+  "description": "The function doc says 'The _ arm below is unreachable by construction \u2014 it exists to ensure the match stays exhaustive as new arms are added.' This is incorrect: string matches on &str are never exhaustive in Rust; the _ arm is a catch-all and the compiler does not flag missing arms when new arms are added. The guarantee that all new simple props must be added here exists only in the prose doc comment, not in the compiler. Fix: remove the false claim from the comment. Replace with: '// Not a simple space property \u2014 fall through to member-patch handling.' The actual correctness contract (SimplePropPatch is an enum whose match IS exhaustive) is correctly stated for the Phase 2 dispatch; the confusion is only at the parsing level.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:54:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T06:06:56Z",
+  "closed_at": "2026-04-24T06:06:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:54:31"
+    }
+  ]
+}

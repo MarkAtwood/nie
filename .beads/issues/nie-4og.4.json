@@ -1,0 +1,25 @@
+{
+  "id": "nie-4og.4",
+  "title": "Iterative select_with_fee convergence is correct; 2-pass is not",
+  "description": "select_with_fee uses an iterative loop. A contributor might suggest '2 passes is simpler and enough'. That is wrong: selecting more notes to cover a higher fee can trigger another fee increase, which 2 passes cannot handle. The iterative approach solves the correct fixed-point problem. Convergence is guaranteed because zip317_fee is monotone-nondecreasing in note count, the note set is finite, and each iteration either terminates or strictly increases the fee (a bounded increasing sequence must converge).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:27:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:34:18Z",
+  "closed_at": "2026-04-19T04:34:18Z",
+  "close_reason": "Decision already documented in code. No code change needed.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:27:15"
+    }
+  ]
+}

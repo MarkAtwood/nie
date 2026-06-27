@@ -1,0 +1,27 @@
+{
+  "id": "nie-ftwb.17",
+  "title": "bridge-slack: text message body from Slack has no size cap before nie pad call",
+  "description": "bridge-slack/src/bridge.rs: Slack message text is extracted from inner.text_body() (which returns the raw text field from SlackInnerEvent), formatted via format_for_nie(), sent on the mpsc channel, and then pad() is called on the serialized ClearMessage. The Slack Events API has a body limit (bridge enforces 1MB via DefaultBodyLimit), but a single message text field could still be hundreds of KB. There is no per-message text size check before the pad() call. pad() will return Err and the message is silently dropped with a warn log. Scenario: Slack message with very long text body (e.g. pasted code block) is silently dropped at the nie relay boundary with no user-visible feedback.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:58:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:06:16Z",
+  "closed_at": "2026-04-26T08:06:16Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:58:01"
+    }
+  ]
+}

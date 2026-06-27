@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.15",
+  "title": "alloc_subscription_address race: concurrent requests may share a Sapling address",
+  "description": "ws.rs alloc_subscription_address(): next_diversifier() atomically returns current and advances to current+1. But find_address(start) may skip invalid diversifiers and land on actual_u128 > start+1. advance_diversifier_to(actual_u128+1) is called afterward. A concurrent request that called next_diversifier() between start+1 and actual_u128 would also call find_address() and land on the same actual address. Both requests produce the same Sapling address. The second create_invoice() is silently ignored (INSERT OR IGNORE on UNIQUE address), so that client receives a stale invoice_id pointing to an address that is now linked to a different user's invoice. Payment to that address activates the first user's subscription, not the second's. Fix: use a single serialized transaction that does find_address and advance atomically, or hold a mutex around the two-step sequence.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:46:59Z",
+  "closed_at": "2026-04-24T22:46:59Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:47"
+    }
+  ]
+}

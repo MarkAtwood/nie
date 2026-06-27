@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.33",
+  "title": "RATE_LIMIT_MSG_PER_MIN parse failure silently uses default without warning",
+  "description": "main.rs line 73: RATE_LIMIT_MSG_PER_MIN uses .and_then(v.parse().ok()).unwrap_or(120), silently falling back to 120 on invalid input. All other env vars (KEEPALIVE_SECS, SUBSCRIPTION_PRICE_ZATOSHI, SUBSCRIPTION_DAYS) explicitly warn via tracing::warn on parse failure. An operator who typos the var name or value gets no signal that their rate limit config was ignored.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:52:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:52:18Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:52:18"
+    }
+  ]
+}

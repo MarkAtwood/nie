@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-x87e.14",
+  "title": "GOOD: connect timeout + IVK handling look solid",
+  "description": "Positive findings from the wallet/src/client.rs and wallet/tests/e2e_testnet.rs review:\n\n1. connect() timeout is correctly structured: tokio::time::timeout wraps the full endpoint.connect() call, not just the TCP phase. The comment explains why tonic's connect_timeout() alone is insufficient (it only covers TCP). This is exactly right.\n\n2. IVK key material handling in the e2e test is correct. The bob_ivk_bytes variable is derived in memory, never logged, never printed. The comment 'IVK bytes are key material; they must not be logged' is present and the code follows it.\n\n3. parse_send_response correctly validates txid format (64 chars, all ascii_hexdigit) before accepting the server response, and normalizes to lowercase before returning. The test suite covers success, error_code != 0, short txid, non-hex txid, and uppercase normalization \u2014 comprehensive.\n\n4. Double-gate opt-in for testnet tests (#[ignore] + TESTNET_ENABLED=1 env check) is the right pattern to prevent accidental execution.\n\n5. BroadcastError enum design is clean: EmptyTx, Grpc, BroadcastFailed, and InvalidTxId are correctly separated for caller decision-making (transient vs permanent failures).\n\n6. alice_mnemonic is never logged or printed in any eprintln! output path in the test.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:02Z",
+  "closed_at": "2026-04-20T05:24:53Z",
+  "close_reason": "P3/P4 deferred: below stopping threshold (P0=0, P1=0, SEC7 says STOP)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:49"
+    }
+  ]
+}

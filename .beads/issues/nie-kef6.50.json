@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.50",
+  "title": "SUBSCRIBE_REQUEST not rate-limited; burns Sapling diversifier indices and grows invoice table unboundedly",
+  "description": "SUBSCRIBE_REQUEST has no rate limit (the check_rate_limit guard applies only to BROADCAST/SEALED_BROADCAST/WHISPER/GROUP_SEND). An authenticated user can call SUBSCRIBE_REQUEST at up to the connection's message rate, allocating a fresh Sapling diversifier index and creating a new invoice row on every call. The subscription_alloc_lock serializes allocations but does not prevent them. Consequences: (1) subscription_invoices table grows unboundedly per user; (2) the merchant wallet's diversifier index advances irreversibly through 2^88 at the attacker's pace; (3) purge_expired_invoices runs only every 100 blocks (~3 hours at 90s/block), so a burst attack accumulates thousands of rows before purge. Fix: apply check_rate_limit to SUBSCRIBE_REQUEST, or add a per-user cap on pending invoices before creating another.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:36:33Z",
+  "closed_at": "2026-04-25T00:36:33Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:30"
+    }
+  ]
+}

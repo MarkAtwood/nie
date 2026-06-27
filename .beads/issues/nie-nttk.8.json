@@ -1,0 +1,19 @@
+{
+  "id": "nie-nttk.8",
+  "title": "scanner.rs: SaplingIvkDecryptor reconstructs jubjub::Fr on every output; performance regression at scale",
+  "description": "In scanner.rs SaplingIvkDecryptor::try_decrypt_sapling (line 211):\n\n  let fr: jubjub::Fr = jubjub::Fr::from_repr(*self.ivk_bytes)\n      .into_option()\n      .expect(\"...\");\n  let ivk = SaplingIvk(fr);\n  let prepared_ivk = PreparedIncomingViewingKey::new(&ivk);\n\nThis re-derives jubjub::Fr and reconstructs PreparedIncomingViewingKey on EVERY call to try_decrypt_sapling -- once per Sapling output per transaction per block.\n\nPreparedIncomingViewingKey::new() involves a Jubjub scalar multiplication to precompute the Zcash trial-decryption tables. This is designed to be computed once per IVK and reused across many outputs. The ZF lightwalletd client library caches it for exactly this reason.\n\nOn mainnet, a single block can contain hundreds of Sapling outputs. For each output, the scanner reconstructs Fr from bytes (field deserialization), wraps it in SaplingIvk, and recomputes PreparedIncomingViewingKey. This is O(outputs_per_block) scalar multiplications when it should be O(1) per scanner session.\n\nFix: store PreparedIncomingViewingKey in SaplingIvkDecryptor at construction time rather than reconstructing it on each call. The struct already notes this pattern in its comment but does not implement it.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:42:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:42:48Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:42:48"
+    }
+  ]
+}

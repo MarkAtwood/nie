@@ -1,0 +1,27 @@
+{
+  "id": "nie-7xs.12",
+  "title": "connect_with_retry drops messages queued while disconnected",
+  "description": "What is unclear: transport.rs docstring for connect_with_retry says 'Messages queued while disconnected are sent after reconnect.' This is incorrect. The out_rx channel is not buffered across reconnects -- if the background connection_manager is in the reconnect sleep, messages sent by the caller accumulate in the 64-entry channel buffer (out_rx). If more than 64 messages are sent while disconnected, they're dropped by the full channel. If fewer than 64, they ARE drained after reconnect in the select! loop. So the behavior depends on the buffer fill: under 64 queued messages they survive reconnect; over 64 they're silently dropped. The docstring implies reliable at-least-once, but it's actually at-most-once with a 64-message window. A reader implementing a reliable send-while-offline pattern would be surprised. Fix the docstring to state actual behavior.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:59:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:07:45Z",
+  "closed_at": "2026-04-16T09:07:45Z",
+  "close_reason": "Closed",
+  "labels": [
+    "internal-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:59:47"
+    }
+  ]
+}

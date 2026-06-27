@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.26",
+  "title": "auth: use OsRng for challenge nonce, not thread_rng",
+  "description": "core/src/auth.rs new_challenge() uses rand::thread_rng().fill() to generate the 32-byte challenge nonce. The signing key uses OsRng directly. In rand 0.8, thread_rng() is a ChaCha20 PRNG reseeded from OS entropy, not a direct OS RNG call. For a security-critical nonce that determines replay-attack resistance, use OsRng consistently. If thread_rng() fails to reseed after fork-without-exec, it degrades to a predictable stream.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:11:41Z",
+  "closed_at": "2026-04-24T22:11:41Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:31"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "agoraold-pl4",
+  "title": "PaymentAction::Request wire amount is a free-form string: format fossilizes",
+  "description": "PaymentAction::Request{chain, amount: String} sends the raw CLI input string over the wire. Both payer and payee parse it with parse_zec_to_zatoshi. The format is now part of the wire protocol and any caller (including future Android client) depends on it. If later changed to amount_zatoshi: u64, it's a breaking wire format change. The string form was chosen (implicitly) for human readability; an alternative is to send amount_zatoshi: u64 on the wire and display it locally. Consider whether to lock in the string form before it fossilizes — other chains (Monero, MobileCoin) have different precisions, making a single integer field ambiguous anyway, which is a valid reason to keep the string.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:51:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:35Z",
+  "closed_at": "2026-04-18T06:27:49Z",
+  "close_reason": "Decision: keep string form. Human-readable, chain-agnostic (Monero/MobileCoin precision differs). Format is protocol-stable as-is."
+}

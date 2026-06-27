@@ -1,0 +1,26 @@
+{
+  "id": "nie-ozqt.4",
+  "title": "activate_subscription uses parsed invoice expiry not promised duration for late payments",
+  "description": "In payment_watcher::activate_subscription, when a payment arrives after invoice expiry, the new expiry is max(parsed_invoice_expires_at, now + fallback_days). fallback_days comes from invoice.subscription_days which is the duration requested at invoice time. However, parsed_invoice_expires_at was computed at invoice-creation time as creation_time + duration_days, so for an expired invoice the max() correctly picks now + duration_days. BUT: on a parse failure of expires_at (the Err branch), fallback_days is also used for both the fallback and the max \u2014 so the code is correct in both branches. No bug here after close reading.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:42:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:43:37Z",
+  "closed_at": "2026-04-25T06:43:37Z",
+  "close_reason": "false positive: logic correct after close reading",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:42:57"
+    }
+  ]
+}

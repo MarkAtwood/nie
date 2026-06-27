@@ -1,0 +1,26 @@
+{
+  "id": "nie-hggn.2",
+  "title": "cli/commands.rs FILE_MAX_CHUNKS (230) diverges from messages.rs MAX_CHUNKS (102)",
+  "description": "Trigger: messages.rs deserialize_total_chunks caps total_chunks at 102 (floor(1 GiB / 10 MiB)). But commands.rs uses FILE_MAX_CHUNKS = 230 as its guard (lines ~1266 and ~1507 in both DELIVER and SEALED_DELIVER handlers). The CLI guard is dead code: total_chunks > 102 is already rejected by deserialization before the match arm runs. Bad behavior now: none (defense-in-depth is safe). Maintenance risk: if the deserialization cap is ever raised (e.g. to 230), the CLI would allocate vec![None; 230] slots per transfer (16 concurrent = 3680 slots) then receive up to 230 * 10 MiB = 2.3 GiB of chunk data before any size check runs. Fix: use the same constant (MAX_CHUNKS = 102) in commands.rs, or import the constant from messages.rs.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:11:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:20:53Z",
+  "closed_at": "2026-04-26T12:20:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:11:30"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nie-4iod.22",
+  "title": "bot: deserialization failures silently ignored",
+  "description": "In dispatcher.rs dispatch_payload (lines 41-46), ClearMessage deserialization failures return None with only debug log. Corrupted data, malformed JSON, and MLS ciphertext all produce None identically. Per error discipline, missing error paths silently swallow failures. Correct: distinguish between expected (MLS) and unexpected (malformed) failures\u2014emit BotEvent::Error for unparseable JSON.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:14:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:27:31Z",
+  "closed_at": "2026-04-20T01:27:31Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:14:20"
+    }
+  ]
+}

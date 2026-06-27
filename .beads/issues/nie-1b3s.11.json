@@ -1,0 +1,27 @@
+{
+  "id": "nie-1b3s.11",
+  "title": "mls.rs: process_for_group sender_pub_id extracted before checking message type",
+  "description": "mls.rs:262-263: sender_pub_id is extracted via processed.credential().serialized_content() before matching on processed.into_content(). For StagedCommitMessage and ProposalMessage the sender_pub_id is computed and then discarded (not returned). This is harmless but the extraction is load-bearing only for ApplicationMessage. If a future openmls version makes credential() behave differently for commit senders (e.g., returning the committer's cred), the extraction here would be used for the wrong purpose. Add a comment clarifying that sender_pub_id is only returned for ApplicationMessage.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:15:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:49:40Z",
+  "closed_at": "2026-04-26T11:49:40Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:15:13"
+    }
+  ]
+}

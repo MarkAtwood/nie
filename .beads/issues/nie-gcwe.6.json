@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.6",
+  "title": "socks5_helper: oneshot fires before relay upstream connect",
+  "description": "In socks5_helper.rs, tx.send(()) (line 85) fires the 'CONNECT received' signal BEFORE the helper attempts to connect to the upstream relay (line 88) and BEFORE the SOCKS5 success reply is sent to the client (line 93).\n\nIf the upstream relay connect fails (line 89 panics via unwrap_or_else), the oneshot has already fired. The test would observe Ok(()) from the oneshot even though the proxy failed mid-handshake.\n\nCorrect ordering: fire the oneshot after the success reply is written and the bidirectional splice begins \u2014 i.e., after line 96. This ensures 'CONNECT received and forwarded successfully' rather than 'CONNECT received but outcome unknown'.\n\nIn the current test this is masked because transport::connect() cannot return Ok unless it received the success reply and completed the WebSocket handshake, so the test's oneshot recv() happens after the fact. But the helper itself is logically incorrect: it signals success before it has done the work.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:31:35Z",
+  "closed_at": "2026-04-19T19:31:35Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:42"
+    }
+  ]
+}

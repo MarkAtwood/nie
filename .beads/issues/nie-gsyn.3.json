@@ -1,0 +1,26 @@
+{
+  "id": "nie-gsyn.3",
+  "title": "payment_watcher: corrupt invoice expires_at permanently loses confirmed payment",
+  "description": "activate_subscription parses invoice.expires_at with NaiveDateTime::parse_from_str. On failure it returns Err; the block is already marked scanned so the payment is permanently lost and the invoice permanently blocks that Sapling address. Fix: on parse failure, log warning and fall back to Utc::now() plus fallback_days.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:24:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:02:57Z",
+  "closed_at": "2026-04-25T07:02:57Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:24:27"
+    }
+  ]
+}

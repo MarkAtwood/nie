@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-2zh",
+  "title": "Review: db.rs as-u64 casts + 8 commits",
+  "notes": "Maintainer risk: MEDIUM — the as-u64 casts are a missed application of an established project convention. In a corrupted DB the sync guard bypass (scan_tip) is the worst case. Normal operation is unaffected since set_scan_tip uses try_from and values written are always non-negative.\nConfidence: 93% chance of no missed bug. The tx_builder convergence logic and anchor-mismatch pre-check are correct. The primary uncertainty is now cleared: the as-u64 casts are the only pattern I know was missed.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:31:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T05:46:15Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

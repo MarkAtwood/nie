@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-twey",
+  "title": "nie-slack: Slack bridge",
+  "description": "Bridge bot that connects nie rooms to Slack workspaces. The bot authenticates to Slack via the Events API and relays messages bidirectionally. Users on either side can participate without adopting the same client.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-20T17:45:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:01Z",
+  "closed_at": "2026-04-22T15:42:35Z",
+  "close_reason": "bridge-slack crate complete: config, slack, bridge, main modules; 20 tests pass; full workspace clean"
+}

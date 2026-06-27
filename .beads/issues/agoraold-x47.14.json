@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-x47.14",
+  "title": "PubId as hex(SHA-256(key)) rather than raw public key \u2014 correct privacy design",
+  "description": "identity.rs: PubId is hex(SHA-256(verifying_key_bytes)), not the verifying key itself. This is one-way: peers cannot reconstruct the signing key from the pub_id. The verifying key is sent separately only during auth (pub_key_b64 in Authenticate). A contributor might suggest using the raw base64 key as the pub_id for simplicity. Do not do that: (1) the hash adds a layer of indirection that allows future key rotation without changing the user's visible address, (2) if the key encoding ever changes (curve upgrade), the pub_id format stays stable as long as SHA-256 stays, (3) it prevents the relay from reconstructing the verifying key from the directory, reducing what the relay knows.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:47:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:57Z",
+  "closed_at": "2026-04-18T04:19:42Z",
+  "close_reason": "informational review note \u2014 design confirmed correct, no action needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:47:51"
+    }
+  ]
+}

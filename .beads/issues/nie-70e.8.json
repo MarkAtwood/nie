@@ -1,0 +1,25 @@
+{
+  "id": "nie-70e.8",
+  "title": "fees.rs module docstring cites sapling_bundle_count which is not in ZIP-317",
+  "description": "wallet/src/fees.rs:7 \u2014 the module docstring shows the logical_actions formula as:\n  logical_actions = max(n_transparent_inputs, n_transparent_outputs)\n                  + sapling_bundle_count * 2\n                  + n_orchard_actions\n\nThe term 'sapling_bundle_count * 2' does not appear in ZIP-317. ZIP-317 \u00a74 specifies:\n  logical_actions = max(n_tin, n_tout) + n_spend_desc + n_output_desc + n_action_desc\n\nThe implementation does not use bundle counts either. Someone verifying the code against the docstring will find a discrepancy and doubt the whole module.\n\n**Why:** The docstring appears to be a misremembering or mis-copy of the spec.\n**How to apply:** Replace the formula in the docstring with the ZIP-317-verbatim form.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:56:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T15:56:26Z",
+  "closed_at": "2026-04-18T15:56:26Z",
+  "close_reason": "Already resolved by nie-70e.1 fix: sapling_bundle_count removed from module docstring when the formula was corrected to max(n_sapling_spends, n_sapling_outputs).",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:56:15"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-cs0.3",
+  "title": "set_diversifier_index is a blind overwrite with no monotonicity guard",
+  "description": "Scenario: a future caller passes a value lower than the current DB diversifier_index (e.g. after a rollback, or a bug in the advance logic). Result: diversifier index moves backward; addresses from already-used DIs are re-issued; address reuse breaks payment unlinkability. The current call site is safe (always increasing due to the found_u128 > start guard), but the function itself does not enforce this. Should be renamed advance_diversifier_to and implement SET WHERE diversifier_index < excluded.diversifier_index, making it physically impossible to regress. Today there is one call site; when a second appears, the next engineer will copy the pattern without noticing the precondition.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:06:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:54Z",
+  "closed_at": "2026-04-18T22:27:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:06:42"
+    }
+  ]
+}

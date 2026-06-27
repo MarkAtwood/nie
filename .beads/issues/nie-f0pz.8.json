@@ -1,0 +1,27 @@
+{
+  "id": "nie-f0pz.8",
+  "title": "invite code: 8 chars of Crockford Base32 from ULID random suffix is ~39 bits",
+  "description": "jmap.rs space_invite_set generates the invite code as Ulid::new().to_string()[10..18].to_uppercase() \u2014 8 characters of Crockford Base32 from the random suffix. Crockford Base32 uses 5 bits/char, so 8 chars = 40 bits. However the ULID random component is 80 bits split across chars [10..26] (16 chars). The slice [10..18] takes exactly the first 8 of those 16 chars = 40 bits entropy. This is borderline acceptable for a short-lived invite code, but with no rate limiting on Space/join (nie-0j6b.7), an attacker can brute-force 2^40 codes (1 trillion) offline if they know the code space is 8 Crockford chars. A 16-char code from the full random suffix (80 bits) would cost nothing extra and eliminate this concern.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:26:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:55:25Z",
+  "closed_at": "2026-04-26T09:55:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:25"
+    }
+  ]
+}

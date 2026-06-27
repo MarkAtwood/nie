@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-6h2",
+  "title": "Add ClearMessage::Profile variant to nie-core",
+  "description": "Add Profile { fields: HashMap<String, String> } to the ClearMessage enum in core/src/messages.rs. This is the wire type for user profile broadcasts. Relay routes it as an opaque payload \u2014 no relay changes needed. Add serde tag so it serializes as {\"type\":\"profile\",\"fields\":{...}}. Update any exhaustive match arms in the codebase.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T00:21:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T00:31:26Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 17:21:38"
+    }
+  ]
+}

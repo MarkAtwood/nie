@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-9m0p.12",
+  "title": "nie-bot: script hook safety tests",
+  "description": "What: Unit test suite verifying shlex safety boundary and hook execution behavior.\n\nAlgorithm (tests in bot/src/scripting.rs #[cfg(test)]):\n1. test_hook_echo: run_hook(\"echo hello\", &[]) \u2192 exit 0, stdout contains \"hello\"\n   Oracle: spawn actual echo process; expected output \"hello\\n\" known independently\n2. test_hook_unmatched_quote: run_hook(\"echo 'bad\", &[]) \u2192 Err(BotError::Config(_)) \u2014 unmatched quote rejected before exec\n3. test_hook_no_sh_metachar: run_hook(\"echo foo;cat /etc/passwd\", &[]) \u2192 exit 0, stdout contains literal \"foo;cat\" (not executed as pipeline)\n   This test PROVES shell injection is blocked: if sh -c were used, /etc/passwd would appear in stdout\n4. test_hook_env_var_passed: run_hook(\"env\", &[(\"NIE_FROM\".into(), \"testpub\".into())]) \u2192 stdout contains NIE_FROM=testpub\n5. test_hook_timeout: run_hook(\"sleep 60\", &[]) with 1s timeout \u2192 Err(BotError::ScriptTimeout{..})\n   (requires making timeout duration configurable or using a test-only short timeout)\n\nDefensive: test 3 is a SECURITY test \u2014 assert stdout does NOT contain any line from /etc/passwd.\n\nAgent team: T (tester \u2014 expected values from shell behavior, not from scripting.rs code).",
+  "acceptance_criteria": "cargo test -p nie-bot bot::scripting passes; test 3 (injection prevention) present and passing; all 5 tests pass",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:43:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T01:00:14Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:45"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:43:37"
+    }
+  ]
+}

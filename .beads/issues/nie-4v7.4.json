@@ -1,0 +1,28 @@
+{
+  "id": "nie-4v7.4",
+  "title": "CLI: apply unpad() in MLS-decrypted broadcast receive path",
+  "description": "What: Strip bucket padding from the decrypted MLS plaintext in cli/src/commands.rs before deserializing as ClearMessage.\n\nAlgorithm:\n1. Add to imports: use nie_core::messages::unpad;\n2. Find all sites where mls.process() or mls.process_for_group() returns Some(plaintext_bytes):\n   a. DELIVER handler: after process_incoming returns Ok(Some(pt)) -> let pt = unpad(&pt)?;\n   b. SEALED_DELIVER handler: after MLS decrypt -> unpad\n   c. GROUP_DELIVER handler: after process_for_group returns Ok(Some(pt)) -> unpad\n   d. WHISPER_DELIVER handler (MLS case): after decrypt -> unpad\n3. For the non-MLS path (plaintext path, mls_active == false): do NOT unpad \u2014 these payloads were never padded.\n4. On unpad() Err (malformed padding): warn!() and continue (skip this message; not a crash)\n\nDefensive rules:\n- Only call unpad() on MLS-decrypted payloads, never on raw plaintext\n- On unpad() Err: warn! and continue (malformed message from peer); do not crash or disconnect\n- Do not log the decrypted bytes\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo build -p nie-cli passes; cargo clippy -p nie-cli -- -D warnings passes; unpad() called before serde_json::from_slice in all MLS-decrypted paths",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T15:41:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T15:51:56Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:42:08"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:41:44"
+    }
+  ]
+}

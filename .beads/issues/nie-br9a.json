@@ -1,0 +1,13 @@
+{
+  "id": "nie-br9a",
+  "title": "Review: wallet round 18",
+  "notes": "Maintainer risk: HIGH — Two structural problems: (1) Orchard key generation and UA encoding exist but Orchard scanning is absent, so the wallet silently drops all Orchard payments while advertising Orchard addresses. (2) spawn_scanner has no reconnect logic despite the LightwalletdClient doc explicitly saying reconnect is the caller's responsibility, meaning any gRPC error permanently freezes scanning until process restart.\nConfidence: 20% chance of missed bug. Uncertainty: (1) no integration test that scans a real/mock block containing a Sapling output and finds it in spendable_notes — the happy path only tests insert_spendable_note which bypasses scanner logic entirely; (2) Orchard spend path is unimplemented and untested; (3) gRPC reconnect behavior under partial failures is untested. Would raise confidence with: integration test scanning a mock compact block stream against SaplingIvkDecryptor.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:58:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z"
+}

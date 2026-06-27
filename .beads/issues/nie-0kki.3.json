@@ -1,0 +1,27 @@
+{
+  "id": "nie-0kki.3",
+  "title": "contact_query: negative position panics on slice indexing",
+  "description": "Trigger: ChatContact/query with {position: -1, limit: 3} when contacts exist. In: let start = (position as usize).min(ids.len()); let end = ((position + limit) as usize).min(ids.len()); \u2014 a negative position casts to usize::MAX, clamped to ids.len(). A small positive limit casts to its value. ids[start..end] where start=ids.len() > end=small panics in Rust. Same bug exists in contact_query_changes. Fix: reject position < 0 with invalidArguments before the cast.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:19:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T03:38:01Z",
+  "closed_at": "2026-04-24T03:38:01Z",
+  "close_reason": "Fixed in daemon/src/store.rs and daemon/src/jmap.rs; 7 new regression tests added",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:19:00"
+    }
+  ]
+}

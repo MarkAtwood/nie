@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-4v7.5",
+  "title": "Relay: delivery jitter (0-500ms) in write task",
+  "description": "What: Add a uniform random 0-500ms sleep before each WebSocket send in the relay's per-client write task, hiding timing correlation between message send and delivery.\n\nAlgorithm:\n1. Open relay/src/ws.rs\n2. Find the write task spawned around line 280: let write_task = tokio::spawn(async move { ... })\n3. In the main loop's msg = client_rx.recv() arm, after checking for subscription_active but BEFORE sink.send(Message::Text(...)), add:\n   let delay_ms = rand::random::<u64>() % 501;  // 0-500ms inclusive\n   tokio::time::sleep(Duration::from_millis(delay_ms)).await;\n4. Add to imports at top of ws.rs: (rand is already used in tests; need production dep from nie-4v7.1)\n5. Do NOT add jitter to the offline message drain loop (lines ~324-342) \u2014 those are replays of old messages where jitter provides no privacy benefit\n6. Do NOT add jitter to ping frames \u2014 only to application messages\n\nDefensive rules:\n- The jitter sleep runs inside an async block that owns a clone of the channel; no DashMap lock is held during the sleep (confirmed by architecture analysis)\n- rand::random::<u64>() is not cryptographic; this is acceptable for timing jitter (not a security-critical RNG)\n- 501ms cap: use % 501 not % 500 to include 500ms as a possible value\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo build -p nie-relay passes; cargo clippy -p nie-relay -- -D warnings passes; jitter sleep appears in write task message arm; drain loop has no jitter",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T15:41:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T15:51:58Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:41:45"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:42:09"
+    }
+  ]
+}

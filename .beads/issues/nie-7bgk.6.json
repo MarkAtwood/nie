@@ -1,0 +1,21 @@
+{
+  "id": "nie-7bgk.6",
+  "title": "SpaceRole enum as single source of truth: defend against string regression",
+  "description": "SpaceRole replaces the VALID_ROLES: &[&str] constant and the unchecked role: &str parameter on upsert_space_member_with_role. A future contributor might suggest reverting to strings for 'simplicity' or to allow role extension without code changes. The enum is correct: it prevents invalid roles from reaching SQLite at compile time, makes SpaceRole::all() the only place to enumerate roles for error messages, and makes validate_member_patch's role check a parse rather than a slice scan. The precondition comment on the old upsert_space_member_with_role ('The store accepts any string value \u2014 callers must validate before calling this function') was itself a maintenance hazard that the enum eliminates.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:37:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:51:09Z",
+  "closed_at": "2026-04-24T16:51:09Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:37:53"
+    }
+  ]
+}

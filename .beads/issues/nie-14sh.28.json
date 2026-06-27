@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.28",
+  "title": "tui /cat command reads arbitrary filesystem paths with no traversal check",
+  "description": "/cat handler in tui/src/event.rs (lines 1127-1146) passes the user-supplied argument directly to std::path::Path::new() with no validation, then reads and broadcasts the file contents to all room participants. Any path the TUI process can read (including ~/.ssh/id_ed25519, identity.key, daemon.token) can be exfiltrated to the entire chat room. cli/src/commands.rs has safe_name() for this purpose but it is not used here.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:57:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:23:21Z",
+  "closed_at": "2026-04-24T23:23:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:56:59"
+    }
+  ]
+}

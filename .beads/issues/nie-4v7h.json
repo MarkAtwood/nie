@@ -1,0 +1,14 @@
+{
+  "id": "nie-4v7h",
+  "title": "Space invite codes are permanent and irrevocable",
+  "description": "use_space_invite_code never deletes or invalidates the invite code after use. SpaceInvite/set destroy returns 'forbidden' unconditionally (jmap.rs:1723-1727) so there is no way to revoke an invite code once created. An invite link shared in a group chat, leaked via screenshot, or issued to a user who later leaves remains valid forever (expires_at defaults to NULL = never). A removed member can re-join at any time; there is no remediation path for a leaked invite. Minimum fix: allow SpaceInvite destroy (delete the row). Optionally: single-use invites deleted on first use.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:07:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:37:17Z",
+  "closed_at": "2026-04-26T05:37:17Z",
+  "close_reason": "Closed"
+}

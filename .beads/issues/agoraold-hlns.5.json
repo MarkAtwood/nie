@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-hlns.5",
+  "title": "nie-hlns W2: Remove RelayMessage + wire format tests",
+  "description": "## What\nRemove the old RelayMessage enum from core/src/protocol.rs (now unused after W1A, W1B, W1C). Rewrite the 3 existing JSON wire format tests to assert JSON-RPC 2.0 wire format. Add new compliance tests.\n\n## Algorithm\n1. In core/src/protocol.rs: delete the RelayMessage enum and all its variants (Challenge, Authenticate, AuthOk, AuthFailed, Broadcast, Deliver, DirectoryList, UserJoined, UserLeft, SetNickname, UserNickname, SubscribeRequest, SubscribeInvoice, SubscriptionActive, PublishKeyPackage, GetKeyPackage, KeyPackageResponse, KeyPackageReady, Whisper, WhisperDeliver, Error)\n2. Verify cargo build --workspace compiles after deletion\n3. Rewrite the 3 existing tests in protocol.rs (broadcast_payload_is_base64, deliver_payload_is_base64, payload_roundtrip) to test the NEW typed param structs:\n   - broadcast_params_payload_is_base64: BroadcastParams { payload: b\"hello\" } serializes to json containing '\"aGVsbG8=\"'\n   - deliver_params_payload_is_base64: DeliverParams { from: \"abc\", payload: b\"hello\" } serializes to json containing '\"aGVsbG8=\"'\n   - broadcast_params_payload_roundtrip: BroadcastParams \u2192 serialize \u2192 deserialize \u2192 assert original bytes preserved\n4. Add new JSON-RPC compliance tests (external oracle: JSON-RPC 2.0 spec document):\n   - request_wire_format: JsonRpcRequest { id:1, method:\"authenticate\", params:{} } \u2192 exact string match\n   - notification_wire_format: JsonRpcNotification { method:\"challenge\", params:{nonce:\"abc\"} } \u2192 exact string match; no 'id' field\n   - response_success_wire_format: JsonRpcResponse with result \u2192 has 'result', no 'error', has 'id', no 'params'\n   - response_error_wire_format: JsonRpcResponse with error code \u2192 has 'error' with 'code' int, has 'id', no 'result'\n   - error_code_values: verify error code constants match spec (-32700, -32600, -32601, -32001...-32004)\n\n## Defensive programming rules\n- Do NOT use the code under test as its own oracle (no serialize\u2192deserialize\u2192assert-equal)\n- All wire format tests must assert against hardcoded string literals from the JSON-RPC 2.0 spec\n\n## Agent team: Standard (R + I + T)\n- R: Grep for all remaining RelayMessage references; verify W1A+W1B+W1C left none; confirm test list\n- I: Delete RelayMessage; update/add tests\n- T: Verify each new test assertion against the JSON-RPC 2.0 spec independently\n\n## Tests\nAll listed in algorithm above. Oracle: JSON-RPC 2.0 spec wire examples.",
+  "acceptance_criteria": "cargo build --workspace passes; RelayMessage does not appear anywhere in the codebase; 3 old tests updated; 5 new tests added; all tests pass; clippy clean",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T17:44:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:05:22Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:40"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:01"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:39"
+    }
+  ]
+}

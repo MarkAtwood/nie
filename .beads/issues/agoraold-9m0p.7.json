@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-9m0p.7",
+  "title": "nie-bot: BotEvent/BotCommand serialization tests",
+  "description": "What: Unit test suite for BotEvent NDJSON serialization and BotCommand deserialization.\n\nAlgorithm:\n1. In bot/src/io_types.rs #[cfg(test)] module:\n   - test_bot_event_message_received_json: construct BotEvent::MessageReceived{..}, serialize, assert JSON has type=message_received, from, text fields\n   - test_bot_event_type_tag: all variants have correct snake_case type tag (Connected\u2192connected, etc.)\n   - test_bot_command_send_deserialize: parse JSON {\"cmd\":\"send\",\"text\":\"hello\"}, assert BotCommand::Send{text:\"hello\"}\n   - test_bot_command_quit: parse {\"cmd\":\"quit\"}, assert BotCommand::Quit\n   - test_bot_command_unknown_returns_err: parse {\"cmd\":\"explode\"}, assert serde_json::Error\n   - test_emit_no_embedded_newlines: emit event, assert output does not contain bare newline mid-JSON\n\nDefensive: Expected JSON values are hardcoded string literals, not regenerated from the code under test.\n\nAgent team: T (tester \u2014 oracle is the serde tag documented in the bead above, not the struct code).",
+  "acceptance_criteria": "cargo test -p nie-bot bot::io_types passes; all 6 tests present",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:42:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:56:01Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:33"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:42:50"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:31"
+    }
+  ]
+}

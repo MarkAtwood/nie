@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-3om.1",
+  "title": "latest_height() network failure mapped to Db error, not Connect",
+  "description": "In payment.rs:160, client.latest_height().await.map_err(SendPaymentError::Db) maps a lightwalletd network failure to the Db variant, not Connect. Trigger: lightwalletd unreachable during send_payment. Bad behavior: error Display shows 'database error: ...' for a network failure; the Connect arm in dispatch_payment's error handler is never hit, so the user gets a misleading message and the fallthrough Unknown action is sent to the payee with 'payment error: database error: ...' instead of a more specific message.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:53:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:38Z",
+  "closed_at": "2026-04-19T04:05:53Z",
+  "close_reason": "Fixed: latest_height() now maps to SendPaymentError::Connect. Test latest_height_network_failure_propagates_as_connect added and passing.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:53:50"
+    }
+  ]
+}

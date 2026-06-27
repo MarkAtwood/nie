@@ -1,0 +1,27 @@
+{
+  "id": "nie-ozqt.7",
+  "title": "alloc_subscription_address burns diversifier on find_address error",
+  "description": "In alloc_subscription_address, next_diversifier(0) increments the DB counter before find_address() is called. If find_address() returns Err (e.g. a programming error in the dfvk), the diversifier is consumed but no invoice is created. Repeated errors burn the counter. Diversifier space is 2^88 so exhaustion is implausible, but a bug in find_address() that always returns Err would cycle the counter indefinitely. Comment the intentional order or document why it is acceptable.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:48:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:54:59Z",
+  "closed_at": "2026-04-26T07:54:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:48:34"
+    }
+  ]
+}

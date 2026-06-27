@@ -1,0 +1,21 @@
+{
+  "id": "nie-nntk.2",
+  "title": "store.rs: count_and_create_invoice returns Ok(true) on silent INSERT OR IGNORE no-op",
+  "description": "count_and_create_invoice (relay/src/store.rs) uses INSERT OR IGNORE and unconditionally returns Ok(true) after the INSERT regardless of whether rows_affected was 1 or 0. If the invoice_id already exists in the table (duplicate request with same UUID, or ID collision), the INSERT silently does nothing but the function returns Ok(true), telling the caller the invoice was successfully created. The caller (ws.rs GROUP_ADD or subscribe handler) then returns the invoice details from the row parameter \u2014 but the stored invoice may have different params (different address, expires_at, or amount_zatoshi) if the duplicate was inserted by an earlier call. The ws.rs caller will send the caller stale invoice data as if it were fresh. Fix: check rows_affected() after the INSERT and return Ok(false) or an Err if the insert was silently ignored.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:59:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:08:07Z",
+  "closed_at": "2026-04-26T11:08:07Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:59:48"
+    }
+  ]
+}

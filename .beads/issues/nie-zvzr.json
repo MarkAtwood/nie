@@ -1,0 +1,14 @@
+{
+  "id": "nie-zvzr",
+  "title": "daemon/jmap.rs: session_state_token reads are non-transactional",
+  "description": "daemon/src/jmap.rs session_state_token(): assembles a composite state token from 7 sequential SELECT COUNT/MAX queries with no surrounding transaction. A write landing between any two reads produces a token that reflects mixed snapshot versions. A client that receives this token and later uses it in a /changes request may receive a \"cannotCalculateChanges\" error or miss updates.\n\nRoot cause: RFC 8620 §2 requires the session state to reflect a consistent point-in-time snapshot; reading counts and sequences in separate statements does not guarantee this.\n\nFix: wrap all 7 reads in a single BEGIN DEFERRED ... COMMIT (read-only snapshot transaction) so they all see the same database state.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:36:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:50:06Z",
+  "closed_at": "2026-04-25T02:50:06Z",
+  "close_reason": "Closed"
+}

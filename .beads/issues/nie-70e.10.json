@@ -1,0 +1,26 @@
+{
+  "id": "nie-70e.10",
+  "title": "resync_sessions precondition mls_active=true is comment-only, not enforced",
+  "description": "commands.rs:1304-1305 \u2014 resync_sessions hardcodes true for the mls_active argument to send_payment_message with a comment 'mls_active is always true when this is called'. The two call sites (lines 328 and 550) are inside if mls_active { } blocks, so the invariant holds today. But the precondition is invisible from the function signature \u2014 a future call site inside a non-MLS branch would pass the wrong value silently.\n\n**Why:** Implicit preconditions enforced only by call-site structure are invisible to the compiler and to future contributors.\n**How to apply:** Either remove the mls_active parameter from resync_sessions entirely (it always passes true, the function could assert or just use true directly), or add a debug_assert!(mls_active) at the top of the function.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:56:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T15:59:59Z",
+  "closed_at": "2026-04-18T15:59:59Z",
+  "close_reason": "Added function doc comment stating MLS precondition explicitly. Inline comment updated from vague 'always true' to cite the guarding if blocks.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:56:29"
+    }
+  ]
+}

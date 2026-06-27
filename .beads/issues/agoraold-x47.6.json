@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-x47.6",
+  "title": "Mangled docstring on send_profile_broadcast describes is_admin",
+  "description": "commands.rs lines 946-978: the docstring above send_profile_broadcast() starts with 'True if this client is currently the MLS group admin' and then pivots to describing send_profile_broadcast. The is_admin function at line 981 has no docstring at all. The doc comment on send_profile_broadcast is a copy-paste concatenation of two different function descriptions. A contributor reading the docs will get wrong information about both functions. The correct docstring for is_admin is correct (it does return bool based on online[0]), and the correct docstring for send_profile_broadcast is described below the misplaced admin description.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:46:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:56Z",
+  "closed_at": "2026-04-18T04:12:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:46:51"
+    }
+  ]
+}

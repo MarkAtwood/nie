@@ -1,0 +1,43 @@
+{
+  "id": "agoraold-060",
+  "title": "Mainnet readiness and fee handling",
+  "description": "Configuration, safety checks, and fee handling needed before the payment feature can be used on Zcash mainnet with real funds. Blocked on testnet validation being complete.",
+  "notes": "Review converged after 1 round. P0=0 P1=0 P2=0. Final review epic: nie-6syc. SEC7 confidence: 90% no missed bugs. Only opinion/P4 items remain: hardcoded endpoint monitoring (opinion), ENDPOINT_COUNTER comment (opinion), ENDPOINT_COUNTER test ordering (P3 code quality).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T16:15:50Z",
+  "close_reason": "all steps complete",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:14"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:17"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:14"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:14"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:20"
+    }
+  ]
+}

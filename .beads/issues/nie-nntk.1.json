@@ -1,0 +1,21 @@
+{
+  "id": "nie-nntk.1",
+  "title": "messages.rs: total_chunks\u00d7chunk_size (10 GiB) exceeds size_bytes cap (1 GiB)",
+  "description": "FileHeader validation has an inconsistency between two independent caps: total_chunks is capped at 1024 and chunk data at 10 MiB each (enforced by deserialize_chunk_data), but size_bytes is capped at 1 GiB. A malicious peer can send FileHeader with size_bytes=1 and total_chunks=1024, then deliver 1024 chunks of 10 MiB each for a total of 10 GiB. The receiver's reassembly logic allocates based on chunks actually received, not the declared size_bytes. The size_bytes cap is therefore decorative for actual transfer-size enforcement. The mismatch allows a hostile MLS peer to deliver 10x more data than size_bytes implies is possible. Fix: either reduce total_chunks\u00d7MAX_CHUNK_DATA to match size_bytes max, or enforce that size_bytes <= total_chunks\u00d7chunk_size at deserialization time.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:59:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:08:04Z",
+  "closed_at": "2026-04-26T11:08:04Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:59:38"
+    }
+  ]
+}

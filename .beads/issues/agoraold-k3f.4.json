@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-k3f.4",
+  "title": "Uninitialized wallet creates DB session before error check",
+  "description": "UX: payer has no wallet initialized but runs /pay. A payer session is created and broadcast before wallet readiness is checked. When the payee (also wallet-less) returns Unknown, the payer has an open session in state Requested with no completion path. Not a safety bug \u2014 payer does not need wallet at request time, only at send time. But confusing UX: user who runs /pay without a wallet should get a local error immediately rather than discovering the problem after negotiation fails. Fix: check wallet_fvks.is_some() at the top of the /pay handler and print a local error if absent.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:55:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:50Z",
+  "closed_at": "2026-04-19T06:11:57Z",
+  "close_reason": "Fixed: added wallet_fvks.is_none() guard at the top of the /pay handler. User gets '[pay] No wallet. Run nie wallet init first.' immediately instead of discovering the problem after the negotiation fails.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:55:35"
+    }
+  ]
+}

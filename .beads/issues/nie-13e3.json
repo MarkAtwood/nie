@@ -1,0 +1,16 @@
+{
+  "id": "nie-13e3",
+  "title": "Review: wallet round 19",
+  "notes": "Maintainer risk: HIGH — Four active correctness bugs (nie-13e3.2 advance_diversifier_to implicit rollback, nie-13e3.4 balance counts block_height=0 notes, nie-13e3.5 witnesses not pruned on spend causing O(n*m) scan, nie-13e3.8 parse_sapling_address ignores network). The witnesses-not-pruned issue will silently degrade scan performance for any wallet that sends payments. The network-blind address parser can cause permanent fund loss if a user copies a mainnet address into a testnet send call.\nConfidence: 25% chance of missed bug. Uncertainty driven by: (1) cannot run the code without Sapling params files absent from this environment; (2) the save_block_state + partial scan_tx interaction (nie-13e3.18) may have a real correctness hole I could not fully rule out — the in-memory tree IS mutated by a partial scan_tx before the Err propagates, and the next scan_to_tip call will replay from DB scan_tip but rebuild in-memory tree from the DB snapshot (load_state is only called once at startup). So the partially-mutated in-memory tree IS used for the retry. This could cause the commitment tree to have phantom leaves from the failed partial scan. Would raise confidence if: (a) could run the full test suite, (b) could trace the scan_block/scan_tx retry path under a simulated mid-block scan_tx error.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:16:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "review"
+  ]
+}

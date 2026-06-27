@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-k3f",
+  "title": "Review: feat(wallet): Zcash shielded wallet + /pay /balance /receive",
+  "notes": "Confidence: 25% chance of missed bug. Uncertainty driven by: tx_builder.rs is 1611 lines of Sapling/Orchard prover wiring that requires running actual Zcash params to test the hot path; the subagent reviewed logic but could not execute the builder. Would raise confidence if: run full integration test with real sapling-spend.params and sapling-output.params against testnet, specifically confirming anchor_height=scan_tip is enforced end-to-end.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:52:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T06:11:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

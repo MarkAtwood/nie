@@ -1,0 +1,25 @@
+{
+  "id": "nie-3om.15",
+  "title": "migration v6 uses explicit SQLite transaction for DDL atomicity",
+  "description": "db.rs migration v6 wraps four ALTER TABLE statements and the PRAGMA user_version update in an explicit begin/commit transaction. The comment correctly explains why: a process crash between the first and fourth ALTER TABLE would leave orphaned columns, causing all subsequent opens to fail with 'duplicate column name'. SQLite DDL is transactional, so the explicit transaction makes partial failure impossible. A contributor might suggest removing the transaction as 'unnecessary complexity'; that would be wrong \u2014 the explicit transaction is load-bearing for crash safety.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:56:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:11:03Z",
+  "closed_at": "2026-04-19T04:11:03Z",
+  "close_reason": "Observation, no action: explicit transaction for DDL atomicity is correctly documented in code.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:56:16"
+    }
+  ]
+}

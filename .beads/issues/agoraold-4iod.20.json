@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-4iod.20",
+  "title": "MAINTAINER: io_types.rs BotCommand::read_next() is misleading\u2014call only once",
+  "description": "In io_types.rs lines 131-155, BotCommand::read_next() has a doc comment warning 'Call this only once per process lifetime.' This is a red flag: the API is unintuitive. Each call creates a fresh BufReader, losing buffered data. A maintainer in 6 months, seeing an unused standalone read_next() function, might think it's a utility for one-off CLI input and try to call it in a loop, losing lines. The right place to read commands is stdin_reader.rs, which is already correct. Fix: remove the public read_next() function or rename it to make it clear it's for single-shot use (e.g., BotCommand::read_once()), and update the doc to explain why it's limited.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:14:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:45Z",
+  "closed_at": "2026-04-20T01:28:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:14:01"
+    }
+  ]
+}

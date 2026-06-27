@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-ghf",
+  "title": "Background block watcher task",
+  "description": "What: Spawn a background tokio task that polls lightwalletd for new compact blocks, trial-decrypts Sapling outputs using the wallet IVK, and fires ConfirmationEvent when a watched address receives funds.\n\nAlgorithm:\n1. At task startup: fetch tip height via GetLatestBlock.\n2. Poll loop: every 75 s (one Zcash block interval), call GetBlockRange(tip+1, new_tip).\n3. For each CompactBlock in range:\n   a. For each CompactTx in block.vtx:\n      i.  Compute canonical txid: reverse ctx.hash bytes (LE\u2192BE), hex-encode to 64 lowercase chars.\n      ii. For each CompactSaplingOutput in ctx.outputs:\n          - Call try_sapling_compact_note_decryption(prepared_ivk, cmu, epk) from sapling crate.\n          - On success: derive the recipient address from the decrypted note.\n          - Call registry.lookup(recipient_address).\n          - On hit: record (txid, block_height) in pending_confirmations HashMap.\n4. For each entry in pending_confirmations: depth = current_height - found_height.\n   If depth >= MIN_CONFIRMATIONS (= 10): send ConfirmationEvent { session_id, txid, block_height } to conf_tx, remove from map.\n5. On lightwalletd error: exponential backoff (1s, 2s, 4s, \u2026 cap 60s), then retry GetLatestBlock.\n6. Shutdown: select! on shutdown_rx.recv() + poll future.\n\nDefensive programming:\n- txid byte-reversal: ctx.hash is always 32 bytes LE from proto; assert len == 32 before reversing.\n- Compact output decryption failures are not errors \u2014 most outputs are for other wallets.\n- MIN_CONFIRMATIONS must be a named const (= 10), never a magic number.\n- Do not log IVK or any key material; log only txid, block_height, session_id.\n- Backoff must cap; do not loop at zero-delay on persistent error.\n\nDepends on: nie-gw8k (IVK / PreparedIncomingViewingKey available in wallet crate), nie-7uw (registry).\n\nTests:\n- test_txid_le_to_be_reversal: known 32-byte LE hash, assert hex output equals expected BE canonical txid (oracle: compute by hand from known test vector).\n- test_depth_threshold: insert entry with found_height = 100; at current_height = 109 no event; at 110 event fires.\n- Watcher integration: use mock/in-process lightwalletd stub that returns one CompactBlock; assert ConfirmationEvent received.\n\nAcceptance: cargo test passes; txid reversal test uses independent oracle hex string; MIN_CONFIRMATIONS = 10 is a named const; clippy clean.",
+  "notes": "REQUIRED: When a ConfirmationEvent is fired for a watched address, call watch_registry.deregister(address) BEFORE or AFTER transitioning the session state. This prevents the registry from accumulating stale address\u2192session mappings indefinitely. The deregister() call is the only cleanup path; if omitted, the registry leaks entries for every completed payment.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T10:03:14Z",
+  "close_reason": "Implemented in spawn_block_watcher() in cli/src/commands.rs. MIN_CONFIRMATIONS=10 const, pending HashMap depth tracking, ConfirmationEvent firing, exponential backoff, registry-based address matching. All watcher_tests pass.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:13:08"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:07"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:13:05"
+    }
+  ]
+}

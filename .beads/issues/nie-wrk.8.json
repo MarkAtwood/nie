@@ -1,0 +1,27 @@
+{
+  "id": "nie-wrk.8",
+  "title": "transport.rs serde_json::to_string uses error-logging, inconsistent with CLAUDE.md \u00a711",
+  "description": "CLAUDE.md \u00a711 says serde_json::to_string on a derived Serialize cannot fail and the unwrap() calls in ws.rs are intentionally unreachable. transport.rs instead uses match serde_json::to_string(&msg) { Ok(json) => ... Err(e) => error!(...) }. This contradicts the documented convention and implies the serialization CAN fail in this path. A future contributor reading transport.rs will copy the error-logging style; one reading ws.rs will copy the unwrap style. Fix: use .unwrap() with the canonical comment in transport.rs's connection_manager to match ws.rs convention.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:54:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T00:10:35Z",
+  "closed_at": "2026-04-18T00:10:35Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:54:15"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.19",
+  "title": "Space/queryChanges returns all IDs as added instead of real delta",
+  "description": "Client sends Space/queryChanges with sinceQueryState that differs from current state \u2192 response contains every current space ID in the added array with no removed entries, regardless of what actually changed. RFC 8620 \u00a75.4 requires queryChanges to return only items added/removed since sinceQueryState. jmap.rs space_query_changes() takes all current IDs and emits them as added whenever since != new_state, making it impossible for a client to incrementally sync without fetching everything.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:50:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:50:13Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:50:13"
+    }
+  ]
+}

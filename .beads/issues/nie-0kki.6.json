@@ -1,0 +1,25 @@
+{
+  "id": "nie-0kki.6",
+  "title": "space_set two-phase validate-then-apply is correct and should not be simplified",
+  "description": "The two-phase structure (Phase 1: validate all member patches before any write; Phase 2: apply) is the correct implementation of RFC 8620 \u00a77.1 atomicity for input errors. A contributor might suggest merging validation into the apply loop to reduce code. That would break atomicity: a combined {name: Foo, members/x: {role: bad}} patch would write the name before discovering the role error, leaving partial state. The two-pass structure must be preserved. The documented Phase 2 server-error atomicity gap (name written before a later store failure) is a real known limitation but requires a DB transaction-level fix, not elimination of the two-phase pattern.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:19:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T03:41:33Z",
+  "closed_at": "2026-04-24T03:41:33Z",
+  "close_reason": "Decision recorded; no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:19:23"
+    }
+  ]
+}

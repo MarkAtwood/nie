@@ -1,0 +1,23 @@
+{
+  "id": "nie-wneu.4",
+  "title": "CLI: display incoming DMs (WhisperDeliver dispatch)",
+  "description": "What: Update the WHISPER_DELIVER handler in cli/src/commands.rs to display incoming DMs instead of silently treating all WhisperDeliver payloads as MLS Welcome bytes.\n\nCurrently the handler (around line 854) tries mls.join_from_welcome() on ALL WhisperDeliver payloads and drops them after mls_active=true. This must be changed to dispatch on content type.\n\nAlgorithm:\nFind the WHISPER_DELIVER handler block in commands.rs. It currently looks like:\n  ClientEvent::Message(notif) if notif.method == rpc_methods::WHISPER_DELIVER => {\n      let p: WhisperDeliverParams = ...;\n      let payload = p.payload;\n      if !mls_active {\n          match mls.join_from_welcome(&payload) { ... }\n      }\n  }\n\nReplace the body with:\n  ClientEvent::Message(notif) if notif.method == rpc_methods::WHISPER_DELIVER => {\n      let p: WhisperDeliverParams = match serde_json::from_value(...) { ... };\n      let from = p.from;\n      let payload = p.payload;\n      // Try to deserialize as ClearMessage (DM content).\n      // MLS Welcome bytes are binary and will NOT parse as JSON.\n      match serde_json::from_slice::<ClearMessage>(&payload) {\n          Ok(ClearMessage::Chat { text }) => {\n              // Incoming DM (Phase 1: pre-MLS plaintext)\n              let ts = Local::now().format(\"%H:%M\");\n              let name = colored_name(&from, &nicknames, &local_names);\n              println!(\"\\r[{ts}] DM from {name}: {text}\");\n          }\n          Ok(_) => {\n              // Other ClearMessage variants (Payment, Ack, Profile) not expected via Whisper in Phase 1\n              warn!(\"unexpected ClearMessage type in WhisperDeliver from {from}\");\n          }\n          Err(_) => {\n              // Not JSON \u2192 treat as MLS Welcome (existing behavior)\n              if !mls_active {\n                  match mls.join_from_welcome(&payload) {\n                      Ok(()) => {\n                          mls_active = true;\n                          // ... keep all existing MLS activation code unchanged ...\n                      }\n                      Err(e) => warn!(\"join_from_welcome: {e}\"),\n                  }\n              }\n              // If mls_active and payload is not JSON, it is unexpected; warn and drop\n          }\n      }\n  }\n\nDefensive rules:\n- Never deserialize payload in relay (this is CLI code only \u2014 architectural invariant maintained)\n- serde_json::from_slice failure is NOT an error \u2014 it's the signal that the payload is MLS data\n- Keep ALL existing MLS activation code (the Ok(()) branch and all its side effects) \u2014 do not simplify or remove\n- Display with 'DM from' prefix (not same format as room messages) for clear distinction\n\nTests:\n- Unit test: create WhisperDeliverParams with payload=serde_json::to_vec(ClearMessage::Chat{text:'hello'}), feed to handler, verify 'DM from' appears in output; oracle = independently serialized expected payload\n- Unit test: create WhisperDeliverParams with payload=b'\\x00\\x01\\x02\\x03' (invalid JSON = MLS-like bytes), feed to handler when mls_active=false, verify join_from_welcome is called (can use a mock mls or just check the non-panic path)",
+  "acceptance_criteria": "cargo test --workspace passes; cargo clippy --workspace -- -D warnings passes; incoming DM displays with 'DM from' prefix; MLS Welcome handling still works",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:20:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T21:26:57Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:20:15"
+    }
+  ]
+}

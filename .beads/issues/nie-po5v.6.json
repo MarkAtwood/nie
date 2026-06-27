@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.6",
+  "title": "use_space_invite_code: invite accepted without checking if space still exists",
+  "description": "store.rs use_space_invite_code fetches the space_id from space_invite, checks expiry, then inserts into space_member. The space_member table has a FK to space ON DELETE CASCADE. If the space was deleted between the SELECT and the INSERT, the FK enforcement will fire and the insert will fail, which will cause the Err path to rollback and return Ok(None). But the error is a FK violation, not an expiry or invalid-code condition \u2014 the caller cannot distinguish these. More importantly: the space_invite row still exists pointing at a deleted space. Fix: either check space existence after fetching the invite, or let FK enforcement cascade-delete invites when the space is deleted.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:35:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:46:46Z",
+  "closed_at": "2026-04-26T05:46:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:35:45"
+    }
+  ]
+}

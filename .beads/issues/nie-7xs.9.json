@@ -1,0 +1,28 @@
+{
+  "id": "nie-7xs.9",
+  "title": "MLS client not reset on reconnect: stale group state accumulates",
+  "description": "What is awkward: On Reconnecting, commands.rs sets mls_active=false and online.clear() (lines 124-125) but does not reset the MlsClient. The mls variable retains its old group state (mls.group is Some). When the admin reconnects and create_group() is called, MlsGroup::new_with_group_id creates a new group using the same in-memory provider that has the old group's epoch keys. The old state is never garbage-collected and the in-memory provider accumulates orphaned key material. For non-admins, mls.group contains the old group but mls_active=false, so process_incoming is not called -- the old state just sits there. Suggested rewrite: on Reconnecting, do mls = MlsClient::new(&my_pub_id)?; to get a completely fresh MLS client. This is correct because MLS state is documented as ephemeral (mls.rs header comment: 'Group state is ephemeral... Each connect session starts fresh').",
+  "notes": "CONFIRMED from openmls builder.rs:87-92: build_internal checks MlsGroup::load(provider.storage(), &group_id).is_some() with replace_old_group=false (the default). If the group exists, it returns Err(NewGroupError::GroupAlreadyExists). On admin reconnect, create_group() fails with this error, mls_active stays false, and mls.group retains the old session's group object. This is the direct root cause of nie-7xs.2. The P0 severity of nie-7xs.2 belongs here -- fixing this (reset mls on Reconnecting) would also fix nie-7xs.2.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:59:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-16T08:57:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:59:30"
+    }
+  ]
+}

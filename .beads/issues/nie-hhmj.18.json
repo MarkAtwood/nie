@@ -1,0 +1,26 @@
+{
+  "id": "nie-hhmj.18",
+  "title": "RISK: Whisper to offline user silently succeeds; no delivery confirmation",
+  "description": "relay/src/ws.rs lines 548: state.deliver_live() returns false if recipient is offline, but the result is ignored. The client receives an OK response regardless of whether the whisper was actually delivered. A user sending a private MLS Welcome message to an offline peer will be told 'sent OK' but the peer never receives it because they're not currently connected. MLS group creation appears to succeed but silently fails. A solo maintainer will debug 'why can't peers form groups?' without realizing whispers are being silently dropped. Risk: silent message loss on offline recipients; MLS failures disguised as user error.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:11:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:16:46Z",
+  "closed_at": "2026-04-19T18:16:46Z",
+  "close_reason": "By design for Phase 1. Whisper delivery to offline users is nie-wneu.1 (queued separately). No offline delivery in Phase 1; silent success is the documented behavior for this phase.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:11:23"
+    }
+  ]
+}

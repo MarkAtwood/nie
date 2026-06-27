@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-8lcm.12",
+  "title": "GOOD: double-gate on testnet tests (#[ignore] + env var)",
+  "description": "Each testnet test uses two independent opt-in mechanisms: #[ignore] prevents execution in normal cargo test runs, and an explicit TESTNET_ENABLED=1 env var check at the start of the test body returns early if absent. The two gates serve different audiences: #[ignore] protects CI which runs without --ignored; the env var check protects developers who run cargo test --ignored on a machine that is not configured for network tests. Either gate alone would be insufficient \u2014 #[ignore] can be bypassed with --ignored, and an env var alone requires that convention to be honored.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:13Z",
+  "closed_at": "2026-04-20T05:09:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:45"
+    }
+  ]
+}

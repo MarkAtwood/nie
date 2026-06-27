@@ -1,0 +1,26 @@
+{
+  "id": "nie-qmq3.5",
+  "title": "store: create_space_full bumps state tokens even when INSERT OR IGNORE is a no-op",
+  "description": "daemon/src/store.rs:562-587 \u2014 create_space_full() unconditionally calls bump_state_seq('Space') and bump_state_seq('SpaceMember') after the transaction, regardless of whether either INSERT OR IGNORE actually inserted a row. If the space and creator-member already exist (e.g. called twice with the same id), both tokens increment falsely. Fix: inspect rows_affected of each INSERT OR IGNORE inside the transaction and only bump the corresponding token if > 0.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:54:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:03:53Z",
+  "closed_at": "2026-04-25T03:03:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:54:25"
+    }
+  ]
+}

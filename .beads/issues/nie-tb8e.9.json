@@ -1,0 +1,27 @@
+{
+  "id": "nie-tb8e.9",
+  "title": "DaemonEvent::MessageRetracted missing from_pub_id field \u2014 no authorship information for SSE consumers",
+  "description": "daemon/src/types.rs DaemonEvent::MessageRetracted contains message_id, for_all, and timestamp but not from_pub_id. SSE consumers (e.g. JMAP client, web UI) cannot display 'X retracted a message' because the sender is not included. dispatch_peer_retract in relay.rs has the sender_pub_id in scope but does not include it in the event. This is a public wire-format decision: once SSE clients start consuming MessageRetracted without from_pub_id, adding it later is additive but callers may not be able to display accurate attribution. The field is already validated (ownership check) so it is available.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:41:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:53:48Z",
+  "closed_at": "2026-04-26T07:53:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:41:52"
+    }
+  ]
+}

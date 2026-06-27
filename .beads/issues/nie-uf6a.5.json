@@ -1,0 +1,27 @@
+{
+  "id": "nie-uf6a.5",
+  "title": "Eliminate is_simple_space_prop: merge routing and parsing into one function",
+  "description": "is_simple_space_prop is a routing predicate that must stay in sync with parse_simple_space_prop. The pair can be collapsed into a single function: fn try_parse_simple_space_prop<'a>(path: &str, value: &'a Value) -> Option<Result<SimplePropPatch<'a>, Value>>. Returns None for non-simple paths (try member-patch), Some(Ok(op)) on success, Some(Err(e)) on type error. Phase 1 becomes: match try_parse_simple_space_prop(path, value) { Some(Ok(op)) => {simple_ops.push(op); continue;}, Some(Err(e)) => {update_err=Some(e); break;}, None => { validate_member_patch... } }. This eliminates the _ => runtime sentinel and makes the routing exhaustive.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:28:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:41:53Z",
+  "closed_at": "2026-04-24T05:41:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:28:31"
+    }
+  ]
+}

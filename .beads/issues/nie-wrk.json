@@ -1,0 +1,19 @@
+{
+  "id": "nie-wrk",
+  "title": "Review: nie Phase 1 pre-merge (round 2)",
+  "notes": "Maintainer risk: MEDIUM — The P0 panic in color_for is bounded to hostile/buggy relay (own relay is trusted). The MLS issues (silent KP None, misleading remove_member warn) will fire in normal multi-user sessions. Env var silent fallback is an ops footgun. Nothing here threatens the legal or security posture.\nConfidence: 12% chance of missed bug. Uncertainty driven by: (1) openmls internal key storage semantics — whether repeated key_package_bytes() calls accumulate stale init keys and whether that ever causes join_from_welcome to fail; (2) the multi-party MLS sequencing under real network conditions (the stress test exercises routing but not MLS). Would raise confidence if: end-to-end test of admin joining an already-established 3-party group (existing members + new admin reconnect), and a soak test of the MLS paths with 4+ peers exchanging messages and disconnecting.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:49:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T00:11:28Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

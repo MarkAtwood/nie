@@ -1,0 +1,26 @@
+{
+  "id": "nie-u966.5",
+  "title": "message_set: send succeeds when MLS encrypt fails",
+  "description": "In message_set create, insert_message_ext writes to the local DB before attempting MLS encrypt. If encrypt fails (e.g. MLS group not yet established, key mismatch), the message is stored locally but never sent over the relay. The response still returns the msg_id in the created map, so the caller believes the message was delivered. Trigger: relay connected but MLS group not yet bootstrapped, or after a key rotation that invalidates the session. Fix: attempt encrypt before DB write, or add a pending_delivery flag and surface the failure to the caller.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:48:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:29:46Z",
+  "closed_at": "2026-04-26T06:29:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:48:44"
+    }
+  ]
+}

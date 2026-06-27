@@ -1,0 +1,28 @@
+{
+  "id": "nie-th7.5",
+  "title": "State: broadcast_to_group() method on AppState",
+  "description": "What: Add broadcast_to_group() to AppState that fans out a message to a specified set of member pub_ids.\n\nAlgorithm:\n1. Add method: pub async fn broadcast_to_group(&self, members: &[String], exclude: Option<&str>, msg: String)\n2. Collect live channels for members (same pattern as existing broadcast() but filtered to members slice)\n3. For each member in members (minus exclude):\n   a. deliver_live(member, msg.clone()).await \u2192 bool\n   b. If false: state.inner.store.enqueue(member, &msg).await (log warn on error)\n4. Do NOT hold DashMap lock across any await point (collect channels first, then drive sends)\n\nDefensive rules:\n- Never hold RwLock or DashMap guard across .await\n- Individual send failure is silently absorbed (broken channel = disconnected client)\n- enqueue errors are warn! only, not propagated\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-relay passes; method compiles with -D warnings",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:51:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:02:30Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:51:18"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:37"
+    }
+  ]
+}

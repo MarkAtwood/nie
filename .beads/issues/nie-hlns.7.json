@@ -1,0 +1,28 @@
+{
+  "id": "nie-hlns.7",
+  "title": "nie-hlns W4: E2E \u2014 two-instance chat + old-client rejection",
+  "description": "## What\nEnd-to-end integration test: two separate nie-cli instances connect to a nie-relay over JSON-RPC 2.0, exchange a message, and confirm delivery. Also verify that a client sending the old RelayMessage format gets a -32700 parse error.\n\n## Algorithm\n1. Spawn an in-process relay (same pattern as stress test: use relay::ws_handler bound to a TcpListener on a random port)\n2. Start two CLI instances with separate data dirs (/tmp/nie-e2e-alice, /tmp/nie-e2e-bob)\n3. Alice connects and sends a Broadcast with known payload\n4. Bob connects and receives a Deliver notification with that payload\n5. Assert: DeliverParams.payload == original bytes; DeliverParams.from == alice's pub_id\n6. Old-client rejection test:\n   - Open a raw WebSocket connection to the relay\n   - After receiving the Challenge notification, send a raw RelayMessage::Authenticate (old format)\n   - Expect: receive a JsonRpcResponse with error.code == rpc_errors::PARSE_ERROR or INVALID_REQUEST\n\n## Defensive programming rules\n- Use TempDir for data dirs; drop after test to clean up\n- Kill relay after test (KillOnDrop or abort handle)\n- Do not use fixed ports; use port 0 (OS assigns ephemeral)\n- Old-client test: check that the response has 'error.code' as integer, not string\n\n## Agent team: Standard (R + I + T)\n- R: Read relay/tests/stress.rs to understand in-process relay spawn pattern; confirm port-0 approach\n- I: Implement the E2E test as a new test in relay/tests/e2e_jsonrpc.rs\n- T: Review test oracle independence: alice's payload is a known constant, bob's received payload must match that constant exactly; from must be alice's pub_id from identity.pub_id()\n\n## Tests\n- two_client_message_delivery: alice sends, bob receives, payload matches\n- from_field_is_alice_pub_id: bob's DeliverParams.from == alice.pub_id()\n- old_format_client_gets_error: raw old-format Authenticate \u2192 receive error JSON with integer code",
+  "acceptance_criteria": "cargo test --workspace passes; e2e tests pass; old-client rejection test passes; full workspace clippy clean; 'cargo fmt --all' produces no changes",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T17:44:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:09:22Z",
+  "closed_at": "2026-04-19T18:09:22Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:41"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:32"
+    }
+  ]
+}

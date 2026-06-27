@@ -1,0 +1,27 @@
+{
+  "id": "nie-0hjd.7",
+  "title": "daemon/api: handle_wallet_pay payment lock does not cover actual Zcash tx send",
+  "description": "daemon/src/api.rs:259-346: handle_wallet_pay acquires wallet_pay_lock and does a balance check, then sends a PaymentAction::Request to the relay (informing the peer of intent to pay), then persists the session. The lock prevents double-session creation for the same amount. However: the actual Zcash spending transaction is not done inside this handler \u2014 it happens later when the peer responds with PaymentAction::Address. That later step does NOT acquire wallet_pay_lock. Two concurrent payment sessions could both pass the balance check, get addresses from the peer, and both attempt to send the full amount later (double-spend risk if balance is exactly equal to the requested amount). This design should be documented clearly in api.rs: the lock only prevents duplicate session creation, not duplicate spends. The actual spend path should also be audited.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:05:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:13:51Z",
+  "closed_at": "2026-04-26T10:13:51Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:05:57"
+    }
+  ]
+}

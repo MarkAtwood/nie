@@ -1,0 +1,17 @@
+{
+  "id": "nie-0hjd",
+  "title": "Review round 47: ffi, bridge-slack, bot, daemon/api, daemon/store, relay/state",
+  "notes": "Maintainer risk: MEDIUM — Two genuine bugs found (P0): bridge-slack byte-slice UTF-8 panic on text truncation, and bridge-slack duplicate pattern risk. Key security surface clean: Slack HMAC verification is correct and uses constant-time comparison, payment lock correctly prevents concurrent TOCTOU balance checks, relay AppState unbounded maps are bounded by disconnect semantics (no persistent memory leak). FFI sends cleartext payloads which is a known planned gap, not a regression.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) daemon/src/api.rs lines 500+ in the test section include calls to handle_wallet_pay via 3 different paths not yet read, (2) daemon/src/relay.rs PaymentAction::Address response handler was not fully reviewed for the actual Zcash tx send step. Would raise confidence if: daemon relay.rs payment handler is reviewed to confirm wallet_pay_lock is held or the spend is atomic, and if relay/src/ws.rs GROUP_SEND path is cross-checked against DESIGN.md invariants.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:04:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

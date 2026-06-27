@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.44",
+  "title": "query_contacts with only blocked filter uses ?2 parameter in WHERE but binds to slot 1",
+  "description": "store.rs query_contacts builds dynamic SQL with conditions 'presence = ?1' and/or 'blocked = ?2'; when called with presence=None and blocked=Some(b), the SQL is 'WHERE blocked = ?2' but .bind(i64::from(b)) fills parameter slot 1, leaving slot 2 (the one in the SQL) unbound \u2014 SQLite returns a binding error at runtime, so ChatContact/query with {filter:{blocked:true}} fails with a database error",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:36:19Z",
+  "closed_at": "2026-04-25T00:36:19Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:05"
+    }
+  ]
+}

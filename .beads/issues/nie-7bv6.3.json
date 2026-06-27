@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.3",
+  "title": "SEC3: redundant has_id null check in transport",
+  "description": "transport.rs line 82: `let has_id = !value[\"id\"].is_null() && value[\"id\"] != Value::Null;` \u2014 the two sub-expressions are identical: `Value::Null` IS the null variant and `is_null()` tests exactly that. The conjunction is logically `is_null() && is_null()`, so one branch is dead. Should be `let has_id = !value[\"id\"].is_null();`. As written it obscures intent and suggests the author thought these were different conditions.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:30:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:38:10Z",
+  "closed_at": "2026-04-20T02:38:10Z",
+  "close_reason": "duplicate of nie-7bv6.2: both report the same has_id double-null check on transport.rs line 82; nie-7bv6.2 is primary",
+  "labels": [
+    "elegance",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:30:52"
+    }
+  ]
+}

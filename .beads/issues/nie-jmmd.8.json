@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.8",
+  "title": "store migration v2: group_members_v2 CREATE IF NOT EXISTS allows partial schema on failure",
+  "description": "store.rs migration v1->v2 (line 143): uses CREATE TABLE IF NOT EXISTS for group_members_v2. If the migration was previously interrupted after group_members_v2 was created but before rename, the next startup will skip the CREATE (table exists), attempt to INSERT from old group_members (which may be gone), then rename group_members_v2 which is now empty. Data silently lost. Should DROP TABLE IF EXISTS group_members_v2 at the start of the migration block to ensure a clean slate.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:41:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:43:57Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:41:17"
+    }
+  ]
+}

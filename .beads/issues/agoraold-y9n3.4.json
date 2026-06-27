@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-y9n3.4",
+  "title": "e2e_testnet: BOB_SCAN_SECS reused for unrelated scan in testnet_scan_advances_tip",
+  "description": "wallet/tests/e2e_testnet.rs line 275: testnet_scan_advances_tip uses BOB_SCAN_SECS as the timeout for its own scan_to_tip call. BOB_SCAN_SECS is defined as the time budget for Bob's post-payment scan in testnet_shielded_payment_end_to_end. The connectivity test and the payment test scan are different operations with different characteristics: the connectivity test scans only 5 blocks (fast), while Bob's payment scan may need to process many more blocks. Sharing the constant means you cannot tune one timeout independently of the other. If BOB_SCAN_SECS is reduced for the payment test because the scanner gets faster, the connectivity test silently inherits a tighter budget it may not need; and vice versa. Fix: introduce a separate CONNECTIVITY_SCAN_SECS constant with its own doc comment.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:21:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:43Z",
+  "closed_at": "2026-04-20T05:23:50Z",
+  "close_reason": "P3 bikeshed: both uses share the same reasonable 2-minute budget for scanning a small block window; separate constants add complexity without benefit",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:21:53"
+    }
+  ]
+}

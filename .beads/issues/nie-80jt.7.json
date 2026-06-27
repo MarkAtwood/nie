@@ -1,0 +1,25 @@
+{
+  "id": "nie-80jt.7",
+  "title": "wasm: serde_json unwrap panics are fatal and crash the browser JS context",
+  "description": "wasm/src/client.rs:234, :333, wasm/src/api.rs:248, wasm/src/transport.rs:191 call serde_json::to_string/to_vec().unwrap() on serializable types. In WASM, a Rust panic is caught by wasm_bindgen and throws a JS exception, terminating the calling JS execution context. Even though these serializations are expected to succeed today, any future change to the serialized types would silently become an app crash with no recovery path. Fix: replace unwrap() with map_err(|e| JsValue::from_str(&format!(...))) and propagate as Result to the JS caller.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:08:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:20:41Z",
+  "closed_at": "2026-04-24T19:20:41Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:08:59"
+    }
+  ]
+}

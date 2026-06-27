@@ -1,0 +1,14 @@
+{
+  "id": "nie-6ffq",
+  "title": "daemon: DirectoryListParams Vec\u003cUserInfo\u003e unbounded allocation; no WS message size limit",
+  "description": "daemon/src/relay.rs:284 iterates and clones params.online/offline from DIRECTORY_LIST without any size cap. The daemon's WebSocket client (transport.rs) passes no WebSocketConfig so there is no incoming message size limit. A compromised relay can force O(N) allocation in all daemons. Fix: add MAX_DIRECTORY_ENTRIES cap and truncate before cloning; pass WebSocketConfig with max_message_size=1MiB to client_async_tls_with_config.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T06:41:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:03:40Z",
+  "closed_at": "2026-04-26T07:03:40Z",
+  "close_reason": "Closed"
+}

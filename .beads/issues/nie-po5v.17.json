@@ -1,0 +1,27 @@
+{
+  "id": "nie-po5v.17",
+  "title": "tui/event.rs: /\\! command uses blocking std::process::Command \u2014 freezes Tokio executor",
+  "description": "In tui/src/event.rs handle_slash(), the '\\!' command (line 1109) calls std::process::Command::new(&argv[0]).output() \u2014 the synchronous, blocking version from std::process. This runs inside an async fn on a Tokio cooperative task. It blocks the Tokio thread until the subprocess exits, which freezes: (1) the 50ms render tick, (2) relay message reception, (3) all keyboard input. If the subprocess is slow (e.g. 'sleep 10'), the UI is completely unresponsive for that duration. The cli version correctly uses tokio::process::Command::new(...).output().await. Fix: replace std::process::Command with tokio::process::Command and .await the result.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:45:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:24:31Z",
+  "closed_at": "2026-04-26T10:24:31Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:45:37"
+    }
+  ]
+}

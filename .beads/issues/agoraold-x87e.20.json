@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-x87e.20",
+  "title": "Double-gate omits silent-pass note",
+  "description": "testnet_shielded_payment_end_to_end doc explains why both gates are needed but does not say what happens when only --include-ignored is passed without TESTNET_ENABLED=1: the test returns early and the harness counts it as PASSED. A CI system running --include-ignored without the env var sees green and incorrectly concludes the payment path was validated. The doc should state that the missing env var causes an early return reported as a pass not a skip.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:12:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:12Z",
+  "closed_at": "2026-04-20T05:19:52Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:12:06"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "nie-i12",
+  "title": "make_store() names temp file _f, implying unused — but it is load-bearing RAII",
+  "description": "In wallet/src/db.rs tests, make_store() returns (WalletStore, NamedTempFile). Callers write let (store, _f) = make_store().await. Rust convention: _ prefix means intentionally unused. Here _f is kept alive intentionally — dropping it would delete the temp file mid-test. A future contributor doing 'cleanup' might change it to let (store, _) = make_store().await which drops the NamedTempFile immediately, causing tests to fail spuriously. Fix: rename to _tempfile or add a comment in make_store explaining the lifetime contract.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:51:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T06:29:10Z",
+  "closed_at": "2026-04-18T06:29:10Z",
+  "close_reason": "Closed"
+}

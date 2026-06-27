@@ -1,0 +1,19 @@
+{
+  "id": "nie-a8ds",
+  "title": "Review: Flutter/Android foreground service + seed restore",
+  "notes": "Maintainer risk: MEDIUM — The START_STICKY issue (nie-a8ds.1) will generate recurring user reports about phantom notifications; everything else is correctable before user impact.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) Android lifecycle edge cases I cannot exercise without a physical device — e.g., what happens when the system kills and restarts the service while the user is mid-reconnect in Dart; (2) the jmap.rs Space/join error path change — I traced the call site but didn't read the HTTP dispatch layer to confirm the (String, Value) tuple is consumed correctly; (3) FOREGROUND_SERVICE_CONNECTED_DEVICE behavior on API \u003c 34 vs. \u003e= 34 — I assessed the manifest comment but didn't verify the Android docs. Would raise confidence if: device testing on Android 13 and 14 against a real relay showing the notification appears, reconnects work, and the notification disappears on explicit disconnect.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:04:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T01:18:35Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

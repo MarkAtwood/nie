@@ -1,0 +1,26 @@
+{
+  "id": "nie-0j6b.6",
+  "title": "TUI /pay broadcasts payment request to all peers, not targeted recipient",
+  "description": "tui/src/event.rs handle_slash 'pay': after creating the PaymentSession, the ClearMessage::Payment is sent via BroadcastParams (broadcast to all peers). The intent is to send a payment request to a specific peer (handle), but the relay will deliver it to every connected user, leaking the payment amount and intent to all room participants. The target peer_pub_id is stored in the session but not used to route the message. The correct send method for a targeted payment is WhisperParams (unicast), not BroadcastParams.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:55:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:36:42Z",
+  "closed_at": "2026-04-25T04:36:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:55:08"
+    }
+  ]
+}

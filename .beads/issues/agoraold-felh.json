@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-felh",
+  "title": "Review round 1: Phase 4b TUI client",
+  "description": "Review round 1 for nie-2y0i (Phase 4b: TUI client ratatui). Seven parallel reviewers cover correctness, maintainer burden, efficiency, elegance, readability, good decisions, and calibration.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:58:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T04:37:16Z",
+  "close_reason": "all steps complete"
+}

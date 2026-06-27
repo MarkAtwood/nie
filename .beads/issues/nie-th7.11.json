@@ -1,0 +1,43 @@
+{
+  "id": "nie-th7.11",
+  "title": "CLI: /group send <name> <text> command with MLS encryption",
+  "description": "What: Add /group send command that encrypts and sends a message to a named group.\n\nAlgorithm:\n1. Parse /group send <name> <text>  (name may not contain spaces; text is rest)\n2. Resolve group_name to group_id from active_groups\n3. Serialize ClearMessage::Chat { text: text.to_string() } to bytes\n4. If mls.has_group_id(group_id.as_bytes()):\n   a. encrypt via mls.encrypt_for_group(group_id.as_bytes(), &clear_bytes)\n   b. payload = encrypted_bytes\n5. Else:\n   a. payload = clear_bytes (pre-MLS fallback, acceptable for Phase 5 MVP)\n6. Send JsonRpcRequest(GROUP_SEND, GroupSendParams { group_id, payload })\n7. Response: print [group_name] message sent\n\nDefensive rules:\n- group not found in active_groups \u2192 print error, do not send\n- MLS encrypt failure \u2192 Err, print error to user, do not crash\n- Empty text \u2192 print usage, do not send\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo build -p nie passes; /group send to unknown group prints error; /group send to known group sends GroupSendParams with non-empty payload",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:52:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:18:11Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:08"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:52"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:54"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:54"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:53"
+    }
+  ]
+}

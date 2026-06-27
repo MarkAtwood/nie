@@ -1,0 +1,14 @@
+{
+  "id": "nie-t8yn",
+  "title": "(BUG) cli: peer_profiles grows without bound across reconnects",
+  "description": "In the chat loop, peer_profiles (HashMap\u003cString, HashMap\u003cString,String\u003e\u003e) is populated by ClearMessage::Profile events from the DELIVER and SEALED_DELIVER handlers (lines 1185 and 1415) but is never cleared on Reconnecting or anywhere else in the session. Since profiles are bounded per peer (deserialize_profile_fields enforces 64 keys × 1 KB each), this is at most O(peers × 64 KB) — not a practical DoS in current usage — but it is a latent correctness issue: stale profile data from departed peers persists indefinitely. On a relay with a large rotating user population, the map will also grow monotonically. Fix: clear peer_profiles in the Reconnecting handler alongside online.clear().",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:15:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:24:06Z",
+  "closed_at": "2026-04-26T09:24:06Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-cs0.7",
+  "title": "ensure_account(0) SQL write on every PaymentAction::Request",
+  "description": "Every incoming PaymentAction::Request triggers ensure_account(0) which executes INSERT OR IGNORE INTO accounts \u2014 a SQL write even when the row already exists. SQLite's INSERT OR IGNORE acquires a write lock regardless of whether the insert is a no-op. At low payment volume this is negligible. The fix is to call ensure_account(0) once after try_load_wallet_fvks succeeds, not on every payment request. The account row is guaranteed to exist for the lifetime of the session after that single call.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:07:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T22:32:04Z",
+  "closed_at": "2026-04-18T22:32:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:07:18"
+    }
+  ]
+}

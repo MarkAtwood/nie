@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-felh.28",
+  "title": "Add missing test coverage for nie-felh.10/12/17/13 fixes",
+  "description": "TST1 review identified 4 test gaps: (1) reconnect rebuilds MLS client with correct pub_id, (2) SEALED_DELIVER with exactly 64-byte payload is dropped, (3) Delete key on multi-byte char, (4) PaymentAction::Sent ignored for Payer role.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:22:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:14Z",
+  "closed_at": "2026-04-20T04:26:38Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:22:48"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "nie-6syc.2",
+  "title": "RISK: ENDPOINT_COUNTER global mutable static creates test ordering dependency",
+  "description": "ENDPOINT_COUNTER is a global AtomicUsize that is never reset. Test connect_with_failover_increments_counter() reads the counter value before and after calling connect_with_failover() and asserts the delta is exactly 1. \n\nProblem: If any other test (running in parallel) calls connect_with_failover(), the counter will advance, and the assertion will fail. The test passes or fails based on execution order, not correctness.\n\nFailure mode: Flaky test under parallel execution (default in Rust test harness). A solo maintainer debugging a nondeterministic failure will see inconsistent CI results and may not be able to reproduce locally if running tests serially.\n\nSolution options (pick one):\n1. Use Barrier or Mutex to serialize this test (but this slows down the test suite)\n2. Reset ENDPOINT_COUNTER before the test runs (requires interior mutability or unsafe)\n3. Change the test to not depend on the absolute counter value (e.g., test round-robin selection without using the global counter)\n4. Move ENDPOINT_COUNTER out of the public API so it's not part of the contract and can be changed without affecting semantics\n\nRecommend option 3 (test the round-robin behavior directly) or option 4 (make it an implementation detail).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:17:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:12:24Z",
+  "closed_at": "2026-04-22T13:12:24Z",
+  "close_reason": "Fixed: test now verifies round-robin exhaustion behavior (all endpoints unreachable yields specific error) rather than reading global counter delta, eliminating parallelism-induced flakiness",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:17:54"
+    }
+  ]
+}

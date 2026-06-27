@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.8",
+  "title": "socks5_helper: no NO_AUTH method validation in greeting",
+  "description": "In socks5_helper.rs lines 34-41, the greeting handler reads the NMETHODS count and the methods bytes, but never checks whether NO_AUTH (0x00) is present in the methods list. It unconditionally replies [0x05, 0x00] (selecting NO_AUTH) regardless of what the client actually offered.\n\nPer RFC 1928 \u00a73, if the server finds no acceptable method among those offered, it must reply [0x05, 0xFF] ('no acceptable methods') and close the connection.\n\nA client that sends only username/password auth (0x02) and never offers NO_AUTH would get [0x05, 0x00] back, believe no-auth was negotiated, and proceed. This would mask a bug in a client implementation that sends wrong auth methods. The helper should assert that 0x00 is present in methods[], and ideally also test what happens when it is not (i.e., that transport::connect() fails).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:36:03Z",
+  "closed_at": "2026-04-19T19:36:03Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:50"
+    }
+  ]
+}

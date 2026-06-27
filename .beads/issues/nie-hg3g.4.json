@@ -1,0 +1,26 @@
+{
+  "id": "nie-hg3g.4",
+  "title": "relay ws.rs: bad system clock silently zeros PoW timestamp floor",
+  "description": "relay/src/ws.rs:256-259: `SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()` silently returns 0 when the system clock is before the Unix epoch. Consequence: PoW staleness check uses ts_floor=0, which allows tokens up to 2^64-1 seconds in the future to appear valid \u2014 operator has no indication the clock is broken. core/src/transport.rs already uses `.context(\"system clock error\")?` for the same pattern. Fix: apply the same pattern in ws.rs: propagate the error to the connection handler rather than silently defaulting.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:36:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:45:46Z",
+  "closed_at": "2026-04-24T19:45:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:36:46"
+    }
+  ]
+}

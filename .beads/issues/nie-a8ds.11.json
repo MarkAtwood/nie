@@ -1,0 +1,25 @@
+{
+  "id": "nie-a8ds.11",
+  "title": "apply_member_patch extraction from space_set",
+  "description": "The member-patch logic was extracted from an inline loop body in space_set into apply_member_patch(). The async fn + Result<(), Value> return is the right shape: caller breaks on Err using '?' via if let Err(e). Role validation (reject strings outside admin/moderator/member) was also added in this refactor. Both are correct. A future contributor might fold it back inline for 'simplicity', but the inline version was 33 lines of nested if/let \u2014 the extracted version is easier to test and read. Note: nie-a8ds.5 identifies that the Ok(()) path for non-member paths is silent rather than returning an error, which should be fixed in apply_member_patch.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:05:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:18:32Z",
+  "closed_at": "2026-04-24T01:18:32Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:05:12"
+    }
+  ]
+}

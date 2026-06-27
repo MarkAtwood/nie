@@ -1,0 +1,25 @@
+{
+  "id": "nie-s4qr.11",
+  "title": "connection_manager MAX_RETRIES=10 permanent disconnect is not signalled as Disconnected to non-retry callers",
+  "description": "connect_with_retry returns RelayConnRetry, not RelayConn. When connection_manager exhausts MAX_RETRIES it sends ClientEvent::Disconnected on in_tx. This is the correct behavior. However the public API comment on RelayConnRetry says 'Dropping tx or rx terminates the background task cleanly' without documenting that the background task can also terminate on its own after MAX_RETRIES failures. A caller that only watches for Reconnecting/Reconnected events will miss the Disconnected signal and leak the RelayConnRetry handle. The ffi client (client_connect) maps ClientEvent::Disconnected => None and drops the event (nie-s4qr.6). This means Dart never hears about the permanent failure after 10 retries.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:22:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:22:00Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:22:00"
+    }
+  ]
+}

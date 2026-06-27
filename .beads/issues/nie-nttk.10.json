@@ -1,0 +1,19 @@
+{
+  "id": "nie-nttk.10",
+  "title": "relay.rs: DELIVER path acquires MLS lock, drops it, re-parses same payload -- double parse on has_group() check",
+  "description": "In daemon/relay.rs dispatch_notification(), the DELIVER handler (lines 195-246) does:\n\n  1. Acquires mls lock, checks has_group(), parses payload as ClearMessage, then drops lock (lines 215-225)\n  2. If has_group() AND payload parses as Chat -- drops the message\n  3. Then on line 227, re-parses the same payload again: match serde_json::from_slice::<ClearMessage>(&payload)\n\nThe payload is deserialized twice from the same bytes. On the first parse (line 216), the result is checked with .ok().is_some_and() but the value is discarded. On the second parse (line 227), it is used.\n\nThis is a logic correctness issue in addition to the performance concern: if the DELIVER payload is a non-Chat ClearMessage (e.g. Profile, Payment), the first parse succeeds (returns Some non-Chat variant), has_group() is true, and the condition is_some_and(|m| matches!(m, ClearMessage::Chat{..})) is false, so the message is NOT dropped. Then the second parse re-parses it and hits the Ok(_) => 'ignoring non-chat' branch. This is correct behavior but the MLS lock was held while doing the check unnecessarily.\n\nMore importantly: the MLS lock is held across serde_json::from_slice on an arbitrarily large, relay-supplied payload. This was already filed for BROADCAST (nie-tb8e.7) but the DELIVER path has the same issue: mls.lock().await holds the mutex while parsing unvalidated relay data.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:43:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:43:14Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:43:14"
+    }
+  ]
+}

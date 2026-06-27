@@ -1,0 +1,21 @@
+{
+  "id": "nie-ea6a.3",
+  "title": "tui: /cat truncates at byte 4096 without checking UTF-8 boundary \u2014 corrupts multi-byte chars",
+  "description": "## Bug\n\nIn tui/src/event.rs handle_slash() for the /cat command (line ~1291):\n\n    let truncated = if bytes.len() > 4096 {\n        &bytes[..4096]\n    } else {\n        &bytes\n    };\n    let content = String::from_utf8_lossy(truncated).to_string();\n\nThe raw byte slice is cut at byte 4096 without checking whether 4096 is a valid UTF-8 character boundary. from_utf8_lossy() replaces the invalid trailing bytes with U+FFFD (replacement character), silently corrupting the message content.\n\nContrast with the /! command in the same file (line ~1243-1252) which correctly finds the last valid char boundary at or before byte 4096 using char_indices().\n\n## Impact\n\nIf the file contains a multi-byte UTF-8 character that spans the 4096-byte boundary, the message sent to the relay contains a replacement character instead of the actual character, causing silent data corruption.\n\n## Fix\n\nApply the same char-boundary-finding logic as the /! command to /cat's truncation path.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:47:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:50:59Z",
+  "closed_at": "2026-04-26T10:50:59Z",
+  "close_reason": "duplicate of nie-wgk8.10",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:47:43"
+    }
+  ]
+}

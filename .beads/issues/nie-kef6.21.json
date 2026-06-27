@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.21",
+  "title": "bridge-teams uses local constant_time_eq instead of subtle crate used elsewhere",
+  "description": "bridge-teams/src/teams.rs defines a private constant_time_eq() function using fold/XOR rather than using the subtle::ConstantTimeEq trait already used in bridge-matrix, daemon, and other crates. The local implementation is functionally equivalent but creates a maintenance split: subtle is the project standard, and the local function does not benefit from subtle's compile-time protections against optimizer reordering. Suggested fix: add subtle as a dependency and use ConstantTimeEq::ct_eq as bridge-matrix does.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:50:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:15:48Z",
+  "closed_at": "2026-04-25T00:15:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:50:18"
+    }
+  ]
+}

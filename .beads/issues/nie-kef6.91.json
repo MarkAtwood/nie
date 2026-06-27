@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.91",
+  "title": "read_message returns anyhow::Err for not-found, causing serverFail in message_set readAt path",
+  "description": "store::read_message uses anyhow::bail!(\"message not found\") when the message row is absent. In message_set, the readAt patch path calls read_message and maps any Err to serverFail. Because bail! is indistinguishable from a genuine DB error, a concurrent hard-delete between the pre-check and the readAt write produces serverFail instead of notFound. The store method should return Ok(false) for not-found and Err only for I/O failures.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:21:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:45:53Z",
+  "closed_at": "2026-04-25T01:45:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:21:24"
+    }
+  ]
+}

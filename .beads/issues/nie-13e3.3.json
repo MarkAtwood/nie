@@ -1,0 +1,23 @@
+{
+  "id": "nie-13e3.3",
+  "title": "select_with_fee: n as u64 cast loses high bits if notes.len() > u32::MAX",
+  "description": "On 64-bit hosts (all nie targets), usize == u64 so selected.len() as u64 is a zero-cost widening with no truncation. On 32-bit (wasm32), the cast zero-extends usize to u64 correctly. The real issue is that an astronomically large note count would make zip317_fee so large that InsufficientFunds is the right answer but FeeConvergence is returned instead. This is a misleading error message under pathological conditions, not a correctness bug in normal use. Reclassified as readability/elegance.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:21:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:31:59Z",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:21:34"
+    }
+  ]
+}

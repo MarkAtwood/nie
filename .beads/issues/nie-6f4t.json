@@ -1,0 +1,15 @@
+{
+  "id": "nie-6f4t",
+  "title": "daemon store: edit_message_body appends to edit_history with no cap — unbounded column growth",
+  "description": "daemon/src/store.rs edit_message_body() (line 1719) appends each prior body to the edit_history JSON array stored in the message column with no cap. A client can edit a message thousands of times, causing the edit_history column to grow without bound. This is an OOM vector: reading/updating such a message allocates the full history Vec in memory on each subsequent edit or read. Fix: enforce a maximum edit history length (e.g. 100 entries) and drop the oldest entry when the cap is exceeded, or truncate to the last N revisions.",
+  "notes": "Part of security review round 23 (epic nie-nvk2)",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:58:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:36Z",
+  "closed_at": "2026-04-26T05:11:36Z",
+  "close_reason": "Closed"
+}

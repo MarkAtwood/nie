@@ -1,0 +1,19 @@
+{
+  "id": "nie-83e",
+  "title": "Review: feat(wallet): Sapling shielded tx builder (nie-wdw.7)",
+  "notes": "Maintainer risk: HIGH — P0 convergence bug will produce confusing builder errors on realistic multi-note transactions; P1 privacy bug (change address reuse) ships a privacy violation in a privacy coin\nConfidence: 25% chance of a missed bug. Uncertainty driven by: (1) cannot test builder.build() without real 48MB Sapling params — the actual FeeRule enforcement behavior is assumed, not verified; (2) scanner not yet written — correctness of what bytes go into note_g_d/note_pk_d/note_rseed is unverifiable until the scanner lands. Would raise confidence if: (a) happy-path integration test with real params and a real note from a known seed, (b) scanner code reviewed alongside this diff.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T00:44:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T00:58:35Z",
+  "close_reason": "All P0/P1 bugs fixed. Good-decision records (nie-83e.7, nie-83e.8) force-closed with epic.",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

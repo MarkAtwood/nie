@@ -1,0 +1,25 @@
+{
+  "id": "nie-e2c6.3",
+  "title": "GROUP_ADD: is_group_member check not atomic with add_group_member_capped",
+  "description": "ws.rs:1454 \u2014 is_group_member() and add_group_member_capped() are separate DB calls with no shared transaction. A concurrent GROUP_LEAVE from the same client between these two calls causes: (1) is_group_member returns true, (2) the client leaves, (3) add_group_member_capped runs as if caller is still a member, so a former member adds another user to a group they have left. Fix: fold the caller-is-member check into the same transaction as add_group_member_capped, or accept the race as a minor invariant violation with no security impact (adding someone to a group you just left is harmless).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:34:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:49:54Z",
+  "closed_at": "2026-04-25T02:49:54Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:34:19"
+    }
+  ]
+}

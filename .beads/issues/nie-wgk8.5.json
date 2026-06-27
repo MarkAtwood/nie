@@ -1,0 +1,25 @@
+{
+  "id": "nie-wgk8.5",
+  "title": "bot: NIE_FROM sanitizer allows hyphens \u2014 pub_ids are hex-only",
+  "description": "bot/src/main.rs:164-167: safe_from filter keeps chars that are alphanumeric OR '-'. PubIds are hex strings (0-9a-f), so hyphens should never appear. Allowing hyphens is harmless but creates a false sense of security: a future hook script that splits on '-' could misbehave if the pub_id format ever changes. Fix: filter to only [0-9a-fA-F] to match the actual PubId format.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:20:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:20:02Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:20:02"
+    }
+  ]
+}

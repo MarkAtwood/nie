@@ -1,0 +1,22 @@
+{
+  "id": "nie-13u",
+  "title": "In-chat payment event notifications",
+  "description": "When a payment state transition occurs (request received, address sent, tx sent, confirmed), print a notification line in the chat display. Format: [payment] alice requests 0.01 ZEC / [payment] address sent / [payment] tx abc123 broadcast / [payment] 0.01 ZEC confirmed from alice. These appear inline in the message stream.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T08:52:44Z",
+  "closed_at": "2026-04-19T08:52:44Z",
+  "close_reason": "display_name()+ZEC amount added to all [pay] notifications; malformed-amount/dust error messages added; 4 new display_name tests; 276 tests pass; clippy clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:43:20"
+    }
+  ]
+}

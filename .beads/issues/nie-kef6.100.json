@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.100",
+  "title": "mls: room_hpke_keypair returns plain [u8;32] secret key; callers do not zeroize",
+  "description": "MlsClient::room_hpke_keypair() (core/src/mls.rs:383) returns ([u8;32], [u8;32]) where the first element is the epoch-bound HPKE secret key. The x25519_dalek::StaticSecret implements Zeroize on drop but the bytes are copied out via .to_bytes() before the secret drops. The returned [u8;32] is not Zeroizing. CLI callers (cli/src/commands.rs lines 343, 644, 1055, 1601) hold the secret as Option<[u8;32]>; when the epoch advances and the field is overwritten with Some(new_sk), the old 32 bytes remain on the heap until the allocator reclaims them. Same class as nie-kef6.55 and nie-kef6.77 but for the room HPKE key path. Fix: return (Zeroizing<[u8;32]>, [u8;32]) and update callers to store as Option<Zeroizing<[u8;32]>>.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:23:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:49:56Z",
+  "closed_at": "2026-04-25T01:49:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:23:51"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-pcq.3",
+  "title": "tx_error.rs test hard-codes threshold 1000, not DUST_THRESHOLD constant",
+  "description": "tx_error.rs display test constructs DustAmount { threshold: 1000 } with a hard-coded literal. DUST_THRESHOLD was just changed to 10_000. The test still passes (it checks Display output, not the constant value) but is semantically stale and will not catch a future threshold change. Use DUST_THRESHOLD from tx_builder in the test construction so the test is self-consistent with the live constant.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:37:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:43:52Z",
+  "closed_at": "2026-04-19T06:43:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:37:17"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-bqoo.6",
+  "title": "GROUP_LEAVE leave notification silently omits members beyond MAX_MEMBERS_PER_GROUP",
+  "description": "GROUP_LEAVE fetches remaining_before via list_group_members, which has a LIMIT of MAX_MEMBERS_PER_GROUP (1000). If the group has more than 1000 members (cap is 100 per add_group_member_capped, so this cannot currently happen), members beyond 1000 never receive the leave notification. More importantly: the 1000 limit in list_group_members and the 100 cap in add_group_member_capped are separate constants, not linked. If the group cap is ever raised above 1000, the leave notification silently truncates with no error or warning. This is a latent coupling.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:08:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:47:26Z",
+  "closed_at": "2026-04-26T09:47:26Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:08:32"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.94",
+  "title": "SaplingExtendedSpendingKey and OrchardSpendingKey not zeroized on drop",
+  "description": "wallet/src/address.rs SaplingExtendedSpendingKey(ExtendedSpendingKey) and wallet/src/orchard.rs OrchardSpendingKey(SpendingKey) wrap upstream key types with no Zeroize or custom Drop. Both types deliberately omit Debug but do not zeroize key bytes on drop. The spending keys (the most sensitive material in the wallet, sufficient to drain funds) remain in heap memory until the allocator reuses the region. A core dump, swap file, or /proc/pid/mem access exposes them. The IVK-only issue is nie-kef6.92; this covers the spending keys.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:22:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:47:08Z",
+  "closed_at": "2026-04-25T01:47:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:22:16"
+    }
+  ]
+}

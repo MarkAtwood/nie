@@ -1,0 +1,46 @@
+{
+  "id": "nie-89w",
+  "title": "Wallet key management and security",
+  "description": "Wallet seed generation, BIP-39 mnemonic backup, encrypted storage, and key separation enforcement. The Ed25519 identity key and the ZIP-32 wallet seed must be provably separate. Compromise of one must not compromise the other.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T03:10:53Z",
+  "close_reason": "All P1 children completed: BIP-39, encrypted storage, key separation, CLI commands, CLAUDE.md docs, network guard",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:10"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:09"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:10"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:13"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:06"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:09"
+    }
+  ]
+}

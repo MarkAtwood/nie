@@ -1,0 +1,26 @@
+{
+  "id": "nie-qmq3.8",
+  "title": "cli: MLS Welcome accepted from any sender \u2014 forged group join",
+  "description": "cli/src/commands.rs:1040-1093 \u2014 WhisperDeliver handler: when \\!mls_active and payload is binary (not JSON), the code calls mls.join_from_welcome(&payload) without verifying 'from' matches online[0] (the expected admin). Any relay-authenticated user can whisper a crafted MLS Welcome and inject the target into an attacker-controlled MLS group \u2014 all subsequent 'encrypted' messages are readable/forgeable by the attacker. Same structure present in tui/src/event.rs at the corresponding whisper_deliver handler. Fix: reject Welcome payloads where from \\!= online[0].pub_id.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:55:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:46Z",
+  "closed_at": "2026-04-25T03:44:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:55:16"
+    }
+  ]
+}

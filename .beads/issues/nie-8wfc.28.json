@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.28",
+  "title": "identity: assert_ne key-separation check should be debug_assert_ne",
+  "description": "Identity::generate() in core/src/identity.rs (lines 37-41) uses assert_ne! to verify that the Ed25519 seed and the HPKE seed differ. The two seeds are independently generated from OS randomness; the event of them being equal has probability 2^-256. assert_ne! in production code will abort the process (or unwind, depending on panic mode) for an event that literally cannot happen in practice. The correct idiom is debug_assert_ne! (fires only in debug builds, compiled out in release). Using assert_ne! here causes unnecessary abort risk and confuses the unwrap/assert policy documented in DESIGN.md section 11.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:11:56Z",
+  "closed_at": "2026-04-24T22:11:56Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:39"
+    }
+  ]
+}

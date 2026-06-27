@@ -1,0 +1,23 @@
+{
+  "id": "nie-4ui3.1",
+  "title": "Add tokio-socks to workspace Cargo.toml",
+  "description": "Add tokio-socks crate as a workspace dependency so nie-core can create async SOCKS5 tunnels.\n\n## What\nAdd tokio-socks = '0.5' to [workspace.dependencies] in the root Cargo.toml, and tokio-socks.workspace = true to core/Cargo.toml [dependencies].\n\n## Algorithm\n1. In /home/mark/WORK/nie/Cargo.toml section [workspace.dependencies], add line: tokio-socks = '0.5'\n2. In /home/mark/WORK/nie/core/Cargo.toml section [dependencies], add line: tokio-socks.workspace = true\n3. Run: cargo build -p nie-core 2>&1 | tail -5 (verify exits 0 and tokio-socks resolves)\n\n## Defensive programming rules\n- Pin exact major.minor (0.5) \u2014 do not use '*' or '>=' ranges\n- No extra features needed; the default feature set includes tcp::Socks5Stream\n- If build fails, check crates.io for correct crate name (it is 'tokio-socks', not 'tokio_socks')\n\n## Agent team\nSingle implementer (trivial Cargo.toml edit + cargo build verification)\n\n## Tests\nAcceptance: cargo build -p nie-core exits 0 with tokio-socks in the dependency tree (cargo tree -p nie-core | grep tokio-socks)",
+  "acceptance_criteria": "cargo build -p nie-core exits 0; cargo tree -p nie-core shows tokio-socks in deps",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:34:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:37:40Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:34:45"
+    }
+  ]
+}

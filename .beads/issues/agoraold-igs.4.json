@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-igs.4",
+  "title": "testnet_sapling_addr_str returns a UA string but name implies raw Sapling bech32",
+  "description": "testnet_sapling_addr_str() produces a Unified Address (u1...) with a Sapling receiver, not a raw ztestsapling... bech32 address. The function name and the test that uses it ('parse_address_valid_sapling_testnet_succeeds') imply a raw Sapling address. This is not wrong \u2014 parse_sapling_address handles UAs with Sapling receivers \u2014 but a contributor writing a test that specifically needs the ztestsapling... encoding (e.g., to test the raw Sapling branch of TryFromAddress) would use this helper and get the wrong format. Fix: rename to testnet_sapling_ua_str() and add a comment explaining that raw ztestsapling... encoding requires a different path (ZcashAddress exposes no public from_sapling constructor).",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:25:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:09Z",
+  "closed_at": "2026-04-19T01:31:37Z",
+  "close_reason": "renamed testnet_sapling_addr_str \u2192 testnet_sapling_ua_str; updated test docstring to document UA vs raw bech32 distinction",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 18:25:06"
+    }
+  ]
+}

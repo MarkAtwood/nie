@@ -1,0 +1,14 @@
+{
+  "id": "nie-fj8l",
+  "title": "wasm: .expect() in online_users() panics on serialization failure",
+  "description": "serde_json::to_string(\u0026users).expect() at wasm/src/api.rs:257 panics if serialization fails. In Wasm, a panic is an unhandled JS exception that can crash the page. The adjacent js_sys::JSON::parse already has a graceful fallback but this step does not. Fix: replace .expect() with .unwrap_or_else(|_| \"[]\".to_string()).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:41:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:54:58Z",
+  "closed_at": "2026-04-26T05:54:58Z",
+  "close_reason": "Closed"
+}

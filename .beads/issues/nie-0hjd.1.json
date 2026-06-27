@@ -1,0 +1,26 @@
+{
+  "id": "nie-0hjd.1",
+  "title": "bridge-slack: byte-slice text truncation panics on multi-byte UTF-8",
+  "description": "bridge-slack/src/bridge.rs:107: '&raw_text[..MAX_SLACK_TEXT]' slices a &str at a byte index. If a multi-byte UTF-8 char (e.g. emoji) spans the 8192-byte boundary, Rust panics with 'byte index is not a char boundary'. Any Slack message >8192 bytes containing a multi-byte char at that boundary crashes the axum handler. Axum returns 500, Slack retries indefinitely, creating an infinite crash loop. Fix: use char_indices to find the last safe boundary before MAX_SLACK_TEXT bytes.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:04:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:13:30Z",
+  "closed_at": "2026-04-26T10:13:30Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:04:52"
+    }
+  ]
+}

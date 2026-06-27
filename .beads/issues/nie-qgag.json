@@ -1,0 +1,17 @@
+{
+  "id": "nie-qgag",
+  "title": "Review: relay round 18",
+  "notes": "Maintainer risk: HIGH — subscription_active string-sniffing (nie-qgag.5) allows auth bypass in edge case; GROUP_LEAVE silent to peers (nie-qgag.2) makes group state diverge; unbounded key package blobs (nie-qgag.3) enable storage DoS; no per-user invoice cap (nie-qgag.4) enables table inflation.\nConfidence: 25% chance of missed bug. Uncertainty driven by: cannot run the code to test edge cases in payment_watcher block stream error paths; cannot fully trace add_group_member_capped DEFERRED vs IMMEDIATE SQLite behavior without running concurrent tests; redis-bus feature path untested. Would raise confidence with: integration test that verifies GROUP_LEAVE notifies remaining members; a test that sends 1 MiB key package and verifies rejection; a fuzzer on the subscription_active string-match path.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:51:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

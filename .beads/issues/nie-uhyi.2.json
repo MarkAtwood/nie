@@ -1,0 +1,26 @@
+{
+  "id": "nie-uhyi.2",
+  "title": "PeerGroupUpdate.role field unbounded",
+  "description": "ClearMessage::PeerGroupUpdate has role: Option<String> with no deserialize_with guard. A hostile peer sends role: \"x\".repeat(10MB); the receiver allocates without limit. The action field adjacent to it has deserialize_group_action, but role was missed. Fix: add deserialize_opt_bounded_id on role (128-byte cap is appropriate for a role name).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:43:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:47:48Z",
+  "closed_at": "2026-04-26T04:47:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:43:31"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-bqoo.12",
+  "title": "messages.rs: per-field serde validators are correct and should be preserved",
+  "description": "ClearMessage field validators (deserialize_bounded_body, deserialize_file_name, deserialize_chunk_data, deserialize_sha256_hex, deserialize_total_chunks, deserialize_profile_fields, etc.) enforce size and format constraints at the serde deserialization boundary, before any application code runs. This is the correct architecture: a hostile MLS peer cannot force unbounded allocation, path traversal, or invalid encoding past the deserialization step. A future contributor might propose moving these checks into application code ('to keep deserialization simple') \u2014 this must be resisted. Moving them to application code requires every caller to remember to validate, creates TOCTOU if the struct is serialized and deserialized again, and can't enforce invariants across variant arms.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:13:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:13:41Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:13:41"
+    }
+  ]
+}

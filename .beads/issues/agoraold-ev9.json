@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-ev9",
+  "title": "Relay: key package storage and Whisper routing",
+  "description": "Add key_packages table to SQLite store (pub_id \u2192 opaque blob). Handle PublishKeyPackage (store), GetKeyPackage (fetch and respond with KeyPackageResponse), and Whisper (route opaque payload to a single connected recipient via WhisperDeliver) in ws.rs. The relay never inspects key package bytes.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:31:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-16T07:45:43Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:31:52"
+    }
+  ]
+}

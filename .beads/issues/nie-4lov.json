@@ -1,0 +1,14 @@
+{
+  "id": "nie-4lov",
+  "title": "message_set: reply_to and thread_root_id fields are unbounded strings",
+  "description": "In daemon/src/jmap.rs message_set create path (lines 1905-1912), reply_to and thread_root_id are extracted from the JSON body as arbitrary-length strings with no size cap before being passed to insert_message_ext() and stored in SQLite. A hostile client can supply a multi-megabyte reply_to or thread_root_id. The body field is capped at 65536 bytes, but these two fields are not. Fix: add a length cap (e.g. 128 or 256 bytes, matching deserialize_bounded_id) on both fields before the get_chats() call, returning invalidProperties if exceeded.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:44:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:54:21Z",
+  "closed_at": "2026-04-26T04:54:21Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-kgt5",
+  "title": "(BUG) desktop/src-tauri/src/lib.rs: Mutex::lock().unwrap() panics on poisoned mutex",
+  "description": "Lines 75 and 114 of desktop/src-tauri/src/lib.rs call state.lock().unwrap(). If any previous Tauri command handler panicked while holding the mutex, Rust marks the mutex as poisoned; all subsequent lock() calls return Err(PoisonError), and .unwrap() panics. This crashes the entire Tauri process (the desktop application). Fix: use .lock().unwrap_or_else(|e| e.into_inner()) to recover from poison, or restructure to avoid holding the mutex across any panic-capable code paths.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:29:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:33:26Z",
+  "closed_at": "2026-04-26T09:33:26Z",
+  "close_reason": "Closed"
+}

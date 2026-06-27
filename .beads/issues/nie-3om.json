@@ -1,0 +1,19 @@
+{
+  "id": "nie-3om",
+  "title": "Review: nie-wallet payment stack (4 commits)",
+  "notes": "Maintainer risk: MEDIUM — The Db/Connect error conflation and the params=None footgun are both patterns that will be copied by contributors. The diversifier pre-increment issue requires careful reading of next_diversifier to understand why it's correct; the comment misdirects.\nConfidence: 85% chance of no missed critical bug. Uncertainty driven by: (1) cannot run build_shielded_tx with real Sapling params to verify builder.build() actually accepts the computed fee in the 1-output (no-change) case; (2) dispatch_payment state machine has many branches — cannot rule out a race between MLS key rotation and payment message delivery causing a session to be lost without being resync'd; (3) the FeeRule::standard() fee validation inside builder.build() is opaque — if it uses a different counting method than sapling_logical_actions the transaction could be rejected at broadcast time. Would raise confidence if: (1) integration test with real params covering the no-change path; (2) property test on dispatch_payment covering all (role, state, action) combinations; (3) reading zcash_primitives FeeRule::standard source to verify fee counting matches.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:52:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T04:36:47Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

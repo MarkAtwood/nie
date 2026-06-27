@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.11",
+  "title": "transport: relay_socket_addr doc claims SocketAddr return type",
+  "description": "In core/src/transport.rs, the doc comment for relay_socket_addr (line 463) reads:\n\n  /// Resolve the relay host:port to a `SocketAddr` for a direct TCP connection.\n\nBut the function signature is:\n  fn relay_socket_addr(relay_url: &str) -> Result<String>\n\nIt returns a String (formatted as \"host:port\"), not a std::net::SocketAddr. The doc is misleading \u2014 a reader might expect a resolved IP-level SocketAddr, but the function returns a hostname string that may still require DNS resolution by TcpStream::connect.\n\nFix: update the doc to say 'Returns a \"host:port\" string' and note that DNS resolution happens at connect time.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:26Z",
+  "closed_at": "2026-04-19T19:31:42Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:58"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.16",
+  "title": "e2e_proxy: no test for proxy that sends SOCKS5 error reply",
+  "description": "e2e_proxy.rs tests only the happy path: proxy accepts the CONNECT and forwards successfully. There is no integration test for a proxy that accepts the TCP connection but returns a SOCKS5 error reply (e.g. REP=0x01 'general failure', REP=0x05 'connection refused').\n\ntransport::connect() should return Err in this case, but this is never exercised end-to-end. The unit test 'proxy_unreachable_error' covers the case where the proxy TCP port is not listening at all, but not the case where the proxy is up and sends a SOCKS5-level refusal.\n\nA test helper that sends a hardcoded SOCKS5 error reply would verify this error path is correctly propagated through tokio-socks and reported to the caller.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:25Z",
+  "closed_at": "2026-04-19T19:36:45Z",
+  "close_reason": "proxy_unreachable_error already covers error propagation for the common case. Specific SOCKS5-reply-error test deferred.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:07"
+    }
+  ]
+}

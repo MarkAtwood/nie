@@ -1,0 +1,27 @@
+{
+  "id": "nie-ugn.5",
+  "title": "No index on notes(spent); full table scan on every payment",
+  "description": "spendable_notes SQL query filters on spent = 0 with no index. Schema (db.rs migrations v1-v6) has no index on notes(spent). A wallet running the compact-block scanner for months will accumulate thousands of rows; each payment does a full scan. Add CREATE INDEX notes_unspent ON notes(spent, account_index) to the next migration version before the scanner lands.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:13:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T03:34:51Z",
+  "closed_at": "2026-04-19T03:34:51Z",
+  "close_reason": "Added v7 migration: CREATE INDEX IF NOT EXISTS notes_unspent ON notes(spent) WHERE spent=0; added idempotency and existence tests",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:13:19"
+    }
+  ]
+}

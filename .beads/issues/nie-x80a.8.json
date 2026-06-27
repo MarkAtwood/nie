@@ -1,0 +1,23 @@
+{
+  "id": "nie-x80a.8",
+  "title": "save_block_state wraps tree+witnesses+tip in single SQLite transaction",
+  "description": "db.rs save_block_state() atomically persists the Sapling commitment tree snapshot, all updated incremental witnesses, and the new scan tip height inside a single SQLite transaction. Without this, a crash between any two of these writes could leave the DB in a state where witnesses and scan_tip are inconsistent, causing note-unspendability or incorrect proof generation on restart. A contributor might suggest separate helper methods for each; the atomic combined write is the correct design and must be preserved.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:54:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:54:57Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:54:57"
+    }
+  ]
+}

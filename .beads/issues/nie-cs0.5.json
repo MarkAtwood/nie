@@ -1,0 +1,28 @@
+{
+  "id": "nie-cs0.5",
+  "title": "zip32::DiversifierIndex leaked in diversified_address public return type",
+  "description": "Scenario: callers of diversified_address immediately convert found_di to u128 (u128::from(found_di)) \u2014 the DiversifierIndex type is never used as such by any caller. It is present in the public signature only as an artifact of the internal implementation. This forces all future callers to take a dependency on zip32 for what is semantically just a u128 counter. When zip32 is eventually upgraded or replaced, all callers must be updated. Return (u128, String) instead and convert to DiversifierIndex internally. The call site in dispatch_payment becomes cleaner: let (found_u128, addr) = diversified_address(...)?; no separate u128::from().",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:06:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T22:27:23Z",
+  "closed_at": "2026-04-18T22:27:23Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:06:57"
+    }
+  ]
+}

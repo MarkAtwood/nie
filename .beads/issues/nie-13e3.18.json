@@ -1,0 +1,23 @@
+{
+  "id": "nie-13e3.18",
+  "title": "scan_block: scan_tx called before serialization, errors after partial block scan lose in-memory tree mutations",
+  "description": "scanner.rs scan_block() scans all transactions (scan_tx mutates self.tree and self.witnesses in-place), THEN serializes and saves. If scan_tx errors mid-block (e.g. a corrupt cmu in a later tx), the snapshots taken at the top of scan_block are used to restore self.tree and self.witnesses. This rollback is correct. However: the comment says the scan tip is advanced only after all transactions. The actual design restores the snapshot only on save_block_state failure, not on scan_tx failure. If scan_tx returns Err, scan_block propagates it immediately \u2014 the snapshot restoration code in the Err branch of save_block_state is never reached. This means a scan_tx error does NOT restore the in-memory tree (because it returns early before reaching the restoration code). The code is actually CORRECT \u2014 scan_tx Err causes scan_block to return Err, and since self.tree and self.witnesses were mutated in-place before the error, the caller (scan_to_tip) gets Err and the scanner retries the whole block on the next scan_to_tip() call, which re-reads scan_tip from DB (unchanged) and replays the block. But the in-memory tree IS corrupted by the partial scan_tx run. This needs a comment explaining why that is safe.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:29:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:29:23Z",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:29:22"
+    }
+  ]
+}

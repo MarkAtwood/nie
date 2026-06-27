@@ -1,0 +1,28 @@
+{
+  "id": "nie-9i9k.6",
+  "title": "BackgroundService static _running is global mutable state",
+  "description": "BackgroundService._running is a static class-level field. This means: (1) impossible to test BackgroundService in isolation \u2014 tests share state; (2) if flutter_driver, platform tests, or add-to-app scenarios create multiple FlutterEngine instances, the second engine inherits the first engine's _running state, potentially skipping stop() calls; (3) the 'no-op on non-Android' behavior is correct but the static flag could desync from actual Android service state if the process is killed and restarted. Pattern a well-intentioned contributor will copy when adding iOS BGProcessingTask equivalent. Suggest: pass BackgroundService as a constructor argument to RelayService so it can be injected/mocked in tests.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:47:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:59:10Z",
+  "closed_at": "2026-04-24T00:59:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:47:50"
+    }
+  ]
+}

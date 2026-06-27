@@ -1,0 +1,28 @@
+{
+  "id": "nie-9m0p.11",
+  "title": "nie-bot: notification dispatcher tests",
+  "description": "What: Unit test suite for bot/src/dispatcher.rs.\n\nAlgorithm (tests to write, all in #[cfg(test)] in dispatcher.rs):\n1. test_dispatch_deliver_chat: construct JsonRpcNotification with method=deliver, params={from:pub_id, payload:base64(serde_json::to_vec(ClearMessage::Chat{text:\"hello\"}))}, assert dispatch returns BotEvent::MessageReceived{text:\"hello\"}\n   Oracle: hardcode expected JSON bytes independently, not from ClearMessage::to_vec\n2. test_dispatch_user_joined: method=user_joined, params={pub_id,nickname,sequence}, assert BotEvent::UserJoined\n3. test_dispatch_user_left: assert BotEvent::UserLeft\n4. test_dispatch_unknown_method: method=unknown_xyz, assert Ok(None)\n5. test_dispatch_malformed_payload: method=deliver, payload=invalid_base64_garbage, assert Ok(None) (not Err)\n6. test_dispatch_missing_params: method=deliver, params=null, assert Ok(None) (not panic)\n\nDefensive: Expected payload bytes are computed using an INDEPENDENT encoding (not the bot dispatcher code itself).\n\nAgent team: T (tester \u2014 oracle is the JSON-RPC spec and protocol.rs constants).",
+  "acceptance_criteria": "cargo test -p nie-bot bot::dispatcher passes; all 6 cases present; malformed input never panics",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:43:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:59:45Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:44"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:43:36"
+    }
+  ]
+}

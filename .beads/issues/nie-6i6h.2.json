@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.2",
+  "title": "bridge-slack: future timestamp bypasses replay guard",
+  "description": "verify_slack_signature uses now.saturating_sub(ts).saturating_abs() > 300 (slack.rs:111). When ts > now (future timestamp), saturating_sub saturates to 0, so the absolute-value of 0 is 0, which is never > 300. Any request with a timestamp in the future (e.g. year 2099) passes the replay-window check. The HMAC check still catches forged requests, but a legitimate captured request can be replayed by retransmitting with any future timestamp and the original HMAC \u2014 the base string uses the original timestamp so the HMAC stays valid. Correct check: (now - ts).abs() > 300, using checked subtraction and abs on the signed result, not saturating_sub.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:26:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:03:03Z",
+  "closed_at": "2026-04-25T07:03:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:50"
+    }
+  ]
+}

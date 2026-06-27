@@ -1,0 +1,15 @@
+{
+  "id": "nie-7766",
+  "title": "Scanner: incremental Sapling commitment tree and witness tracking",
+  "description": "spendable_notes() requires a Merkle witness for each note (JOIN with witnesses table). The scanner must track the Sapling note commitment tree as blocks are scanned and maintain an incremental witness (IncrementalWitness) for each discovered note. As new blocks arrive, all existing witnesses must be updated to reflect the new tree leaves. This is the second prerequisite for the testnet E2E payment test (nie-3no): even with IVK decryption (nie-gw8k), notes cannot be spent without valid witnesses.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T07:45:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T09:38:48Z",
+  "close_reason": "Closed"
+}

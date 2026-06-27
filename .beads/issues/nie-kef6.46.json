@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.46",
+  "title": "all bridge HTTP clients use no-timeout reqwest::Client; hangs block relay event loop",
+  "description": "bridge-jmap, bridge-slack, bridge-teams, and bridge-matrix all create reqwest::Client::new() with no connection or request timeout. In handle_nie_deliver (called in the main tokio::select! loop), an HTTP call to a slow or dead API endpoint (JMAP, Slack, Teams, Matrix) suspends indefinitely. While awaiting, the other select! arm cannot run, so incoming relay events accumulate in the bounded channel (cap 64) and eventually get dropped when the homeserver calls try_send. Trigger: outbound API endpoint becomes unresponsive.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:23:16Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:16"
+    }
+  ]
+}

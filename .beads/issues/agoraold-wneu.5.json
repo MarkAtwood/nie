@@ -1,0 +1,38 @@
+{
+  "id": "agoraold-wneu.5",
+  "title": "E2E test: DM to offline recipient delivered on reconnect",
+  "description": "What: Integration test verifying the complete DM flow: Alice sends a Whisper to Bob who is offline; Bob reconnects and receives the queued DM.\n\nAlgorithm:\n1. In relay/tests/ (alongside existing e2e tests), add a new test function test_dm_offline_delivery:\n   a. Spawn a test relay (same pattern as existing integration tests)\n   b. Connect Alice, authenticate via challenge-response\n   c. Connect Bob, authenticate via challenge-response, then disconnect Bob's WebSocket\n   d. Alice sends a Whisper request: {jsonrpc:'2.0', id:1, method:'whisper', params:{to: bob_pub_id, payload: <base64 of ClearMessage::Chat{text:'hello from alice'}>}}\n   e. Alice receives OkResult {ok: true}\n   f. Reconnect Bob, authenticate again\n   g. Immediately after Bob receives AuthOk/DirectoryList, assert Bob receives a whisper_deliver notification:\n      - method == 'whisper_deliver'\n      - params.from == alice_pub_id\n      - params.payload deserialized as ClearMessage::Chat {text: 'hello from alice'}\n\n2. Also test: Alice whispers to ONLINE Bob \u2192 Bob receives it immediately (no queue involved)\n   a. Both Alice and Bob connected\n   b. Alice sends whisper\n   c. Bob receives whisper_deliver immediately (without reconnect)\n\nOracle for test_dm_offline_delivery:\n- Expected payload: serde_json::to_vec(&ClearMessage::Chat{text:'hello from alice'}).unwrap() \u2014 computed independently at test construction time, not from the code path under test\n- Expected from: alice_pub_id (the hex-SHA256 of Alice's Ed25519 key)\n\nDefensive rules:\n- Tests must use real relay + real SQLite (no mocks) per CLAUDE.md test oracle discipline\n- Use tokio::time::timeout on Bob's receive to fail fast rather than hang\n- Independent oracle: construct expected payload bytes WITHOUT calling the /dm code path",
+  "acceptance_criteria": "cargo test -p nie-relay test_dm_offline_delivery -- --nocapture passes; cargo test -p nie-relay test_dm_live_delivery passes; cargo clippy --workspace -- -D warnings passes",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:20:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:23Z",
+  "closed_at": "2026-04-19T21:35:31Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:20:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:20:35"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:20:36"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:20:49"
+    }
+  ]
+}

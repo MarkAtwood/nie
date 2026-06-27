@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-4iod.16",
+  "title": "main: unnecessary String clones of pub_id in event paths",
+  "description": "pub_id is a 64-char hex string cloned multiple times: line 190 (Connected event), line 228 (Whoami), line 264 (self-test). These are pass-through paths where to_string() is called on an already-owned String.\n\nCost: Per-event allocation in critical event dispatch loop.\n\nFix: Use references or Cow to avoid cloning in hot paths. Consider if BotEvent can accept &str or Cow<str> for pub_id.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:20Z",
+  "closed_at": "2026-04-20T01:21:38Z",
+  "close_reason": "false positive: to_string() allocations on &str are required for struct fields; no alternative",
+  "labels": [
+    "efficiency"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:40"
+    }
+  ]
+}

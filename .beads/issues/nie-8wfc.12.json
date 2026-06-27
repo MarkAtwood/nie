@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.12",
+  "title": "GROUP_LEAVE: TOCTOU between remove_group_member and delete_group",
+  "description": "ws.rs GROUP_LEAVE handler reads member_count() after remove_group_member() and deletes the group if count == 0. Between these two calls, a concurrent GROUP_ADD could add a new member, making the count non-zero in the DB but 0 in the local read -- or the opposite race where two concurrent GROUP_LEAVE calls both read count==1 and both attempt delete_group. The delete_group call is not atomic with the membership removal (separate transactions). Fix: move remove + count + conditional delete into a single SQL transaction, or use a DELETE...RETURNING pattern.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:35:44Z",
+  "closed_at": "2026-04-24T22:35:44Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:37"
+    }
+  ]
+}

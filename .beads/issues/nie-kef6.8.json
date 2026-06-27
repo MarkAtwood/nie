@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.8",
+  "title": "send_payment consumes diversifier index on build failure",
+  "description": "send_payment calls next_diversifier() before build_shielded_tx(). If the build fails (AnchorMismatch, WitnessDeserialize, InsufficientFunds, etc.), the diversifier counter is permanently incremented but the address was never used for change. Per DESIGN.md \u00a712, every PaymentAction::Address must be a fresh subaddress \u2014 wasting indices accelerates exhaustion and makes it impossible to audit which indices were actually assigned. Fix: only advance the diversifier counter after a successful broadcast, or roll it back on build failure.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:49:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:11:28Z",
+  "closed_at": "2026-04-25T00:11:28Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:49:11"
+    }
+  ]
+}

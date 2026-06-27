@@ -1,0 +1,23 @@
+{
+  "id": "nie-jq8m.17",
+  "title": "bus.rs: LocalBus channel capacity of 1024 is explicit and documented \u2014 keep it",
+  "description": "MessageBus::local() creates a broadcast channel with capacity 1024. This is explicit and carries a comment explaining it. A future contributor might suggest removing the cap or making it configurable. The cap should stay: an unbounded broadcast channel can cause unbounded memory growth if any subscriber is slow (tokio::broadcast silently drops for Lagged but unbuffered accumulation before the first receiver is created could still grow). 1024 is a reasonable default for a single-process relay.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:23:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:23:47Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:23:46"
+    }
+  ]
+}

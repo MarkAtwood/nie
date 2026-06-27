@@ -1,0 +1,15 @@
+{
+  "id": "nie-7bgk",
+  "title": "Review: contact_set atomicity + SpaceRole enum fixes",
+  "notes": "Confidence: ~5% chance of missed bug. Uncertainty driven by: no integration test hitting the daemon HTTP layer end-to-end (all tests are in-process), and the relay.rs silent-coercion path has no test. Would raise confidence if: (1) a test exercises dispatch_peer_group_update with an unknown role string, (2) update_contact_fully has a unit test for the (None,None) case documenting the state-bump behavior. Section 0: no correctness bugs filed — all correctness fixes are verified by tests with independent oracles (DB reads after patch). Section 1: two P1 items. Not bikeshedding.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:37:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T16:51:13Z",
+  "close_reason": "all steps complete"
+}

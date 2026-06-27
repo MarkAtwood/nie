@@ -1,0 +1,14 @@
+{
+  "id": "nie-ymos",
+  "title": "(BUG) wallet/db.rs: balance() double-counts block_height=0 notes — migration sentinel treated as pending",
+  "description": "In the balance() SQL query, the CASE expression for 'pending' is: WHEN block_height = 0 OR block_height \u003e threshold THEN value_zatoshi. The 'block_height = 0' branch was added to handle old migration-v4 rows that have the DEFAULT 0 sentinel (no real block height). However, a note inserted by the compact-block scanner for a real block will never have block_height=0 (genesis block). This is a minor accounting issue rather than a security bug: the note is pending-forever until scanner updates it. Separately, the comment in balance() correctly notes the threshold=-1 fix prevents genesis notes from being 'confirmed'. The real concern is that migration-v4 notes with block_height=0 appear in the pending balance indefinitely even after being spent — mark_note_spent sets spent=1 but block_height stays 0. However spent=0 is in the WHERE clause so this is filtered. Low severity: the balance query is correct; annotate the block_height=0 case more clearly.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:05:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:07:46Z",
+  "closed_at": "2026-04-26T09:07:46Z",
+  "close_reason": "Closed"
+}

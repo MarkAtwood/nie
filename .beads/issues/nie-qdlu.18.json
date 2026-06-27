@@ -1,0 +1,23 @@
+{
+  "id": "nie-qdlu.18",
+  "title": "Zeroizing<[u8;32]> for OrchardSpendingKey: correct and must not be changed to plain bytes",
+  "description": "orchard.rs stores the spending key bytes in Zeroizing<[u8; 32]> which overwrites memory on drop. A contributor simplifying the struct might replace this with a plain [u8; 32], leaving key material in heap memory after the struct is dropped where it could be swapped to disk or captured in a core dump. The Zeroizing wrapper is a security property, not defensive paranoia. The no-Debug impl on OrchardSpendingKey is also correct \u2014 spending key material must never appear in tracing output.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:47:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:47:34Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:47:33"
+    }
+  ]
+}

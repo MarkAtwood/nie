@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-qjvh.1",
+  "title": "Consolidate parse_zec_to_zatoshi + zatoshi_to_zec_string into nie-core",
+  "description": "## What\nMove the two identical parse/format helpers from cli and tui into nie-core, so they have one canonical implementation.\n\n## Where the duplicates are\n- cli/src/commands.rs: parse_zec_to_zatoshi (lines ~3255-3273), zatoshi_to_zec_string (lines ~3279-3291)\n- tui/src/event.rs: parse_zec_to_zatoshi (lines ~942-961), zatoshi_to_zec_string (lines ~963-971)\nBoth are identical. Neither is pub in their current crates.\n\n## Algorithm\n1. Create core/src/amount.rs with pub fn parse_zec_to_zatoshi(s: &str) -> Result<u64, String> and pub fn zatoshi_to_zec_string(zatoshi: u64) -> String\n2. Re-export from core/src/lib.rs: pub use amount::{parse_zec_to_zatoshi, zatoshi_to_zec_string};\n3. In cli/src/commands.rs: remove the local definitions, add use nie_core::{parse_zec_to_zatoshi, zatoshi_to_zec_string};\n4. In tui/src/event.rs: same removal and import\n5. cargo build --workspace must pass with no warnings\n\n## Defensive programming\n- The function bodies are already correct (integer-only, no floats) \u2014 copy verbatim, do not rewrite\n- Add #[cfg(test)] tests in core/src/amount.rs with the parse vectors from the epic (0.001\u2192100_000, 1.0\u2192100_000_000, too-many-decimals\u2192Err)\n- No unwrap() in the implementation\n\n## Tests (in core/src/amount.rs)\n- parse_zec_to_zatoshi(\"0.001\") == Ok(100_000) -- oracle: 0.001 * 10^8 = 100,000\n- parse_zec_to_zatoshi(\"1\") == Ok(100_000_000) -- oracle: 1 ZEC = 10^8 zatoshi\n- parse_zec_to_zatoshi(\"1.0\") == Ok(100_000_000)\n- parse_zec_to_zatoshi(\"0.00000001\") == Ok(1) -- minimum zatoshi\n- parse_zec_to_zatoshi(\"0.000000001\").is_err() -- 9 decimal places rejected\n- parse_zec_to_zatoshi(\"\").is_err()\n- parse_zec_to_zatoshi(\"-1\").is_err()\n- zatoshi_to_zec_string(100_000) == \"0.001\"\n- zatoshi_to_zec_string(100_000_000) == \"1\"",
+  "acceptance_criteria": "cargo test --workspace passes. parse_zec_to_zatoshi and zatoshi_to_zec_string are pub in nie_core. No duplicate definitions remain in cli or tui. cargo clippy --workspace -- -D warnings is clean.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T04:47:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T04:55:18Z",
+  "close_reason": "parse_zec_to_zatoshi + zatoshi_to_zec_string moved to core/src/amount.rs; cli and tui now import from nie_core; all tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 21:47:56"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-4iod.25",
+  "title": "bot: payment amount parsing silently truncates to 0",
+  "description": "In dispatcher.rs line 58, amount.trim().parse::<u64>().unwrap_or(0) silently converts any non-numeric string to 0 zatoshi. A PaymentRequest with amount='0.1 ZEC' or '100_000 satoshis' both parse to 0. The comment acknowledges this is 'best-effort' but this is incorrect behavior\u2014it produces silent data loss. Correct: log the parse failure or emit BotEvent::Error for unparseable amounts.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:14:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:37Z",
+  "closed_at": "2026-04-20T01:27:17Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:14:27"
+    }
+  ]
+}

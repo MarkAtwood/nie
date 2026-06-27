@@ -1,0 +1,24 @@
+{
+  "id": "nie-br9a.12",
+  "title": "db migration version read vs apply race: version snapshot used across all migrations",
+  "description": "db.rs WalletStore::new: reads PRAGMA user_version once into 'version' variable, then uses that snapshot in 8 consecutive 'if version < N' guards. Each migration updates user_version at commit. If a second process opens the same DB file concurrently during the first process's migration sequence, the second process may read a version between 1 and 7 and re-enter a partially-executed migration (e.g., version=3 snapshot, then try to run migrations 4-8 which the first process already ran). SQLite serializes writers so the ALTER TABLE/CREATE TABLE calls will be safe (IF NOT EXISTS), but the PRAGMA user_version update in the first process's transaction is only visible after commit. If the pool max_connections=1 enforcement is the only guard, a second WalletStore::new from a different process can race. Note: warn on version mismatch guard (nie-qdlu.11) is already open.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:04:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:24:50Z",
+  "closed_at": "2026-04-26T06:24:50Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:04:56"
+    }
+  ]
+}

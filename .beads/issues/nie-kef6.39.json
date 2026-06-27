@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.39",
+  "title": "FileHeader.sha256_hex not validated at deserialization boundary",
+  "description": "messages.rs FileHeader deserializes sha256_hex as an arbitrary String with no format check. A malicious peer can send a sha256_hex that is not 64 lowercase hex characters (e.g. empty string, Unicode, oversized). The error is deferred to reassembly-time hash comparison, giving no early rejection and no clear error message. Receiving code that reads sha256_hex before validating the format may panic or misbehave. Fix: add a deserialize_sha256_hex validator (similar to deserialize_file_name) that rejects non-64-hex-char strings at the protocol boundary.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:21:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:35:18Z",
+  "closed_at": "2026-04-25T00:35:18Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:21:57"
+    }
+  ]
+}

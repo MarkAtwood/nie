@@ -1,0 +1,14 @@
+{
+  "id": "agoraold-7uy",
+  "title": "Unix timestamps in wallet DB (not SQLite datetime strings) is correct",
+  "description": "WalletStore stores created_at/updated_at as INTEGER (Unix timestamps, i64). The struct comment explicitly cites CLAUDE.md §9 (the SQLite datetime string pitfall). This is the right call. A future contributor might suggest using chrono::DateTime or SQLite's datetime() for readability. Do not do that — SQLite datetime string comparison is locale-sensitive and format-sensitive; Unix timestamps are unambiguous integers with trivially correct ordering.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:52:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:56Z",
+  "closed_at": "2026-04-18T06:14:46Z",
+  "close_reason": "Existing code already implements the correct approach"
+}

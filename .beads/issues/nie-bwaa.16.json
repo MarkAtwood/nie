@@ -1,0 +1,25 @@
+{
+  "id": "nie-bwaa.16",
+  "title": "TypingParams.typing bool name is ambiguous \u2014 rename to is_typing",
+  "description": "TypingParams has a field named 'typing: bool'. At call sites like req.typing it is unclear from the name whether true means 'started' or 'stopped'. The field is documented in a comment but the name itself should be self-evident. Suggested rename: is_typing. This is a wire format field so any rename requires a protocol version note, but the JSON key can stay 'typing' via serde(rename). Change field name in Rust only, keep wire key identical.",
+  "status": "deferred",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:49:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:08:56Z",
+  "defer_until": "2026-06-01T00:00:00Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:49:09"
+    }
+  ]
+}

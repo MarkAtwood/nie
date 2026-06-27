@@ -1,0 +1,26 @@
+{
+  "id": "nie-qdlu.1",
+  "title": "insert_spendable_note helper not atomic: crash leaves orphan note",
+  "description": "wallet/src/db.rs insert_spendable_note (test helper, #[cfg(test)], line ~1482) calls INSERT INTO notes then self.upsert_witness() as two separate operations without a transaction. Trigger: process crash between the two calls. Bad behavior: note row exists with no witnesses row; spendable_notes() INNER JOINs witnesses so the note never appears as spendable; insert_note_with_witness() (production path) wraps both in a transaction and avoids this, but the test helper does not \u2014 meaning tests can pass while exercising a non-representative code path. Also, if the test inserts a note successfully but upsert_witness fails for any reason, the note_id is returned as if successful but the note is permanently unspendable.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:34:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:06:31Z",
+  "closed_at": "2026-04-25T04:06:31Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:34:12"
+    }
+  ]
+}

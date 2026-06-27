@@ -1,0 +1,28 @@
+{
+  "id": "nie-a8ds.5",
+  "title": "JMAP: unrecognized patch paths silently ignored \u2014 violates RFC 8620 \u00a75.3",
+  "description": "apply_member_patch() returns Ok(()) for any path not starting with 'members/'. The space_set loop calls it for all patch paths and only breaks on Err. Unrecognized paths (typos, client bugs, future patch paths the client expects to work) are silently dropped. RFC 8620 \u00a75.3 requires a 'invalidPatch' error when a patch path is unrecognized. This will cause confusing client-side bugs where a patch appears to succeed (200 OK) but nothing changed \u2014 maintenance consequence: users filing 'update doesn't work' issues that are hard to debug because the server reports success.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:04:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:17:49Z",
+  "closed_at": "2026-04-24T01:17:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:04:37"
+    }
+  ]
+}

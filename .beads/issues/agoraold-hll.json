@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-hll",
+  "title": "Confirmation depth tracking",
+  "description": "What: Track confirmation depth for in-flight incoming payments and fire ConfirmationEvent when depth >= MIN_CONFIRMATIONS.\n\nNote: This logic lives INSIDE the nie-ghf watcher task (same file/module). It is a distinct concern (depth tracking state) separated from the block scanning loop.\n\nAlgorithm (state managed by watcher task):\n1. Maintain pending: HashMap<String, (Uuid, u64)> mapping txid -> (session_id, found_at_height).\n2. When nie-ghf detects a hit (address in registry): insert into pending (skip if already present \u2014 dedup).\n3. On each new block (current_height): for each entry in pending:\n   - depth = current_height - found_at_height.\n   - If depth >= MIN_CONFIRMATIONS: send ConfirmationEvent { session_id, txid, block_height: found_at_height } to conf_tx, remove from pending.\n4. MIN_CONFIRMATIONS: u64 = 10 defined as a named const at module scope.\n\nDefensive programming:\n- found_at_height must be <= current_height; if somehow current < found (reorg?), skip silently and log warn.\n- pending is local to the watcher task (not shared); no locking needed.\n- Never log session_id alongside key material.\n\nTests:\n- test_depth_fires_at_threshold: insert entry at height 100, advance to height 109 (depth 9, no event), height 110 (depth 10, event fires). Oracle: depth formula = current - found, threshold = 10 by spec.\n- test_depth_no_duplicate_fire: once event fires, entry removed; advancing more blocks does not re-fire.\n- test_min_confirmations_const: assert MIN_CONFIRMATIONS == 10 (spec-derived constant, not from code under test).\n\nAcceptance: cargo test passes for depth tests; MIN_CONFIRMATIONS == 10 asserted; clippy clean.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T10:03:16Z",
+  "close_reason": "Implemented in spawn_block_watcher() in cli/src/commands.rs. MIN_CONFIRMATIONS=10 const, pending HashMap depth tracking, ConfirmationEvent firing, exponential backoff, registry-based address matching. All watcher_tests pass.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:25"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:13:08"
+    }
+  ]
+}

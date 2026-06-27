@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-igs.8",
+  "title": "two_real_notes_shared_anchor uses shared commitment tree \u2014 the only correct multi-input approach",
+  "description": "Happy-path tests with 2 input notes use two_real_notes_shared_anchor(), which places both note CMUs in the same commitment tree before creating witnesses. Witnesses from independent trees have different roots \u2192 AnchorMismatch before reaching the prover. More subtly: witnesses built with arbitrary leaf bytes (as in make_witness for error tests) are not valid for any real note CMU \u2014 using them in happy-path tests would fail at proof generation ('note commitment not in tree'). The shared-tree approach is the only option that produces witnesses valid for their respective notes AND sharing the same anchor. A contributor who tries to simplify by reusing make_witness for happy-path tests will get confusing prover failures, not a clean test.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:25:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:53Z",
+  "closed_at": "2026-04-19T01:30:59Z",
+  "close_reason": "decision records documented in beads; no code change required",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 18:25:36"
+    }
+  ]
+}

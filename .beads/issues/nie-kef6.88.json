@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.88",
+  "title": "Message/set create returns serverFail for nonexistent chatId instead of invalidProperties",
+  "description": "Message/set create: supplying a chatId that does not exist triggers an SQLite FK violation in insert_message_ext, which propagates through db_error() as a serverFail. RFC 8620 \u00a77.1 requires invalidProperties for a bad chatId reference. The chat existence should be checked before inserting, with notFound or invalidProperties returned on failure.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:21:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:44:49Z",
+  "closed_at": "2026-04-25T01:44:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:21:04"
+    }
+  ]
+}

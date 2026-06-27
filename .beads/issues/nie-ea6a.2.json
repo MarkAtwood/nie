@@ -1,0 +1,21 @@
+{
+  "id": "nie-ea6a.2",
+  "title": "cli: monero.key written with std::fs::write \u2014 uses default umask, spend key world-readable",
+  "description": "## Bug\n\nIn cli/src/commands.rs try_load_monero_keys(), when auto-generating a fresh Monero wallet on first use, the key file is written with:\n\n    std::fs::write(&path, json)\n\nstd::fs::write uses platform default permissions (typically 0o644 on Linux \u2014 world-readable). The MoneroKeys struct contains spend_key_bytes and view_key_bytes in plain JSON. A spend key with group/world read permissions can be exfiltrated by any local user.\n\nContrast this with the identity.key save path (cli/src/commands.rs), which uses OpenOptions with .mode(0o600), and contacts.json which also uses .mode(0o600).\n\n## Impact\n\nOn a shared system, the Monero spend key is world-readable. Anyone with local user access can read ~/.local/share/nie/monero.key and steal the funds.\n\n## Fix\n\nUse OpenOptions with .mode(0o600) when creating monero.key, mirroring the pattern used for identity.key.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:47:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:56:18Z",
+  "closed_at": "2026-04-26T10:56:18Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:47:33"
+    }
+  ]
+}

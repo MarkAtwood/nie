@@ -1,0 +1,15 @@
+{
+  "id": "nie-6syc",
+  "title": "Review round 1: Mainnet readiness and fee handling",
+  "description": "Review round 1 for nie-060 changes. Files changed: wallet/src/client.rs (3 mainnet endpoints, round-robin ENDPOINT_COUNTER), cli/src/commands.rs (fee display in /pay).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:16:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T16:24:11Z",
+  "close_reason": "Closed"
+}

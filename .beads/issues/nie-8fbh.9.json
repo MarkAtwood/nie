@@ -1,0 +1,26 @@
+{
+  "id": "nie-8fbh.9",
+  "title": "SaplingIvkDecryptor::new validates Fr but stores bytes; subsequent Fr reconstruction not constant-time",
+  "description": "scanner.rs SaplingIvkDecryptor::new calls jubjub::Fr::from_repr to validate ivk_bytes, discards the Fr, then stores only the raw bytes. On each try_decrypt_sapling call, Fr::from_repr is called again to reconstruct the Fr. The second call is done via .into_option().expect() which panics if the bytes are somehow no longer valid (impossible if the struct was constructed correctly, but note the bytes are in a Zeroizing wrapper \u2014 if zeroize partially runs on drop and the struct is used after that, this would panic). More practically, the Fr reconstruction on every output is O(notes_in_block) extra field operations. Already tracked as nie-br9a.6 (SaplingIvkDecryptor reconstructs Fr on every note) \u2014 filing as reminder that this is the right place to cache the PreparedIncomingViewingKey.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:54:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:56:11Z",
+  "closed_at": "2026-04-25T06:56:11Z",
+  "close_reason": "duplicate of nie-br9a.6",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:54:57"
+    }
+  ]
+}

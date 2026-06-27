@@ -1,0 +1,27 @@
+{
+  "id": "nie-wgi2.1",
+  "title": "Invite code is pure ULID timestamp \u2014 zero random bits, predictable",
+  "description": "In space_invite_set: 'let code = Ulid::new().to_string()[..8].to_uppercase()'. A ULID's first 10 chars encode the 48-bit millisecond timestamp; [..8] slices only the timestamp portion \u2014 zero random bits. Two invites created in the same millisecond are identical. An attacker who knows approximately when an invite was created (~day granularity) can enumerate ~86M codes to find it (2^26 search space). Fix: use the random suffix: Ulid::new().to_string()[10..18] (8 chars of 80-bit random) or rand::thread_rng() directly.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:29:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T18:29:43Z",
+  "closed_at": "2026-04-24T18:29:43Z",
+  "close_reason": "Fixed: changed [..8] to [10..18] to use ULID random suffix (80-bit) instead of timestamp prefix (zero random bits)",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:29:27"
+    }
+  ]
+}

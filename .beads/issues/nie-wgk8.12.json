@@ -1,0 +1,26 @@
+{
+  "id": "nie-wgk8.12",
+  "title": "payment_watcher: scan_block is async but does no I/O \u2014 should be sync fn",
+  "description": "relay/src/payment_watcher.rs:253-342: scan_block is declared async fn and called with .await, but the function's only async operation is calling activate_subscription() which IS async. However, scan_block itself iterates the block's outputs synchronously and then calls the async activate_subscription. The async is justified by the inner await. No change needed \u2014 this is correct. Removing the async label for clarity is not possible without refactoring. Withdraw this flag.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:23:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:23:34Z",
+  "closed_at": "2026-04-26T10:23:34Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:23:26"
+    }
+  ]
+}

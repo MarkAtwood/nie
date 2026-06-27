@@ -1,0 +1,24 @@
+{
+  "id": "nie-ztyg.3",
+  "title": "transport: mine_token has no timeout; diff=30 can hang client indefinitely",
+  "description": "transport.rs:418-424 / pow.rs:226: mine_token() iterates nonces with no cancellation or timeout. At diff=MAX_DIFFICULTY=30, expected mining time is ~1 billion SHA-256 pairs (several minutes to hours depending on hardware). spawn_blocking is called with no timeout; a rogue relay advertising diff=30 causes the client to hang indefinitely during the auth handshake. The diff <= MAX_DIFFICULTY guard prevents diff > 30 but does not prevent the mining itself from running unboundedly long. Fix: add a timeout to the spawn_blocking call, or pass a cancellation token to mine_token.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:54:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:54:30Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:54:30"
+    }
+  ]
+}

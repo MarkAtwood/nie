@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.3",
+  "title": "jmap blob download reflects stored content-type verbatim \u2014 same-origin XSS",
+  "description": "handle_jmap_upload stores the raw Content-Type request header without validation. handle_jmap_download reflects the stored content-type as the response header. An authenticated caller can upload a blob with Content-Type: text/html then GET it, causing the browser to render it as HTML at the daemon origin (127.0.0.1:7734). Since the web UI is served at the same origin, the blob can read and exfiltrate the bearer token from any storage the UI uses. Fix: allowlist acceptable content-types on upload (or default to application/octet-stream), and force Content-Disposition: attachment on the download response.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:34:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:37:06Z",
+  "closed_at": "2026-04-26T06:37:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:34:47"
+    }
+  ]
+}

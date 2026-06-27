@@ -1,0 +1,27 @@
+{
+  "id": "nie-bwaa.4",
+  "title": "Space/join returns method_ok('error') instead of method_error",
+  "description": "When an invite code is not found or expired, space_join returns method_ok('error', {...}) instead of method_error(). Per JMAP RFC 8620, a method error response must be ['error', {type, description}, callId]. The current code wraps the error in a success tuple. Strict JMAP clients and any future client checking the method name will misparse this as a successful call to an unknown method named 'error'. The correct pattern used elsewhere in jmap.rs is method_error(call_id, 'notFound', ...).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:47:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:55:41Z",
+  "closed_at": "2026-04-23T23:55:41Z",
+  "close_reason": "method_ok('error',...) replaced with proper ('error', json!({type: notFound,...})) tuple in space_join",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:47:43"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.80",
+  "title": "messages: sha256_hex validator accepts uppercase hex but reassembly computes lowercase",
+  "description": "deserialize_sha256_hex uses is_ascii_hexdigit() which accepts A-F as well as a-f, but the CLI computes lowercase hex via {b:02x}. A FileHeader with an uppercase sha256_hex passes deserialization but always fails the integrity check at reassembly time \u2014 the file transfer permanently fails with a false hash-mismatch error. Fix: require only lowercase hex in the validator, or normalize to lowercase before storing.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:56:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:12:26Z",
+  "closed_at": "2026-04-25T01:12:26Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:56:01"
+    }
+  ]
+}

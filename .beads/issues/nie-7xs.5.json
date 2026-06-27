@@ -1,0 +1,28 @@
+{
+  "id": "nie-7xs.5",
+  "title": "No message size limit on Broadcast payloads",
+  "description": "Trigger: Any authenticated client sends a Broadcast with a very large payload (e.g., 100MB). Bad behavior: The relay fan-out (state.rs broadcast()) clones the RelayMessage for each connected client and sends it. A single malicious or buggy client can force the relay to allocate O(N * payload_size) bytes and consume O(N) network bandwidth where N is the number of connected clients. axum's WebSocket handler has no built-in message size limit. The relay has no check on payload.len() in ws.rs before routing. Fix: add a MAX_PAYLOAD_BYTES constant and reject Broadcast messages that exceed it with RelayMessage::Error.",
+  "notes": "CONFIRMED from tungstenite WebSocketConfig::default(): max_message_size=Some(64<<20)=64MiB, max_frame_size=Some(16<<20)=16MiB. These are enforced by tungstenite before axum delivers the message. Axum also exposes max_message_size() and max_frame_size() builder methods on WebSocketUpgrade. So the relay is NOT completely unlimited -- messages >64MB are dropped at the tungstenite layer. However, 64MB is still large enough for broadcast amplification DoS at meaningful scale (64MB * N clients). The finding stands: the relay should set an explicit, much lower limit (e.g. 1MB) appropriate for a chat relay.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:59:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:05:24Z",
+  "closed_at": "2026-04-16T09:05:24Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:59:00"
+    }
+  ]
+}

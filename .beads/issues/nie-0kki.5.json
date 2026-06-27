@@ -1,0 +1,28 @@
+{
+  "id": "nie-0kki.5",
+  "title": "contact_changes: all IDs returned as created on any state change",
+  "description": "Scenario: client calls ChatContact/changes after any unrelated state change (e.g. a contact is blocked). The handler returns every current contact ID in created[], not updated[]. A conforming JMAP client will attempt to create objects it already has, causing duplicates or silent clobbers. The comment says Simplified but the semantic error is user-visible: stale contacts reappear as new after any update. Maintenance consequence: any client author will file a bug when they see duplicate contacts after a state change.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:19:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T03:41:30Z",
+  "closed_at": "2026-04-24T03:41:30Z",
+  "close_reason": "Fixed in daemon/src/jmap.rs; tests added",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:19:15"
+    }
+  ]
+}

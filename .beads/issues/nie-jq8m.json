@@ -1,0 +1,17 @@
+{
+  "id": "nie-jq8m",
+  "title": "Review: identity/hpke/bus/main/daemon/ffi/tui round 26",
+  "notes": "Maintainer risk: HIGH — FFI client ships without E2E encryption and without proxy support (two P1 items that affect the public API surface). The bus Redis silent-drop is P1 correctness for any multi-instance deployment. The OSC unbounded escape swallow is an exploitable display attack from any relay-authenticated peer.\nConfidence: 20% chance of missed bug. Uncertainty driven by: Redis bus code path is feature-gated and untestable without a Redis instance; the room HPKE AAD protocol is only documented in TUI source (not DESIGN.md), so other clients may already be using a different convention that I cannot check without reading all clients simultaneously; the OSC-no-cap finding depends on the render batch assumption (multiple messages per draw call) which I verified in draw_chat but not for the EventStream path. Would raise confidence if: integration test exercising Redis bus publish/subscribe round-trip; DESIGN.md specifying the room HPKE AAD format; cross-client E2E test (TUI + FFI + wasm) for sealed_broadcast.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:19:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-4qfy.6",
+  "title": "Service started after auth success, not after socket open",
+  "description": "BackgroundService.start() is called only when the first RPC response (auth success) is received, not at socket connection time. This means the 'Relay connected' notification accurately reflects authenticated connectivity, not just TCP handshake. A future contributor might move the start() call earlier (e.g. to _doConnect) to 'simplify' it \u2014 that would be wrong because the notification would show 'connected' during auth and briefly during failed auth attempts.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:33:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:39:45Z",
+  "closed_at": "2026-04-23T23:39:45Z",
+  "close_reason": "Design decisions recorded for reference; no code changes needed.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:33:04"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nie-wgk8.13",
+  "title": "daemon/store: update_contact_fully panics in async context",
+  "description": "daemon/src/store.rs:1604-1609: panics when both blocked and display_name are None. In async Tokio, a panic inside a task brings down the task rather than propagating as a Result. The test at line 2093 proves the panic fires. Consider debug_assert!() for dev builds and returning Err in release to preserve task isolation while keeping the programmer-error semantics.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:24:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:24:59Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:24:59"
+    }
+  ]
+}

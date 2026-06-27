@@ -1,0 +1,26 @@
+{
+  "id": "nie-jq8m.11",
+  "title": "tui/event.rs: OSC escape sequence parsing has no length cap \u2014 long OSC can swallow message content",
+  "description": "In strip_unsafe_chars (tui/src/ui.rs), the CSI path caps at 64 chars and resets. But the OSC path (EscState::Osc) has no length cap at all \u2014 it swallows characters until BEL or ESC+backslash. A relay message containing ESC+] followed by arbitrary text without a terminator will cause strip_unsafe_chars to swallow all subsequent characters in the message, including real content from later messages in the same render call. A malicious peer can blank out all displayed messages that follow theirs in the same render batch by opening an unterminated OSC sequence.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:22:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:32:52Z",
+  "closed_at": "2026-04-26T08:32:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:22:44"
+    }
+  ]
+}

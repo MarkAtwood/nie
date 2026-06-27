@@ -1,0 +1,25 @@
+{
+  "id": "nie-cp2h.7",
+  "title": "cannotCalculateChanges is the correct RFC 8620 response for Space/changes should be defended",
+  "description": "The previous Space/changes behavior returned all current space IDs as created[] when sinceState \\!= newState. This was wrong: it would cause sync storms and report every space as newly created on every state change. The fix returns cannotCalculateChanges with newState, letting the client do a proper Space/get re-sync. A future contributor might revert this thinking 'at least it returns something' \u2014 the old behavior was a protocol violation that would cause clients to insert duplicates or corrupt local state. cannotCalculateChanges is the correct RFC 8620 \u00a75.2 response when the server lacks a change log.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:55:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T06:07:07Z",
+  "closed_at": "2026-04-24T06:07:07Z",
+  "close_reason": "decision recorded in beads, no code action needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:55:02"
+    }
+  ]
+}

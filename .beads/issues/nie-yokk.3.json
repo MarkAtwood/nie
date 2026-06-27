@@ -1,0 +1,21 @@
+{
+  "id": "nie-yokk.3",
+  "title": "SEC1: Add test verifying old wire format (amount:String) is rejected",
+  "description": "Add a test in core/src/messages.rs that constructs the old JSON format manually and verifies serde_json::from_str rejects it cleanly:\n```\nlet old_format = r#\"{\"action\":\"request\",\"chain\":\"zcash\",\"amount\":\"0.1\"}\"#;\nlet result: Result<PaymentAction, _> = serde_json::from_str(old_format);\nassert!(result.is_err(), \"old string format must be rejected\");\n```\nOracle: serde with #[serde(deny_unknown_fields)] or missing required field causes an error.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T05:15:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T05:21:56Z",
+  "closed_at": "2026-04-22T05:21:56Z",
+  "close_reason": "all three fixes applied and confirmed clean by clippy+tests",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 22:15:14"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-wrk.5",
+  "title": "History DB grows without bound \u2014 no TTL, no max row count",
+  "description": "history.db has no pruning mechanism. Every chat message is retained forever. A user running nie chat daily for a year will accumulate tens of thousands of rows. The log subcommand already has a --limit flag so users expect bounded display, but the DB itself grows. At scale, SQLite VACUUM stops helping and queries slow. Before Phase 2 (at-rest encryption) this should have a configurable MAX_HISTORY_ROWS with an on-open prune step (DELETE FROM messages WHERE id NOT IN (SELECT id FROM messages ORDER BY id DESC LIMIT ?)).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:53:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:58Z",
+  "closed_at": "2026-04-18T00:06:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:53:48"
+    }
+  ]
+}

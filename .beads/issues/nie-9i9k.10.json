@@ -1,0 +1,25 @@
+{
+  "id": "nie-9i9k.10",
+  "title": "Typing-stop-on-disconnect in ws.rs: defend this",
+  "description": "connection_is_typing flag in the relay's WebSocket handler synthesizes a typing_notify{typing:false} notification on abrupt client disconnect. This is correct and non-obvious: without it, peers see a phantom 'is typing...' indicator that never resolves. A future contributor might remove it as 'cleanup' since it's in the disconnect path where things are being torn down. Defend: the typing state is per-connection, not per-session \u2014 clients cannot send a stop-typing on disconnect, so the relay must do it.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:49:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:55:19Z",
+  "closed_at": "2026-04-24T00:55:19Z",
+  "close_reason": "Decision records \u2014 informational only, no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:50:02"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-f0pz.2",
+  "title": "message_set: readAt patch path ignored in Phase 2 silent-path",
+  "description": "In jmap.rs message_set Phase 2, the path=='readAt' branch calls store.read_message(msg_id, ts) and on success falls through to the outer loop end. However, unknown paths in Phase 2 are also silently ignored ('Unknown patch path: ignore (permissive)'). A readAt patch that has a valid value passes Phase 1 and Phase 2, updating delivery state. But the patch is also in the unknown-path ignore list because the match chain has no 'else return error for unknown'. This means a client sending {\"readAt\": \"...\", \"unknownField\": \"x\"} will have unknownField silently dropped and the update reported as success \u2014 correct for readAt but the update response gives no indication that unknownField was ignored. This could mask typos in field names.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:21:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:12:03Z",
+  "closed_at": "2026-04-26T05:12:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:21:40"
+    }
+  ]
+}

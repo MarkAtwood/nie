@@ -1,0 +1,17 @@
+{
+  "id": "nie-t8j0",
+  "title": "Review: core round 17",
+  "notes": "Maintainer risk: MEDIUM — Four uncapped-allocation vectors in ClearMessage (Profile fields, PeerDeliver body, PeerDeliver IDs, FileHeader size_bytes) could cause OOM on malicious input from a group peer; wallet seed returned as plain array means key material escapes Zeroizing on error paths; ws:// plaintext is silently accepted.\nConfidence: 20% chance of missed bug. Uncertainty driven by: (1) openmls internals not audited — don't know if SignatureKeyPair zeroizes on drop; (2) CoinWallet::receive_address determinism contract not verified in any in-scope code; (3) the effective staleness window of 659s was computed from the code, not verified against a live relay. Would raise confidence if: openmls dependency audit, end-to-end integration tests with hostile peers sending oversized Profile/PeerDeliver messages.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:30:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

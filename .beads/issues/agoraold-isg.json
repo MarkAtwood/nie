@@ -1,0 +1,14 @@
+{
+  "id": "agoraold-isg",
+  "title": "explicit DB enum serialization helpers (not serde) is correct and worth defending",
+  "description": "chain_to_str/role_to_str/state_to_str use explicit match arms that return \u0026'static str literals. The comment explains: 'Explicit matches rather than serde to guarantee SQLite values are stable even if serde rename attributes change.' This is the right call. A future contributor might suggest 'simplify this with serde_json::to_string' - that would couple the DB column values to the serde serialization, which can change if enum variants are renamed or serde attributes are added. The current approach ensures the DB values are independent of the wire format.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:52:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:56Z",
+  "closed_at": "2026-04-18T06:14:46Z",
+  "close_reason": "Existing code already implements the correct approach"
+}

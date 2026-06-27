@@ -1,0 +1,19 @@
+{
+  "id": "nie-nttk.7",
+  "title": "payment.rs: send_payment does not validate to_address before fee/note selection; wasted work on bad address",
+  "description": "In payment.rs, send_payment() performs steps in this order:\n  1. Sync-lag check\n  2. Fetch spendable notes from DB\n  3. Derive change address diversifier (irreversibly advances the DB counter)\n  4. Encode memo\n  5. Build tx (which includes parse_sapling_address as step 2 internally)\n\nThe diversifier counter (step 3) is advanced permanently before address validation (step 5). If to_address is invalid or for the wrong network, the diversifier is consumed and wasted. The comment in payment.rs acknowledges this: 'accepted limitation (nie-kef6.8): this counter advance is permanent'.\n\nMore importantly, a simple address format check could be done before any DB writes. parse_sapling_address() is a pure function that does not touch the DB. Adding it as step 2 (before next_diversifier) would:\n- Return InvalidRecipient/UnsupportedAddressType immediately for typos\n- Never waste diversifier indices on invalid addresses\n- Have no security impact (address is provided by the caller, not the relay)\n\nThis is particularly relevant for the API endpoint (daemon/api.rs) where user-supplied addresses could be frequently malformed.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:42:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:42:35Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:42:35"
+    }
+  ]
+}

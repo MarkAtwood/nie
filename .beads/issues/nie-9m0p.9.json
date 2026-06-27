@@ -1,0 +1,38 @@
+{
+  "id": "nie-9m0p.9",
+  "title": "nie-bot: script execution hook module (shlex + Command::new)",
+  "description": "What: Execute user-configured shell hook on message events, safely, without shell injection.\n\nAlgorithm:\n1. Create bot/src/scripting.rs with pub async fn run_hook(cmd_str: &str, env_vars: &[(String,String)]) -> Result<BotEvent::ScriptOutput equivalent>:\n   a. shlex::split(cmd_str) \u2192 None means unmatched quotes \u2192 Err(BotError::Config(\"hook: unmatched quotes in: ...\"))\n   b. argv.is_empty() \u2192 Err(BotError::Config(\"hook: empty command\"))\n   c. spawn: tokio::process::Command::new(&argv[0]).args(&argv[1..]).envs(env_vars).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?\n   d. timeout: tokio::time::timeout(Duration::from_secs(30), child.wait_with_output()).await \u2192 Err(_) \u2192 kill child + Err(BotError::ScriptTimeout)\n   e. cap stdout at 65536 bytes; truncate silently if exceeded\n   f. return (exit_code, stdout_string, stderr_string)\n\nDefensive:\n- MUST use shlex::split + Command::new \u2014 NEVER sh -c (injection boundary per CLAUDE.md)\n- stdin: Stdio::null() \u2014 hook cannot read bot's stdin\n- No env vars that contain keyfile path or daemon token\n- Timeout 30s hard default (no config override needed for Phase 4f)\n\nAgent team: I (implementer). V (validator) runs cargo build + clippy. Tests in Wave 4.\nTests: see W4B",
+  "acceptance_criteria": "cargo build -p nie-bot clean; uses shlex::split + Command::new (grep -n sh -c must return nothing); clippy clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:43:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:57:35Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:35"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:42"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:36"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:43:19"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-sez5.3",
+  "title": "Wake lock keeps CPU on for 1 hr/session \u2014 will generate battery drain issues",
+  "description": "PARTIAL_WAKE_LOCK with a 1-hour cap holds the CPU awake for the entire background session. On a public OSS project this will generate battery drain complaints and 1-star reviews from users who background the app and notice it in Android's battery breakdown. Neither the notification ('nie is running') nor the README mentions this trade-off. Maintenance consequence: recurring support issues; users who revoke battery permissions will silently lose WebSocket connectivity with no explanation in the UI.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:39:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:22:29Z",
+  "closed_at": "2026-04-24T02:22:29Z",
+  "close_reason": "Notification text updated to explain battery use ('Keeping relay connected \u00b7 tap to open'). Channel description updated to mention wake lock in Settings > App > Notifications.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:39:03"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-hov.1",
+  "title": "wallet/src/db.rs: get_session_by_address()",
+  "description": "What: Add get_session_by_address(address: &str) -> Result<Option<PaymentSession>, WalletError> to WalletStore in wallet/src/db.rs.\n\nAlgorithm:\n1. Execute SELECT * FROM payment_sessions WHERE address = ?1 AND state = 'Watching' LIMIT 1 via self.conn.query_row().\n2. Map the rusqlite Row to PaymentSession using the same column mapping as existing session queries.\n3. Return Ok(Some(session)) on match, Ok(None) on no rows (map QueryReturnedNoRows -> Ok(None)), Err(WalletError::Db(e)) on other rusqlite errors.\n\nDefensive programming:\n- address is untrusted input; pass as query parameter only, never interpolate into SQL.\n- LIMIT 1 prevents ambiguity if multiple rows somehow match.\n- State filter 'Watching' prevents returning completed/expired sessions.\n- Return typed WalletError::Db, never unwrap().\n\nTests (in wallet/src/db.rs #[cfg(test)]):\n- test_get_session_by_address_hit: insert a Watching session with a known address, call get_session_by_address, assert session.id matches.\n- test_get_session_by_address_miss: call with address not in DB, assert Ok(None).\n- test_get_session_by_address_wrong_state: insert a Complete session, assert Ok(None) (state filter must exclude it).\n\nAcceptance: cargo test -p nie-wallet passes, cargo clippy -p nie-wallet -- -D warnings clean.",
+  "acceptance_criteria": "cargo test -p nie-wallet passes; get_session_by_address returns Ok(None) for unknown address and Ok(Some(session)) for Watching sessions; clippy clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:12:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T08:22:12Z",
+  "close_reason": "get_session_by_address() + sessions_to_watch() added to WalletStore; 7 tests pass; clippy clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:12:01"
+    }
+  ]
+}

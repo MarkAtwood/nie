@@ -1,0 +1,23 @@
+{
+  "id": "nie-rwr7.1",
+  "title": "Add hpke + x25519-dalek deps to nie-core Cargo.toml",
+  "description": "What: Add hpke 0.12 and x25519-dalek 2 crates to nie-core so sealed sender can use HPKE seal/open and X25519 key ops.\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/Cargo.toml (workspace manifest)\n2. Add to [workspace.dependencies] section:\n   hpke = { version = \"0.12\", features = [\"alloc\", \"x25519\"] }\n   x25519-dalek = { version = \"2\", features = [\"static_secrets\"] }\n3. Read /home/mark/WORK/nie/core/Cargo.toml\n4. Add to [dependencies]:\n   hpke = { workspace = true }\n   x25519-dalek = { workspace = true }\n5. Run: cargo check -p nie-core\n6. Verify hpke 0.12.0 is in ~/.cargo/registry/src/ (already cached)\n\nDefensive programming rules:\n- Check for duplicate entries before adding (grep for hpke first)\n- Use workspace = true pattern (already used for other deps in this project)\n- Do not pin to exact patch version at workspace level\n- cargo check must exit 0 before closing",
+  "acceptance_criteria": "cargo check -p nie-core exits 0; cargo tree -p nie-core | grep hpke shows hpke v0.12",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:58:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:03:24Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:58:51"
+    }
+  ]
+}

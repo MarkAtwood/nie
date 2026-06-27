@@ -1,0 +1,22 @@
+{
+  "id": "nie-c20",
+  "title": "Payer: handle Address \u2192 prompt confirm \u2192 send Sent",
+  "description": "When a ClearMessage::Payment with action=Address arrives for a session where role=Payer and state=Requested: display '[payment] Address received from <handle>: <address>. Send payment then type /confirm <short_session_id> to confirm.' Transition state to AddressProvided. When user types '/confirm <short_id>': find matching session, send ClearMessage::Payment { session_id, action: PaymentAction::Sent { chain, tx_hash: 'stub-<uuid>', amount } }, transition state to Sent, echo '[payment] Sent (stub tx). Waiting for confirmation.'",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:19:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:14:35Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:05"
+    }
+  ]
+}

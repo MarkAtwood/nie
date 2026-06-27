@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-vk6",
+  "title": "CLI: /profile slash commands",
+  "description": "Profile fields managed via explicit verb commands \u2014 one job per command, no parse tricks:\n\n/iam <name>         \u2014 set own display name (existing command, unchanged)\n/set <key> <value>  \u2014 set a profile field (broadcasts updated profile to room)\n/unset <key>        \u2014 delete a profile field (broadcasts updated profile to room)\n/profile [handle]   \u2014 show own profile (no arg) or another user's last-seen profile\n\nKey constraints: max 32 fields, key max 32 bytes (lowercase alphanumeric + underscore), value max 256 bytes. /set and /unset save to profile.json in the data dir and immediately rebroadcast the full updated profile.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T00:21:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:40Z",
+  "closed_at": "2026-04-18T00:38:32Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 17:21:39"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 17:21:44"
+    }
+  ]
+}

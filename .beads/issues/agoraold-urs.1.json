@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-urs.1",
+  "title": "check_network_guard aborts chat instead of disabling wallet",
+  "description": "chat() calls check_network_guard(data_dir, network)? which propagates Err and kills the entire session on network mismatch. A user with a testnet wallet who runs 'nie --network mainnet chat' cannot join the room at all, even though chat has no wallet dependency. The guard should disable wallet features (return None from try_load_wallet_fvks) rather than abort the session. Fix: move the network check inside try_load_wallet_fvks \u2014 if meta.network \\!= network, print a warning, return None (wallet disabled for session). Chat continues without payment features instead of refusing to start.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:16:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:50Z",
+  "closed_at": "2026-04-19T06:21:15Z",
+  "close_reason": "Fixed: moved network check into try_load_wallet_fvks(expected_network). Network mismatch now prints a warning and returns None (wallet disabled for session) instead of aborting chat() entirely. Test updated to pass 'testnet' as expected_network.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:16:24"
+    }
+  ]
+}

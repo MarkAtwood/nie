@@ -1,0 +1,27 @@
+{
+  "id": "nie-k3f.9",
+  "title": "Witness anchor requirement lacks Sapling tree semantics explanation",
+  "description": "build_shielded_tx() docstring says anchor_height 'Must equal WalletStore::scan_tip()' but does not explain why. A contributor who does not know Sapling will not understand that witnesses are rooted at the scan-tip tree snapshot (incremental witness advances once per block, not per note). If someone passes a note's block_height instead of scan_tip(), the anchor check at lines 329\u2013346 catches the mismatch, but only if notes have different heights. Single-note transactions with the wrong anchor pass the check silently and fail at the prover with a cryptic error. Add 2 sentences to the docstring explaining the incremental witness tree invariant.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:56:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:10:41Z",
+  "closed_at": "2026-04-19T06:10:41Z",
+  "close_reason": "Added 2-sentence explanation of Sapling incremental witness tree semantics to build_shielded_tx docstring: witnesses advance per block (not per note), so anchor_height must equal scan_tip, not note.block_height.",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:56:06"
+    }
+  ]
+}

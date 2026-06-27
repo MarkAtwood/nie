@@ -1,0 +1,23 @@
+{
+  "id": "nie-uhyi.7",
+  "title": "deserialize_profile_fields: visitor pattern enforces per-entry and total bounds",
+  "description": "Profile.fields uses a custom MapAccess Visitor that enforces both total entry count (max 64) and per-key/value size (max 1024 bytes) before any entry is inserted into the HashMap. A contributor might suggest replacing it with a post-decode check on the HashMap. The Visitor approach is superior: it rejects the first oversized entry without allocating the rest of the map, and enforces the total count without materializing a HashMap::len() call. Preserve the Visitor.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:48:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:48:02Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:48:01"
+    }
+  ]
+}

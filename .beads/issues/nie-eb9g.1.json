@@ -1,0 +1,28 @@
+{
+  "id": "nie-eb9g.1",
+  "title": "contact_query invalidArguments for negative position/limit lacks description",
+  "description": "contact_query returns {\"type\":\"invalidArguments\"} for position < 0 or limit < 0 with no description field naming the offending parameter. A client hitting this gets no signal about which of the two fields is negative \u2014 it must inspect both. The space_set and contact_set errors all include \"properties\":[...] with the offending key; this error is the outlier. Fix: split the check into two branches and include a description: if position < 0 { return method_error_with_desc(\"invalidArguments\", \"position must be non-negative\") }. Scenario: a client with a pagination bug sets position=-1 and gets a bare invalidArguments with no pointer to the field.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T15:23:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T15:33:55Z",
+  "closed_at": "2026-04-24T15:33:55Z",
+  "close_reason": "Fixed; decision records documented",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 08:23:59"
+    }
+  ]
+}

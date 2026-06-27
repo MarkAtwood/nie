@@ -1,0 +1,27 @@
+{
+  "id": "nie-sez5.5",
+  "title": "Role validation lives only in patch path, not in space creation",
+  "description": "apply_member_patch validates roles ('admin'|'moderator'|'member') before persisting, but if space_set has a creation-time member-insertion path (e.g. initial members in the create payload), that path calls the store directly without role validation. A contributor adding a new member-insertion call site would see apply_member_patch as the pattern and might copy it correctly, but there is no comment at the store layer or upsert_space_member_with_role signature indicating that role validation is the caller's responsibility. What would make it clear: a doc comment on upsert_space_member_with_role asserting the role precondition, or an assertion/debug_assert in the store function itself.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:39:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:25:38Z",
+  "closed_at": "2026-04-24T02:25:38Z",
+  "close_reason": "Added precondition doc comment to upsert_space_member_with_role in store.rs naming apply_member_patch as the canonical validation site.",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:39:16"
+    }
+  ]
+}

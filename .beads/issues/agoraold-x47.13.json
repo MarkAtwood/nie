@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-x47.13",
+  "title": "KeyPackageReady broadcast after DB write \u2014 happens-before edge is correct",
+  "description": "ws.rs broadcasts KeyPackageReady AFTER save_key_package() succeeds. A contributor might suggest broadcasting immediately (before the await) to reduce latency. Do not do that. The async SQLite write may not have committed at that point; a concurrent GetKeyPackage would return None, silently failing to add the new member with no error and no retry. The broadcast-after-write creates a happens-before edge guaranteeing any GetKeyPackage sent in response finds the data. The latency cost (one SQLite write roundtrip, <1 ms) is worth the correctness guarantee.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:47:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:57Z",
+  "closed_at": "2026-04-18T04:19:40Z",
+  "close_reason": "informational review note \u2014 design confirmed correct, no action needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:47:43"
+    }
+  ]
+}

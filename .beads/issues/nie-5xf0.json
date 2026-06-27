@@ -1,0 +1,18 @@
+{
+  "id": "nie-5xf0",
+  "title": "UTF-8 cursor boundary validation on text editing",
+  "description": "GOOD CHOICE: Backspace, Left, and Right arrow handlers validate UTF-8 char boundaries with loop-based search (event.rs 744-751, 759-775). Before decrementing cursor position, the code checks is_char_boundary() and walks backwards if needed.\n\nA naive implementation would just do cursor -= 1, which silently breaks multi-byte UTF-8 characters (e.g. emoji, accented chars). The boundary validation is non-obvious and easy to overlook.\n\nThis is load-bearing for correct text editing with Unicode input.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:28:22Z",
+  "closed_at": "2026-04-22T06:28:22Z",
+  "close_reason": "Verified invariant holds; nie-5xf0 documented in DESIGN.md §16 UTF-8 cursor boundary invariant; nie-pjxx and nie-h0ci already documented in DESIGN.md",
+  "labels": [
+    "review"
+  ]
+}

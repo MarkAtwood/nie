@@ -1,0 +1,28 @@
+{
+  "id": "nie-2y0i.3",
+  "title": "nie-tui ratatui layout and render pipeline",
+  "description": "**What:** Implement the ratatui UI layout and render function in tui/src/ui.rs \u2014 4-panel layout with online users, chat log, input box, and status bar.\n\n**Algorithm:**\n1. Create tui/src/ui.rs.\n2. Implement draw(f: &mut Frame, state: &AppState):\n   a. Split frame area vertically: [top_row (Fill), input_row (Length 3), status_row (Length 1)].\n   b. Split top_row horizontally: [users_col (Percentage 20), chat_col (Fill 1)].\n   c. Call draw_users(f, users_col, state).\n   d. Call draw_chat(f, chat_col, state).\n   e. Call draw_input(f, input_row, state).\n   f. Call draw_status(f, status_row, state).\n   g. After drawing, position cursor: if state.focus == Focus::Input, set cursor at input_row.x+1 + state.input_cursor_visual(), input_row.y+1.\n3. draw_users(f, area, state):\n   - Block with title \"Online\" and Borders::ALL.\n   - Build ListItem vector from state.online sorted by display_name (sort a copy \u2014 DO NOT sort state.online in place).\n   - Mark online[0] with [A] prefix (admin by connection sequence).\n   - Highlight own pub_id.\n   - Render with List::new().\n4. draw_chat(f, area, state):\n   - Block with title \"Chat\" and Borders::ALL.\n   - Compute visible_lines = area.height.saturating_sub(2) as usize.\n   - Take last visible_lines lines from state.messages, accounting for scroll_offset.\n   - Format each ChatLine: timestamp, colored pub_id prefix, text.\n   - Strip ANSI escape sequences from text before rendering (use a simple state machine: if char == '\\x1b', skip until 'm' or non-CSI char).\n   - Strip control characters (except newline): c.is_control() && c != '\\n'.\n   - Render as Paragraph with Text::from(lines).\n5. draw_input(f, area, state):\n   - Block with title matching focus (bold border when focused).\n   - Render Paragraph::new(state.input.as_str()).block(...).\n6. draw_status(f, area, state):\n   - Single line: connection state | mls epoch | payment overlays (auto-dismiss after 5s).\n   - Format: \"[connected] MLS:active\" or \"[reconnecting in 5s]\".\n   - Show active payment overlay text if any.\n\n**Defensive programming rules:**\n- NEVER sort state.online in place \u2014 sort a copy for display only.\n- Escape ANSI sequences: scan byte by byte, if 0x1B found, skip until 'm' byte or non-CSI terminal.\n- Strip chars where c.is_control() && c != '\\n' && c != '\\t'.\n- Truncate long lines to prevent layout overflow.\n- draw() must never panic on empty state (guard: if online.is_empty(), display placeholder).\n\n**Agent team:** Standard (R+I+V). R reads ratatui API docs in ~/.cargo/registry. I implements ui.rs. V runs cargo check -p nie-tui and verifies layout compiles.\n\n**Tests:** Unit test draw with mock Frame (if ratatui provides TestBackend): verify no panic on empty state, verify ANSI stripping removes escape sequences, verify control char stripping.\n",
+  "acceptance_criteria": "cargo check -p nie-tui exits 0; unit test with TestBackend renders without panic on empty AppState; ANSI escape \\x1b[31m stripped from ChatLine text",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:14:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:27:08Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:14:17"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:21"
+    }
+  ]
+}

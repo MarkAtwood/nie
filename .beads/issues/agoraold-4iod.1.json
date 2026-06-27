@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-4iod.1",
+  "title": "MAINTAINER: Multiple event emissions in dispatch path leak context via pay-attention gap",
+  "description": "In dispatcher.rs, dispatch_payload() returns None for unparseable payloads (ok if MLS ciphertext), but this creates ambiguity: future maintainers won't know if None means 'opaque MLS message' or 'malformed data'. The chain: dispatch() returns None -> main loop doesn't emit event -> hook doesn't run. This is fine, but 6 months from now, a maintainer might add tracing::warn\\!() at the None path thinking it's a bug. Need a doc comment on the function explaining the three paths: (1) valid ClearMessage, (2) opaque bytes (expected MLS-era), (3) parse error (debug-only, not an error). Without this, the silent-drop behavior appears inexplicable.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:46Z",
+  "closed_at": "2026-04-20T01:27:44Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:12:59"
+    }
+  ]
+}

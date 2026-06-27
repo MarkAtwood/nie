@@ -1,0 +1,25 @@
+{
+  "id": "nie-13e3.8",
+  "title": "parse_sapling_address ignores ZcashNetwork: mainnet addr accepted for testnet wallet",
+  "description": "build_shielded_tx receives network: ZcashNetwork but passes it only to consensus_params, not to parse_sapling_address(). parse_sapling_address SaplingExtractor discards the _net parameter. A mainnet zs1... address supplied to a testnet wallet build_shielded_tx call will parse successfully and produce a valid-looking PaymentAddress, but the tx will be invalid on testnet. Funds are effectively burned. This duplicates nie-kef6.86 but is now confirmed as still present in the current code. Trigger: caller passes mainnet address string with ZcashNetwork::Testnet. Bad outcome: transaction built and broadcast but unspendable by recipient.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:25:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:24:32Z",
+  "closed_at": "2026-04-26T06:24:32Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:25:47"
+    }
+  ]
+}

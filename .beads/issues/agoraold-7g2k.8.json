@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-7g2k.8",
+  "title": "SEC6: Validate did:key before persisting in GROUP_ADD",
+  "description": "ws.rs:1119 validates member_pub_id format with validate_did_key() BEFORE any database operations. Prevents invalid or malformed identifiers from entering persistent store. The validation is checked before group existence check (line 1131), ensuring protocol invariants are enforced at the boundary. Malformed IDs cannot corrupt the directory.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:16:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:03Z",
+  "closed_at": "2026-04-23T00:23:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:16:04"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "id": "nie-9m0p.13",
+  "title": "nie-bot: main event loop (wire-in)",
+  "description": "What: Wire together relay connector, stdin reader, dispatcher, and NDJSON output in main.rs.\n\nAlgorithm:\n1. In bot/src/main.rs:\n   a. Parse CLI flags (clap): --relay, --keyfile, --data-dir, --proxy, --insecure (hidden), --no-passphrase (hidden), --on-message-hook, --self-test\n   b. Load config: BotConfig::load(config_dir)?; resolve CLI > env > file > defaults \u2192 ResolvedBotConfig\n   c. init tracing subscriber with RUST_LOG or config.log_level\n   d. Load identity: nie_core::keyfile::load_identity(&config.keyfile, no_passphrase)?\n   e. Connect: transport::connect_with_retry(config.relay, identity, insecure, config.proxy) \u2192 RelayConnRetry{tx, rx}\n   f. Spawn stdin reader: tokio::spawn(stdin_reader::run(cmd_tx, event_tx))\n   g. Main loop: tokio::select!:\n      - event = conn.rx.recv() \u2192 dispatch_notification(event) \u2192 if Some(bot_event) { io_types::emit(&bot_event)? }\n      - relay Reconnecting/Reconnected \u2192 emit BotEvent::Reconnecting/Connected\n      - cmd = cmd_rx.recv() \u2192 handle_command(cmd, &conn.tx).await\n      - event from event_tx (stdin errors) \u2192 emit BotEvent::Error\n   h. handle_command: Send \u2192 serialize ClearMessage::Chat, build BroadcastParams, JsonRpcRequest, conn.tx.send\n      SetNickname \u2192 SetNicknameParams, Quit \u2192 std::process::exit(0)\n\nDefensive:\n- conn.rx.recv() returning None means relay conn dropped \u2192 emit Disconnected + exit\n- Every JsonRpcRequest uses next_request_id() for unique IDs\n- Never log identity bytes\n- ClearMessage serialization unwrap() is ok (derived Serialize, cannot fail) \u2014 add comment\n\nAgent team: R (researcher: read transport.rs, dispatcher.rs, config.rs to verify signatures), I (implementer), V (validator: cargo build + clippy).",
+  "acceptance_criteria": "cargo build -p nie-bot clean; nie-bot --help shows flags; cargo clippy -p nie-bot -- -D warnings clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:44:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T01:03:11Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:46"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:47"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:00"
+    }
+  ]
+}

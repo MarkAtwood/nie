@@ -1,0 +1,26 @@
+{
+  "id": "nie-tb8e.1",
+  "title": "alloc_subscription_address advances diversifier before invoice persisted \u2014 diversifier skipped on count_and_create_invoice cap-reject",
+  "description": "alloc_subscription_address() calls next_diversifier() and advances the counter unconditionally, then count_and_create_invoice() is called. If count_and_create_invoice returns Ok(false) (cap reached) or Err, the allocated diversifier address is discarded but the diversifier index has already been permanently bumped. Over many cap-rejected requests the diversifier counter advances without any corresponding invoice, leaking diversifier space. While 2^88 indices are effectively infinite, the pattern is a correctness gap: a Sapling address is permanently reserved with no invoice and no scan record, so any payment to it is silently ignored by the payment watcher (no invoice row to match). Trigger: client with \u22655 pending invoices sends additional SUBSCRIBE_REQUEST calls repeatedly.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:36:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:56:18Z",
+  "closed_at": "2026-04-26T07:56:18Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:36:02"
+    }
+  ]
+}

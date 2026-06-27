@@ -1,0 +1,22 @@
+{
+  "id": "nie-vmib",
+  "title": "multidevice: admin election uses per-user sequence",
+  "description": "Fix the MLS group admin election in relay/src/ws.rs and clients so that admin status is per-user (pub_id), not per-device-connection, when a user has multiple devices.\n\nWhy: admin = pub_id with lowest connection_seq. With multi-device, a single user has multiple connection seqs (one per device). If device 2 of user Alice connects after user Bob, device 2 gets a higher seq than Bob \u2014 but Alice's device 1 (lower seq) is still connected. Alice should still be admin. If the min seq across Alice's devices is lower than Bob's seq, Alice is admin.\n\nWhat to do:\n- connection_seq(pub_id) in state.rs: return min seq across all Vec entries for pub_id (already noted in nie-uyhc but called out explicitly here for the admin logic)\n- Audit all call sites of connection_seq and is_admin checks in ws.rs to confirm they use pub_id-level seq, not device-level\n- Test: Alice connects device 1 (seq 0), Bob connects (seq 1), Alice connects device 2 (seq 2). Alice's connection_seq = min(0,2) = 0. Alice is still admin. Alice device 1 disconnects. Alice's connection_seq = 2. Bob (seq 1) is now admin.\n- Ensure admin promotion on disconnect triggers the correct pub_id (the user whose last device left, not just the connection that closed)\n\nAcceptance: admin election produces the correct result in all single-device scenarios (no regression) and the multi-device scenario described above.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T20:17:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T00:38:09Z",
+  "closed_at": "2026-04-23T00:38:09Z",
+  "close_reason": "connection_seq already returns per-user min (from nie-uyhc); ws.rs uses it correctly; admin election test added to state.rs",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 13:19:51"
+    }
+  ]
+}

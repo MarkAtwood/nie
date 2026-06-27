@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.9",
+  "title": "scan_block saves tree_state before completing witness upserts; partial failure leaves inconsistent state",
+  "description": "In scanner.rs scan_block, save_tree_state is called before the per-note upsert_witness loop completes. If upsert_witness fails for any note after the tree snapshot is written (e.g. DB error mid-loop), scan_tip is not advanced (good) but tree_state is already at the new height. On the next scan, the scanner re-processes the block, appending the same commitments to the in-memory tree again \u2014 the tree now has doubled commitments and diverges from the chain. Witnesses forked from this corrupted tree produce invalid Merkle paths and spend proofs will fail.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:22:47Z",
+  "closed_at": "2026-04-24T23:22:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:22"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-k3f.7",
+  "title": "Note sort repeated on every fee-convergence iteration",
+  "description": "select_notes_spendable() sorts the input note slice on every call (tx_builder.rs:595\u2013597). select_with_fee() calls select_notes_spendable() in a loop until the fee stabilizes. The same notes are sorted repeatedly with no mutation between iterations. For wallets with hundreds of notes and fee convergence requiring 2\u20133 iterations, this is redundant O(n log n) work per send. Move the sort to select_with_fee() before the loop, pass a pre-sorted slice to select_notes_spendable_from_sorted() (renamed). Impact: minor today, noticeable when note sets grow large.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:55:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:31Z",
+  "closed_at": "2026-04-19T06:09:49Z",
+  "close_reason": "Not worth fixing now: note sort is O(n log n) but n=10-50 in Phase 2 wallets, fee loop runs 1-2 iterations per payment (not a hot path). Fixing requires splitting the note-selection API adding complexity for microseconds. Revisit when wallets have 1000+ notes.",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:55:54"
+    }
+  ]
+}

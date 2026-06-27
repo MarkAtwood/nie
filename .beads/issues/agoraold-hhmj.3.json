@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-hhmj.3",
+  "title": "RISK: Unhandled Err(..) on store.subscription_expiry in auth path",
+  "description": "relay/src/ws.rs lines 132-137: store.subscription_expiry() can fail (DB error), but is called with .unwrap_or(None). The Err is silently swallowed and treated as 'not subscribed'. If the subscription table becomes corrupted, all users appear unsubscribed and lose relay access. A solo maintainer will not see the DB error in logs (no .context() or error logging) and will waste time investigating why subscriptions stopped working. Risk: silent DB failures degrade to broken access control.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:29Z",
+  "closed_at": "2026-04-19T18:20:05Z",
+  "close_reason": "Fixed: added INTERNAL_ERROR (-32603) to rpc_errors; subscription_expiry/register_user errors now send error response and abort auth; all_users error disconnects and returns; try_set_nickname Err branch sends internal error response.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:19"
+    }
+  ]
+}

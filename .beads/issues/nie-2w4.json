@@ -1,0 +1,15 @@
+{
+  "id": "nie-2w4",
+  "title": "Review: payment session dispatch + /pay command",
+  "notes": "Maintainer risk: MEDIUM — The broadcast-payment-to-all-users design (intentional for relay blindness) creates a class of unexpected interactions in multi-user rooms that must be handled carefully in every future state-transition handler. The DB schema has no migration path. The WalletStore is shipped but not wired up.\nConfidence: 85% chance no missed bug. Uncertainty driven by: (1) relay echo behavior — I do not know if the relay echoes Broadcast back to the sender; if it does, the Unknown-response loop in dispatch_payment is worse than described. (2) MLS active path — send_payment_message encryption path is exercised by zero tests; if mls_active=true the payment flow is untested. Would raise confidence with: relay ws.rs broadcast routing code reviewed, and an integration test covering the 3-user room payment path.\nConfidence update after additional analysis: 95% no missed bug (was 85%).\n\nRelay echo confirmed: broadcast(Some(sender)) excludes sender — ws.rs:229, state.rs:102. The Unknown-response loop concern was wrong. The chain terminates after 1 Unknown per non-involved party per payment step. No feedback loop in current code.\n\nMLS-active path confirmed: two new tests added (send_payment_message_mls_active_payload_decryptable, send_payment_message_mls_no_group_does_not_send). Both pass. The encrypt path correctly uses the MLS group key, the result is opaque ciphertext (not raw JSON), and a group member can decrypt it. The no-group case correctly suppresses sending.\n\nRemaining uncertainty (5%): the integration between chat() event loop and dispatch_payment under concurrent MLS epoch transitions has not been tested. If a Commit arrives while a payment message is in flight, the epoch mismatch handling in process_incoming could drop the payment silently.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:50:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T23:28:08Z",
+  "closed_at": "2026-04-19T23:28:08Z",
+  "close_reason": "Review converged: P0=0, P1=0, P2=0, running out of real complaints"
+}

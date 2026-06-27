@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.9",
+  "title": "bridge-jmap apiUrl SSRF: server-returned URL used without https:// validation",
+  "description": "In jmap.rs init_session(), the apiUrl from the JMAP session response is stored and used for all subsequent API calls without validating that it starts with https://. A compromised or MITM'd JMAP server can redirect calls to http:// or to internal network addresses (169.254.x.x, 10.x.x.x, etc.), causing the bridge to forward the bearer token to an attacker-controlled endpoint. Trigger: attacker controls the JMAP session endpoint response.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:49:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:11:41Z",
+  "closed_at": "2026-04-25T00:11:41Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:49:16"
+    }
+  ]
+}

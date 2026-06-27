@@ -1,0 +1,25 @@
+{
+  "id": "nie-qdlu.4",
+  "title": "scanner load_state hardcodes account 0 in spendable_notes call",
+  "description": "wallet/src/scanner.rs load_state calls self.store.spendable_notes(0) hardcoding account 0. This is inconsistent with the scanner having no account parameter \u2014 the scanner's witness map should be loaded for all accounts, not silently scoped to account 0. When multi-account support is added (notes.account_index column), this call will silently miss all witnesses for accounts > 0, leaving their notes unspendable. Trigger: multi-account wallet restart. Bad behavior: witnesses for accounts 1..N are not restored in-memory; those notes become permanently unspendable until rescan. Fix: pass account as a field on CompactBlockScanner, or call spendable_notes for all known accounts.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:35:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:35:24Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:35:24"
+    }
+  ]
+}

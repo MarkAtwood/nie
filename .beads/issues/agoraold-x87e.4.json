@@ -1,0 +1,20 @@
+{
+  "id": "agoraold-x87e.4",
+  "title": "ENDPOINT_COUNTER race in counter test",
+  "description": "wallet/tests/e2e_testnet.rs does not exist but wallet/src/client.rs has this in its unit tests: the connect_with_failover_increments_counter test reads ENDPOINT_COUNTER before and after a single call and asserts after == before + 1. Because tests in the same crate run in parallel by default and ENDPOINT_COUNTER is a crate-level AtomicUsize, any other test that calls connect_with_failover concurrently (e.g. connect_with_failover_empty_list_errors does NOT call it, but connect_with_failover_increments_counter itself is not the only test that could run at the same time in future) can cause the delta to be > 1 and fail the assertion. Strictly speaking with the current test suite only one test calls connect_with_failover with a non-empty list, so the race window is currently narrow. However, the test is fragile by construction: it asserts a delta of exactly 1 on shared global state without synchronization. Any future test that also exercises connect_with_failover will silently break this assertion under parallel execution. The fix is to use a test-local AtomicUsize or to check that the counter increased by at least 1 rather than exactly 1.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:13Z",
+  "closed_at": "2026-04-20T05:12:49Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:23"
+    }
+  ]
+}

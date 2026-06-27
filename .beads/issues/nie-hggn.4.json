@@ -1,0 +1,26 @@
+{
+  "id": "nie-hggn.4",
+  "title": "daemon/relay.rs dispatch_peer_receipt allows 'sent' but PeerReceipt wire type only carries 'delivered'|'read'",
+  "description": "Trigger: dispatch_peer_receipt() in daemon/src/relay.rs line 661 validates receipt_type against the set {'sent', 'delivered', 'read'}. But the ClearMessage::PeerReceipt deserializer in core/src/messages.rs (deserialize_receipt_type) only accepts {'delivered', 'read'} - 'sent' is rejected at the wire boundary before dispatch_peer_receipt is ever called. The 'sent' case in dispatch_peer_receipt is therefore dead code. Bad behavior: no current bug, but if store.update_message_delivery_state() is called with 'sent', the delivery_state column receives a value that the wire serializer can never produce, creating an invisible state inconsistency. Maintenance risk: a future refactor that calls dispatch_peer_receipt directly (bypassing deserialization) or loosens the deserializer could write 'sent' into the DB. Fix: remove 'sent' from the valid set in dispatch_peer_receipt so both layers use the same allowed values.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:11:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:21:00Z",
+  "closed_at": "2026-04-26T12:21:00Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:11:51"
+    }
+  ]
+}

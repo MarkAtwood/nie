@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-91j.1",
+  "title": "scan_tip as i64 cast in TxRecord violates project convention",
+  "description": "payment.rs inserts TxRecord with block_height: scan_tip as i64. Project convention (bd memory DESIGN-sqlite-amount-cast) requires i64::try_from(u64) with a descriptive Err for all u64\u2192i64 casts going to SQLite. The as-cast silently truncates if scan_tip > i64::MAX (impossible in practice but a violation of the established pattern). Fix: i64::try_from(scan_tip).map_err(SendPaymentError::Db)?",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:57:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:51Z",
+  "closed_at": "2026-04-19T05:02:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:57:26"
+    }
+  ]
+}

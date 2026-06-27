@@ -1,0 +1,16 @@
+{
+  "id": "nie-zd27",
+  "title": "Scanner data-integrity bug fixes",
+  "description": "Two scanner bugs that must be fixed before the JSON-RPC protocol migration (nie-hlns) begins. Both touch wallet/src/scanner.rs and should land together.\n\n- nie-cz2m: upsert_witness failure leaves note permanently unspendable (data integrity)\n- nie-l22.1: UNIQUE constraint detection uses fragile SQLite error string matching",
+  "notes": "Review converged after 2 rounds. P0=0 P1=0 P2=0. 98% confidence. nie-cz2m: insert_note_with_witness() wraps both DB writes atomically. nie-l22.1: is_unique_constraint() uses sqlx ErrorKind instead of string matching.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:40:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T17:29:29Z",
+  "close_reason": "Closed"
+}

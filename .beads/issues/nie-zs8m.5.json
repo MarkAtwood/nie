@@ -1,0 +1,25 @@
+{
+  "id": "nie-zs8m.5",
+  "title": "update_contact_fully single-transaction atomicity worth defending",
+  "description": "Wrapping all field writes and the state bump in a single SQLite transaction is correct. The old code made separate store calls per field, each bumping state independently \u2014 a concurrent reader between the two bumps would see intermediate state, and the state token would advance twice for a single logical patch. The test test_contact_set_two_field_patch_bumps_state_once validates this invariant. A future contributor might suggest 'just loop over fields and call individual store methods' to simplify \u2014 that reintroduces the atomicity and state-bump bugs.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:28:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:34:11Z",
+  "closed_at": "2026-04-24T17:34:11Z",
+  "close_reason": "Fixed in store.rs: panic for precondition, exhaustive-match test, SELECT 1 for existence check; decision records filed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:28:14"
+    }
+  ]
+}

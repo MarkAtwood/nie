@@ -1,0 +1,23 @@
+{
+  "id": "nie-x80a.14",
+  "title": "save_block_state atomic transaction design: tree+witnesses+tip must remain one atomic write",
+  "description": "db.rs save_block_state() wraps CommitmentTree snapshot, witness updates, and scan_tip advance in one SQLite transaction. This is correct and necessary. A crash between any two writes would leave witnesses inconsistent with scan_tip, causing note unspendability or wrong proofs on restart. Do not split into separate helper methods.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:56:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:56:28Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:56:28"
+    }
+  ]
+}

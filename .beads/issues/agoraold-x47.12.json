@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-x47.12",
+  "title": "DashMap lock released before broadcast sends \u2014 correct concurrency design",
+  "description": "state.rs broadcast() first collects 'let targets: Vec<ClientTx> = self.inner.clients.iter()...collect()' then releases the DashMap shard locks, then drives all sends concurrently via join_all. A contributor might simplify this by iterating the DashMap and calling tx.send().await inside the iterator. Do not do that. Awaiting while holding a DashMap shard lock would deadlock if any handler that's waiting for the lock is also blocked on the send. The collect-then-send pattern is the correct way to hold DashMap for the minimum time and never await while holding it.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:47:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:57Z",
+  "closed_at": "2026-04-18T04:19:38Z",
+  "close_reason": "informational review note \u2014 design confirmed correct, no action needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:47:36"
+    }
+  ]
+}

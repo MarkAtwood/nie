@@ -1,0 +1,27 @@
+{
+  "id": "nie-bgc",
+  "title": "Compact block scanning / wallet sync engine",
+  "description": "Scan compact blocks from lightwalletd, trial-decrypt notes against wallet IVKs, persist discovered notes. Track scan tip (last block height) in wallet DB. Background tokio task that continuously syncs.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:41:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T16:05:16Z",
+  "close_reason": "Implemented scanner infrastructure: NoteDecryptor trait + NullDecryptor stub (IVK seam for nie-m91), CompactBlockScanner (fetch loop + per-block tip advance), spawn_scanner background task, WalletStore scan_tip/set_scan_tip with migration v3. Full test coverage for DB methods and NullDecryptor. Actual note decryption plugs in via NoteDecryptor when zcash_primitives is available.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:38"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:49"
+    }
+  ]
+}

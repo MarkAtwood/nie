@@ -1,0 +1,27 @@
+{
+  "id": "nie-7ew5",
+  "title": "Space model (Space, roles, channels, categories, invites)",
+  "description": "Implement the full JMAP Chat Space model: Space/get, changes, set, query, queryChanges, join. SpaceRole with named permissions. SpaceMember with role assignments. Category and ChannelPermission. SpaceInvite: has both 'id' (JMAP-opaque, server-assigned) and 'code' (user-shareable, server-assigned) \u2014 these are distinct fields. Space/join matches on 'code' field not 'id'. SpaceInvite/set create: server assigns both id and code; clients MUST NOT supply either. SpaceInvite/set update: MUST return forbidden SetError. Channel Chats (Chat kind: channel) within Spaces. Space permission resolution per spec \u00a7space-permissions. Space state propagated to members via Peer/groupUpdate-equivalent ClearMessage variants.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T19:54:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T22:51:53Z",
+  "closed_at": "2026-04-23T22:51:53Z",
+  "close_reason": "Space model fully implemented: migration v4 (space_member.role, space_invite, category tables), store methods (get/query/create/update/delete spaces, invite CRUD, member management), JMAP handlers Space/get+changes+set+query+queryChanges+join, SpaceInvite/get+set (update returns forbidden). 8 new unit tests.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:55:07"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:55:06"
+    }
+  ]
+}

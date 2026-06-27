@@ -1,0 +1,19 @@
+{
+  "id": "nie-06bt",
+  "title": "Review: fix contact_set, space_set atomicity, typing phantom, batch limit",
+  "notes": "Maintainer risk: MEDIUM — one correctness bug that crashes the daemon in debug builds on adversarial input (i64 overflow), one pre-existing RFC violation not addressed (non-Object patch silently dropped), one documented spec violation for server errors deferred without tracking. The rest of the changes are protocol-correct and well-tested.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) did not trace the full contact_query_changes path to check for the same position+limit pattern, (2) did not verify the typing phantom test actually exercises the relay's disconnect cleanup path vs. a transport-level close that never reaches the relay handler. Would raise confidence if: run tests in debug mode with position=i64::MAX input, inspect relay/src/ws.rs disconnect handler to confirm typing synthesis fires on WS close.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:53:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T04:10:26Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

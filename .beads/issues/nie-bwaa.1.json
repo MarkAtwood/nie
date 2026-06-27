@@ -1,0 +1,27 @@
+{
+  "id": "nie-bwaa.1",
+  "title": "Auth failure leaves stale typing and online users in relay_service.dart",
+  "description": "When auth fails (errCode == -32001), _authFailed is set and the socket is closed, but _typingUsers, _typingTimers, and _onlineUsers are not cleared. If the user reconfigures their identity and reconnects, the UI shows stale typing indicators from the failed session. Fix: in the auth-failure branch, call _typingTimers.forEach((_, t) => t.cancel()), _typingTimers.clear(), _typingUsers.clear(), and _onlineUsers.clear().",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:47:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:56:32Z",
+  "closed_at": "2026-04-23T23:56:32Z",
+  "close_reason": "clear _typingTimers/_typingUsers/_onlineUsers in the -32001 auth failure branch",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:47:28"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "nie-qdcf.1",
+  "title": "jmap: Chat/get, Space/get, SpaceInvite/get accept unbounded ids array \u2014 N individual DB queries per call",
+  "description": "chat_get, space_get, and space_invite_get in daemon/src/jmap.rs accept an arbitrary-length ids array with no cap. Each id causes a separate sqlx query in the store (get_chats, get_spaces, get_space_invites iterate one query per id). By contrast, contact_get caps at 4096 and message_get caps at 4096.\n\nA caller with the local API token can send Chat/get with e.g. 100,000 ids and trigger 100,000 individual DB round-trips in a single request, causing request latency to grow linearly and potentially blocking the sqlx pool for other requests.\n\nAffected handlers (daemon/src/jmap.rs):\n  - chat_get (~line 771): no ids.len() > N check before passing to get_chats\n  - space_get (~line 941): no ids.len() > N check before passing to get_spaces\n  - space_invite_get (~line 1605): no ids.len() > N check before passing to get_space_invites\n\nFix: add ids.len() > 4096 guard (matching contact_get and message_get) before constructing the id_strs slice and calling the store.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:22:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:29:04Z",
+  "closed_at": "2026-04-26T11:29:04Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:22:44"
+    }
+  ]
+}

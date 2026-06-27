@@ -1,0 +1,25 @@
+{
+  "id": "nie-13e3.7",
+  "title": "parse_sapling_address ignores network mismatch for raw Sapling addresses",
+  "description": "tx_builder.rs parse_sapling_address() SaplingExtractor::try_from_sapling receives _net: NetworkType but discards it. A mainnet address (zs1...) passed to a testnet wallet succeeds and produces a PaymentAddress, then build_shielded_tx constructs a transaction to the wrong network address. The zcash_address ZcashAddress::convert mechanism does check the network for the wrong-network case and returns ConversionError::IncorrectNetwork \u2014 but only when the address encoding itself signals a network mismatch (e.g. a bech32 with the wrong HRP). For raw Sapling addresses the library may not always enforce this. Trigger: caller passes a mainnet zs1... address to a testnet wallet instance. Bad outcome: payment is built to wrong-network recipient who cannot spend it; funds lost. Note: this partially overlaps nie-kef6.86 (parse_sapling_address ignores ZcashNetwork parameter entirely \u2014 the network param is not passed to the parser at all). Confirm: the network parameter to build_shielded_tx is used only for the consensus_params and builder config, not passed to parse_sapling_address, so the caller cannot validate the address network.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:25:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:31:06Z",
+  "closed_at": "2026-04-25T04:31:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:25:11"
+    }
+  ]
+}

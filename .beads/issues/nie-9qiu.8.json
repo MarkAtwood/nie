@@ -1,0 +1,27 @@
+{
+  "id": "nie-9qiu.8",
+  "title": "bridge-teams/bridge.rs: ClientEvent::Disconnected breaks the loop causing process exit; bridge-matrix does not handle Disconnected at all and never exits on relay drop",
+  "description": "bridge-teams breaks on ClientEvent::Disconnected (exits main loop); bridge-matrix silently ignores Disconnected and only exits when the channel goes None. Both use connect_with_retry so Disconnected can arrive during shutdown, but the asymmetric handling makes reasoning about shutdown harder for the matrix bridge. Low urgency but confusing to maintain.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:23:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:46:06Z",
+  "closed_at": "2026-04-26T12:46:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:23:46"
+    }
+  ]
+}

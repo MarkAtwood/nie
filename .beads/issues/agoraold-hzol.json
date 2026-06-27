@@ -1,0 +1,17 @@
+{
+  "id": "agoraold-hzol",
+  "title": "P2: Add U+FEFF to ZWS_CHARS in canonicalize_display_name",
+  "description": "U+FEFF (ZERO WIDTH NO-BREAK SPACE / BOM) is a zero-width character that can appear in copy-pasted text. Defense-in-depth: add it to ZWS_CHARS alongside U+200B, U+200C, U+2060.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:02:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:07Z",
+  "closed_at": "2026-04-22T06:04:32Z",
+  "close_reason": "fixed",
+  "labels": [
+    "correctness"
+  ]
+}

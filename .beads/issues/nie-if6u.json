@@ -1,0 +1,14 @@
+{
+  "id": "nie-if6u",
+  "title": "(BUG) payment_watcher: out-of-order block heights from lightwalletd silently corrupt last_scanned_height",
+  "description": "payment_watcher sets last_scanned_height=block.height unconditionally for each block. Only the height=0 guard exists; no monotonicity check. If lightwalletd sends out-of-order or repeated heights, the persisted scan tip can jump backwards, causing re-scanning of already-processed blocks. activate_subscription_atomic is idempotent but the retry exposes payment addresses in logs. scanner.rs has check_block_height_monotonic() that should be applied here too.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:05:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:14:39Z",
+  "closed_at": "2026-04-26T09:14:39Z",
+  "close_reason": "Closed"
+}

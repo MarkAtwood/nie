@@ -1,0 +1,23 @@
+{
+  "id": "nie-03n8.2",
+  "title": "WalletMasterKey::as_bytes() returns plain [u8;64] copy of spending key",
+  "description": "core/src/wallet.rs:69 WalletMasterKey::as_bytes() copies spending_key and chain_code into a plain [u8;64] that is not Zeroizing. Called by tests and by the CLI key-separation check (commands.rs:3977). The returned array is not zeroized when the caller's binding drops. Fix: change return type to Zeroizing<[u8;64]>. spending_key_bytes() returns &[u8;32] (reference, not copy) so it is safe; only as_bytes() creates an unzeroized copy.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:54:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:54:56Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:54:55"
+    }
+  ]
+}

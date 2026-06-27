@@ -1,0 +1,26 @@
+{
+  "id": "nie-8fbh.1",
+  "title": "spawn_scanner reconnects only to same endpoint; no failover on persistent error",
+  "description": "spawn_scanner error branch reconnects via LightwalletdClient::connect(&s.client.url), always the same URL. If that endpoint is permanently down the scanner loops forever. connect_with_failover exists but is not used in the reconnect path.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:48:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:03:47Z",
+  "closed_at": "2026-04-26T07:03:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:48:16"
+    }
+  ]
+}

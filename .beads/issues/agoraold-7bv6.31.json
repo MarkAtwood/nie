@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-7bv6.31",
+  "title": "SEC1: user_joined nickname/display_name field mismatch",
+  "description": "wasm/src/client.rs emits user_joined events with field 'nickname', but wasm/web/index.html handleEvent reads event.display_name (not event.nickname). Also, renderUsers() reads u.display_name but UserInfo serializes as u.nickname. Result: nicknames are silently invisible everywhere in the UI \u2014 user_joined system messages always show the truncated pub_id, and the users panel never shows a name. Fix: rename to a single consistent field name throughout, or add an alias in the event JSON. Also applies to directory_updated: the online array entries carry 'nickname' not 'display_name'.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:35:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:44Z",
+  "closed_at": "2026-04-20T02:41:57Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:35:07"
+    }
+  ]
+}

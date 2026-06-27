@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-967x.2",
+  "title": "pow: core/src/pow.rs \u2014 token codec, hash, verify, mine",
+  "description": "New module core/src/pow.rs implementing the complete client+server PoW protocol.\n\nWhat: Token codec, double-SHA256 computation, server-side verification, client-side mining.\n\nToken format (31 bytes total):\n  Offset  Field      Type   Size  Encoding\n  0       ver        u8     1     0x01\n  1       op_type    u8     1     0x01 (enrollment)\n  2-5     ts_floor   u32    4     big-endian (Unix_ts / 60)\n  6       diff       u8     1     leading zero bits (default 20)\n  7-14    nonce      u64    8     big-endian (mined value)\n  15-30   h16        [u8;16] 16   first 16 bytes of double-SHA256(hash_input)\n\nHash input (111 bytes):\n  ver(1) || op_type(1) || ts_floor_be32(4) || diff(1) || hex_lower(pub_key_32_bytes)(64) || server_salt(32) || nonce_be64(8)\n\nAlgorithm for compute_hash(ver, op_type, ts_floor, diff, pub_key_bytes, server_salt, nonce):\n  1. Build payload: concatenate all fields per spec above\n     - hex_lower: format each byte as {:02x}\n  2. hash1 = SHA256(payload)\n  3. hash2 = SHA256(hash1)\n  4. return hash2 as [u8; 32]\n\nAlgorithm for verify_token(token_b64url, pub_key_bytes, server_salt, now_unix_secs, min_diff):\n  1. Decode token from base64url; must be exactly 31 bytes\n  2. Extract fields per offset table above\n  3. Reject if ver != 0x01\n  4. Reject if diff < min_diff (default 20) \u2014 prevents difficulty downgrade attacks\n  5. Reject if diff > 30 \u2014 prevents impossible challenges\n  6. Compute ts_floor_now = now_unix_secs / 60\n     delta = ts_floor_now.abs_diff(token.ts_floor as u64)\n     Reject if delta > 10 \u2014 staleness check (\u00b1600s)\n  7. Reconstruct h16: compute_hash(ver, op_type, ts_floor, diff, pub_key_bytes, server_salt, nonce)\n     Compare first 16 bytes to token.h16; reject if mismatch (this also validates leading zeros)\n  8. Count leading zero bits of compute_hash output; reject if < diff\n  9. Return Ok(token.h16) \u2014 caller adds h16 to replay set\n\nAlgorithm for mine_token(pub_key_bytes, server_salt, diff, ts_floor):\n  1. nonce = 0u64\n  2. loop:\n     hash = compute_hash(1, 1, ts_floor, diff, pub_key_bytes, server_salt, nonce)\n     if count_leading_zero_bits(hash) >= diff: break\n     nonce += 1\n  3. Build 31-byte token struct\n  4. Encode to base64url (URL_SAFE_NO_PAD engine)\n  5. Return token string\n\ncount_leading_zero_bits([u8; 32]):\n  sum of 8 for each leading 0x00 byte, then leading_zeros() of first non-zero byte\n\nExpose from lib.rs: pub mod pow;\n\nDefensive programming:\n- Never unwrap base64 decode; return Err\n- server_salt must never appear in any log or error string\n- diff bounds: 20 <= diff <= 30; reject outside range\n- Use URL_SAFE_NO_PAD base64 engine for token encoding (base64::engine::general_purpose::URL_SAFE_NO_PAD)\n- ts_floor is u32; use wrapping_add in delta check to avoid overflow\n- pub_key_bytes is 32 bytes from Ed25519 verifying key; panic-guard with assert_eq!(len, 32)\n\nTests (with independent oracles \u2014 NOT derived from code under test):\n- test_token_roundtrip: encode then decode Token struct round-trips correctly\n- test_difficulty_1: construct a hash input with known bytes and diff=1; manually verify first bit is zero\n- test_verify_rejects_wrong_diff: token with diff=5 but relay expects min_diff=20 \u2192 Err\n- test_verify_rejects_stale: token with ts_floor 11+ minutes ago \u2192 Err  \n- test_verify_rejects_bad_h16: corrupt token.h16 \u2192 Err\n- test_leading_zeros: helper function unit test with known byte patterns (0x00=8, 0x80=0, 0x40=1, 0x7F=1, 0x0F=4)\n- test_mine_roundtrip: mine with diff=1; verify resulting token passes verify_token",
+  "acceptance_criteria": "cargo test -p nie-core passes; pow.rs exists with Token struct, compute_hash, verify_token, mine_token; all tests pass",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:34:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:38:57Z",
+  "close_reason": "core/src/pow.rs: PowError, compute_hash, verify_token, mine_token, 6 unit tests",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:34:33"
+    }
+  ]
+}

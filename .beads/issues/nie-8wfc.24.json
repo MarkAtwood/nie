@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.24",
+  "title": "scanner: load_state() spendable_notes error silently swallowed on non-empty wallet",
+  "description": "scanner.rs load_state() lines ~344-349: errors from spendable_notes() are caught and logged at debug level, then load_state returns Ok(()). The comment says 'that is expected for a new wallet.' But for a wallet with notes that fail to deserialize (e.g. DB corruption in plaintext columns), spendable_notes() returns Err. The scanner then starts with self.witnesses empty and processes all future blocks without tracking witnesses for existing notes. Those notes will never have their witnesses updated because they are never added to self.witnesses, making them permanently unspendable without a rescan. The fix is to distinguish: if spendable_notes() fails for a reason other than 'no notes' (which is not actually an error condition \u2014 it returns Ok(vec\\![])), propagate the error. The 'expected for new wallet' comment is misleading: spendable_notes() returns Ok(vec\\![]) on a new wallet, not Err.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:20:14Z",
+  "closed_at": "2026-04-24T22:20:14Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:17"
+    }
+  ]
+}

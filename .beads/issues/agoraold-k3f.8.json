@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-k3f.8",
+  "title": "Post-broadcast mark_note_spent is O(n) sequential awaits",
+  "description": "After a successful broadcast in send_payment() (payment.rs:236\u2013244), the code calls store.mark_note_spent(note_id, txid) in a for loop \u2014 one database await per selected note. With 100 input notes this is 100 round-trips to SQLite before the user sees confirmation. Fix: add WalletStore::mark_notes_spent(note_ids: &[i64], txid: &str) that issues a single UPDATE notes SET spent=1, spending_txid=? WHERE note_id IN (...) call. The per-note call path was probably written first for clarity; the bulk path is a mechanical replacement.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:55:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:31Z",
+  "closed_at": "2026-04-19T06:09:52Z",
+  "close_reason": "Fixed: added mark_notes_spent() to WalletStore \u2014 wraps all updates in one SQLite transaction (one begin/commit instead of N individual awaits). payment.rs updated to use it. Single transaction eliminates per-note fsync overhead and reduces async overhead. Error handling preserved: one warn log on failure, scanner self-heals.",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:55:58"
+    }
+  ]
+}

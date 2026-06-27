@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-felh.12",
+  "title": "Sealed message plaintext slice panics if too short",
+  "description": "event.rs lines 387-394: If plaintext.len() < 64, line 393 warns but continues to line 394: &plaintext[64..]. This will panic with index out of bounds instead of returning an error. Should check bounds before slicing or return early. The warning suggests the code expects this path to be rare, but panicking on relay input (even from trusted peers) violates defense-in-depth.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:43Z",
+  "closed_at": "2026-04-20T04:08:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:11"
+    }
+  ]
+}

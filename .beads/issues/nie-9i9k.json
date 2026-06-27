@@ -1,0 +1,19 @@
+{
+  "id": "nie-9i9k",
+  "title": "Review: Flutter/Android foreground service + auth hardening",
+  "notes": "Maintainer risk: MEDIUM — Package name is the hard lock-in issue (P1). The START_STICKY null intent bug means the keepalive degrades silently after OS kill. No security surface issues in this diff; crypto path unchanged.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) cannot run the Android service code locally to verify START_STICKY restart behavior; (2) did not trace the full JMAP response serialization path to verify the Space/join fix produces correct wire format; (3) Flutter widget lifecycle interactions (mounted checks) are correct-looking but not exercised by any tests. Would raise confidence if: Android integration test covering service kill/restart; wire-level test for Space/join error response format.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:45:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T00:59:16Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

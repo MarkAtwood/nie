@@ -1,0 +1,21 @@
+{
+  "id": "nie-o6zv.1",
+  "title": "SEC0: no correctness issues found",
+  "description": "Reviewed nie-hov Wave 0-1 implementations:\n\n1. wallet/src/db.rs:\n   - get_session_by_address(): SQL WHERE clauses correctly filter by address, role='payee', and state IN ('address_provided','sent'). All fields mapped, UUID parsing guarded, i64/u64 conversion checked.\n   - sessions_to_watch(): Returns all payee sessions in ('address_provided','sent') with address IS NOT NULL. Row mapping complete, error handling comprehensive.\n\n2. cli/src/commands.rs:\n   - ConfirmationEvent struct and mpsc channel properly defined (capacity 32, line 350)\n   - select! branch at line 1491 correctly handles conf_rx.recv() returning None\n   - AddressWatchRegistry (DashMap-backed, Sync+Send) properly wrapped in Arc\n   - Startup restoration (lines 352-369): sessions_to_watch() called, then registered in watch_registry before event loop starts\u2014no race conditions possible\n\n3. Test coverage:\n   - test_get_session_by_address_hit/miss/wrong_state/wrong_role: all cases covered\n   - test_sessions_to_watch_returns_unconfirmed_payee: validates both states\n   - sessions_to_watch_returns_eligible_only: comprehensive filtering test\n   - All tests pass with correct oracles (independent of code under test)\n\nNo correctness bugs identified. SQL semantics, error handling, thread safety, and test coverage all sound.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:29:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T08:37:15Z",
+  "closed_at": "2026-04-19T08:37:15Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:29:55"
+    }
+  ]
+}

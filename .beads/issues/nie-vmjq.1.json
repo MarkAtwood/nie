@@ -1,0 +1,26 @@
+{
+  "id": "nie-vmjq.1",
+  "title": "GROUP_ADD: any authed user can add members to any group without being a member",
+  "description": "ws.rs:1368-1504 \u2014 GROUP_ADD validates rate limit, member_pub_id format, user_exists, and group existence, but never checks that the calling pub_id is itself a member (or creator) of the target group. Any authenticated user who has observed a group_id (e.g. from GROUP_DELIVER or GROUP_LIST) can call GROUP_ADD with an arbitrary group_id and add any enrolled user to that group, bypassing the intent that only members can invite others. Fix: add is_group_member(params.group_id, pub_id.0) check before add_group_member_capped, identical to the membership check in GROUP_SEND (line 1762).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:57:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:23Z",
+  "closed_at": "2026-04-25T03:44:23Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:57:15"
+    }
+  ]
+}

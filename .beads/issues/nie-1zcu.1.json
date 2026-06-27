@@ -1,0 +1,23 @@
+{
+  "id": "nie-1zcu.1",
+  "title": "key_packages schema: add device_id column with migration",
+  "description": "Add device_id TEXT NOT NULL to key_packages table and change PRIMARY KEY to (pub_id, device_id). Add PRAGMA user_version migration infrastructure.\n\nAlgorithm:\n1. Add migration infrastructure to Store::new() in relay/src/store.rs:\n   - After creating tables, read PRAGMA user_version\n   - If version < 1: run v0->v1 migration, then PRAGMA user_version = 1\n2. v0->v1 migration steps:\n   a. CREATE TABLE key_packages_new (pub_id TEXT NOT NULL, device_id TEXT NOT NULL, data BLOB NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')), PRIMARY KEY (pub_id, device_id))\n   b. INSERT INTO key_packages_new (pub_id, device_id, data, updated_at) SELECT pub_id, 'legacy', data, updated_at FROM key_packages\n   c. DROP TABLE key_packages\n   d. ALTER TABLE key_packages_new RENAME TO key_packages\n3. Update the CREATE TABLE IF NOT EXISTS statement at the top to use the new schema (for fresh installs that skip migration)\n\nDefensive rules:\n- Migration must run inside a transaction so partial migration is impossible\n- CREATE TABLE IF NOT EXISTS at top must match post-migration schema\n- Never DROP TABLE without SELECT first (already migrating data via INSERT INTO ... SELECT)\n- PRAGMA user_version read/write uses sqlx::query not raw SQL string concat",
+  "acceptance_criteria": "Store::new() on a fresh DB creates the correct schema; Store::new() on a v0 DB migrates data and sets version=1; cargo test -p nie-relay clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:24:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:33:19Z",
+  "close_reason": "schema migration implemented in Store::new with PRAGMA user_version v0\u2192v1, composite PK (pub_id, device_id)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:24:30"
+    }
+  ]
+}

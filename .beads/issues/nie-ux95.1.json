@@ -1,0 +1,27 @@
+{
+  "id": "nie-ux95.1",
+  "title": "Space/set: description:null patch silently ignored, not cleared",
+  "description": "Trigger: Space/set update patch {\"description\": null} on a space that has a non-null description. Bad behavior: description is not cleared in the DB; response claims updated:true anyway. Root cause: update_space_fully(space_id, name, None, ...) treats description=None as 'don't touch', but Phase 2 of space_set collapses both 'not in patch' and 'explicitly null' to Option<&str>::None \u2014 they are indistinguishable at the call site. Fix: change update_space_fully's description param to Option<Option<&str>> where Some(None)=clear, Some(Some(s))=set, None=don't touch; update Phase 2 collection accordingly.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:11:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:19:06Z",
+  "closed_at": "2026-04-24T05:19:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:11:21"
+    }
+  ]
+}

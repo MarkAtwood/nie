@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.20",
+  "title": "GROUP_CREATE + add_group_member not atomic: orphan group on DB error",
+  "description": "ws.rs GROUP_CREATE handler calls create_group() then add_group_member() in separate transactions. If add_group_member fails (e.g. FK violation after user prune or transient DB error), a group row exists with no members and no creator membership. The creator gets an error but the group row leaks. Subsequent GROUP_LIST won't show it (creator is not a member), but it occupies a UUID in the groups table and cannot be cleaned up without direct DB access. Fix: wrap both writes in a single SQL transaction, or delete the group on add_group_member failure.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:35:56Z",
+  "closed_at": "2026-04-24T22:35:56Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:07"
+    }
+  ]
+}

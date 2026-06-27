@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-x87e.7",
+  "title": "parse_send_response double-spend test omits message field check",
+  "description": "In client.rs lines 438-448, the test `parse_send_response_double_spend_returns_broadcast_failed` uses `matches\\!(err, BroadcastError::BroadcastFailed { code: 2, .. })` with a `...` wildcard, which does not verify the `message` field is forwarded verbatim. The test doc comment claims it 'tests that the error_message is forwarded verbatim, not truncated', but the assertion does not verify that. Compare with `parse_send_response_error_code_returns_broadcast_failed` (lines 419-431) which uses `assert_eq\\!` and checks both fields. Fix: replace `matches\\!` with `assert_eq\\!(err, BroadcastError::BroadcastFailed { code: 2, message: \"transaction already in mempool\".to_owned() })` to match the claimed oracle.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:12Z",
+  "closed_at": "2026-04-20T05:19:27Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:32"
+    }
+  ]
+}

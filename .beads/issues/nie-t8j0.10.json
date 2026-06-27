@@ -1,0 +1,24 @@
+{
+  "id": "nie-t8j0.10",
+  "title": "pow: STALENESS_WINDOW_SECS misleading; effective window is up to 659s not 600s",
+  "description": "STALENESS_WINDOW_SECS = 600 but effective window is up to 659s due to floor rounding. A caller using this constant to bound token age gets 600 when enforcement allows 659. Either rename to STALENESS_WINDOW_MINUTES=10 or add a STALENESS_MAX_EFFECTIVE_SECS=659 for callers needing the true bound.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:35:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:35:22Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:35:22"
+    }
+  ]
+}

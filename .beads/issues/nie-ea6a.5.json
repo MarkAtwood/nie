@@ -1,0 +1,22 @@
+{
+  "id": "nie-ea6a.5",
+  "title": "desktop: send_chat broadcasts plaintext ClearMessage with no MLS/HPKE \u2014 relay sees message content",
+  "description": "## Bug\n\nIn desktop/src-tauri/src/lib.rs send_chat():\n\n    let payload = serde_json::to_vec(&ClearMessage::Chat { text }).map_err(|e| e.to_string())?;\n    let padded = pad(&payload).map_err(|e| e.to_string())?;\n    let rpc = JsonRpcRequest::new(next_request_id(), rpc_methods::BROADCAST,\n        BroadcastParams { payload: padded })...\n    tx.send(rpc).await...\n\nThis sends a BROADCAST with the raw (padded but unencrypted) ClearMessage payload. There is no MLS encryption layer and no HPKE sealing.\n\nPadding provides traffic analysis resistance but not confidentiality. The relay sees the plaintext chat content.\n\n## Impact\n\nThe Tauri desktop client provides no end-to-end encryption. The relay (or any relay operator) can read all messages sent from the desktop app. This contradicts the system's stated security model.\n\nNote: This is analogous to the existing issues nie-jq8m.7 (FFI) and nie-po5v.18 (TUI /dm), but for the Tauri desktop client specifically.\n\n## Fix\n\nThe desktop client needs to integrate MLS encryption before sending messages, consistent with the TUI client's send_chat() implementation.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:48:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:57:01Z",
+  "closed_at": "2026-06-19T20:57:01Z",
+  "close_reason": "send_chat now encrypts via MLS when group is active, matching TUI behavior",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:48:52"
+    }
+  ]
+}

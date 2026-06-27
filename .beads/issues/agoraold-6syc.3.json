@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-6syc.3",
+  "title": "READABILITY: Add comment explaining ENDPOINT_COUNTER purpose",
+  "description": "The static ENDPOINT_COUNTER (wallet/src/client.rs:35) enables round-robin load distribution across multiple lightwalletd endpoints in connect_with_failover(). However, the declaration has no comment explaining why it exists or what it does.\n\nWithout documentation, readers must examine the implementation to understand the purpose. Adding a line comment above the static explaining it's for round-robin endpoint rotation would make the code self-documenting and help maintainers understand the design intent.\n\nLocation: wallet/src/client.rs line 35\nCurrent:\n  static ENDPOINT_COUNTER: AtomicUsize = AtomicUsize::new(0);\n\nShould have a preceding comment like:\n  // Round-robin counter to distribute connections across multiple endpoints.\n  // Used by connect_with_failover() to load-balance across DEFAULT_MAINNET_ENDPOINTS.\n  static ENDPOINT_COUNTER: AtomicUsize = AtomicUsize::new(0);",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:19:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:06Z",
+  "closed_at": "2026-04-22T13:45:07Z",
+  "close_reason": "Closed",
+  "labels": [
+    "opinion"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:19:46"
+    }
+  ]
+}

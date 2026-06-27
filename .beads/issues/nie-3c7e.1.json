@@ -1,0 +1,27 @@
+{
+  "id": "nie-3c7e.1",
+  "title": "Space/changes lies: returns all IDs as created when state changed",
+  "description": "Trigger: client calls Space/changes with sinceState != current state \u2192 returns all current space IDs in created[], same wrong behavior just fixed in ChatContact/changes (commit 239d941). Spaces that existed before sinceState appear as created (they should be updated or absent). Destroyed spaces absent entirely. Contact/changes was fixed to return cannotCalculateChanges; Space/changes was overlooked in the same commit. No test covers this path.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:51:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:00:09Z",
+  "closed_at": "2026-04-24T05:00:09Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 21:51:22"
+    }
+  ]
+}

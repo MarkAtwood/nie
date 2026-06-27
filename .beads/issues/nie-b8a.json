@@ -1,0 +1,15 @@
+{
+  "id": "nie-b8a",
+  "title": "Show MLS state machine transitions in terminal",
+  "description": "Users should see MLS protocol steps as they happen: group creation, member add/remove, epoch advances, join via Welcome, session reset on reconnect. Currently all MLS activity is silent (only in RUST_LOG). Acceptance: [MLS] prefixed status lines appear on stdout at every state change, with epoch number.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T18:03:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T18:04:29Z",
+  "closed_at": "2026-04-17T18:04:29Z",
+  "close_reason": "Closed"
+}

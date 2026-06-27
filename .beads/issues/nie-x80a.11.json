@@ -1,0 +1,25 @@
+{
+  "id": "nie-x80a.11",
+  "title": "params.rs write non-atomic: partial file on process-kill during first-time download",
+  "description": "params.rs:245 std::fs::write(path, &data) writes ~48MB non-atomically. Process-kill mid-write leaves partial file; next run fails BLAKE2b, deletes it, re-downloads. Self-heals but requires unexpected extra network round-trip. Fix: write to path.with_extension('tmp') first, verify hash, then std::fs::rename (atomic on POSIX same-filesystem).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:56:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:40Z",
+  "closed_at": "2026-04-25T02:08:40Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:56:10"
+    }
+  ]
+}

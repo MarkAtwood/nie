@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.12",
+  "title": "SEC4: sequence fallback to u64::MAX undocumented MLS impact",
+  "description": "client.rs line 185: `let sequence = v[\"params\"][\"sequence\"].as_u64().unwrap_or(u64::MAX);` silently places a user with a missing sequence field at the end of the online list, making them never the MLS admin. This is a consequence that directly affects the MLS admin election invariant documented in CLAUDE.md. No comment explains this fallback policy or why u64::MAX was chosen (vs. 0, which would make them the admin). A maintainer who sees this will not know whether this fallback is intentional protocol hardening or an oversight. Fix: add comment // Sequence missing: treat as last-connected to ensure we never mistakenly elect an unauthenticated admin.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T03:01:10Z",
+  "closed_at": "2026-04-20T03:01:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:19"
+    }
+  ]
+}

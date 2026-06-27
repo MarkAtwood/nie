@@ -1,0 +1,14 @@
+{
+  "id": "nie-d5y8",
+  "title": "Message/set destroy has no ownership check; any client can delete any message",
+  "description": "daemon/src/jmap.rs:2191-2208: the destroy section of message_set calls store.hard_delete_message(id) with no check that the requesting account is the sender of the message. Any authenticated JMAP client can delete any message by ID, including messages from other senders. Root cause: missing sender_id == account_id guard before hard_delete_message. Fix: fetch the message sender_id from the store before deletion; return {type:'forbidden'} in notDestroyed if sender_id \\!= account_id.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:56:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:23Z",
+  "closed_at": "2026-04-25T02:08:23Z",
+  "close_reason": "Closed"
+}

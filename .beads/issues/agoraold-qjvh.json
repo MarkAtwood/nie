@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-qjvh",
+  "title": "Payment amount: String → u64 zatoshi in wire types",
+  "description": "## Why\n\nPaymentAction::Request and PaymentAction::Sent carry amount as a String (e.g. \"0.1\"). This is inconsistent with PaymentSession.amount_zatoshi which is already u64. String amounts are a latent bug: floating-point string parsing is fragile, \"0.10\" and \"0.1\" are different strings that mean the same amount, and there is no enforced unit.\n\n## What needs to change\n\nIn core/src/messages.rs, change the two wire variants:\n\n```rust\n// BEFORE\nPaymentAction::Request { chain: Chain, amount: String }\nPaymentAction::Sent { chain: Chain, tx_hash: String, amount: String }\n\n// AFTER\nPaymentAction::Request { chain: Chain, amount_zatoshi: u64 }\nPaymentAction::Sent { chain: Chain, tx_hash: String, amount_zatoshi: u64 }\n```\n\nAll call sites that construct or destructure these variants must be updated (grep for PaymentAction::Request and PaymentAction::Sent across the workspace).\n\nDisplay formatting (showing \"0.001 ZEC\" in the TUI/CLI) should convert from zatoshi at the presentation layer only: amount_zatoshi as f64 / 1e8. Do not store or transmit as float.\n\n## Scope\n\n- core/src/messages.rs — change the enum variants\n- cli/src/commands.rs — any amount parsing from user input (parse as decimal ZEC string, multiply by 1e8, truncate to u64)\n- tui/ — same display conversion\n- wallet/ — verify no double-conversion with existing zatoshi amounts\n- Any integration tests that construct PaymentAction with a string amount\n\n## Acceptance Criteria\n\n- PaymentAction::Request.amount_zatoshi and PaymentAction::Sent.amount_zatoshi are u64\n- No String amount field remains in PaymentAction variants\n- User-facing input still accepts decimal ZEC strings (\"0.001\"); parsing happens at the CLI/TUI boundary only\n- Unit test: \"0.001\" ZEC parses to 100_000 zatoshi; \"1.0\" parses to 100_000_000\n- cargo test --workspace passes with no warnings\n- Wire format change is a breaking change — note in commit message that old clients will not interop",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T04:42:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T05:23:52Z",
+  "close_reason": "amount field changed to u64 zatoshi; Chain derives Copy; breaking change documented; all tests pass"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-nbqp.7",
+  "title": "daemon/store: get_space_members_batch LIMIT 100000 not a real bound",
+  "description": "get_space_members_batch (store.rs line 765) IN query uses LIMIT 100000, which is 100x the per-space cap of 1000 used elsewhere. A JMAP SpaceMember/get with many space IDs can trigger up to 100,000 row fetch (~50-100 MB heap) per request. Trigger: JMAP request with large space_ids list. Bad behavior: uncapped RAM per request; pool connection held for duration of fetch.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:33:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:46:29Z",
+  "closed_at": "2026-04-26T08:46:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:33:31"
+    }
+  ]
+}

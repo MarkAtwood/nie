@@ -1,0 +1,25 @@
+{
+  "id": "nie-13e3.12",
+  "title": "ensure_param_file removes file before re-download; crash window leaves no params",
+  "description": "params.rs ensure_param_file() on hash-mismatch path: calls std::fs::remove_file(path)? then fetcher.fetch_combined(). If the process crashes or is killed between remove_file and the write of the temp file, the param file is gone. Next startup: file is missing, triggers re-download. This is acceptable for a CI/dev environment but on a resource-constrained node (e.g. a Tor-only node with metered bandwidth) the 48 MB re-download is expensive. The better pattern is: skip the remove_file; let the tmp-rename overwrite atomically. std::fs::rename on POSIX is atomic and replaces the destination; no need to pre-delete. The current code is nie-qdlu.3 (already filed). Confirm it is still present: std::fs::remove_file(path)? at line 225 of params.rs. Do not re-file; annotate nie-qdlu.3 as still open.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:27:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:43:51Z",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:27:38"
+    }
+  ]
+}

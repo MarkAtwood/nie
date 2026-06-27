@@ -1,0 +1,14 @@
+{
+  "id": "nie-gsc4",
+  "title": "bridge-matrix: is_bot_sender fails for http:// URLs, causing echo loop",
+  "description": "bridge-matrix/src/bridge.rs:124-126 uses trim_start_matches('https://') to extract homeserver domain. For http:// URLs, the strip is a no-op, domain becomes 'http://matrix.example.com/...' and the constructed bot MXID never matches any real sender. The echo-loop filter silently fails: every message the bot posts to Matrix is re-broadcast back into nie indefinitely. Fix: strip both 'https://' and 'http://' schemes, or use a URL parser.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:51:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:12:26Z",
+  "closed_at": "2026-04-26T06:12:26Z",
+  "close_reason": "Closed"
+}

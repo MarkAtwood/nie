@@ -1,0 +1,26 @@
+{
+  "id": "nie-njxd.1",
+  "title": "history.recent() passes negative LIMIT to SQLite returning all rows",
+  "description": "cli/src/history.rs:115: `recent(limit: i64)` binds the limit directly to SQLite's LIMIT clause with no validation. SQLite treats negative LIMIT as 'no limit', so `recent(-1)` returns the entire message table. A user running `nie log -n -1` (if the CLI accepts negative values) receives all messages instead of an error. Fix: validate `limit > 0` at the start of `recent()` and return an error on zero or negative values.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T20:25:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T20:28:52Z",
+  "closed_at": "2026-04-24T20:28:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 13:25:13"
+    }
+  ]
+}

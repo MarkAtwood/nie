@@ -1,0 +1,23 @@
+{
+  "id": "nie-t8j0.15",
+  "title": "hpke: MIN_SEALED_LEN guard before key parsing prevents allocation on truncated input",
+  "description": "unseal_message() checks sealed.len() < MIN_SEALED_LEN before calling from_bytes() on the encapped key. A future simplification removing this check would expose the HPKE library to malformed-input parsing paths. Keep this guard.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:41:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:41:21Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:41:20"
+    }
+  ]
+}

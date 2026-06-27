@@ -1,0 +1,26 @@
+{
+  "id": "nie-6n7b",
+  "title": "flutter: RelayService + ChatScreen",
+  "description": "Implement relay_service.dart (wraps NieClient, exposes Stream<NieEvent>), chat_screen.dart (message list + input). Wire send button and event subscription.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:49:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T02:01:47Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:49:29"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:49:31"
+    }
+  ]
+}

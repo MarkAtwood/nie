@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-496.1",
+  "title": "payment.rs 'scanner self-heals' comment is false",
+  "description": "payment.rs step 8 says 'best-effort: the scanner self-heals unmarked notes on next sync' \u2014 this is false. wallet/src/scanner.rs only inserts new notes; it has no nullifier-checking or spend-detection logic. Notes that fail mark_notes_spent after broadcast remain permanently unspent in the DB, causing the same notes to be selected again on the next send and double-spend rejected by the node.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:27:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:50Z",
+  "closed_at": "2026-04-19T06:33:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:27:40"
+    }
+  ]
+}

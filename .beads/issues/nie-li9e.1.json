@@ -1,0 +1,26 @@
+{
+  "id": "nie-li9e.1",
+  "title": "wasm client delivers own broadcast messages to JS callback",
+  "description": "wasm/src/client.rs set_event_callback lines 133-143: the 'deliver' notification handler forwards all deliver events to JS, including ones where params.from == own pub_id. Every other client (CLI bridges, ffi) checks deliver.from == own_pub_id and skips the echo. The relay does echo broadcasts back to the sender (confirmed by bridge-jmap line 267, bridge-slack line 128, bridge-teams line 108). Fix: store pub_id in the notify callback closure and gate on from != pub_id.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:53:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:49Z",
+  "closed_at": "2026-04-25T02:08:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:53:31"
+    }
+  ]
+}

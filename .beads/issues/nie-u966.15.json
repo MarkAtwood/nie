@@ -1,0 +1,24 @@
+{
+  "id": "nie-u966.15",
+  "title": "JMAP_BASE_URL read per request from env",
+  "description": "build_session reads std::env::var(JMAP_BASE_URL) on every GET /.well-known/jmap request. Env vars do not change after startup; this adds a syscall per request and buries the configuration policy inside a response builder. Suggested rewrite: read and validate JMAP_BASE_URL once at startup, store in DaemonState alongside LISTEN_ADDR, pass to build_session.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:53:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:53:39Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:53:28"
+    }
+  ]
+}

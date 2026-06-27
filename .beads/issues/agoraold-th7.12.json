@@ -1,0 +1,38 @@
+{
+  "id": "agoraold-th7.12",
+  "title": "E2E: create group, add member, exchange messages",
+  "description": "What: Offline E2E smoke test in relay/tests/e2e_jsonrpc.rs: two clients create a group, exchange messages, non-member is rejected.\n\nAlgorithm:\n1. spawn_relay() (existing helper, no merchant wallet needed)\n2. Connect Alice and Bob (two separate connections)\n3. Alice sends GROUP_CREATE { name: 'test-group' } \u2192 receives GroupCreateResult with group_id\n4. Alice sends GROUP_ADD { group_id, member_pub_id: bob_pub_id }\n5. Bob sends GROUP_SEND { group_id, payload: b'hello from bob' }\n6. Alice receives GROUP_DELIVER; assert from == bob_pub_id; assert group_id matches\n7. Assert payload of GROUP_DELIVER is the same bytes as sent by Bob (relay MUST NOT modify)\n8. Connect Carol (third client, not added to group)\n9. Carol sends GROUP_SEND { group_id, payload: b'...' } \u2192 assert response is NOT_A_MEMBER error (-32012)\n\nOracle: message_id is non-empty string (relay-assigned); payload bytes are identical (relay does not transform); error code is exactly -32012 (from protocol.rs constant)\n\nDefensive rules:\n- No real Zcash or MLS needed \u2014 use raw bytes for payload\n- Both Alice and Bob are authenticated before any group operations\n- Test is deterministic (no random timing, uses wait_for_directory_list helper)\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-relay --test e2e_jsonrpc -- group passes; non-member GROUP_SEND returns error code -32012; GROUP_DELIVER payload bytes match GROUP_SEND payload bytes exactly",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:52:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:09Z",
+  "closed_at": "2026-04-20T12:21:15Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:57"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:55"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:56"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:20"
+    }
+  ]
+}

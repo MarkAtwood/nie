@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-rwr7.5",
+  "title": "core/src/hpke.rs: seal_for_relay() + unseal_from_relay() functions",
+  "description": "What: New module core/src/hpke.rs implementing HPKE seal/unseal using the hpke crate with suite DhKem25519 + HkdfSha256 + ChaCha20Poly1305.\n\nAlgorithm:\n1. Create /home/mark/WORK/nie/core/src/hpke.rs\n2. Define type aliases for the cipher suite:\n   type KemX25519 = hpke::kem::X25519HkdfSha256;\n   type KdfSha256 = hpke::kdf::HkdfSha256;\n   type AeadCha = hpke::aead::ChaCha20Poly1305;\n   const INFO: &[u8] = b\"nie/sealed/v1\";\n3. Implement seal_message():\n   pub fn seal_message(recipient_pub_key_bytes: &[u8; 32], plaintext: &[u8]) -> Result<Vec<u8>>\n   - Deserialize public key: KemX25519::PublicKey::from_bytes(recipient_pub_key_bytes)?\n   - Call hpke::single_shot_seal::<AeadCha, KdfSha256, KemX25519, _>(\n       &OpModeS::Base,\n       &recipient_pk,\n       INFO,\n       plaintext,\n       &[],   // aad (empty)\n       &mut rand::thread_rng(),\n     )?  -> returns (EncappedKey, Vec<u8>)\n   - Serialize: encapped_key.to_bytes() + ciphertext\n   - Return: [encapped_key_bytes (32)] || [ciphertext]\n4. Implement unseal_message():\n   pub fn unseal_message(recipient_secret_key_bytes: &[u8; 32], sealed: &[u8]) -> Result<Vec<u8>>\n   - Validate: sealed.len() >= 32 + 16 (min enc + tag), else Err\n   - Parse enc = &sealed[0..32], ciphertext = &sealed[32..]\n   - Deserialize private key: KemX25519::PrivateKey::from_bytes(enc)?  // NOTE: enc is the encapped key, not the secret\n   - Actually: use KemX25519::EncappedKey::from_bytes(&sealed[0..32])\n   - Deserialize recipient secret: ... from StaticSecret or direct bytes\n   - Call hpke::single_shot_open::<AeadCha, KdfSha256, KemX25519>(\n       &OpModeR::Base,\n       &recipient_sk,\n       &encapped_key,\n       INFO,\n       &sealed[32..],\n       &[],\n     )?\n   - Return plaintext\n5. Export from core/src/lib.rs: pub mod hpke;\n6. Run cargo check -p nie-core\n\nDefensive programming rules:\n- Return anyhow::Error wrapping HpkeError variants \u2014 never unwrap() on seal/open\n- Never log plaintext or key bytes in error paths\n- sealed.len() < 48 must return Err before any crypto operation\n- The encapped key (enc) for X25519 is always 32 bytes; assert this in a const\n- INFO string 'nie/sealed/v1' must be the same in both seal and unseal (domain separation)\n- aad is empty [] \u2014 document why (no authenticated metadata needed at this layer)\n- Do not implement Debug on any type containing key material",
+  "acceptance_criteria": "cargo check -p nie-core exits 0; seal_message + unseal_message exist as public fns; module exported from lib.rs",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T20:00:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:10:35Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:12"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:00:04"
+    }
+  ]
+}

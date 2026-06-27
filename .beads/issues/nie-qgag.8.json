@@ -1,0 +1,26 @@
+{
+  "id": "nie-qgag.8",
+  "title": "GROUP_ADD: existing member re-notified on re-add",
+  "description": "add_group_member_capped uses INSERT OR IGNORE and returns Ok(true) whether the member was newly added or was already present. The GROUP_ADD handler then unconditionally sends a GROUP_DELIVER notification to the member (group_row.name as payload). If a member is re-added (idempotent), they receive a spurious GROUP_DELIVER that looks like an add-invite from the caller. Should check rows_affected() to distinguish new vs already-member and skip the notification on re-add.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:53:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:06:34Z",
+  "closed_at": "2026-04-26T10:06:34Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:53:51"
+    }
+  ]
+}

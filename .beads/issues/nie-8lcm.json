@@ -1,0 +1,15 @@
+{
+  "id": "nie-8lcm",
+  "title": "Review round 1: nie-07t E2E payment test",
+  "notes": "Confidence: 90%. Running out of real complaints: YES.\n\nScope: 1 assertion reformatted (client.rs), ~80 lines of receive-side test infrastructure added (mine-wait loop, bob scanner, spendable_notes assertions), doc cleanup in e2e_testnet.rs.\n\n4 findings filed:\n- nie-8lcm.1 (P1, task): Unnamed magic numbers 300s/120s/30s in mine-wait block. Real maintainability risk — the budget arithmetic is comment-only, not enforced. debug_assert proposal adds actual enforcement. Legitimate finding, though P1 is aggressive for test infrastructure.\n- nie-8lcm.2 (P2, decision/GOOD): Positive observation on dual-subsystem oracle design.\n- nie-8lcm.3 (P2, task): Reduce mine-wait poll interval 30s→10s. Thin but real engineering basis (saves ~20s tail latency on 300s budget). On the boundary of bikeshedding but not purely stylistic.\n- nie-8lcm.4 (P2, decision/GOOD): Positive observation on exact-value note assertion.\n\nOpinion labels: None applied. Both task findings have engineering basis that would survive a code review thread.\n\nMissed bug risk: Low (~10%). The receive-side verification logic is straightforward sequential steps with no concurrency, no auth paths, no crypto. The primary risk would be a subtle timeout arithmetic error (mine-wait + scan \u003e PAYMENT_TIMEOUT_SECS), which nie-8lcm.1 already captures. No security-relevant code changed. The assertion upgrade in client.rs is cosmetic only.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:58:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T05:10:09Z",
+  "close_reason": "all steps complete"
+}

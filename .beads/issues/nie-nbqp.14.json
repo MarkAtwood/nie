@@ -1,0 +1,24 @@
+{
+  "id": "nie-nbqp.14",
+  "title": "relay/store: drain() DELETE uses id <= last_id \u2014 silently drops messages if no batch found",
+  "description": "drain() (relay/store.rs line 743) deletes by WHERE id <= last_id OR expires_at <= now. When rows is empty, rows.last() is None and the bind is i64::MAX, which deletes ALL expired messages but no live ones. This is correct but the i64::MAX default is non-obvious \u2014 a reader who does not trace through the None case will think the DELETE is a no-op when the result is empty. The intent should be made explicit: when rows is empty, only delete expired messages (use a separate DELETE or explicitly comment why i64::MAX is correct). The current approach works but will confuse the next maintainer who touches this code.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:38:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:38:12Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:38:11"
+    }
+  ]
+}

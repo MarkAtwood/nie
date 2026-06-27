@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.78",
+  "title": "bridge signing secrets held in axum State as plain String, not zeroized on drop",
+  "description": "SlackState.signing_secret (bridge-slack), AsState.hs_token (bridge-matrix), and TeamsState.security_token (bridge-teams) are all plain String values cloned into long-lived axum state and Arc-shared with every request handler. None are zeroized when the bridge exits. Signing/HMAC key material stays in process memory until the OS reclaims it \u2014 increases window for core-dump or swap exposure.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:54:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:54:23Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:54:23"
+    }
+  ]
+}

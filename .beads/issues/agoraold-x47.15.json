@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-x47.15",
+  "title": "Wallet write-verify (encrypt+immediate decrypt check) before showing mnemonic",
+  "description": "commands.rs wallet_init: immediately after writing wallet.key, decrypts and compares the recovered bytes. If they don't match, the user is warned NOT to dismiss the mnemonic. A contributor might remove this as 'over-engineering' \u2014 it costs one extra decrypt call. Do not remove it. The mnemonic is displayed exactly once and never stored. If the write is silently corrupt (filesystem issue, age bug), the user dismisses the mnemonic, their wallet.key is unreadable, and their funds are permanently inaccessible. The decrypt cost is negligible; the risk of skipping it is catastrophic and unrecoverable.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:47:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:57Z",
+  "closed_at": "2026-04-18T04:19:44Z",
+  "close_reason": "informational review note \u2014 design confirmed correct, no action needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:47:58"
+    }
+  ]
+}

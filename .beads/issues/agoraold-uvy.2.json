@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-uvy.2",
+  "title": "select_with_fee assumes 2 Sapling outputs; silently wrong when Orchard is added",
+  "description": "select_with_fee always calls sapling_logical_actions(n, 2) \u2014 hardcoded 2 outputs. This works correctly today because ZIP-317 logical_actions = max(spends, outputs) and the grace-actions floor equalises 1-output and 2-output fees for small n. But it works only because there are no Orchard inputs or Orchard outputs. When Orchard spending is added to build_shielded_tx, the fee formula becomes max(sapling_la + orchard_actions, transparent_la). sapling_logical_actions(n, 2) will no longer be the right input to zip317_fee. There is no comment warning that sapling_logical_actions is Sapling-only and must be updated if Orchard inputs/outputs are added. A contributor adding Orchard spending will see select_with_fee computing a fee that disagrees with FeeRule::standard() in builder.build, causing a cryptic builder rejection. Maintenance consequence: silent wrong-fee bug when Orchard is wired in.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:06:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:32Z",
+  "closed_at": "2026-04-19T02:13:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:06:35"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-qyj1",
+  "title": "ws: GROUP_LIST has no subscription check; free group metadata enumeration",
+  "description": "GROUP_LIST handler (ws.rs line 1638) checks rate limits but does not check require_subscription / subscribed_flag. By contrast, GROUP_CREATE (line 1365), GROUP_ADD (line 1431), and GROUP_SEND (line 1831) all gate on subscription. A client without a subscription can call GROUP_LIST in a tight loop to enumerate all groups the caller belongs to for free (no payment required), and by calling it repeatedly can detect new group invitations. While the information returned (groups the caller is already in) is arguably the caller's own data, it is inconsistent with the subscription model: the relay operator intends to gate all useful operations behind payment, and GROUP_LIST is a useful reconnaissance operation. More concretely: a subscription-free user who was already in a group before their subscription expired can use GROUP_LIST to discover new groups added by the GROUP_ADD handler without paying. Fix: add the same subscribed_flag check present in GROUP_CREATE and GROUP_SEND.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:53:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:59:37Z",
+  "closed_at": "2026-04-26T04:59:37Z",
+  "close_reason": "Closed"
+}

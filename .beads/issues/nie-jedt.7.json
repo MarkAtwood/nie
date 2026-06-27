@@ -1,0 +1,22 @@
+{
+  "id": "nie-jedt.7",
+  "title": "ffi: client_next_event holds Mutex across recv().await \u2014 concurrent callers deadlock",
+  "description": "ffi/src/api/client.rs client_next_event() calls client.event_rx.lock().await.recv().await (line 173). The tokio::sync::Mutex guard is held across the recv().await yield point. If Dart spawns two concurrent Isolates that both call client_next_event() on the same NieClient, the second caller blocks indefinitely on lock().await while the first holds the Mutex waiting for an event. The Dart async* generator pattern documented in the code comment prevents this in normal usage, but FRB does not enforce single-caller access at the type level \u2014 any Dart code can call client_next_event() from a second Isolate. The fix is to use tokio::sync::Mutex with a TryLock guard that returns Err immediately if already locked, or to use a futures::channel::mpsc::Receiver directly (which enforces single-owner at the type level).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:56:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:46:58Z",
+  "closed_at": "2026-06-19T20:46:58Z",
+  "close_reason": "client_next_event now returns error immediately if already polled by another caller",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:56:03"
+    }
+  ]
+}

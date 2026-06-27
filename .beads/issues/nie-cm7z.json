@@ -1,0 +1,14 @@
+{
+  "id": "nie-cm7z",
+  "title": "PUBLISH_KEY_PACKAGE write path has no per-user row count cap",
+  "description": "save_key_package in relay/src/store.rs uses INSERT ... ON CONFLICT DO UPDATE keyed on (pub_id, device_id). Each distinct device_id creates a new row. MAX_KEY_PACKAGES_PER_USER=10 is only a read-side LIMIT in get_all_key_packages — no write-side enforcement exists. A user can publish across many device_ids and accumulate unbounded rows. Fix: in save_key_package, before the upsert, count existing rows for pub_id and reject if \u003e= MAX_KEY_PACKAGES_PER_USER using BEGIN IMMEDIATE (same pattern as add_group_member_capped).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T06:04:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:25:13Z",
+  "closed_at": "2026-04-26T06:25:13Z",
+  "close_reason": "Closed"
+}

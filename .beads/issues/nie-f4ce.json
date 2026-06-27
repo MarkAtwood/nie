@@ -1,0 +1,17 @@
+{
+  "id": "nie-f4ce",
+  "title": "Review: bridges/wasm/ffi round 18",
+  "notes": "Maintainer risk: MEDIUM — Three classes of issue dominate: (1) in-memory dedup state lost on restart (matrix SentIds, JMAP seen_ids — same root cause, no persistence layer); (2) WASM JS exception swallowing (silent failure mode for all relay events); (3) FFI TOCTOU on file existence check. None are security-critical on their own but all will generate confusing failure reports from users.\nConfidence: 15% chance of missed bug. Uncertainty driven by: (1) bridge-teams Teams outgoing webhook behavior under load not verified against live Teams API; (2) WASM storage.rs IndexedDB transaction lifetime — the 'complete' event vs request success ordering is subtle and may have race conditions not exercised in review; (3) FFI flutter_rust_bridge code generation not reviewed (generated code is not in scope but wraps this code). Would raise confidence if: live integration tests for each bridge exist, and the IDB transaction lifecycle is tested in a real browser.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:52:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

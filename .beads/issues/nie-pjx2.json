@@ -1,0 +1,14 @@
+{
+  "id": "nie-pjx2",
+  "title": "(BUG) cli: contacts.json written with world-readable permissions",
+  "description": "In cli/src/config.rs Contacts::save() (line 102), the contacts file is written via std::fs::write() which uses the process umask. On systems with a permissive umask (e.g., 0022), contacts.json is created as world-readable (0644), exposing the user's social graph (peer names and pub_id mappings) to any local user on the machine. The identity keyfile uses write_secret_file() with explicit mode 0600 (commands.rs line 107-124). The contacts file should use the same approach. Fix: replace std::fs::write in Contacts::save() with write_secret_file() or equivalent OpenOptions with mode 0600.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:16:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:22:33Z",
+  "closed_at": "2026-04-26T09:22:33Z",
+  "close_reason": "Closed"
+}

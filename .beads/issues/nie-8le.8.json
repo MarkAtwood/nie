@@ -1,0 +1,27 @@
+{
+  "id": "nie-8le.8",
+  "title": "#[allow(dead_code)] on set_subscription silences warning in wrong direction",
+  "description": "store.rs set_subscription() is annotated #[allow(dead_code)] because Phase 3 hasn't connected the call site yet. This is backwards: dead_code warnings are valuable precisely as a signal that Phase 3 work needs to wire this up. Silencing the warning means the function can bitrot (signature changes, logic errors) without any compiler feedback until Phase 3 is attempted. Suggested rewrite: remove #[allow(dead_code)]; the warning is the correct behavior. When Phase 3 calls the function, the warning naturally disappears.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:08:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T23:34:34Z",
+  "closed_at": "2026-04-17T23:34:34Z",
+  "close_reason": "implemented",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:08:01"
+    }
+  ]
+}

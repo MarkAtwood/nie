@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-060.3",
+  "title": "Round-robin endpoint selection in connect_with_failover()",
+  "description": "What: Modify connect_with_failover() to use round-robin starting point instead of always trying endpoints[0] first, to distribute load across healthy endpoints.\n\nAlgorithm:\n1. In wallet/src/client.rs, add a module-level AtomicUsize counter (ENDPOINT_COUNTER) initialized to 0\n2. In connect_with_failover(), before the loop: start_idx = ENDPOINT_COUNTER.fetch_add(1, Relaxed) % endpoints.len()\n3. Iterate endpoints starting at start_idx, wrapping around via modular arithmetic\n4. Behavior is identical to existing sequential failover when only 1 endpoint exists\n\nDefensive programming rules:\n- Use std::sync::atomic::AtomicUsize with Relaxed ordering (no cross-thread happens-before needed for a counter)\n- Guard against empty endpoints slice before modulo (existing check already handles this)\n- Do not use a Mutex or RwLock (overkill for a counter)\n- The function signature does not change; callers are unaffected\n\nAgent team: R (read connect_with_failover() exact implementation) + I (add atomic counter, restructure loop) + T (test that starting index rotates on successive calls)\n\nTests:\n- test name: round_robin_rotates_starting_endpoint \u2014 oracle: call connect_with_failover with 3 mock endpoints, capture which was tried first each call; assert index cycles 0,1,2,0,...\n- Note: this requires a mock or test-double for connection attempts",
+  "acceptance_criteria": "cargo test --package nie-wallet -- client::tests passes; with multiple endpoints the starting index rotates across calls; cargo clippy -D warnings clean",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:03:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T16:13:59Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:03:39"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:03:54"
+    }
+  ]
+}

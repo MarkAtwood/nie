@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-7bv6.35",
+  "title": "SEC1: wasm-pack build not scripted or pinned anywhere",
+  "description": "The only documentation for building the WASM crate is an HTML comment in wasm/web/index.html line 5: 'wasm-pack build --target web wasm/'. There is no Makefile, justfile, shell script, or entry in CLAUDE.md. wasm-pack version is unpinned \u2014 a new wasm-pack version that generates incompatible JS bindings will silently produce a broken pkg/ directory. The quality gates in CLAUDE.md (cargo fmt, clippy, cargo test) do not cover wasm-pack build. Fix: add a build script at wasm/build.sh, pin wasm-pack version, and add 'wasm-pack build' to the quality gate list in CLAUDE.md.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:35:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:17Z",
+  "closed_at": "2026-04-20T02:47:24Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:35:29"
+    }
+  ]
+}

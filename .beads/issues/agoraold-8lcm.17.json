@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-8lcm.17",
+  "title": "connect_timeout(15s) does not cover DNS resolution or TLS handshake",
+  "description": "In wallet/src/client.rs, the doc comment for LightwalletdClient::connect() says 'This call performs the TCP + TLS handshake' and implies connect_timeout(15s) bounds the full connection setup. This is wrong.\n\nThe standard tonic Endpoint::connect() path (tonic 0.12.3) passes the timeout to HttpConnector::set_connect_timeout(), which applies it only to the TCP SYN-to-connection phase, divided across resolved address candidates (hyper-util connect/http.rs line 754: connect_timeout.checked_div(addrs.len())). DNS resolution (call_async lines 543-553) runs BEFORE ConnectingTcp::new() and has no timeout. The TLS handshake (wrapped inside service::Connector) is also not guarded.\n\nContrast with connect_with_connector(): tonic wraps the entire connector in hyper_timeout::TimeoutConnector for that path, which does cover DNS+TCP+TLS. The standard connect() path does not use TimeoutConnector.\n\nPractical consequence: if the testnet DNS resolver (e.g. lightwalletd.testnet.z.cash) hangs or returns SERVFAIL without a response, LightwalletdClient::connect() will hang indefinitely regardless of the 15s timeout. In testnet CI this would stall the test runner with no timeout error.\n\nFix options: (1) use connect_with_connector() so that hyper_timeout::TimeoutConnector wraps the full DNS+TCP+TLS path; (2) add tokio::time::timeout() around the entire connect call; (3) update the doc comment to accurately describe what is and is not covered.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:00:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:37Z",
+  "closed_at": "2026-04-20T05:09:08Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:00:50"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "nie-bqe",
+  "title": "Sapling params download and hash verification",
+  "description": "Fetch sapling-spend.params and sapling-output.params from ECC's official CDN (URLs are in zcash/zcash repo). Cache in XDG_DATA_HOME/nie/params/. On each startup, verify SHA256 of cached file against a hardcoded constant — if hash mismatches, delete and re-fetch. Use TWO subagents in parallel: subagent-A finds the official param file URLs and their known SHA256 hashes from the zcash/zcash repo (do not guess, read the source); subagent-B checks if zcash_client_backend already has a params-download helper so we don't re-implement. Defensive programming: fetch must time out after 60s (not block forever); if fetch fails, return Err from wallet init with 'Sapling params unavailable — check network'; never run without verifying hash; store params path in WalletConfig not hardcoded.",
+  "acceptance_criteria": "Unit test with a fake param file: hash mismatch triggers re-download (mocked). Hash constants in code are extracted from the real zcash source (document the commit/tag they came from). No params fetch in cargo test (mock the downloader trait).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:20:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T18:52:24Z",
+  "close_reason": "Sapling params download, BLAKE2b verification, trait-based fetcher with mock, all tests passing"
+}

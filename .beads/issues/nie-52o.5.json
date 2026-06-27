@@ -1,0 +1,28 @@
+{
+  "id": "nie-52o.5",
+  "title": "unwrap() in WalletMasterKey methods missing required comment",
+  "description": "Scenario: a contributor reads CLAUDE.md \u00a711 ('Any new unwrap() in a production code path requires a comment') and audits the codebase. They find two undocumented unwrap() calls in core/src/wallet.rs:\n\n  in from_seed(): bytes[..32].try_into().unwrap() and bytes[32..].try_into().unwrap()\n  in from_bytes(): same pattern\n\nCLAUDE.md explicitly requires these be commented. The unwrap()s are safe (slicing a 64-byte hash with fixed offsets cannot fail), but the comment must say so.\n\nMaintenance consequence: establishes a precedent that the unwrap rule in CLAUDE.md is not enforced. Future contributors add undocumented unwrap()s in genuinely fallible paths citing these as examples.\n\nFix: add comment before each:\n  // Slicing known-length BLAKE2b-512 output with fixed offsets \u2014 cannot fail.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:24:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T03:37:45Z",
+  "closed_at": "2026-04-18T03:37:45Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:24:48"
+    }
+  ]
+}

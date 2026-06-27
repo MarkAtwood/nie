@@ -1,0 +1,23 @@
+{
+  "id": "nie-0j6b.14",
+  "title": "token.rs: constant-time comparison is correct and must not be simplified",
+  "description": "token.rs uses subtle::ConstantTimeEq for Bearer token comparison. This prevents timing side-channel attacks even on a loopback interface. The mode 0o077==0 check before reading the file is correct defense-in-depth. Do not simplify to == comparison.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:01:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:01:10Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:01:09"
+    }
+  ]
+}

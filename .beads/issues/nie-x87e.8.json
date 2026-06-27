@@ -1,0 +1,21 @@
+{
+  "id": "nie-x87e.8",
+  "title": "connect() doc: tonic connect() may not eagerly resolve DNS",
+  "description": "wallet/src/client.rs LightwalletdClient::connect() doc says: 'This call performs DNS resolution, TCP handshake, and TLS negotiation. A 15-second wall-clock timeout covers all three phases.' The inline code comment repeats this claim.\\n\\nTonic's Endpoint::connect() is documented as establishing a connection eagerly (unlike connect_lazy()). However, the underlying hyper/tower stack defers DNS resolution to the first write on the TCP stream in some configurations. If DNS resolution is deferred past the connect() future, the tokio::time::timeout wrapping connect() does NOT bound the DNS phase \u2014 it only bounds the TCP handshake and TLS negotiation that happen eagerly inside connect().\\n\\nIn practice with the default tower HTTP connector, DNS resolution happens inside connect(), so the doc is probably correct. But it is an implementation-detail assumption that is not verified in the code and could silently become wrong if the tonic/hyper version changes the resolver behavior.\\n\\nThe doc should either: (a) add a caveat that DNS timing depends on the underlying connector, or (b) cite the tonic version that was tested and whose connect() behavior is known to be fully eager.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:24:48Z",
+  "closed_at": "2026-04-20T05:24:48Z",
+  "close_reason": "P3/P4 deferred: below stopping threshold (P0=0, P1=0, SEC7 says STOP)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:33"
+    }
+  ]
+}

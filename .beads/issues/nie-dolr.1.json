@@ -1,0 +1,25 @@
+{
+  "id": "nie-dolr.1",
+  "title": "R2-TEST: Missing test for U+FEFF in canonicalize_display_name",
+  "description": "The ZWS_CHARS constant includes U+FEFF (added in Round 2 P2 fixes), but no test case verifies it is stripped. All other ZWS chars (U+200B, U+200C, U+2060) have explicit test cases. Test module is incomplete per epic acceptance criteria.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:06:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T06:09:50Z",
+  "closed_at": "2026-04-22T06:09:50Z",
+  "close_reason": "fixed in nie-5lsf commit",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:06:25"
+    }
+  ]
+}

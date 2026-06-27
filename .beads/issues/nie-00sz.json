@@ -1,0 +1,14 @@
+{
+  "id": "nie-00sz",
+  "title": "fix: auth error leaks internal detail to client",
+  "description": "relay/src/ws.rs:343 sends format\\!(\"auth failed: {e}\") to the unauthenticated client, exposing implementation details like 'pub key wrong length (expected 32 bytes)' and 'invalid base64'. Internal errors should be logged server-side only; the client receives a generic message.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:20:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:37:20Z",
+  "closed_at": "2026-04-24T21:37:20Z",
+  "close_reason": "Closed"
+}

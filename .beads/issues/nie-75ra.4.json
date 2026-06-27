@@ -1,0 +1,27 @@
+{
+  "id": "nie-75ra.4",
+  "title": "Two-phase loop duplicates name/description skip predicate",
+  "description": "The condition `if path == \"name\" || path == \"description\" { continue; }` appears identically in both the Phase 1 validation loop and the Phase 2 write loop. If a new simple property (e.g. \"tags\") is added later, one site will get updated and the other forgotten. Suggested rewrite: extract `fn is_simple_prop(p: &str) -> bool { matches!(p, \"name\" | \"description\") }` and call it in both loops. Three lines, zero new abstraction overhead, avoids silent divergence.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:01:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T03:10:02Z",
+  "closed_at": "2026-04-24T03:10:02Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:01:43"
+    }
+  ]
+}

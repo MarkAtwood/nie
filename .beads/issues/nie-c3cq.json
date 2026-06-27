@@ -1,0 +1,28 @@
+{
+  "id": "nie-c3cq",
+  "title": "ChatContact methods (ChatContact/get, changes, set, query, queryChanges)",
+  "description": "Implement JMAP Chat ChatContact methods (type was renamed from Contact to ChatContact in current spec). ChatContact.id = nie pub_id. Auto-create ChatContact records when relay delivers messages from unknown pub_ids. Support ChatContact/set update for blocked and displayName. ChatContact/query with presence and blocked filters. ChatContact/queryChanges. Map nie's directory_list/user_joined/user_left to ChatContact.presence (online/offline). firstSeenAt/lastSeenAt from relay events. Note: serverUrl and directAddress fields are defined in JMAP-CHAT-FED companion spec, not here.",
+  "notes": "displayName updates via ChatContact/set MUST pass through the existing nickname canonicalization: NFC normalization, reject bidi controls, strip zero-width chars, trim whitespace, enforce 1-32 Unicode scalar length. Same rules as set_nickname on the relay.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T19:53:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T22:11:19Z",
+  "close_reason": "Implemented: ChatContact/get|changes|set|query|queryChanges, Chat/get|changes|query, Message/get|changes|set|query|queryChanges. All tests pass.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:54:55"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:54:56"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.35",
+  "title": "POW_DIFFICULTY above 30 silently clamped without operator warning",
+  "description": "set_pow_difficulty() silently clamps to min(d, 30) with no log. An operator who sets POW_DIFFICULTY=50 gets 30 bits silently. Fix: add tracing::warn! in main.rs for pow_difficulty > 30, parallel to the clamp-to-20 warning.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:00:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:15:49Z",
+  "closed_at": "2026-04-24T22:15:49Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:00:07"
+    }
+  ]
+}

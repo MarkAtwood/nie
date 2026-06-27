@@ -1,0 +1,26 @@
+{
+  "id": "nie-xsp4.2",
+  "title": "core/pow: mine_token loops 2^64 times then panics if relay sends impossible difficulty",
+  "description": "core/src/pow.rs:220-248 / core/src/transport.rs: `mine_token(diff=200)` iterates all 2^64 nonce values without finding a solution (200 leading zero bits is impossible in SHA-256), then hits unreachable!() and panics. A malicious relay sending an impossibly high difficulty would hang the client's mining task for 2^64 iterations then crash it. Fix: validate `diff <= 60` in transport.rs before spawning the mining task and return a clear error if the relay sends an unreasonable difficulty.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:04:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:10:45Z",
+  "closed_at": "2026-04-24T21:10:45Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:04:26"
+    }
+  ]
+}

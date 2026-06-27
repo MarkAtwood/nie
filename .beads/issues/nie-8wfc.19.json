@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.19",
+  "title": "transport: verify relay pub_id matches identity after auth",
+  "description": "open_authenticated_ws() in core/src/transport.rs (line 441-447) receives the relay-returned pub_id from the AuthenticateResult and only logs it -- it never checks it against identity.pub_id() computed locally. The WASM client (wasm/src/client.rs lines 96-104) performs this check and is correct. A compromised relay could return an arbitrary pub_id in the auth response; downstream code that caches the relay-returned value (rather than recomputing it from identity.pub_id()) would trust the wrong identity. DESIGN.md invariant 21 documents this check as mandatory. Fix: after receiving a non-error auth response, compute identity.pub_id() locally and return Err if it does not match the relay-returned value.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:10:21Z",
+  "closed_at": "2026-04-24T22:10:21Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:01"
+    }
+  ]
+}

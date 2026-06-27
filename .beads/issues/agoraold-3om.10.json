@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-3om.10",
+  "title": "fees.rs has two coin-selection implementations (select_notes + select_notes_spendable)",
+  "description": "fees.rs exports select_notes operating on &[Note], while tx_builder.rs has select_notes_spendable operating on &[SpendableNote]. The two functions implement the same FIFO coin-selection algorithm independently. They diverge only in the input type and error type (CoinSelectError vs TxBuildError). Both are tested separately. A contributor extending the selection strategy (e.g. adding privacy-set maximization) would need to update both. Suggested rewrite: make select_notes generic over a trait NoteValue { fn value_zatoshi(&self) -> u64; fn block_height(&self) -> u64; } and implement it for both Note and SpendableNote. Or: delete select_notes from fees.rs (it is not called from the payment path) and keep only select_notes_spendable.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:55:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:52Z",
+  "closed_at": "2026-04-19T04:10:55Z",
+  "close_reason": "Opinion/elegance: the two implementations operate on different types (Note vs SpendableNote) and are tested independently. Neither is on a hot path. Unifying requires a trait abstraction for one consumer \u2014 premature for now.",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:55:28"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-70e.9",
+  "title": "\"cancelled by user\" reason string reads from wrong perspective on peer",
+  "description": "commands.rs:1031 \u2014 PaymentAction::Cancelled { reason: \"cancelled by user\" } is displayed on the peer side as \"[pay] Session X cancelled by peer: cancelled by user\". The phrase \"by user\" is the sender's self-reference; reading it from the peer's perspective it is ambiguous (\"cancelled because of the user?\" \"which user?\").\n\n**Why:** The reason string was written from the canceller's perspective without considering the recipient's display context.\n**How to apply:** Use a neutral reason like \"user request\" or \"payer cancelled\" that reads correctly on both sides.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:56:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:10Z",
+  "closed_at": "2026-04-18T15:59:57Z",
+  "close_reason": "Changed reason string from 'cancelled by user' to 'payer cancelled' \u2014 reads correctly from recipient's perspective.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:56:21"
+    }
+  ]
+}

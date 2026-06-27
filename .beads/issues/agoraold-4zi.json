@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-4zi",
+  "title": "Integration test: 16-client relay stress",
+  "description": "Write a multi-client integration test that starts an in-process relay (random port, in-memory SQLite), connects 16 clients via nie_core::transport, and has each send random messages at human-speed intervals (300-3000ms). Verify every broadcast reaches all N-1 other clients. Tests relay routing correctness and concurrency without involving MLS.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:46:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:59Z",
+  "closed_at": "2026-04-17T22:57:53Z",
+  "close_reason": "16-client stress test passes deterministically. Root cause of previous 3-message gap was early sends before all clients connected (low-jitter clients sent to partial roster). Fix: start_barrier ensures all N clients receive DirectoryList before any sends begin, so every broadcast reaches exactly N-1 recipients."
+}

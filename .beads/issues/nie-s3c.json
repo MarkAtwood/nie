@@ -1,0 +1,22 @@
+{
+  "id": "nie-s3c",
+  "title": "Add nie-wallet crate to workspace",
+  "description": "Create relay/cli/core-style crate skeleton. Add to workspace Cargo.toml. Add zcash_client_backend, zcash_primitives, zcash_proofs, zcash_address, tokio, sqlx dependencies. Pin versions. Verify cargo build --workspace still compiles.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:41:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T03:16:32Z",
+  "close_reason": "nie-wallet crate skeleton created in workspace. zcash_primitives/zcash_address 0.26/0.10 blocked by yanked core2 dep on crates.io \u2014 commented in Cargo.toml; zcash deps can be added when upstream publishes fix",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:37"
+    }
+  ]
+}

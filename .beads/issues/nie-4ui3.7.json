@@ -1,0 +1,33 @@
+{
+  "id": "nie-4ui3.7",
+  "title": "Tests: SOCKS5 proxy \u2014 unit and integration",
+  "description": "Write the unit and integration tests for the SOCKS5 proxy feature covering proxy URL parsing, socks5h vs socks5 path selection, .onion detection, and connection error handling.\n\n## What\nIndependent test suite for the SOCKS5 proxy feature using external oracles (RFC 1928 wire format, tokio-socks crate behavior).\n\n## Test oracle rule\nDo NOT use the proxy code under test as its own oracle. Tests must verify behavior against known-correct expected values or by integration with an actual TCP listener.\n\n## Tests to write\n\n### Unit tests (in core/src/transport.rs or a test module)\n\n1. proxy_url_parsing_socks5h: parse 'socks5h://127.0.0.1:9050' \u2192 scheme=socks5h, host=127.0.0.1, port=9050\n   Oracle: url::Url::parse behavior is the oracle\n\n2. proxy_url_parsing_with_credentials: parse 'socks5://user:pass@192.168.1.1:1080' \u2192 correct host/port extraction, credentials not exposed in any error message\n   Oracle: url::Url::parse\n\n3. proxy_scheme_rejection: scheme 'http' must be rejected with error containing 'socks5'\n   Oracle: expected error message string\n\n### Integration tests (require a live TCP listener as mock SOCKS5 server or use the reject-at-TCP-level test)\n\n4. proxy_unreachable_gives_clear_error: attempt connect with proxy=Some('socks5h://127.0.0.1:19999') to any relay \u2192 Err, error message contains 'SOCKS5 connect failed'\n   Oracle: tokio_socks connection to a closed port returns Err; test verifies error propagates with correct context string\n\n5. direct_connect_still_works: proxy=None behaves identically to before (regression guard)\n   Oracle: existing e2e test behavior\n\n### CLI validation tests (in cli/src/main.rs or integration test)\n\n6. onion_no_proxy_warn: run nie with .onion relay URL and no proxy \u2192 warn! message appears in stderr/tracing output\n   Oracle: expected warn string\n\n7. onion_socks5_warn: .onion relay + socks5:// proxy \u2192 warn! about DNS leak\n   Oracle: expected warn string\n\n8. onion_socks5h_no_warn: .onion relay + socks5h:// proxy \u2192 no warning\n   Oracle: absence of warn string\n\n## Algorithm\n1. Add unit tests to core/src/transport.rs in a #[cfg(test)] module\n2. Add integration tests to relay/tests/ or core/tests/ using tokio::test\n3. For integration test #4: spawn a tokio TcpListener on localhost:19999, immediately drop it (so port is closed), then call connect() with proxy pointing to that port\n4. For CLI tests: test the validation logic as a function (extract the validation into a testable fn validate_proxy_url(proxy, relay) -> Result<Option<Warnings>>)\n\n## Defensive programming rules\n- Tests must not call sleep() \u2014 use barriers or join handles\n- Never modify tests to make them pass \u2014 if a test fails, report it back to the implementer bead\n- Test vectors for URL parsing must be hard-coded strings, not generated from the code under test\n\n## Agent team\nResearcher (read implemented code from W2A + W2B), Tester (write test cases from spec \u2014 no peeking at impl)\n\nAcceptance: cargo test --workspace exits 0; clippy exits 0; all 8 test cases pass.",
+  "acceptance_criteria": "cargo test --workspace exits 0; clippy exits 0; all named test cases are present and pass",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:36:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T19:06:38Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:41"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:40"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:17"
+    }
+  ]
+}

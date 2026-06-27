@@ -1,0 +1,15 @@
+{
+  "id": "nie-wmql",
+  "title": "nie has one Space with one default channel",
+  "description": "nie's single-room broadcast architecture maps cleanly to JMAP Chat as: one Space (the 'nie room'), containing one default channel Chat. Every authenticated user is automatically a SpaceMember. Broadcast messages route to that channel. This gives nie correct JMAP Chat Space/channel semantics without changing relay architecture — the relay still sees only opaque group messages.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T21:13:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T21:47:49Z",
+  "closed_at": "2026-04-23T21:47:49Z",
+  "close_reason": "Closed"
+}

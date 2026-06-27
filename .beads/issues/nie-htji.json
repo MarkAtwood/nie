@@ -1,0 +1,19 @@
+{
+  "id": "nie-htji",
+  "title": "Review: simplify contact_set, guard update_contact_fully",
+  "notes": "Maintainer risk: LOW — only one real finding: debug_assert\\! for (None, None) precondition doesn't enforce in release. Current call site is correctly guarded. No bugs introduced by this refactor; the simplification is sound.\nConfidence: 8% chance of missed bug. Uncertainty driven by: not having run the tests against the refactored code, and not having read the full jmap.rs call graph to verify no other caller of update_contact_fully exists that could violate the (None,None) precondition. Would raise confidence if: grep for all call sites of update_contact_fully shows only the one guarded call site in contact_set Phase 2b.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:54:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T17:00:24Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

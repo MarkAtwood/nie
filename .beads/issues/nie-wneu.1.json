@@ -1,0 +1,23 @@
+{
+  "id": "nie-wneu.1",
+  "title": "Queue whispers for offline recipients",
+  "description": "What: Add offline_messages DB table + enqueue() + drain() to relay/src/store.rs so Whisper messages survive offline recipients.\n\nNOTE: store.rs currently has NO offline queue at all (no enqueue, no drain, no table). This must be created from scratch.\n\nAlgorithm:\n1. In the schema SQL in store.rs (migrate or new), add after the existing table creation:\n   CREATE TABLE IF NOT EXISTS offline_messages (\n       id         INTEGER PRIMARY KEY AUTOINCREMENT,\n       to_pub_id  TEXT NOT NULL,\n       payload    TEXT NOT NULL,\n       created_at TEXT NOT NULL DEFAULT (datetime('now')),\n       expires_at TEXT NOT NULL\n   );\n2. Implement pub async fn enqueue(&self, to_pub_id: &str, payload_json: &str) -> Result<()>:\n   - INSERT INTO offline_messages (to_pub_id, payload, expires_at) VALUES (?1, ?2, datetime('now', '+72 hours'))\n   - Return Ok(()) or propagate sqlx error\n3. Implement pub async fn drain(&self, pub_id: &str) -> Result<Vec<String>>:\n   - In a single transaction:\n     a. SELECT payload FROM offline_messages WHERE to_pub_id = ?1 AND expires_at > datetime('now') ORDER BY id ASC\n     b. DELETE FROM offline_messages WHERE to_pub_id = ?1\n   - Return the collected payloads\n\nDefensive rules:\n- expires_at stored as 'YYYY-MM-DD HH:MM:SS' via datetime() only \u2014 NOT RFC 3339, NOT Unix timestamp (CLAUDE.md \u00a79)\n- drain SELECT+DELETE must be in one transaction for atomicity (CLAUDE.md \u00a710); messages are at-most-once\n- All DB errors returned as Result, never unwrap() on DB ops\n- drain deletes ALL rows for pub_id (including non-expired) to avoid stale entries accumulating\n\nTests:\n- test_enqueue_drain_roundtrip: enqueue one message, drain, verify payload byte-equal; oracle = independently constructed JSON string\n- test_drain_ordering: enqueue two messages for same pub_id, drain, verify both returned in insertion order\n- test_drain_expiry: enqueue with past expires_at via raw SQL INSERT, drain, verify empty result",
+  "acceptance_criteria": "cargo test -p nie-relay enqueue OR drain passes; all 3 unit tests listed above pass; clippy -D warnings clean on nie-relay",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:46:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T21:26:55Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:46:43"
+    }
+  ]
+}

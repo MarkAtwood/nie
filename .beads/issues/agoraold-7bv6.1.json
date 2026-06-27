@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.1",
+  "title": "SEC2: double JSON parse of WS notifications",
+  "description": "File: wasm/src/transport.rs line 72, wasm/src/client.rs line 127.\n\nEvery server-push notification is parsed twice: once in transport.rs onmessage (serde_json::from_str at line 72) to dispatch response vs. notification, and again in the notify_closure in client.rs (serde_json::from_str at line 127) to extract method and params.\n\nCost: two heap-allocating JSON parses + two serde_json::Value trees per notification message. For busy rooms (many user_joined/deliver events) this is measurable latency per message.\n\nFix: transport.rs should pass the already-parsed Value to the notify callback instead of passing the raw string. Change the notify_cb type from js_sys::Function (called with raw string) to a Rust closure that accepts serde_json::Value, so the client closure receives the pre-parsed value directly. This eliminates the second parse entirely.\n\nClassify: P2 (measurable per-message latency in hot path)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:30:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:18Z",
+  "closed_at": "2026-04-20T02:54:23Z",
+  "close_reason": "Closed",
+  "labels": [
+    "efficiency",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:30:45"
+    }
+  ]
+}

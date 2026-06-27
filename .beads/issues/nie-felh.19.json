@@ -1,0 +1,24 @@
+{
+  "id": "nie-felh.19",
+  "title": "Document MLS state machine \u2014 implicit transitions tangled in handle_relay_event",
+  "description": "MLS group lifecycle transitions are split across two relay message handlers with implicit rules:\n\nDirectoryList (lines 177-227):\n    if i_am_admin && !state.mls_active {\n        create_group() \u2192 mls_active = true \u2192 publish room key\n\nWhisperDeliver (lines 434-478):\n    if !state.mls_active {\n        join_from_welcome() \u2192 mls_active = true \u2192 publish room key\n\nReconnect (lines 100-118):\n    mls_active = false, reset MLS client\n\nImplicit state machine:\n    Inactive \u2192 (admin creates) \u2192 Active\n    Inactive \u2192 (peer receives Welcome) \u2192 Active\n    Any \u2192 (reconnect) \u2192 Inactive\n\nProblems:\n- No single place documents valid transitions\n- Hard to reason about when room_hpke_secret is valid\n- Adding new transitions (e.g., group updates) risks inconsistency\n- Testing MLS logic requires triggering specific relay events\n\nSolution: Create explicit MLS state abstraction with invariant checks:\n    impl AppState {\n        async fn activate_mls_as_admin(...) -> Result<()>\n        async fn activate_mls_from_welcome(...) -> Result<()>\n        fn deactivate_mls_on_reconnect()\n    }\n\nThis will:\n- Document the state machine explicitly\n- Prevent invalid transitions\n- Make testing easier",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T04:37:12Z",
+  "closed_at": "2026-04-20T04:37:12Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:42"
+    }
+  ]
+}

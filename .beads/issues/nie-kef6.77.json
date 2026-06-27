@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.77",
+  "title": "wasm/ffi connect() leaves [u8;64] key material on stack without zeroization",
+  "description": "wasm/src/api.rs:153 and ffi/src/api/client.rs:106 both decode secret_b64 into arr: [u8; 64] stack local and pass it to Identity::from_secret_bytes, then arr is dropped without zeroization. Raw Ed25519+X25519 seeds remain readable in process memory until overwritten by future stack frames. Distinct from nie-kef6.55 which covers storage::load_identity return value.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:54:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:54:15Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:54:15"
+    }
+  ]
+}

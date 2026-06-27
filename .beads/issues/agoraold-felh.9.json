@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-felh.9",
+  "title": "Extract parse_message_params helper to eliminate boilerplate",
+  "description": "Lines 128-136, 232-239, 282-289, 299-306, 331-338, 345-352, 406-413, 488-495 all have identical JSON deserialization boilerplate:\n\n    let params: SomeType = match serde_json::from_value(\n        notif.params.unwrap_or(serde_json::Value::Null),\n    ) {\n        Ok(p) => p,\n        Err(e) => {\n            tracing::warn!(\"{context}_parse error: {e}\");\n            return Ok(());\n        }\n    };\n\nThis pattern appears 8 times. Extract:\n\nfn parse_message_params<T: Deserialize>(value: Option<Value>, context: &str) -> Option<T> {\n    match serde_json::from_value(value.unwrap_or(Value::Null)) {\n        Ok(p) => Some(p),\n        Err(e) => {\n            tracing::warn!(\"{context} parse error: {e}\");\n            None\n        }\n    }\n}\n\nThen replace all 8 sites with:\nif let Some(params) = parse_message_params::<DirectoryListParams>(..., \"directory_list\") { ... }\n\nBenefits:\n- Eliminates boilerplate noise\n- Standardizes error handling\n- Single place to change parsing strategy",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:45Z",
+  "closed_at": "2026-04-20T04:36:53Z",
+  "close_reason": "deferred to backlog; P3/P4 style issues, not blocking epic completion",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:59:59"
+    }
+  ]
+}

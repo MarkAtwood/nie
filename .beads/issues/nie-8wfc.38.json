@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.38",
+  "title": "senderExpiresAt stored raw without SQLite datetime normalization",
+  "description": "In jmap.rs message_set, the senderExpiresAt field from client JSON is stored directly into expires_at without format normalization. If the client sends an RFC 3339 string with a 'T' separator (e.g. '2026-04-24T12:00:00Z'), the hard_delete_expired_messages() comparison 'expires_at <= datetime(\"now\")' will silently fail \u2014 SQLite's datetime() returns 'YYYY-MM-DD HH:MM:SS' format and lexicographic comparison against an RFC 3339 string with 'T' gives incorrect results. Messages will not be deleted at the intended time (or may never be deleted). Fix: normalize expires_at to 'YYYY-MM-DD HH:MM:SS' format before insertion, matching the sentinel used in hard_delete_expired_messages.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:01:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:36:35Z",
+  "closed_at": "2026-04-24T22:36:35Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:01:23"
+    }
+  ]
+}

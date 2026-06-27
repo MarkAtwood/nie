@@ -1,0 +1,26 @@
+{
+  "id": "nie-hhmj.17",
+  "title": "RISK: all_users() failure at line 176 silently returns empty vec; send empty DirectoryList",
+  "description": "relay/src/ws.rs lines 176: store.all_users() Result is swallowed with .unwrap_or_default(). If the users table becomes corrupted or inaccessible, all_users() returns an empty vec. The relay sends an empty DirectoryList to the newly authenticated client. Other clients also receive an empty DirectoryList on next connect. The directory is now blank even though users are online. A solo maintainer will not immediately understand that a DB corruption caused the blank directory (it looks like a silent bug, not a DB failure). Risk: silent directory corruption disguises DB failures as logic bugs.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:11:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:20:02Z",
+  "closed_at": "2026-04-19T18:20:02Z",
+  "close_reason": "Fixed: added INTERNAL_ERROR (-32603) to rpc_errors; subscription_expiry/register_user errors now send error response and abort auth; all_users error disconnects and returns; try_set_nickname Err branch sends internal error response.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:11:18"
+    }
+  ]
+}

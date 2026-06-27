@@ -1,0 +1,22 @@
+{
+  "id": "nie-3p2t",
+  "title": "multidevice: GROUP_ADD fetches all device KeyPackages",
+  "description": "Update GROUP_ADD handling in relay/src/ws.rs to fetch all KeyPackages for the target pub_id and add each device as a separate MLS leaf.\n\nWhy: currently group_add fetches one KeyPackage per pub_id and adds one leaf. If the target user has two devices, only one gets added and the other can never decrypt group messages in this session.\n\nWhat to do:\n- Replace get_key_package(pub_id) with get_all_key_packages(pub_id) to get all device packages\n- For each device package, call the MLS add_member path (produce a Commit + Welcome per device, or batch if the MLS layer supports it)\n- Send each Welcome to the target pub_id via deliver (fan-out to all devices via the updated deliver_live)\n- Handle the case where a device's KeyPackage is stale or invalid: skip that device and log a warning, do not fail the whole add\n- Handle the case where get_all_key_packages returns empty: return an error to the requesting client\n\nAcceptance: a user with two connected devices both receive a Welcome and can decrypt subsequent group messages; adding a user with one device behaves identically to current behavior.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T20:16:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:00:19Z",
+  "close_reason": "GetKeyPackageResult.data changed to Vec<Vec<u8>>; relay returns all devices; CLI iterates each, calls add_member per device; sealed_sender_e2e test updated",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 13:19:02"
+    }
+  ]
+}

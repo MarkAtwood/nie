@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-o6zv.6",
+  "title": "GOOD: session UUID in ZIP-302 memo enables session recovery after app restart",
+  "description": "Payment session UUID is stored in the 512-byte ZIP-302 shielded memo field (memo.rs). This means: even if the app loses local state, the payee can recover the session_id from the on-chain memo. The alternative (matching by amount alone) is ambiguous for equal-value payments. Memo content is a UUID (not a secret, not PII), compliant with ZIP-302 text memo format.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:32:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:08Z",
+  "closed_at": "2026-04-19T08:37:18Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:32:23"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-4qfy.7",
+  "title": "Service exports=false, START_NOT_STICKY, FLAG_IMMUTABLE all correct",
+  "description": "Three Android-specific choices are all correct and should be defended: (1) android:exported=false prevents other apps from binding or starting the service. (2) START_NOT_STICKY means Android won't auto-restart the service after killing it \u2014 correct because the Flutter side tracks connection state and would be desynchronized by a surprise restart. (3) PendingIntent.FLAG_IMMUTABLE is required for Android 12+ and the right default for all new PendingIntents. A well-intentioned contributor might change START_NOT_STICKY to START_STICKY to 'keep it running' \u2014 that would create a ghost service that Flutter doesn't know about.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:33:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:39:47Z",
+  "closed_at": "2026-04-23T23:39:47Z",
+  "close_reason": "Design decisions recorded for reference; no code changes needed.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:33:06"
+    }
+  ]
+}

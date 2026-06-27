@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-52o",
+  "title": "Review: Zcash wallet key management + payment data model",
+  "notes": "Maintainer risk: MEDIUM — Two issues stand out: (1) the hidden mnemonic entry will generate immediate user reports; (2) the PaymentSession datetime type is a latent bug that will hit silently during nie-neg. The --network string validation is a papercut. Key separation check gap is a documentation promise vs. implementation mismatch that will confuse future contributors.\nConfidence: 20% chance of missed bug. Uncertainty driven by: (1) bip39 v2.x API — I verified generate_in→from_entropy_in at runtime but did not check every method guarantee (e.g., to_seed always 64 bytes, word_iter vs. to_string().split behavior under edge cases); (2) age crate scrypt parameters — I assumed the age library's default scrypt work factor is appropriate; I did not audit the actual N/r/p used. Would raise confidence if: ran wallet_init with a mnemonic containing repeated words and verified the display numbering (the P0 bug), and read the bip39 crate source to confirm to_string() always uses ASCII space as separator.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:23:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:18:47Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

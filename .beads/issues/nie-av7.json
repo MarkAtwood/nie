@@ -1,0 +1,15 @@
+{
+  "id": "nie-av7",
+  "title": "/! run shell command and send stdout",
+  "description": "Slash command: /! \u003cshell command\u003e — run the command in a subprocess, capture stdout, send the output as a chat message. Useful for sharing command output without leaving the chat. Should cap output length (e.g. 4KB) and indicate truncation. Stderr discarded or shown locally only.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:07:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T22:30:00Z",
+  "closed_at": "2026-04-17T22:30:00Z",
+  "close_reason": "implemented in cli/src/commands.rs: /who, /me (CTCP ACTION), /cat (4KB text file), /! (shell stdout), /alias (contacts.json persistence), /clear; Ctrl+L handled natively by rustyline"
+}

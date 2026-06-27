@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.92",
+  "title": "SaplingIvkDecryptor holds IVK scalar with no Zeroize on drop",
+  "description": "wallet/src/scanner.rs SaplingIvkDecryptor holds ivk: SaplingIvk (a jubjub::Fr scalar) as a struct field with no Zeroize or custom Drop implementation. The IVK scalar stays in process memory until the allocator reuses the heap page. An attacker with memory-read access (core dump, swap file, /proc/pid/mem) can recover the IVK and use it to trial-decrypt any on-chain Sapling note to determine if it belongs to this wallet \u2014 nie-kef6.55 and nie-kef6.77 track zeroization for WASM/FFI byte buffers but the wallet-crate Rust type itself is not covered.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:22:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:46:18Z",
+  "closed_at": "2026-04-25T01:46:18Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:22:08"
+    }
+  ]
+}

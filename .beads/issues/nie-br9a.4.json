@@ -1,0 +1,24 @@
+{
+  "id": "nie-br9a.4",
+  "title": "spawn_scanner silently swallows scan errors \u2014 no backoff, no reconnect",
+  "description": "spawn_scanner logs Err from scan_to_tip at warn level then immediately retries after poll_interval. If get_block_range fails mid-stream (gRPC channel broken, TLS reset), the same LightwalletdClient is reused for the next iteration \u2014 but client.rs says 'Reconnection is the caller's responsibility: if a streaming RPC returns an error, drop this client and call connect again. The compact-block scanner owns the reconnect loop.' spawn_scanner does NOT reconnect: it calls s.scan_to_tip() in a loop on the same scanner, which holds the same client. After a gRPC error the next scan_to_tip will call client.latest_height() on the broken channel, fail again, and this repeats forever with no reconnection attempt.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:01:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:37:04Z",
+  "closed_at": "2026-04-25T04:37:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:01:48"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmwv.7",
+  "title": "bridge-slack: Slack timestamp overflow when system clock is before Unix epoch",
+  "description": "In bridge-slack/src/slack.rs verify_slack_signature(), if SystemTime::now().duration_since(UNIX_EPOCH) fails (system clock before epoch), now defaults to 0 via unwrap_or(0). The subsequent check 'ts > now + 60 || now - ts > 300' then evaluates 'now - ts' as an i64 subtraction. If ts is a positive integer (normal case), 0 - ts will be negative and the condition '0 - ts > 300' is false, so the timestamp is accepted regardless of how old it is. This bypasses the replay-attack guard entirely when the system clock is broken. The native transport.rs correctly uses .context() to fail explicitly on broken clocks; the Slack bridge should too.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:48:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:00:43Z",
+  "closed_at": "2026-04-26T12:00:43Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:48:50"
+    }
+  ]
+}

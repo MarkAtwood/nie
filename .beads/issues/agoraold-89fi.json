@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-89fi",
+  "title": "Add RATE_LIMITED error code to protocol.rs",
+  "description": "Why: stable client-facing contract for rate limit responses. What: add 'pub const RATE_LIMITED: i32 = -32020;' to the rpc_errors module in core/src/protocol.rs. The next available custom code after -32012.",
+  "acceptance_criteria": "cargo build -p nie-core passes; rpc_errors::RATE_LIMITED usable from relay",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:13:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:14:27Z",
+  "close_reason": "RATE_LIMITED = -32020 added to rpc_errors"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-wrk.6",
+  "title": "all_users() full table scan on every client connect \u2014 scale concern",
+  "description": "relay/src/ws.rs calls store.all_users() on every authenticated connection to build the DirectoryList. The query is SELECT pub_id,nickname FROM users ORDER BY first_seen ASC \u2014 a full table scan plus sort. At a few hundred users this is invisible (<1ms). At tens of thousands of persistent users the connect latency grows and the allocation per connection becomes non-trivial. Impact at scale: new connections slow down under load, creating a feedback loop where slow connects increase the backlog. Fix when user count crosses a few thousand: cache the directory in AppState and invalidate on write, or paginate DirectoryList.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:53:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T00:10:31Z",
+  "closed_at": "2026-04-18T00:10:31Z",
+  "close_reason": "Closed",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:53:55"
+    }
+  ]
+}

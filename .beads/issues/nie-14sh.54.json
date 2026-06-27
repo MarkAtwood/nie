@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.54",
+  "title": "fees.rs and tx_builder.rs duplicate FIFO coin-selection logic",
+  "description": "fees.rs select_notes (takes &[Note]) and tx_builder.rs select_notes_spendable (takes &[SpendableNote]) implement identical FIFO oldest-first coin selection with checked_add. Bug fixes to one must be manually mirrored. Consolidate via a shared generic or have one delegate to the other.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:59:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:59:03Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:59:03"
+    }
+  ]
+}

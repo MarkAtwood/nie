@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-wvu",
+  "title": "Wire: Add TLS (wss:// via reverse proxy)",
+  "description": "All WebSocket traffic is currently ws:// (plaintext). This exposes metadata even before MLS is added: who is connecting to which relay, connection timing, message sizes.\\n\\nRequired:\\n- Deploy nginx or caddy as TLS terminator in front of relay\\n- Default relay URL changes from ws://127.0.0.1:3210/ws to wss://relay.example.com/ws\\n- Document self-signed cert setup for local dev\\n- Update CLAUDE.md with TLS architecture note\\n- Do NOT add TLS in the Rust binary itself — termination at proxy is simpler and battle-tested\\n\\nBlocking: do not expose to real users until TLS is in place.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:50:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:00Z",
+  "closed_at": "2026-04-16T06:00:16Z",
+  "close_reason": "TLS via reverse proxy: native-tls feature on tokio-tungstenite, --insecure dev flag, Caddy configs, mkcert setup script, CLAUDE.md section"
+}

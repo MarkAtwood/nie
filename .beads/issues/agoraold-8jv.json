@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-8jv",
+  "title": "PaymentAction::Address handler: wire next_diversifier to response",
+  "description": "In cli/src/commands.rs (or wherever PaymentAction::Address is handled), replace any stub or cached-address return with a call to wallet.next_diversifier() then diversified_address(index). This is the final wiring step for nie-bgx. Defensive programming: if wallet is unavailable (wallet not initialized), return a user-visible error message in chat, not a panic or silent no-op; log only the diversifier index on success, never the address bytes (addresses are public but logging them links payments \u2014 log 'issued fresh subaddress at index N'); validate that the returned UA is non-empty before sending. Use a subagent to trace the existing PaymentAction dispatch path from slash command handler to confirm the insertion point.",
+  "acceptance_criteria": "Integration smoke test: call /receive twice in a session, assert the two addresses differ. Test: with no wallet initialized, /receive prints a helpful error message.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:20:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T19:45:00Z",
+  "close_reason": "PaymentAction::Address stub replaced with real diversified_address() call. WalletFvks loaded at chat startup from wallet.key (passphrase prompt or no_passphrase). No wallet \u2192 Unknown reply + helpful message. Consecutive requests produce distinct UAs. Tests: with-wallet, no-wallet, consecutive-distinct.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:27"
+    }
+  ]
+}

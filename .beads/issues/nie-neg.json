@@ -1,0 +1,26 @@
+{
+  "id": "nie-neg",
+  "title": "Payment session persistence in wallet DB",
+  "description": "Add payment_sessions table to wallet SQLite schema. Load active sessions on startup to resume watching. On reconnect: if peer is online and session is in-flight (Requested/Addressed), resend the last message to re-sync state. If session is Watching, re-register address with watcher.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:20:35Z",
+  "close_reason": "Implemented by nie-421 (WalletStore wired) and nie-0aj (session resync on startup)",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:26"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:52"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-qmq3.6",
+  "title": "relay.rs: dispatch_peer_retract does not check sender ownership before deleting message",
+  "description": "daemon/src/relay.rs:501-507 \u2014 dispatch_peer_retract() takes message_id and for_all from an MLS-authenticated peer and calls store.soft_delete_message() unconditionally. Any authenticated group member can retract any message in the store by knowing its ID, regardless of whether they sent it. The _from sender parameter is intentionally ignored (underscored). Fix: look up message.sender_id by msg_id and compare with sender pub_id from the relay frame before calling soft_delete_message.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:54:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:03:22Z",
+  "closed_at": "2026-04-25T03:03:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:54:38"
+    }
+  ]
+}

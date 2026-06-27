@@ -1,0 +1,26 @@
+{
+  "id": "nie-n4np.3",
+  "title": "try_parse_simple_space_prop doc claims _ arm is unreachable",
+  "description": "The doc comment on try_parse_simple_space_prop says 'The _ arm below is unreachable by construction \u2014 it exists to ensure the match stays exhaustive as new arms are added.' The _ arm IS reachable and intentionally so: it returns None for any path that is not a simple property (e.g. 'members/abc'), which is the signal for the caller to try member-patch parsing. Saying it's unreachable will confuse a future contributor. Fix: rewrite the comment to accurately describe the arm as the catch-all for non-simple-prop paths.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:43:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:45:25Z",
+  "closed_at": "2026-04-24T17:45:25Z",
+  "close_reason": "Already fixed in commit 4037366 \u2014 current code has correct comment on _ arm and accurate function doc",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:43:09"
+    }
+  ]
+}

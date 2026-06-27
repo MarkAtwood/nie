@@ -1,0 +1,28 @@
+{
+  "id": "nie-cp2h.1",
+  "title": "contact_set Phase 2 has no transaction: multi-field patch has observable intermediate state",
+  "description": "A ChatContact/set patch with both blocked and displayName makes two separate UPDATE calls in Phase 2, each bumping ChatContact state independently. A concurrent ChatContact/get between the two bumps sees a partially-applied patch (e.g. displayName changed, blocked not yet). The Phase 1/Phase 2 split correctly handles input-error atomicity but leaves server-write atomicity unaddressed. The fix \u2014 wrapping Phase 2 ops in a single DB transaction with one state bump at the end \u2014 is shown by update_space_fully in the same diff. Contacts are currently permanent (never deleted), which prevents the worse notFound-mid-patch scenario, but intermediate state is still observable. This deserves the same treatment spaces got.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:54:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T06:06:52Z",
+  "closed_at": "2026-04-24T06:06:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:54:14"
+    }
+  ]
+}

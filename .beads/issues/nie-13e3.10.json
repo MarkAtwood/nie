@@ -1,0 +1,24 @@
+{
+  "id": "nie-13e3.10",
+  "title": "fees.rs select_notes InsufficientFunds shortfall underflows when have > need",
+  "description": "FALSE ALARM \u2014 reviewed and confirmed no bug. In fees.rs select_notes(), the shortfall computation total_needed - have is safe because the loop exits only when sum < total_needed after visiting all notes, meaning have (= sum of all available notes) < total_needed. So have < total_needed and the subtraction does not underflow. The issue is that this safety argument is non-obvious and not documented. Suggested fix: add a debug_assert!(have < total_needed) before the subtraction, and add a code comment explaining why have cannot exceed total_needed here.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:26:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:31:50Z",
+  "labels": [
+    "correctness",
+    "elegance",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:21"
+    }
+  ]
+}

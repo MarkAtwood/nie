@@ -1,0 +1,22 @@
+{
+  "id": "nie-br9a.7",
+  "title": "params.rs: tmp file extension produces .params.tmp not .tmp \u2014 rename may cross filesystems",
+  "description": "ensure_param_file uses path.with_extension('params.tmp'). For path = '/home/.zcash-params/sapling-spend.params', with_extension replaces '.params' with 'params.tmp', producing 'sapling-spend.params.tmp' \u2014 that is actually correct since with_extension replaces only the last extension component. But the tmp path is in the same directory as the final path, so rename is atomic. However if cache_dir is a symlink to a different filesystem, rename across filesystems would fail with EXDEV and the tmp cleanup runs correctly. This is pre-existing (nie-qdlu.5), but the .params.tmp naming is unusual and could confuse operators who see it in ls output.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:02:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:02:55Z",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:02:51"
+    }
+  ]
+}

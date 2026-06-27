@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-fye.2",
+  "title": "birthday warn fires repeatedly if chain tip unavailable at startup",
+  "description": "Scenario: scanner initializes with scan_tip=0, calls scan_to_tip(), warn\\! fires, then latest_height() fails or returns 0 (fresh testnet node, network partition at startup). start=1 > end=0, returns Ok(0). scan_tip stays 0. Next poll: warn\\! fires again. Repeats every poll_interval (75s) until the node becomes reachable. In a log aggregator this looks like a continuously alerting condition rather than a one-time setup reminder. Maintenance consequence: users file 'why does my log say scanning from genesis every 75 seconds' reports. Fix: fire the warn\\! only once by checking scan_tip==0 before the loop in spawn_scanner, or use a tracing::warn_once\\! equivalent, or suppress after the first Ok(0) return by setting a flag on the scanner struct.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:57:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:55Z",
+  "closed_at": "2026-04-18T18:11:33Z",
+  "close_reason": "Fixed: birthday_warned: bool field on CompactBlockScanner; warn! fires at most once per scanner instance",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:57:37"
+    }
+  ]
+}

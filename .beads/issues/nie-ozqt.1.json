@@ -1,0 +1,14 @@
+{
+  "id": "nie-ozqt.1",
+  "title": "GROUP_SEND: online members receive after departure (no membership re-check for live sends)",
+  "description": "broadcast_to_group re-checks membership only before offline-enqueue, not before live send. Trigger: member A calls GROUP_LEAVE; concurrently, member B calls GROUP_SEND. A is in the member list fetched before the leave committed, and A is still connected (live channel). broadcast_to_group sends to A's live channel with no membership re-check. A receives a group message after departure via live delivery. The offline path is guarded but the live path is not, so the fix is asymmetric.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:41:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:48:24Z",
+  "closed_at": "2026-04-25T06:48:24Z",
+  "close_reason": "dup of nie-ozqt.2"
+}

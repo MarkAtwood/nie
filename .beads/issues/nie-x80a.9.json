@@ -1,0 +1,23 @@
+{
+  "id": "nie-x80a.9",
+  "title": "select_with_fee iterative convergence vs fixed 2-pass approach",
+  "description": "tx_builder.rs select_with_fee() uses an iterative convergence loop rather than a simple 2-pass approach. The loop is correct: zip317_fee is monotone non-decreasing with input count, and the note set is finite, so the loop terminates. A 2-pass approach would fail for edge cases where the second pass selects more notes than the first, increasing the fee, which then requires more notes, etc. The loop handles this correctly. Convergence is guaranteed in O(log n) iterations in practice. A contributor might suggest removing the loop for simplicity; this would reintroduce the 2-pass fee underestimate bug.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:55:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:55:00Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:55:00"
+    }
+  ]
+}

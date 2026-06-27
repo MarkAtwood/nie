@@ -1,0 +1,23 @@
+{
+  "id": "nie-rwr7.3",
+  "title": "DB migration: hpke_keys table + save/get methods in store.rs",
+  "description": "What: Add hpke_keys SQLite table via migration and add save_hpke_key/get_hpke_key methods to relay/src/store.rs.\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/relay/src/store.rs to find the migration version pattern (PRAGMA user_version)\n2. Find the highest current migration version N\n3. Add new migration block:\n   if version < (N+1) {\n       conn.execute_batch(\"CREATE TABLE IF NOT EXISTS hpke_keys (\n           pub_id      TEXT PRIMARY KEY NOT NULL,\n           public_key  BLOB NOT NULL,\n           updated_at  TEXT NOT NULL DEFAULT (datetime('now'))\n       );\")?;\n       conn.execute_batch(\"PRAGMA user_version = (N+1);\")?;\n   }\n4. Add to Store impl:\n   pub fn save_hpke_key(&self, pub_id: &str, public_key: &[u8]) -> Result<()>\n     - INSERT OR REPLACE INTO hpke_keys (pub_id, public_key, updated_at) VALUES (?1, ?2, datetime('now'))\n   pub fn get_hpke_key(&self, pub_id: &str) -> Result<Option<Vec<u8>>>\n     - SELECT public_key FROM hpke_keys WHERE pub_id = ?1\n     - Use .optional()? for None-on-missing\n5. Run cargo check -p nie-relay\n\nDefensive programming rules:\n- Use PRAGMA user_version pattern (established in codebase \u2014 do NOT change existing migration blocks)\n- updated_at must use datetime('now') \u2014 NOT RFC 3339 format (CLAUDE.md \u00a79: SQLite datetime invariant)\n- Never unwrap() on SQL results \u2014 return Result<_, anyhow::Error>\n- Use params![] macro for all SQL bindings (no string interpolation)\n- INSERT OR REPLACE handles both new and updated keys correctly\n- .optional()? converts QueryReturnedNoRows to Ok(None) \u2014 do not match on error variant",
+  "acceptance_criteria": "cargo check -p nie-relay exits 0; cargo test -p nie-relay passes; hpke_keys table exists in new DB; save_hpke_key/get_hpke_key round-trip works",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:59:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:04:36Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:59:15"
+    }
+  ]
+}

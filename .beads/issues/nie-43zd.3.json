@@ -1,0 +1,26 @@
+{
+  "id": "nie-43zd.3",
+  "title": "messages: FileHeader.mime_type has no length bound",
+  "description": "FileHeader.mime_type is a plain String with no length limit enforced at deserialization. A hostile peer can send a multi-megabyte MIME type string, causing unbounded heap allocation on any receiver that deserializes ClearMessage. The other FileHeader fields (name, sha256_hex, total_chunks) are already bounded; mime_type was missed. Expected fix: add deserialize_mime_type limiting the field to e.g. 256 bytes (longest real MIME types are under 100 chars).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:10:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:36:16Z",
+  "closed_at": "2026-04-25T04:36:16Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:10:02"
+    }
+  ]
+}

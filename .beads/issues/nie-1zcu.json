@@ -1,0 +1,15 @@
+{
+  "id": "nie-1zcu",
+  "title": "multidevice: key_packages schema stores per-device",
+  "description": "Change relay/src/store.rs key_packages table to store one row per (pub_id, device_id) pair instead of one row per pub_id.\n\nWhy: currently PRIMARY KEY is pub_id alone, so publishing a KeyPackage from a second device overwrites the first device's package. Multi-device requires N packages per user.\n\nWhat to do:\n- Add device_id TEXT NOT NULL column to key_packages table\n- Change PRIMARY KEY from (pub_id) to (pub_id, device_id)\n- Write a SQLite migration: ALTER TABLE or CREATE TABLE + INSERT INTO ... SELECT + DROP + RENAME pattern. Existing rows get a synthetic device_id (e.g. 'legacy') to preserve data.\n- Update upsert_key_package(pub_id, device_id, data) signature\n- Update get_key_package(pub_id, device_id) for point lookups\n- Add get_all_key_packages(pub_id) -\u003e Vec\u003cVec\u003cu8\u003e\u003e for fetching all device packages when adding a group member\n- Add delete_key_packages_for_device(pub_id, device_id) for cleanup on disconnect\n\nAcceptance: two devices for the same pub_id can each have a stored KeyPackage simultaneously; migration runs cleanly on a DB with existing rows; all store tests pass.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T20:14:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:13:15Z",
+  "close_reason": "Closed"
+}

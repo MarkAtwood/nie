@@ -1,0 +1,22 @@
+{
+  "id": "nie-uyhc.1",
+  "title": "Refactor AppState client map to Vec per pub_id",
+  "description": "Rewrite relay/src/state.rs to support multiple simultaneous connections per pub_id.\n\nChange DashMap<String, (ClientTx, u64)> to DashMap<String, Vec<(ClientTx, u64)>> and rewrite all methods.\n\nAlgorithm:\n1. Change Inner.clients field type to DashMap<String, Vec<(ClientTx, u64)>>\n2. connect(): assign seq via fetch_add; push onto vec (or insert new vec); return seq as u64. New signature: pub fn connect(&self, pub_id: &PubId, tx: ClientTx) -> u64\n3. disconnect(): new signature pub fn disconnect(&self, pub_id: &PubId, seq: u64). Remove only the entry with matching seq from vec. If vec empty, remove key and also remove rate_limits entry.\n4. connection_seq(): return min seq across all vec entries for pub_id; u64::MAX if absent\n5. deliver_live(): send to ALL channels for pub_id; return true if any succeeded\n6. broadcast(): flatten all vecs to collect all ClientTx, filter exclude by pub_id key\n7. broadcast_to_group(): same flatten; delivered set tracks by pub_id not per-channel\n\nDefensive rules:\n- Never hold DashMap lock across await\n- disconnect: log warn if seq not found, do not panic\n- No unwrap() without comment explaining why it cannot fail\n\nTests in state.rs cfg(test):\n- two_connections_same_pub_id_both_receive: connect twice, deliver_live sends to both\n- disconnect_one_leaves_other: disconnect by seq, remaining channel still receives\n- connection_seq_returns_min: connect twice, connection_seq returns lower seq\n- last_disconnect_removes_key: both disconnected, contains_key false",
+  "acceptance_criteria": "cargo test -p nie-relay passes; four new unit tests pass; cargo clippy -p nie-relay clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:15:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:22:47Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:27"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "nie-40a",
+  "title": "Show scrollback on connect",
+  "description": "On successful connect (ever_connected gate), read the last N rows from History::recent() and print them before the prompt so the user has context for the ongoing conversation. N should be configurable, defaulting to ~50 lines.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:04:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T22:14:57Z",
+  "closed_at": "2026-04-17T22:14:57Z",
+  "close_reason": "Closed"
+}

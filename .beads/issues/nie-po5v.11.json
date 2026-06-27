@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.11",
+  "title": "contacts.resolve: uppercase hex chars rejected \u2014 docs say pubkey is hex but case is undocumented",
+  "description": "cli/src/config.rs Contacts::resolve accepts a raw pubkey only if it is 64 chars AND all chars pass both is_ascii_hexdigit() AND is_ascii_lowercase(). So uppercase hex (e.g. AABBCC...FF) is rejected even though it's valid hex. The pub_id format is hex(SHA-256(verifying_key)) which is always lowercase in code, but there is no documented requirement that callers must use lowercase. Users copying a pub_id from a tool that formats SHA-256 as uppercase (common) will get a silent rejection that looks like 'contact not found'. Fix: normalize to lowercase before the 64-char check, or accept uppercase and normalize.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:37:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:13Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:37:13"
+    }
+  ]
+}

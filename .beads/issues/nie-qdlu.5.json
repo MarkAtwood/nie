@@ -1,0 +1,25 @@
+{
+  "id": "nie-qdlu.5",
+  "title": "ensure_param_file: tmp file leaked if rename fails after successful write",
+  "description": "wallet/src/params.rs ensure_param_file (line ~249): if std::fs::write(&tmp_path, &data) succeeds but std::fs::rename(&tmp_path, path) fails, the code correctly calls remove_file(&tmp_path) to clean up. However, if remove_file also fails (disk full, permissions, NFS), the tmp file (e.g. sapling-spend.params.tmp) is permanently leaked on disk. Trigger: full disk or permissions error during rename. Bad behavior: stale .params.tmp files accumulate and could be gigabytes (spend params are ~48MB). This is a minor but real maintenance issue; on retry the download will fail because write_file sees the old .params (deleted) but not the .tmp. The fix is to use a random suffix or process-ID suffix for the tmp file and clean it up on any error path including remove_file failure.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:35:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:43:49Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:35:53"
+    }
+  ]
+}

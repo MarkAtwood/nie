@@ -1,0 +1,44 @@
+{
+  "id": "agoraold-3no",
+  "title": "Testnet end-to-end: send and receive a shielded payment",
+  "description": "Manual + automated end-to-end test on Zcash testnet. Steps: (1) init two wallet instances (alice, bob) with testnet HD wallets; (2) fund alice from testnet faucet (instructions in nie-w1e); (3) bob runs /receive, copies UA; (4) alice runs /pay bob 0.001 ZEC; (5) wait for 1 confirmation; (6) verify PaymentAction::Confirmed fires in alice's chat session. Automated portion: write a script that exercises steps 1-6 non-interactively. Use TWO subagents in parallel: subagent-A provisions alice wallet and sends a faucet request; subagent-B provisions bob wallet and polls for incoming payment. Both agents synchronize at the Confirmed event. Defensive programming in test: assert txid is exactly 64 hex chars; assert confirmation fires within 10 minutes (hard timeout, not an infinite wait); clean up test wallet files after assertion.",
+  "acceptance_criteria": "Script runs non-interactively on testnet, prints PASS with txid and block height. Must be skipped in cargo test --workspace (requires TESTNET_ENABLED=1 env var). Document required env vars in a comment at the top of the test file.",
+  "notes": "Test framework written in wallet/tests/e2e_testnet.rs. Four #[ignore] tests: lightwalletd connectivity, wallet+address generation, scan-tip advance, and full payment scaffold. Payment test blocked on nie-gw8k (IVK decryption) and agoraold-7766 (Merkle witnesses) which are registered as dependencies. All compile and are ignored by cargo test --workspace.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:21:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T04:58:05Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:41:53"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:31"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 00:45:14"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:30"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 00:45:15"
+    }
+  ]
+}

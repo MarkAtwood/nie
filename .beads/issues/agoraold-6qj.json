@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-6qj",
+  "title": "Duplicate and out-of-order PaymentAction handling",
+  "description": "State machine must be idempotent: receiving the same PaymentAction twice must not cause double-sends or panics. If a message arrives for an unknown session_id (peer reconnected, we lost state), send a PaymentAction::Unknown response. Add Unknown variant to PaymentAction.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T03:13:07Z",
+  "close_reason": "PaymentAction::Unknown { reason } added; serde tag 'unknown' confirmed by test; session_id enables idempotency checking in state machine"
+}

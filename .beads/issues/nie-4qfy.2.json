@@ -1,0 +1,28 @@
+{
+  "id": "nie-4qfy.2",
+  "title": "POST_NOTIFICATIONS never requested at runtime; permission dialog appears without context",
+  "description": "On Android 13+ (API 33) the system auto-shows a POST_NOTIFICATIONS permission dialog the first time startForeground() fires. No in-app rationale is shown first. If denied, the notification is silently absent (users see no 'Relay connected' indicator); they will file issues. Maintenance consequence: class of 'notification missing' reports from Android 13+ users who tapped Deny.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:32:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:39:14Z",
+  "closed_at": "2026-04-23T23:39:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:32:55"
+    }
+  ]
+}

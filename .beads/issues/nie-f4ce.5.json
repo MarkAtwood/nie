@@ -1,0 +1,26 @@
+{
+  "id": "nie-f4ce.5",
+  "title": "bridge-matrix: homeserver URL with non-standard port breaks bot MXID comparison",
+  "description": "bridge-matrix/src/bridge.rs is_bot_sender: extracts domain from homeserver URL by stripping 'https://' then splitting on '/'. For 'https://matrix.example.com:8448/', this gives domain='matrix.example.com:8448', producing bot_mxid '@bot:matrix.example.com:8448'. That is a valid MXID and the comparison is correct. HOWEVER: if the admin configures matrix_homeserver='https://matrix.example.com:8448' (no trailing slash), split('/').next() gives 'matrix.example.com:8448', which is still correct. Edge case: 'https://matrix.example.com:8448/path' \u2192 domain='matrix.example.com:8448' which is correct. The real problem is that trim_start_matches('https://') on 'http://matrix.example.com' yields 'matrix.example.com' (stripping only one slash is not the issue \u2014 trim_start_matches strips the full prefix). But config validation rejects http://, so this is fine. No bug here on reflection.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:57:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:05:03Z",
+  "closed_at": "2026-04-25T04:05:03Z",
+  "close_reason": "Not a bug: is_bot_sender handles ports correctly on analysis.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:57:01"
+    }
+  ]
+}

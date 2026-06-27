@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-6y2",
+  "title": "next_diversifier(): atomic increment and persist diversifier index",
+  "description": "Implement next_diversifier(account: u32) -> Result<DiversifierIndex> in WalletStore. Must: read current index from DB, check for overflow (DiversifierIndex is 11 bytes, max value ~2^88 \u2014 in practice we use u128 for storage and error if > 2^88-1), increment, persist in a single UPDATE, return the NEW index (post-increment, not the old one). Concurrency: SQLite single-writer model means two callers in the same process cannot race, but use BEGIN IMMEDIATE to prevent TOCTOU with an external writer. Defensive programming: if the account row doesn't exist, return Err (not silently create one); if the index is at u128::MAX (practically unreachable), return Err with a clear message. Use a subagent to read WalletStore and understand the existing transaction pattern before writing the SQL.",
+  "acceptance_criteria": "Unit test: 10 consecutive calls return [0,1,2,...,9] (or [1,2,...,10] depending on pre/post convention \u2014 choose pre-increment). Test: persisted value survives WalletStore::open() reconnect. Test: overflow returns Err, not panic.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:20:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T18:41:33Z",
+  "close_reason": "next_diversifier() implemented in WalletStore with transaction-wrapped read-then-update. Pre-increment semantics: returns current index, stores current+1. Max = 2^88-1 (ZIP-32 11-byte diversifier limit). 4 tests: sequential [0..9], missing account Err, survives reopen, overflow Err.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:25"
+    }
+  ]
+}

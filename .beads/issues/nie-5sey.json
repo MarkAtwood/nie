@@ -1,0 +1,27 @@
+{
+  "id": "nie-5sey",
+  "title": "Peer/* S2S translation layer",
+  "description": "Implement federation between nie-daemons following the JMAP-CHAT-FED companion spec (draft-atwood-jmap-chat-federation). Peer/* methods (Peer/deliver, Peer/receipt, Peer/typing, Peer/retract, Peer/groupUpdate) are defined there, not in the base JMAP Chat spec. Transport: carry these as ClearMessage variants inside MLS-encrypted relay messages. Each receiving nie-daemon unpacks and applies the operation locally. The relay still sees only opaque blobs. Peer server authentication model also defined in JMAP-CHAT-FED.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T19:54:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:06:37Z",
+  "closed_at": "2026-04-23T23:06:37Z",
+  "close_reason": "Peer/* S2S translation layer complete: ClearMessage variants, dispatch functions, update_message_delivery_state store method, 8 new tests, non-exhaustive match fixes in CLI/TUI/bot",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:55:04"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:55:05"
+    }
+  ]
+}

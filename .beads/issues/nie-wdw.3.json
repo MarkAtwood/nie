@@ -1,0 +1,23 @@
+{
+  "id": "nie-wdw.3",
+  "title": "TxBuildError: typed error enum for transaction building failures",
+  "description": "Define a typed error enum for all transaction building failure modes. This must be a standalone module (wallet/src/tx_error.rs) with no dependencies on zcash_primitives so the error types are stable even as the builder evolves.\n\npub enum TxBuildError {\n    InsufficientFunds { have: u64, need: u64 },  -- have < need (after fees)\n    DustAmount { amount: u64, threshold: u64 },   -- amount < DUST_THRESHOLD\n    NoSpendableNotes,                              -- wallet has notes but none have plaintext columns\n    AnchorMismatch,                                -- notes from different anchor heights mixed\n    InvalidRecipient(String),                      -- address string failed to parse\n    UnsupportedAddressType(String),                -- transparent/unknown address type\n    AmountOverflow,                                -- target + fee > u64::MAX\n    BuilderError(String),                          -- zcash_primitives builder returned error\n    ParamsNotLoaded(String),                       -- Sapling params file missing or corrupt\n    WitnessDeserialize(String),                    -- witness_data bytes could not be parsed\n    NoteDeserialize(String),                       -- note plaintext bytes could not be parsed\n}\n\nImplement Display for each variant with an actionable message (a user seeing this at 2am must understand what to do).\nImplement std::error::Error.\nNever use generic 'something went wrong' messages \u2014 each variant must name the specific fault.\n\nTests:\n- Test Display output for each variant (not just 'not empty' \u2014 assert the key noun is present)\n- Test that each variant is constructable (ensures exhaustive coverage)\n\nUse a research subagent to check if anyhow::Error or thiserror is already in wallet/Cargo.toml before deciding which derive macro to use.",
+  "acceptance_criteria": "TxBuildError compiles; Display test for each variant passes; no variant says 'error' without naming what errored",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:48:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T00:03:05Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:48:16"
+    }
+  ]
+}

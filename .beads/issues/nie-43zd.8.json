@@ -1,0 +1,23 @@
+{
+  "id": "nie-43zd.8",
+  "title": "mls: Welcome replay protection is correct and must be preserved",
+  "description": "join_from_welcome_for_group checks self.groups.contains_key(group_id) before inserting (line 204). A replayed Welcome is rejected with an error rather than overwriting existing group state. The test welcome_replay_is_rejected validates this. A future contributor might remove this check as defensive bloat, but dropping it would allow a replayed Welcome to reset the MLS group epoch to the initial value, making all subsequent messages unreadable and potentially causing a key confusion attack.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:11:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:11:21Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:11:20"
+    }
+  ]
+}

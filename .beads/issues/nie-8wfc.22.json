@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.22",
+  "title": "PoW difficulty cap mismatch: transport accepts up to 60, verify_token rejects >30",
+  "description": "core/src/transport.rs line 389 rejects relay-advertised difficulty > 60. core/src/pow.rs MAX_DIFFICULTY = 30, and verify_token() returns InvalidDifficulty for diff > 30. relay/src/main.rs enforces a minimum of 20 but has no maximum cap. If an operator sets POW_DIFFICULTY=31 (or 31-60), the client mines a valid-looking token with diff=31, sends it, and the relay's verify_token rejects it as InvalidDifficulty, causing permanent auth failure. The transport client and the pow verifier have different ceilings (60 vs 30). Fix: transport.rs should reject difficulty > pow::MAX_DIFFICULTY (30), and relay/src/main.rs should clamp at MAX_DIFFICULTY on startup.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:14:41Z",
+  "closed_at": "2026-04-24T22:14:41Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:10"
+    }
+  ]
+}

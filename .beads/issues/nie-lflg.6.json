@@ -1,0 +1,24 @@
+{
+  "id": "nie-lflg.6",
+  "title": "backoff jitter exceeds 60s cap",
+  "description": "transport.rs: delay_secs capped at 60 before jitter. Jitter 1.2x at max gives 72s actual. Cap jittered_secs instead.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:22:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:22:33Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:22:38"
+    }
+  ]
+}

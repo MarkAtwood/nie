@@ -1,0 +1,17 @@
+{
+  "id": "nie-ozqt",
+  "title": "Review: relay round 20",
+  "notes": "Maintainer risk: MEDIUM -- GROUP_SEND live-send lacks membership re-check (nie-ozqt.2) and SUBSCRIBE_REQUEST invoice cap is non-atomic (nie-ozqt.3).\nConfidence: 20% chance of missed bug. Uncertainty: BusMessage::Direct path not traced, no concurrent load tests. Would raise confidence with integration tests for concurrent GROUP_LEAVE + GROUP_SEND and nie-ozqt.3 invoice cap race.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:39:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

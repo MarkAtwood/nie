@@ -1,0 +1,14 @@
+{
+  "id": "nie-g2p6",
+  "title": "(BUG) wallet/db.rs: spent_note_ids_in() issues one DB query per note — O(n) round trips on large witness map",
+  "description": "spent_note_ids_in() loops over each note_id and issues a separate 'SELECT note_id FROM notes WHERE note_id = ? AND spent = 1' query. The scan loop calls this once per block to prune the in-memory witness map. With a wallet holding 10,000 notes this is 10,000 round trips per block, serialized on the single-connection pool. This creates a 30-second block-stream timeout risk and a performance cliff after moderate wallet use. Fix: use a single 'SELECT note_id FROM notes WHERE note_id IN (?, ?, ...) AND spent = 1' query with all IDs bound at once, or use a temporary table approach.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:05:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:13:03Z",
+  "closed_at": "2026-04-26T09:13:03Z",
+  "close_reason": "Closed"
+}

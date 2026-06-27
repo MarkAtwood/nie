@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.73",
+  "title": "GET_KEY_PACKAGE and GET_HPKE_KEY not rate-limited; authenticated client can issue unlimited DB reads",
+  "description": "BROADCAST, SEALED_BROADCAST, GROUP_SEND, and SUBSCRIBE_REQUEST go through check_rate_limit. GET_KEY_PACKAGE and GET_HPKE_KEY do not. An authenticated client can call GET_KEY_PACKAGE in a tight loop, each call executing a DB query, without any throttling. GET_KEY_PACKAGE without device_id runs a full index scan over key_packages for a pub_id.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:53:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:53:48Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:53:47"
+    }
+  ]
+}

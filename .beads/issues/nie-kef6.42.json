@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.42",
+  "title": "redact_token_query_param breaks query-param auth for EventSource and WS clients",
+  "description": "handle_jmap_eventsource and handle_ws_events authenticate via ?token= query param; the redact_token_query_param middleware replaces token=VALUE with token=REDACTED in req.uri() before next.run(req), so axum's Query extractor gives the handler params.token = Some(\"REDACTED\") \u2014 the constant-time comparison always fails, silently denying browser SSE and WebSocket clients that cannot set Authorization headers",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:22:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:35:55Z",
+  "closed_at": "2026-04-25T00:35:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:22:56"
+    }
+  ]
+}

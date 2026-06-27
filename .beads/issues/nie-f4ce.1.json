@@ -1,0 +1,26 @@
+{
+  "id": "nie-f4ce.1",
+  "title": "WASM: js_cb.call1 return silently dropped; JS exceptions invisible",
+  "description": "wasm/src/client.rs set_event_callback: 'let _ = js_cb.call1(...)' discards the Result<JsValue,JsValue>. If the JS event callback throws an exception, the exception is silently swallowed \u2014 no console.error, no panic, nothing. Every relay event fires the callback; a bug in JS event handling produces zero observable signal.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:53:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:37:13Z",
+  "closed_at": "2026-04-25T04:37:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:53:59"
+    }
+  ]
+}

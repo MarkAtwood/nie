@@ -1,0 +1,27 @@
+{
+  "id": "nie-wrk.1",
+  "title": "color_for panics if relay sends pub_id shorter than 2 chars",
+  "description": "color_for does &pub_id[..2] (byte index) then from_str_radix. If a relay sends Deliver.from or UserJoined.pub_id shorter than 2 bytes the client panics with 'byte index out of bounds'. All relay-generated pub_ids are 64-char hex hashes so this can't happen with the canonical relay, but a hostile or buggy relay \u2014 or a future caller passing a short string \u2014 causes an unrecoverable panic rather than a degraded display.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:53:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T00:01:06Z",
+  "closed_at": "2026-04-18T00:01:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:53:24"
+    }
+  ]
+}

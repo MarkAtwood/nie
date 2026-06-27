@@ -1,0 +1,26 @@
+{
+  "id": "nie-felh.10",
+  "title": "MLS client fallback creates wrong-identity group client on double-init failure",
+  "description": "event.rs line 113: On reconnect, if MlsClient::new(&state.my_pub_id) fails, the fallback initializes a client with pub_id='fallback' instead of the actual user's pub_id. This corrupts the MLS group identity. The code assumes mls_active will stay false, but if the admin reconnects and enters DirectoryList again, it will try to create_group() with the wrong identity, causing silent encryption state corruption. Fallback should either panic (fail hard) or not reset the client\u2014escalate to core team for intent.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T04:08:05Z",
+  "closed_at": "2026-04-20T04:08:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:03"
+    }
+  ]
+}

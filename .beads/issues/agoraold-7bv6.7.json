@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.7",
+  "title": "SEC2: IDB stores JSON-in-string instead of native object",
+  "description": "File: wasm/src/storage.rs lines 90-92 (save) and lines 123-125 (load).\n\nsave_identity serializes the base64 secret into a serde_json::Value, converts it to a JSON string, then stores that string as a JsValue in IndexedDB. On load, the string is retrieved, then serde_json::from_str is called to parse it back.\n\nCost: one extra serde_json::to_string allocation on every save; one extra JsValue::as_string() + serde_json::from_str parse on every load. Load happens at app startup on every page load \u2014 users feel this as initialization latency. The parse also brings serde_json into the startup hot path unnecessarily for a simple 64-byte blob.\n\nFix: Use js_sys::Object and js_sys::Reflect::set to construct a native JS object {secret_b64: '...'} directly, then store that JsValue. On load, use js_sys::Reflect::get to extract the field without JSON parsing. This removes the JSON roundtrip from the IDB storage path entirely.\n\nClassify: P2 (extra parse on every app startup; also cleaner -- IndexedDB is designed to store structured objects natively)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:18Z",
+  "closed_at": "2026-04-20T02:47:37Z",
+  "close_reason": "By design: JSON string storage is simpler and more portable. Identity load/save occurs at most once per session; optimization would add complexity for unmeasurable benefit. Defer to Phase 2 if profiling shows actual overhead.",
+  "labels": [
+    "efficiency",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:03"
+    }
+  ]
+}

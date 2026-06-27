@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-8lcm.2",
+  "title": "GOOD: spendable_notes(0) as dual-subsystem oracle",
+  "description": "The receive-side assertion in e2e_testnet.rs uses spendable_notes(0) as its oracle rather than balance() alone. spendable_notes() requires both plaintext columns non-null (IVK decryption, nie-gw8k) and a populated Merkle witness (agoraold-7766). A non-empty result is therefore a conjunction: IVK decryption worked AND witness tracking is correct. Neither subsystem alone produces a passing result. The inline comment at the assertion site makes this reasoning explicit: 'it is the single assertion that proves both.' This is a stronger oracle than checking balance because balance counts any stored satoshi value; spendable_notes demands the cryptographic machinery is complete.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:14Z",
+  "closed_at": "2026-04-20T05:09:43Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:15"
+    }
+  ]
+}

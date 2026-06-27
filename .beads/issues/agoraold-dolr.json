@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-dolr",
+  "title": "Review round 2: canonicalize display names",
+  "notes": "R2 Confidence: 95% no missed bugs in canonicalization logic itself. TWO legitimate engineering gaps remain: (1) Missing unit test for U+FEFF stripping (justified in code comment but untested); (2) DESIGN.md doesn't mention U+FEFF despite its security justification and presence in code. Running out of real complaints: no—these are genuine test integrity and documentation gaps per project standards, not style preferences.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:04:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:09:14Z",
+  "close_reason": "round 2 complete; P0+P1 fixed (U+FEFF test + DESIGN.md sync); P0=0 P1=0 P2=0; running out of real complaints"
+}

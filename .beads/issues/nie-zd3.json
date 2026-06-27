@@ -1,0 +1,19 @@
+{
+  "id": "nie-zd3",
+  "title": "Review: monotonic diversifier, UA return type, wallet FVK wiring",
+  "notes": "Maintainer risk: HIGH — the P0 bug (wrong FVK derivation) means the core feature this diff ships (real payment addresses instead of stubs) is broken in production. Everything else is secondary.\nConfidence: 90% chance of missed bug in the generate_fresh_address → wallet interaction specifically; 20% chance of anything else missed. Uncertainty driven by: (1) cannot see how wallet_restore and wallet_init produce key_bytes vs what the FVK derivation expects — this may have implications beyond what I traced; (2) the full dispatch_payment state machine was not re-read end-to-end. Would raise confidence if: a test existed that calls wallet_init, then try_load_wallet_fvks, then generates an address and verifies it is spendable from the wallet's derived spending key.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:16:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T23:37:07Z",
+  "close_reason": "all review findings resolved",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

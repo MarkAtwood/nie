@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.83",
+  "title": "cli: init() does not zeroize the 64-byte seed from to_secret_bytes_64",
+  "description": "In commands.rs::init(), the line 'let seed = id.to_secret_bytes_64()' returns a plain [u8; 64] (not Zeroizing). This array is passed to encrypt_keyfile and then falls out of scope without being zeroized. The 64 bytes of raw Ed25519+HPKE key material remain in heap memory until the allocator reclaims them. Fix: change to 'let mut seed = Zeroizing::new(id.to_secret_bytes_64())' and pass seed.as_ref() to encrypt_keyfile, or zeroize seed explicitly before returning.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:56:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:13:23Z",
+  "closed_at": "2026-04-25T01:13:23Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:56:26"
+    }
+  ]
+}

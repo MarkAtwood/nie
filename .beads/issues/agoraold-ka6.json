@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-ka6",
+  "title": "Mainnet smoke test: send and receive real ZEC",
+  "description": "Manual test checklist (not automated): Fund mainnet wallet, /pay between two nie instances on mainnet, verify confirmation. Document results. Requires real ZEC \u2014 not a CI test. Tag issue for human execution.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:17"
+    }
+  ]
+}

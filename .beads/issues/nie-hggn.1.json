@@ -1,0 +1,26 @@
+{
+  "id": "nie-hggn.1",
+  "title": "ws.rs GROUP_ADD/SEND/LEAVE: group_id not length-validated before DB ops",
+  "description": "Trigger: authenticated client sends GROUP_ADD (or GROUP_SEND, GROUP_LEAVE) with a group_id up to ~1 MiB (within the WS frame cap). Bad behavior: the full string is allocated and passed directly to get_group(), add_group_member_capped(), is_group_member(), and list_group_members() DB calls with no length check. The member_pub_id field on GROUP_ADD is validated to exactly 64 hex chars, but group_id has no corresponding guard. At 60 req/min rate limit this enables sustained allocation of ~1 MiB per request. Fix: add a length guard (e.g. \u2264128 bytes) on params.group_id before the first DB call in all three handlers, consistent with the pattern used for pub_id fields.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:11:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:20:49Z",
+  "closed_at": "2026-04-26T12:20:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:11:17"
+    }
+  ]
+}

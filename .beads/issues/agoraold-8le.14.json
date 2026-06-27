@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-8le.14",
+  "title": "age for keyfile encryption: correct choice, should not be 'simplified'",
+  "description": "cli/src/commands.rs encrypts the identity keyfile using the age crate (scrypt KDF + ChaCha20-Poly1305). A contributor might suggest rolling a simpler approach (AES-CBC + SHA-256 HMAC, or just argon2 + XOR). The age choice is correct: it uses a well-reviewed AEAD construction with a proper KDF, the crate is maintained by the age spec authors, and it is widely deployed. The tests verify wrong-passphrase rejection and corrupt-ciphertext rejection, which are the two threat scenarios. Why it should be defended: any 'simplification' trades proven AEAD for hand-rolled crypto, which is the canonical way to introduce keyfile compromise vulnerabilities.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:08:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:59Z",
+  "closed_at": "2026-04-17T23:35:12Z",
+  "close_reason": "decision already recorded in CLAUDE.md / architecture is intentional; no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:08:46"
+    }
+  ]
+}

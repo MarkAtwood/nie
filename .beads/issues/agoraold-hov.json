@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-hov",
+  "title": "Transaction watcher: on-chain confirmation tracking",
+  "description": "Background task that watches for incoming shielded transactions, matches them to pending payee sessions, tracks confirmation depth, and triggers PaymentAction::Confirmed when depth threshold is reached.",
+  "notes": "Phase 1-3 complete: 4/7 children closed. Remaining 3 (nie-ghf, nie-hll, nie-iiy) blocked on nie-gw8k (IVK note decryption in scanner). Epic resumes when nie-gw8k is implemented.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T10:10:05Z",
+  "close_reason": "all steps complete",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:45:06"
+    }
+  ]
+}

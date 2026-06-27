@@ -1,0 +1,27 @@
+{
+  "id": "nie-9qiu.4",
+  "title": "nie-monero: MoneroKeys serializes secret key bytes as plain JSON; callers must encrypt the file but there is no built-in protection or warning at load time",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:23:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:45:57Z",
+  "closed_at": "2026-04-26T12:45:57Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:23:24"
+    }
+  ]
+}

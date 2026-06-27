@@ -1,0 +1,27 @@
+{
+  "id": "nie-3c7e.2",
+  "title": "space_set silently drops name/description on wrong JSON type",
+  "description": "Trigger: Space/set update {\"name\": 42} \u2192 Phase 1 skips it (is_simple_space_prop returns true, skips validation), Phase 2 calls value.as_str() which returns None, new_name stays None, update_space_fully writes nothing, returns Ok(true) \u2192 response shows space_id in updated[]. Client has no way to know the write was silently dropped. RFC 8620 \u00a75.3 requires notUpdated with invalidProperties. Same issue for description. No test covers wrong-type simple props.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:51:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:56:08Z",
+  "closed_at": "2026-04-24T04:56:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 21:51:31"
+    }
+  ]
+}

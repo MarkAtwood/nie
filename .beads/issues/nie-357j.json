@@ -1,0 +1,14 @@
+{
+  "id": "nie-357j",
+  "title": "store: all_users() has no LIMIT — full table scan on every new WebSocket connection",
+  "description": "ws.rs line 420 calls store.all_users() on every new authenticated connection to build and send the DirectoryList notification. store.all_users() (store.rs line 439) runs: SELECT pub_id, nickname FROM users ORDER BY first_seen ASC with no LIMIT. This allocates a Vec\u003c(String, Option\u003cString\u003e)\u003e with one entry per ever-registered user, serializes it to JSON, and sends it over the new client's WebSocket. At 10,000 registered users the DirectoryList payload is approximately 640 KB per connection event. At 100,000 users this is 6.4 MB per connect — blocking the write task and consuming 6.4 MB of allocations. An adversary who repeatedly reconnects forces O(N) allocation and serialization per connection, where N is the total user count. The code comment at line 415 acknowledges the problem and defers optimization, but does not bound N. Fix: cap all_users() with a LIMIT clause and document the cap, or paginate DirectoryList, or cache the serialized directory in AppState with invalidation on write.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:53:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:38Z",
+  "closed_at": "2026-04-26T05:11:38Z",
+  "close_reason": "Closed"
+}

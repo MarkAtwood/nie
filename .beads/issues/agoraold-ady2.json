@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-ady2",
+  "title": "DID-ify identity layer (did:key)",
+  "description": "Replace raw base64-encoded Ed25519 public keys (PubId) with W3C DID identifiers using the did:key method. The did:key encoding is multibase(multicodec(pubkey)) — a minimal, deterministic transform with no registry. Changes: derive did:key string from Identity at creation time; update PubId to store and display the did:key URI; update relay auth handshake to send/receive did:key; update protocol.rs types; update CLI display; add did:key parsing/validation. No new crypto — same Ed25519 key, different wire format.",
+  "notes": "Review converged after 1 round(s). Final review: agora-7g2k.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T19:32:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:23:25Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-wgk8.9",
+  "title": "keyfile load does not verify 0600 permissions \u2014 silently loads world-readable keys",
+  "description": "core/src/keyfile.rs:14-33: load_identity reads the file but does not check Unix permissions. If the keyfile is readable by other users (e.g. due to an umask issue or manual copy), the age-encrypted bytes are exposed and a passphrase-less key is immediately compromised. Should check std::os::unix::fs::MetadataExt::mode() & 0o077 == 0 and emit a warning (or error) if the permissions are too broad. This is the same check ssh/gpg perform on startup.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:22:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:36:10Z",
+  "closed_at": "2026-04-26T10:36:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:22:39"
+    }
+  ]
+}

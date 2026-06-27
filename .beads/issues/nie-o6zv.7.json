@@ -1,0 +1,21 @@
+{
+  "id": "nie-o6zv.7",
+  "title": "GOOD: foreign_keys(true) set on SqliteConnectOptions not as post-connect PRAGMA",
+  "description": "db.rs sets foreign_keys(true) via SqliteConnectOptions rather than a post-connect PRAGMA. If the connection pool is ever widened beyond 1, a PRAGMA would only apply to one connection; connect options applies to all. The alternative silently breaks ON DELETE CASCADE at scale.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:32:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T08:37:20Z",
+  "closed_at": "2026-04-19T08:37:20Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:32:24"
+    }
+  ]
+}

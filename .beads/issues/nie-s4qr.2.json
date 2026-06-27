@@ -1,0 +1,26 @@
+{
+  "id": "nie-s4qr.2",
+  "title": "connection_manager backoff not reset on relay-initiated disconnect then reconnect success",
+  "description": "In connection_manager, delay_secs is reset to 1 only inside the Ok((...)) branch when consecutive_failures is also cleared. If the relay connects successfully (resets backoff), then relay_disconnect=true fires (relay hangs up), the loop falls through to the backoff section. delay_secs is still 1 from the last successful connect (correctly). BUT: after that re-attempt fails, consecutive_failures is now 1, yet delay_secs started at 1 and doubles correctly. This is actually fine on the fail path. Real issue: after a successful reconnect, delay_secs resets to 1, but consecutive_failures is set to 0 on the success path already (line 215). So no bug in normal operation. However, if relay_disconnect=true and the subsequent re-connect fails 10 times, it gives up permanently \u2014 even if the original disconnect was transient. MAX_RETRIES=10 consecutive failures to re-open a new connection after any single drop will permanently kill the retry loop with no way to restart. A user whose relay goes down for 10 minutes gets a permanent Disconnected with no recovery short of restarting the app.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:13:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:35:34Z",
+  "closed_at": "2026-04-26T07:35:34Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:13:22"
+    }
+  ]
+}

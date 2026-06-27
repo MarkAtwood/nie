@@ -1,0 +1,24 @@
+{
+  "id": "nie-ghnr",
+  "title": "GOOD: URL scheme validation at CLI boundary",
+  "description": "In main.rs, both the relay URL and the lightwalletd URL are scheme-checked before any deeper code sees them. This is the right place: CLI entry is where all user-provided inputs converge, and producing a clear error with remediation advice is trivial there. Pushing this into wallet or transport code would require threading error context back up, and missing it means a confusing gRPC or WebSocket error that says nothing about the actual problem.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T15:29:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:45:45Z",
+  "closed_at": "2026-04-22T13:45:45Z",
+  "close_reason": "Review finding acknowledged \u2014 existing implementation is correct, no change needed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 08:30:47"
+    }
+  ]
+}

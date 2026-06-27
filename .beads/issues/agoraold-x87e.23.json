@@ -1,0 +1,20 @@
+{
+  "id": "agoraold-x87e.23",
+  "title": "compact_block_proto_fields test is a roundtrip oracle",
+  "description": "wallet/src/client.rs test compact_block_proto_fields_are_accessible constructs a CompactBlock with known field values and then reads those same fields back, asserting they equal what was set. The test comment says 'this checks that prost generated the expected struct layout, not the network protocol.' However, this is a pure roundtrip: set field X, read field X, assert X == X. This proves nothing about correctness \u2014 it would pass even if prost generated completely wrong deserialization because no deserialization occurs. The test only exercises struct field access, which is trivially guaranteed by the Rust type system at compile time. Per CLAUDE.md test oracle discipline, a test that encodes with function A and decodes with function A proves nothing. This test has no independent oracle and should be removed or replaced with a test that deserializes a known proto-encoded binary and checks the field values against that known encoding.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:12:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:12Z",
+  "closed_at": "2026-04-20T05:12:50Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:12:14"
+    }
+  ]
+}

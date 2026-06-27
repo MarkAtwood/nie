@@ -1,0 +1,28 @@
+{
+  "id": "nie-8le.4",
+  "title": "/! command passes raw user input to sh -c",
+  "description": "tokio::process::Command::new('sh').arg('-c').arg(cmd_str) where cmd_str is raw user input. Shell metacharacters are interpreted: /! echo $HOME expands env vars, /! cmd1; cmd2 runs both commands, /! $(whoami) executes subshell. Output is sent to the chat room, visible to all peers. User expects /! to run 'a command', not 'a shell expression'. A user typing /! cat notes.txt | grep password and thinking only grep output is sent will be surprised when the whole pipeline runs and the relay fans the output to all N peers. Maintenance consequence: class of user-reported 'unexpected behavior' issues whenever shell syntax appears in commands.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:07:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T23:26:46Z",
+  "closed_at": "2026-04-17T23:26:46Z",
+  "close_reason": "Replaced sh -c with shlex word-splitting + Command::new(argv[0]).args(argv[1..]). Shell metacharacters are no longer interpreted. Added usage error for empty/invalid parse. Updated /help text.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:07:33"
+    }
+  ]
+}

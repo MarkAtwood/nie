@@ -1,0 +1,14 @@
+{
+  "id": "nie-lxbs",
+  "title": "set_message_reaction/remove/edit_message_body lost-update race",
+  "description": "daemon/src/store.rs:1567-1651: set_message_reaction, remove_message_reaction, and edit_message_body each do SELECT then UPDATE with no transaction across the pair. Two concurrent callers read the same stale JSON, modify independently, and both write back — the second write silently discards the first change. Fix: wrap each function in self.pool.begin() with IMMEDIATE isolation so the read-modify-write is atomic.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:55:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:22Z",
+  "closed_at": "2026-04-25T02:08:22Z",
+  "close_reason": "Closed"
+}

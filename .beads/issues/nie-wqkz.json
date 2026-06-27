@@ -1,0 +1,17 @@
+{
+  "id": "nie-wqkz",
+  "title": "SEC0: display name canonicalization audit passed",
+  "description": "Security correctness review of nie-5lsf completed. All checks passed:\n\n1. All 11 bidi control codepoints (U+202A/B/C/D/E, U+2066/67/68/69, U+200E/F) present in BIDI_CONTROLS ✓\n2. All 3 ZWS codepoints (U+200B, U+200C, U+2060) present in ZWS_CHARS ✓\n3. U+200D (ZWJ) and U+FEFF (BOM) correctly absent per spec ✓\n4. canonicalize_display_name called BEFORE storage in SET_NICKNAME handler ✓\n5. canonicalize_display_name called BEFORE storage and response in GROUP_CREATE handler ✓\n6. No bypass paths for display names - all user input canonicalized ✓\n7. NFC normalization correct: UnicodeNormalization trait in scope, s.nfc().collect() valid ✓\n8. e2e test covers both bidi rejection (U+202E) and ZWS stripping (U+200B) ✓\n\nFiles reviewed:\n- /home/mark/WORK/nie/relay/src/ws.rs (canonicalize_display_name, SET_NICKNAME, GROUP_CREATE handlers)\n- /home/mark/WORK/nie/relay/tests/e2e_jsonrpc.rs (display_name_canonicalization test)\n- /home/mark/WORK/nie/DESIGN.md (Display Name Canonicalization spec)",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:01:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:39:22Z",
+  "closed_at": "2026-04-22T13:39:22Z",
+  "close_reason": "Audit complete — canonicalize_display_name passes security review. Resolved by nie-qf7k.4 and nie-qf7k.2 improvements.",
+  "labels": [
+    "review"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-cz2m",
+  "title": "scanner: upsert_witness failure leaves note permanently unspendable",
+  "description": "scan_tx() calls insert_note() then upsert_witness() as separate non-atomic operations. If upsert_witness() fails after insert_note() succeeds, the note exists in DB but has no witness row. spendable_notes() uses INNER JOIN witnesses, so the note is permanently excluded from spendable balance. No recovery path.\n\n## Algorithm\n1. Open wallet/src/db.rs\n2. Add new pub(crate) method insert_note_with_witness() after upsert_witness():\n   Signature: pub(crate) async fn insert_note_with_witness(&self, note: &Note, block_height: u64, witness_data: &[u8]) -> Result<i64>\n   - Begin a sqlx transaction: let mut txn = self.pool.begin().await?\n   - Execute the same INSERT SQL as insert_note() but using &mut *txn as executor (copy the two-variant insert logic from insert_note())\n   - Use sqlx::query!() against &mut *txn to get the note_id (LastInsertId)\n   - Execute the same INSERT ... ON CONFLICT DO UPDATE as upsert_witness() using &mut *txn\n   - txn.commit().await?\n   - Return Ok(note_id)\n3. Open wallet/src/scanner.rs, find scan_tx() at line ~438\n4. In the match self.store.insert_note(&note).await branch:\n   - Before the match, compute witness_bytes from the witness (same as current line ~508)\n   - Replace the two-step call with: match self.store.insert_note_with_witness(&note, bh as u64, &witness_bytes).await\n   - On Ok(note_id): insert into self.witnesses (same as current line ~515)\n   - Err(e) if is_unique_constraint(&e): same debug log and continue\n   - Err(e): return Err(e)\n5. Remove the now-dead upsert_witness call and the standalone insert_note call in this arm\n\n## Defensive programming rules\n- The transaction must roll back automatically on any ? error before commit (sqlx semantics guarantee this)\n- No unwrap() in the new method \u2014 all errors propagate via ?\n- Do not log witness_data bytes (they are not key material but still opaque binary)\n- insert_note() and upsert_witness() public signatures must not change (other call sites exist)\n- The insert_note_with_witness method is pub(crate) only \u2014 not pub \u2014 no external visibility needed\n\n## Acceptance\n- cargo test -p nie-wallet passes including new test: insert_note_with_witness_is_atomic\n  Test: call insert_note_with_witness(), verify BOTH note row and witness row exist in DB\n  Oracle: direct DB queries after the call\n- cargo clippy -p nie-wallet -- -D warnings passes\n- No warn!(note_id, 'scanner: upsert_witness failed') path remains reachable in the Ok(note_id) arm of scan_tx()",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T10:13:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T17:15:23Z",
+  "closed_at": "2026-04-19T17:15:23Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:05:32"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-6w2w",
+  "title": "(BUG) tui/event.rs: own_profile HashMap grows unbounded via /set command",
+  "description": "The /set \u003ck\u003e \u003cv\u003e slash command in tui/src/event.rs calls state.own_profile.insert(key, value) with no limit on the number of entries, key length, or value length. A user (or a compromised terminal macro) can inflate own_profile arbitrarily. Similarly, the /alias command inserts into state.local_names with no cap. Fix: enforce a maximum number of keys (e.g. 100) and maximum key/value byte length (e.g. 256 bytes each) with a user-facing error on violation.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:29:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:33:27Z",
+  "closed_at": "2026-04-26T09:33:27Z",
+  "close_reason": "Closed"
+}

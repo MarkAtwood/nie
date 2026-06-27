@@ -1,0 +1,23 @@
+{
+  "id": "nie-nbqp.15",
+  "title": "transport.rs: PoW mining correctly offloaded to spawn_blocking",
+  "description": "ws_upgrade_and_auth (transport.rs line 453) uses tokio::task::spawn_blocking for mine_token when PoW is required. This is correct: mine_token is CPU-bound and would block the async executor if called directly in an async context. A contributor might suggest removing spawn_blocking to 'simplify' the code or noting that mine_token is 'fast enough'. It is not \u2014 difficulty is configurable and at high difficulty values mining can take seconds. The spawn_blocking is load-bearing. Keep it.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:38:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:38:51Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:38:50"
+    }
+  ]
+}

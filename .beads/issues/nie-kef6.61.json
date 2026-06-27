@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.61",
+  "title": "Message/get rejects ids:null; should return all messages",
+  "description": "POST /jmap Message/get with ids:null \u2192 method_error(invalidArguments). RFC 8620 \u00a75.1 says null means return all objects. ChatContact/get, Chat/get, Space/get all handle ids:null correctly; Message/get was missed.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:52:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:09:19Z",
+  "closed_at": "2026-04-25T01:09:19Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:52:24"
+    }
+  ]
+}

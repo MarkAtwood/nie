@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.9",
+  "title": "daemon/main.rs: bootstrap creates space without creator member \u2014 space_member FK not set",
+  "description": "main.rs calls bootstrap_store.create_space (not create_space_full) to create the default space. create_space only inserts the space row with no space_member row for the daemon owner. When users query Space/get or SpaceMember/get they see a space with zero members even though the daemon is effectively the owner. create_space_full exists and does both atomically. The inconsistency will confuse users and generate issues about 'empty space at startup'. Fix: use create_space_full with daemon's own pub_id as the creator.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:36:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:07Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:36:43"
+    }
+  ]
+}

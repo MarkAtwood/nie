@@ -1,0 +1,27 @@
+{
+  "id": "nie-hg3g.2",
+  "title": "bridge-slack: HMAC computed over empty string when body is non-UTF-8",
+  "description": "bridge-slack/src/slack.rs:102: `std::str::from_utf8(body).unwrap_or(\"\")` silently replaces non-UTF-8 body with an empty string before appending to the HMAC base string. Consequence: if Slack ever sends a request body containing non-UTF-8 bytes (valid JSON can be UTF-8 but intermediaries can corrupt), HMAC is computed over `v0:{ts}:` instead of `v0:{ts}:{body}`, causing legitimate Slack events to fail verification. A forged request with non-UTF-8 body only needs a HMAC of `v0:{ts}:`, requiring signing_secret knowledge \u2014 but still violates the contract. Fix: use `from_utf8(body).map_err(|_| anyhow!(\"non-UTF-8 body\"))?` and reject, or compute HMAC over raw bytes without UTF-8 conversion.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:36:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:45:40Z",
+  "closed_at": "2026-04-24T19:45:40Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "security"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:36:30"
+    }
+  ]
+}

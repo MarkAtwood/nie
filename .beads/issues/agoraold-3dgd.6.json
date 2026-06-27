@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-3dgd.6",
+  "title": "socks5_helper IPv6 rejection is a maintainer trap",
+  "description": "socks5_helper.rs lines 52-68 handle only ATYP=1 (IPv4) and ATYP=3 (domain), deliberately panicking on ATYP=4 (IPv6). The panic happens inside a spawned task, silently terminating the test proxy without signaling the test.\n\nRisk: When IPv6 support is added (e.g., parse_relay_addr handles ::1), a contributor might not realize socks5_helper.rs needs updating. The test will silently fail on CI because the proxy panics before the CONNECT is signaled to the test.\n\nMitigations:\n1. Add a doc comment with explicit IPv6 upgrade path: 'When IPv6 is needed, add ATYP=4 handling here (16 bytes address + 2 port)'\n2. Consider: spawn socks5_helper as an external standalone binary so it can panic safely (currently in-process)\n3. Or: assert at test runtime that parse_relay_addr never produces IPv6 output",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:11:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:26Z",
+  "closed_at": "2026-04-19T19:14:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:11:20"
+    }
+  ]
+}

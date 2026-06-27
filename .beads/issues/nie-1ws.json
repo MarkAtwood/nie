@@ -1,0 +1,23 @@
+{
+  "id": "nie-1ws",
+  "title": "Orchard spending key derivation and payment address",
+  "description": "Derive Orchard spending key from ZIP-32 account key and extract the Orchard payment address (default diversifier index 0). This mirrors the Sapling derivation bead and is a co-prerequisite for ZIP-316 Unified Address assembly. Use a subagent to check the orchard crate API (SpendingKey::from_zip32_seed or equivalent) in zcash/librustzcash source to confirm the exact call signature before coding. Defensive programming: Orchard SpendingKey must not be logged; validate that orchard key material differs from sapling key material at test time (not same bytes).",
+  "acceptance_criteria": "Unit test: known-vector derivation from zcash orchard test suite. Test that Orchard address != Sapling address for the same account (sanity cross-check).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:20:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T19:19:45Z",
+  "close_reason": "OrchardSpendingKey, OrchardFullViewingKey, default_address via from_zip32_seed. 5 tests pass including test-vector oracle and Orchard\u2260Sapling cross-check.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:22"
+    }
+  ]
+}

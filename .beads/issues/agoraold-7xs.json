@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-7xs",
+  "title": "Review: nie encrypted relay (Phase 1)",
+  "notes": "Contributor experience risk: HIGH -- The CLAUDE.md PubId documentation (Section 6) is factually wrong in a load-bearing way: it documents base64 but the code uses hex(SHA-256). Any external client implementation or contributor following that section will produce PubIds that never match. The inline comments in identity.rs and auth.rs are correct. The risk is the conflict between the guidance doc and the code.\nConfidence: 30% chance of missed bug. Uncertainty driven by: (1) openmls behavior on create_group() with a reused in-memory provider is not verified against openmls source -- the stale state issue (nie-7xs.9) might be more or less severe depending on openmls storage key design; (2) the MLS reconnect flow (nie-7xs.2) has multiple timing-dependent paths that would need runtime testing to fully characterize; (3) did not verify the sqlx compile-time query checking is disabled (no DATABASE_URL at build time) -- if enabled, schema mismatches would be caught at compile time; (4) did not audit openmls 0.8 for known vulnerabilities. Would raise confidence with: end-to-end integration test between two real nie instances (covers the GetKeyPackage race and MLS state scenarios), openmls storage internals review, and testing admin reconnect with multiple existing members.\nConfidence updated after source reads: 15% chance of missed bug (down from 30%). Resolved: (1) GroupAlreadyExists confirmed -- admin reconnect is definitively broken by nie-7xs.9 being the root cause; (2) KeyPackage has no TlsSerialize at all, serde_json is unavoidable with current openmls API; (3) tungstenite has 64MiB default limit so nie-7xs.5 is lower severity than assessed. Remaining uncertainty: the GetKeyPackage race (nie-7xs.1) requires runtime testing to confirm timing; whether openmls_rust_crypto in-memory storage survives the GroupAlreadyExists path without corruption (likely fine since the error returns before any write) is not fully verified.\nConfidence updated after BasicCredential source read: 10% chance of missed bug (down from 15%). remove_member credential comparison (nie-7xs.9 area) is CORRECT: Credential.serialized_content() returns raw VLBytes slice (not TLS-length-prefixed -- the prefix only applies during wire serialization, not in-memory storage). From\u003cBasicCredential\u003e for Credential assigns credential.identity directly to serialized_credential_content, so serialized_content() returns the exact pub_id string bytes. The comparison m.credential.serialized_content() == pub_id.as_bytes() is correct. Remaining 10% uncertainty is the GetKeyPackage race (nie-7xs.1) which requires runtime testing to confirm timing, and any openmls 0.8.1 known bugs not visible from source.\nFinal confidence: 10% chance of missed bug. The GetKeyPackage race (nie-7xs.1) is confirmed broken in loopback by static reasoning (B's ECDH overhead \u003e\u003e loopback latency). The 10% residual is unknown openmls 0.8.1 bugs and any subtle async ordering I missed.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:52:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-16T09:07:54Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "internal-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-cs0.10",
+  "title": "dispatch_request_consecutive_addresses_differ test ignores alive return value",
+  "description": "Both dispatch_payment calls in dispatch_request_consecutive_addresses_differ discard the bool return value. The test still passes if dispatch_payment returns false (channel closed) because the channel has capacity 4 and messages are buffered. A future refactor that closes the channel on error would silently produce two identical 'no message sent' states and the assert_ne would panic with 'address reply must have been sent' rather than 'addresses must be distinct'. Add: assert\\!(dispatch_payment(...).await, 'first call must not close channel'); and same for the second call.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:07:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:10Z",
+  "closed_at": "2026-04-18T22:34:11Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:07:39"
+    }
+  ]
+}

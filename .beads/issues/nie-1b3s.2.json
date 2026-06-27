@@ -1,0 +1,26 @@
+{
+  "id": "nie-1b3s.2",
+  "title": "advance_diversifier_to uses DEFERRED tx for read-then-write",
+  "description": "store.rs:931 calls pool.begin() (SQLite DEFERRED) for a read-then-conditionally-write sequence: SELECT diversifier_idx then conditionally UPDATE. A concurrent next_diversifier() (which uses BEGIN IMMEDIATE) can advance the index between the SELECT and the UPDATE in advance_diversifier_to, causing the monotonicity invariant to be violated \u2014 the index could be written backward. Fix: use BEGIN IMMEDIATE (or an explicit 'BEGIN IMMEDIATE' query) instead of pool.begin() in advance_diversifier_to.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:12:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:23:52Z",
+  "closed_at": "2026-04-26T10:23:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:12:20"
+    }
+  ]
+}

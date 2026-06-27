@@ -1,0 +1,25 @@
+{
+  "id": "nie-ugn.10",
+  "title": "WalletClient trait instead of concrete LightwalletdClient for testability",
+  "description": "send_payment is generic over C: WalletClient rather than taking &mut LightwalletdClient directly. This is correct: it enables the payment.rs unit tests to use a MockClient without a real gRPC server. A contributor may suggest removing the trait abstraction to simplify the code. Defend it: without WalletClient, payment.rs tests require a live lightwalletd process, making them network-dependent and CI-hostile. The #[allow(async_fn_in_trait)] is appropriate for an internal trait used only in this crate.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:13:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T03:45:55Z",
+  "closed_at": "2026-04-19T03:45:55Z",
+  "close_reason": "Design decisions documented in code with defending comments",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:13:48"
+    }
+  ]
+}

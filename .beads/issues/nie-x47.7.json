@@ -1,0 +1,28 @@
+{
+  "id": "nie-x47.7",
+  "title": "rustyline::DefaultEditor::new().unwrap() in chat panics on headless env",
+  "description": "commands.rs line 136: 'let mut rl = rustyline::DefaultEditor::new().unwrap()' panics if rustyline can't initialize (no terminal, CI environment, stdin redirected). wallet_restore() handles this identically but uses .map_err(|e| anyhow!(...))? instead of .unwrap(). Scenario: 'nie chat' piped into a headless script panics rather than returning a clean error. The panic message provides no actionable information. Fix: change to .map_err()? consistent with wallet_restore.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:46:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T04:12:48Z",
+  "closed_at": "2026-04-18T04:12:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:46:57"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-3dgd.1",
+  "title": "Clarify TLS behavior of ws_upgrade_and_auth connector=None",
+  "description": "ws_upgrade_and_auth takes Option<Connector>. When None, tokio_tungstenite::client_async_tls_with_config uses the platform default trust store (safe for production). A future contributor reading the signature might assume None means 'no TLS', leading to incorrect assumptions about when TLS is actually applied. The build_connector() function is clear (lines 305-316), but ws_upgrade_and_auth's doc comment (lines 318-325) should explicitly document that connector=None means 'use platform default', not 'disable TLS'. This prevents confusion when maintaining proxy vs. direct connection paths.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:11:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:05Z",
+  "closed_at": "2026-04-19T19:16:12Z",
+  "close_reason": "Closed",
+  "labels": [
+    "readability"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:11:01"
+    }
+  ]
+}

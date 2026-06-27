@@ -1,0 +1,19 @@
+{
+  "id": "nie-igs",
+  "title": "Review: nie-wdw shielded tx builder + error/happy-path tests",
+  "notes": "Maintainer risk: MEDIUM — one P0 (migration atomicity, process-kill window creates permanently broken wallet) and two P1 (cast pattern inconsistency, unsafe coupled to internal step numbering). The P0 is real but narrow window; the unsafe is correctly documented but fragile to future refactors of build_shielded_tx.\nConfidence: 12% chance of missed bug. Uncertainty driven by: (1) the Groth16 proof path is untested without real params — the happy-path tests silently skip, so proof correctness is not validated here; (2) the scanner-side (how note_diversifier/note_pk_d/note_rseed actually get written to the DB) is not in this diff and was not reviewed; if the scanner writes wrong column types or byte orders, spendable_note_to_sapling will reject them at runtime rather than test time. Would raise confidence if: (a) params were available and happy-path tests actually ran, (b) scanner code that writes the plaintext columns was reviewed alongside this diff.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:24:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T01:31:39Z",
+  "close_reason": "all review findings addressed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

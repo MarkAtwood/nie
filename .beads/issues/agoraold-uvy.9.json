@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-uvy.9",
+  "title": "Migration v6 wrapped in single SQLite transaction is load-bearing",
+  "description": "All four ALTER TABLE statements and the PRAGMA user_version = 6 run inside pool.begin() / txn.commit(). A contributor may suggest removing the transaction 'since each ALTER TABLE is auto-committed.' Without the transaction, a kill-9 between any two ALTER TABLE calls leaves orphaned columns with user_version < 6, making every subsequent open fail with 'duplicate column name.' SQLite DDL is fully transactional (unlike PostgreSQL/MySQL which have implicit DDL commits) \u2014 a rolled-back ALTER TABLE leaves no trace. The transaction is the reason the v6_migration_is_idempotent test passes.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:07:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:53Z",
+  "closed_at": "2026-04-19T02:18:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:07:33"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nie-6i6h.14",
+  "title": "bridge-jmap: email text body capped at 8192 bytes but nie pad limit is larger",
+  "description": "email_get (jmap.rs:333) sets maxBodyValueBytes: 8192. This is the JMAP-level cap on how much body text is fetched. If the email has a longer plain text body, only the first 8192 bytes arrive (JMAP sets isTruncated: true on the bodyValues entry). The bridge silently forwards the truncated text to nie without indicating truncation to the nie recipient. The email originator sees their full email forwarded; the nie recipient sees only the first 8KB with no ellipsis or truncation marker. Should either raise the limit, or append '[truncated]' when bodyValues[partId].isTruncated is true.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:30:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:30:11Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:30:10"
+    }
+  ]
+}

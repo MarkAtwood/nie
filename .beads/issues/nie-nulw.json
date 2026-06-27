@@ -1,0 +1,14 @@
+{
+  "id": "nie-nulw",
+  "title": "space_delete/space_update: two-query existence+role check has TOCTOU gap",
+  "description": "daemon/src/jmap.rs lines 1245-1277 (update) and 1380-1411 (delete): space_exists() then get_space_member_role() are two separate queries. A concurrent delete between them causes get_space_member_role() to return Ok(None), mapped to 'forbidden' instead of the correct 'notFound', leaking space existence to the caller. Fix: combine into a single query joining space and space_member, distinguishing 'space not found' from 'not a member' at the SQL level.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:41:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:54:57Z",
+  "closed_at": "2026-04-26T05:54:57Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,32 @@
+{
+  "id": "nie-mf3l.5",
+  "title": "nie-wasm: auth flow + relay client state",
+  "description": "## What\nImplement `wasm/src/client.rs`: the auth handshake (challenge-response using nie-core::auth) and relay client state (online users, event dispatch to JS callback).\n\n## Algorithm\n1. Define NieRelayClient struct in wasm/src/client.rs:\n   - identity: nie_core::identity::Identity\n   - transport: crate::transport::WasmTransport\n   - online_users: Vec<nie_core::protocol::UserInfo> (sorted ascending by sequence field)\n   - notify_js_cb: Option<js_sys::Function> (JS event callback registered by caller)\n2. Implement NieRelayClient::connect(relay_url: &str, identity: Identity) -> Result<NieRelayClient, String>:\n   a. Create WasmTransport::new(relay_url) \u2192 (transport, open_promise)\n   b. Await open_promise (WebSocket is open)\n   c. Receive the 'challenge' notification from relay:\n      - Register a one-shot notify callback that captures the nonce from the first notification\n      - Wait for the notification (use futures::channel::oneshot or busy-await with spawn_local)\n      - Parse params.nonce from the challenge notification\n   d. Sign the challenge: nie_core::auth::sign_challenge(&identity, &nonce) \u2192 (pub_key_b64, sig_b64)\n   e. Send authenticate request via transport.send_request('authenticate', params):\n      - params: { pub_key: pub_key_b64, nonce: nonce_str, signature: sig_b64 }\n   f. Parse response: extract result.pub_id \u2192 verify it matches identity.pub_id().0\n   g. After auth success, register the persistent notify callback: transport.set_notify_callback(self.on_notification_cb())\n   h. Return Ok(client)\n3. Implement NieRelayClient::on_notification(&self, notification_json: &str):\n   - Parse JSON as serde_json::Value\n   - Match on method field:\n     * 'directory_list': deserialize params.online as Vec<UserInfo>; store sorted by sequence; emit DirectoryUpdated event to JS\n     * 'deliver': emit MessageReceived event to JS with from + payload decoded from base64\n     * 'user_joined': insert UserInfo into online list at partition_point by sequence (MLS admin election invariant); emit UserJoined event\n     * 'user_left': remove from online list by pub_id; emit UserLeft event\n     * 'whisper_deliver': emit WhisperReceived event to JS\n     * unknown method: log warning, ignore\n   - For emit: call self.notify_js_cb with serialized event as JsValue::from_str(json)\n4. Implement fn send_message(&self, text: &str) -> Promise<String>:\n   - Serialize ClearMessage::Chat { text: text.to_string() } as JSON bytes (nie_core::messages)\n   - Send broadcast request: transport.send_request('broadcast', { payload: base64(json_bytes) })\n   - Return Promise resolving to message_id from result\n5. Implement fn set_nickname(&self, nick: &str) -> Promise<()>:\n   - Send set_nickname request: { nickname: nick }\n6. Implement fn get_online_users(&self) -> String:\n   - Serialize self.online_users as JSON array\n\n## Defensive programming\n- pub_id verification after auth: if relay returns different pub_id, return Err (do not proceed)\n- UserJoined insertion uses partition_point (binary search by sequence) NOT push (MLS admin election invariant from CLAUDE.md)\n- on_notification() never panics on unexpected input; always warn + return on bad JSON\n- Never log identity.sign() output or key material\n- The only unwrap() allowed: serde_json::to_string() on derived Serialize (cannot fail)\n\n## Agent team\nResearcher: read core/src/auth.rs (sign_challenge signature), core/src/protocol.rs (UserInfo, rpc_methods), core/src/messages.rs (ClearMessage).\nImplementer: write wasm/src/client.rs following algorithm.\n\n## Tests\n- cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0\n- Auth flow logic is covered by auth unit tests in W2B bead",
+  "acceptance_criteria": "cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0; auth handshake implemented using nie_core::auth::sign_challenge; UserJoined uses partition_point insertion; clippy clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:54:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T02:06:10Z",
+  "close_reason": "auth flow + relay client state implemented; cargo check wasm32 passes, clippy clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:54:24"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:50"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:50"
+    }
+  ]
+}

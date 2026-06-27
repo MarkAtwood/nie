@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-uvy.10",
+  "title": "advance_diversifier_to monotonicity guard in a transaction prevents address reuse",
+  "description": "advance_diversifier_to wraps the read-then-write in a SQLite transaction and checks if idx <= current before writing. A contributor may suggest removing the transaction ('max_connections=1 makes it safe') or removing the guard ('callers should be responsible'). The transaction makes the intent explicit and survives pool reconfiguration. The guard prevents a stale retry from rolling back the stored index after Sapling skipped an invalid diversifier \u2014 the exact scenario that causes address reuse. The advance_diversifier_to_is_monotonic and advance_diversifier_to_corrupt_value_returns_err tests verify both properties.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:07:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:52Z",
+  "closed_at": "2026-04-19T02:18:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:07:38"
+    }
+  ]
+}

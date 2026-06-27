@@ -1,0 +1,25 @@
+{
+  "id": "nie-80jt.10",
+  "title": "wallet db: insert_note and insert_note_with_witness duplicate 11-column INSERT SQL",
+  "description": "wallet/src/db.rs has identical 11-column INSERT SQL in insert_note (~line 534) and insert_note_with_witness (~line 817). The code comments warn to keep them in sync on schema changes. Fix: extract the shared SQL into a const &str or private helper so schema changes only need one update.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:09:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:20:55Z",
+  "closed_at": "2026-04-24T19:20:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:09:20"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "agoraold-cs0",
+  "title": "Review: diversified_address + payment address wiring",
+  "notes": "Maintainer risk: MEDIUM — The address reuse bug (nie-cs0.1) is low probability in practice but breaks the privacy invariant when it occurs; set_diversifier_index monotonicity gap (nie-cs0.3) is a latent time bomb. The API surface issues (nie-cs0.4, nie-cs0.5) will create maintenance cost when the next feature lands. The passphrase UX (nie-cs0.6) will generate user reports.\nConfidence: 20% chance of missed bug. Uncertainty driven by: (1) I cannot verify the Sapling diversifier validity distribution for the zero-seed at the indices tested — if the test seed produces runs of valid diversifiers at low indices, nie-cs0.1 would be impossible to trigger in tests; (2) I have not traced the ZIP-316 UA encoding path through zcash_address under different network types to confirm 'utest1' is the correct bech32m prefix for testnet (it looks right but I am not citing a spec). Would raise confidence if: an external ZIP-316 test vector at a non-zero diversifier index were added (closes nie-cs0.2), and if the SQLite error injection path for nie-cs0.1 were explicitly tested.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:05:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T22:32:08Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

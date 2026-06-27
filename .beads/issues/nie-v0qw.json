@@ -1,0 +1,14 @@
+{
+  "id": "nie-v0qw",
+  "title": "message_set: replyTo/threadRootId accepted without validating message exists in same chat",
+  "description": "In daemon/src/jmap.rs:1909-1930, replyTo and threadRootId are stored without verifying the referenced IDs correspond to real messages in the same chat_id. An attacker can supply a message ID from a private DM or another space channel and the daemon stores it verbatim. Clients that render thread structure based on these fields will display forged thread relationships, leaking the existence of private message IDs across chat boundaries. Fix: before storing reply_to and thread_root_id, validate they resolve to a row in the message table with matching chat_id.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T05:27:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:54:59Z",
+  "closed_at": "2026-04-26T05:54:59Z",
+  "close_reason": "Closed"
+}

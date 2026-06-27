@@ -1,0 +1,27 @@
+{
+  "id": "nie-wrk.9",
+  "title": "#[serde(default)] on UserInfo.sequence has no comment explaining backward-compat intent",
+  "description": "UserInfo { pub sequence: u64, #[serde(default)] ... } allows deserialization of DirectoryList messages that predate the sequence field \u2014 they deserialize to 0 safely. This is intentional for forward compat but there is no comment explaining why the default is 0 and that this is a compat decision, not an omission. A future contributor refactoring UserInfo may remove the default thinking it is unnecessary, breaking deserialization of older relay messages. Add: // default=0: backward compat with pre-sequence relays; offline entries also use 0.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:54:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T00:10:37Z",
+  "closed_at": "2026-04-18T00:10:37Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:54:16"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-r9nx.5",
+  "title": "pow.rs: replay set eviction runs full DashMap retain on every enrollment request",
+  "description": "relay/src/ws.rs PoW replay check, line 323-326: state.inner.pow_replay_set.retain() is called on every successful PoW verification. DashMap::retain acquires write locks on all shards sequentially. Under high enrollment load (many concurrent connections), every enrolling client triggers a full O(n) eviction scan of the entire replay set while holding write locks on all shards. This creates contention: concurrent enrollment requests that reach the retain() call will serialize behind each other's shard locks. Under an enrollment flood (even with valid PoW tokens at low difficulty), this can cause O(n*c) lock contention where n=replay set size and c=concurrent connections. A time-based periodic eviction task (spawned at startup) would decouple eviction from the hot enrollment path.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:07:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:49:47Z",
+  "closed_at": "2026-04-26T11:49:47Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:07:15"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "nie-5kc",
+  "title": "Broadcast shielded tx via lightwalletd SendTransaction RPC",
+  "description": "Implement broadcast_tx(raw_tx: \u0026[u8]) -\u003e Result\u003cTxId\u003e using the lightwalletd gRPC client (already in nie-ol7). Call the SendTransaction RPC; parse the txid from the response. Defensive programming: validate raw_tx is non-empty before calling; if gRPC returns error code, surface it as a domain error (BroadcastFailed { code, message }) not a generic anyhow error — the caller needs to distinguish 'insufficient fee' from 'double spend' from 'network unavailable'; validate returned txid is 32 bytes / 64 hex chars; log txid on success (txids are public); retry logic: do NOT add automatic retry here — callers decide retry policy.",
+  "acceptance_criteria": "Unit test with mocked gRPC stub: successful broadcast returns 32-byte txid. Test: server returns error → BroadcastFailed. Test: empty raw_tx returns Err before making any RPC call. No real network calls in unit tests.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:21:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T18:39:00Z",
+  "close_reason": "broadcast_tx() implemented in client.rs. Added RawTransaction+SendResponse messages and SendTransaction RPC to service.proto. BroadcastError enum distinguishes EmptyTx/Grpc/BroadcastFailed/InvalidTxId. validate_raw_tx() and parse_send_response() extracted as testable helpers. 8 unit tests cover: empty raw_tx, success with 64-hex txid, error_code != 0, invalid txid (short, non-hex, uppercase). No real network calls in tests."
+}

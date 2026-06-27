@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-x87e.13",
+  "title": "ENDPOINT_COUNTER test not isolated from parallel tests",
+  "description": "connect_with_failover_increments_counter (client.rs lines 328-339) reads ENDPOINT_COUNTER before and after a single call and asserts after == before + 1. ENDPOINT_COUNTER is a static AtomicUsize shared across all tests in the crate. Rust test harness runs unit tests in parallel by default. A concurrent test that also calls connect_with_failover would increment the counter, making after == before + 2 (or more) and causing a spurious failure. The test needs either: (a) #[serial] attribute (requires serial_test crate), (b) a per-call counter design, or (c) change the assertion to after > before.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:11:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:12Z",
+  "closed_at": "2026-04-20T05:19:40Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:11:46"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.25",
+  "title": "daemon jmap message_set stores RFC-3339 sent_at violating SQLite datetime invariant",
+  "description": "Message/set create path calls chrono::Utc::now().to_rfc3339() for sent_at (jmap.rs ~line 1820) and passes it to insert_message_ext. DESIGN.md \u00a79 requires YYYY-MM-DD HH:MM:SS format. RFC-3339 strings (e.g. 2026-04-16T12:00:00Z) compare incorrectly against SQLite datetime('now') output, silently breaking expires_at <= datetime('now') expiry deletion for any message created via JMAP Set.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:56:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:09:31Z",
+  "closed_at": "2026-04-24T23:09:31Z",
+  "close_reason": "sent_at is display-only; never compared with datetime(). Only expires_at (senderExpiresAt) needs SQLite format, which was normalized in round 8. Not a bug.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:56:45"
+    }
+  ]
+}

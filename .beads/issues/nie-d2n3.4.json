@@ -1,0 +1,25 @@
+{
+  "id": "nie-d2n3.4",
+  "title": "bridge-slack: try_send drop has no logging",
+  "description": "bridge-slack/src/bridge.rs uses let _ = state.tx.try_send(nie_text) with no warn or metric on failure. If the channel is full, the Slack message is silently dropped with no operator visibility. Fix: match on try_send result and log at warn level when the message is dropped.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:54:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:01:07Z",
+  "closed_at": "2026-04-24T19:01:07Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:54:09"
+    }
+  ]
+}

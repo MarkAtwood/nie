@@ -1,0 +1,14 @@
+{
+  "id": "nie-hqf2",
+  "title": "(BUG) nie-monero/src/lib.rs: MoneroKeys spend/view key bytes not zeroized on drop",
+  "description": "MoneroKeys.spend_key_bytes ([u8; 32]) and view_key_bytes ([u8; 32]) are plain arrays with no ZeroizeOnDrop. The struct derives Clone, Serialize, and Deserialize, meaning key material can be serialized to disk or network, and the heap-allocated copies are never cleared when dropped. This is inconsistent with every other key type in the codebase (Sapling uses Zeroizing\u003c[u8;169]\u003e, Orchard uses Zeroizing\u003c[u8;32]\u003e). A process crash dump, core file, or swap partition can expose live spend keys. Fix: wrap both fields in Zeroizing\u003c[u8;32]\u003e, add ZeroizeOnDrop, and remove the derived Serialize/Deserialize impls (or replace them with custom impls that do not serialize the raw scalar bytes).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:29:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:32:42Z",
+  "closed_at": "2026-04-26T09:32:42Z",
+  "close_reason": "Closed"
+}

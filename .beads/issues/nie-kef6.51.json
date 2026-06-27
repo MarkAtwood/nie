@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.51",
+  "title": "Message/set update applies patch fields in separate writes without a transaction",
+  "description": "message_set update loop (jmap.rs) iterates patch paths and calls store methods (edit_message_body, set_message_reaction, soft_delete_message, read_message) one at a time with no enclosing transaction; if a later patch path fails after an earlier one succeeds, the earlier write is committed but the later is not, leaving the message in a partial state that violates RFC 8620 \u00a77.1 atomicity \u2014 analogous to the contact_set bug fixed in a prior round but not yet fixed for messages",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:36:47Z",
+  "closed_at": "2026-04-25T00:36:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:39"
+    }
+  ]
+}

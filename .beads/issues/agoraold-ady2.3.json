@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-ady2.3",
+  "title": "Replace hex pub_id validation in relay/src/ws.rs with validate_did_key()",
+  "description": "Update the GROUP_ADD handler in ws.rs to validate did:key format instead of hex.\n\nWhat: Replace hard-coded hex validation with validate_did_key() call at the wire boundary.\n\nAlgorithm:\n1. Read relay/src/ws.rs around lines 1100-1150 to find the exact hex validation block\n2. Find: if params.member_pub_id.len() != 64 || !params.member_pub_id.chars().all(...) style check\n3. Replace with: agora_core::identity::validate_did_key(&params.member_pub_id).map_err(|_| rpc_error(INVALID_PARAMS, \"invalid pub_id format\"))?\n4. Add import: use agora_core::identity::validate_did_key; at top of ws.rs\n5. Also search for any other pub_id format validation in ws.rs (grep for 'hex', 'hexdigit', 'pub_id.len()') and update them too\n\nDefensive programming:\n- This is an untrusted wire boundary \u2014 validate before any DB or delivery operation\n- Error message must not leak internal format details ('invalid pub_id format' is sufficient)\n- Case-sensitive: do not case-fold the did:key string\n\nAgent team: standard (R + I + T)\n\nTests (integration):\n- ws.rs GROUP_ADD with valid did:key format accepted (mock or unit test the validation path)\n- ws.rs GROUP_ADD with old 64-hex-char format rejected\n- ws.rs GROUP_ADD with empty string rejected\n- ws.rs GROUP_ADD with random garbage rejected",
+  "acceptance_criteria": "cargo check -p agora-relay clean; grep -n 'hexdigit\\|pub_id.len()' relay/src/ws.rs returns 0 matches (old validation gone)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:06:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:10:55Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:06:06"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:06:14"
+    }
+  ]
+}

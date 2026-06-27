@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.101",
+  "title": "bridge-jmap email_set uses wrong body field name",
+  "description": "email_set sends 'body' instead of 'textBody' in the Email/set create payload (RFC 8621 \u00a74.1) \u2192 JMAP server silently ignores the body part list and creates emails with empty bodies; the correct field is 'textBody'",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:25:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:50:25Z",
+  "closed_at": "2026-04-25T01:50:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:25:06"
+    }
+  ]
+}

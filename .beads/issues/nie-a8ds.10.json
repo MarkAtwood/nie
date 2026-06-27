@@ -1,0 +1,25 @@
+{
+  "id": "nie-a8ds.10",
+  "title": "WebSocket channel leak fix in _doConnect",
+  "description": "_doConnect() now calls _channel?.sink.close() before replacing _channel, both at the start (close previous handle) and in the catch block (close partially-opened handle). Without this, each failed connect attempt would leak the underlying TCP handle. The fix is correct and the comments explaining the two cases are accurate. A future contributor might think the null check makes the first close redundant (because _channel starts null), but on reconnect _channel holds the previous session's handle.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:05:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:18:28Z",
+  "closed_at": "2026-04-24T01:18:28Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:05:04"
+    }
+  ]
+}

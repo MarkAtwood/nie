@@ -1,0 +1,25 @@
+{
+  "id": "nie-0pne.1",
+  "title": "SEC2: Arc<Vec<String>> for lwd_endpoints in send_fn",
+  "description": "In commands.rs send_fn_box, lwd_endpoints is captured as Vec<String>. Every payment call clones the entire Vec<String> (line 241: endpoints = lwd_endpoints.clone()) just to borrow it as Vec<&str> for connect_with_failover. Since lwd_endpoints is immutable after construction, wrapping it in Arc<Vec<String>> would reduce the per-payment clone to a pointer-bump. Fix: change capture to Arc<Vec<String>>; inside the async block, hold the Arc alive and borrow into Vec<&str> from it.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T15:29:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T15:37:10Z",
+  "closed_at": "2026-04-19T15:37:10Z",
+  "close_reason": "opinion: Vec<String> clone of 1-3 strings is negligible vs network I/O cost; Arc adds complexity for no measurable gain",
+  "labels": [
+    "efficiency",
+    "opinion"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 08:29:16"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "nie-nntk.4",
+  "title": "token.rs: redact_token_query_param misses percent-encoding variants beyond %74oken",
+  "description": "redact_token_query_param in daemon/src/token.rs normalizes only the specific percent-encoding %74oken (lowercase 't' at position 0). Other valid encodings of the string 'token' are not matched: for example %54oken (uppercase T), %74%6fken, %74%6Fken, t%6fken, t%6Fken, or any combination. If a client sends ?%54oken=<secret> or t%6fken=<secret>, the middleware does not recognize it as a token parameter, does not extract it into QueryToken, and does not redact the URI. The raw token value appears in request logs. This is a log-based credential leak under unusual but plausible client encoding conditions. Fix: after lowercasing the parameter name, apply percent-decoding to the lowercased name before checking for equality with 'token', rather than only replacing the specific string '%74oken'.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:00:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:00:33Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:00:17"
+    }
+  ]
+}

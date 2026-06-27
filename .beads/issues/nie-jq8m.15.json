@@ -1,0 +1,27 @@
+{
+  "id": "nie-jq8m.15",
+  "title": "ffi/client.rs: decode_payload_text silently replaces all ClearMessage types except Chat \u2014 DMs display as '(binary payload)'",
+  "description": "decode_payload_text() in ffi/client.rs only returns the text field if the message is ClearMessage::Chat. Any other ClearMessage variant (Payment, Profile, Ack, FileHeader, etc.) falls through to String::from_utf8 which will typically return '(binary payload)' since the inner JSON starts with a variant tag. This means whisper DMs that carry ClearMessage::Chat will display correctly, but broadcast ClearMessage::Payment or ClearMessage::Profile events will show as binary garbage instead of being mapped to appropriate NieEvent variants. The map_notification function handles only DELIVER and WHISPER_DELIVER via decode_payload_text \u2014 there is no separate handling for non-Chat payload types.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:23:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:12:02Z",
+  "closed_at": "2026-04-26T12:12:02Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:23:27"
+    }
+  ]
+}

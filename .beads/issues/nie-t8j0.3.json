@@ -1,0 +1,26 @@
+{
+  "id": "nie-t8j0.3",
+  "title": "messages: PeerDeliver.body and friends have no length cap; hostile peer causes unbounded alloc",
+  "description": "ClearMessage::PeerDeliver, PeerTyping, PeerGroupUpdate, PeerRetract, PeerReceipt all contain plain String fields (body, chat_id, message_id, space_id, sent_at, at, etc.) with no length bound enforced at deserialization. A hostile MLS peer can send arbitrarily large strings. These are deserialized from MLS-decrypted bytes before any application-level check. Each field needs a custom deserializer with a reasonable cap (e.g. 1 MiB for body, 256 bytes for IDs/timestamps). The MLS 10 MiB chunk cap on FileChunk exists as a precedent.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:33:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:07:21Z",
+  "closed_at": "2026-04-25T04:07:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:33:44"
+    }
+  ]
+}

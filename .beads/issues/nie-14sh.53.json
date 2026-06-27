@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.53",
+  "title": "tui /me command wraps text in CTCP delimiters stripped by strip_unsafe",
+  "description": "The /me handler (tui/src/event.rs line 1023) wraps the action text in IRC CTCP delimiters (\\x01ACTION ...\\x01). The strip_unsafe() filter on the receive path removes control characters including \\x01, so the delimiters are stripped and recipients see the raw action text without any indication it was a /me emote. Either remove the CTCP wrapping and use a dedicated message type/field for emote actions, or adjust strip_unsafe() to preserve the intended presentation.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:58:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:58:52Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:58:51"
+    }
+  ]
+}

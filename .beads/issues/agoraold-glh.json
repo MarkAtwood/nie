@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-glh",
+  "title": "/pay <handle> <amount> [chain] \u2014 create payer session, send Request",
+  "description": "Parse '/pay <handle> <amount> [zcash|monero|mobilecoin]' in the chat command loop (default chain: zcash). Validate: handle must be in contacts or online directory, amount must parse as a non-zero decimal. Create a PaymentSession with role=Payer, state=Requested. Send ClearMessage::Payment { session_id, action: PaymentAction::Request { chain, amount } } as a Broadcast. Echo '[payment] Request sent to <handle> \u2014 session <short_id>. Waiting for address.' to the local terminal.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:19:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T05:39:37Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:03"
+    }
+  ]
+}

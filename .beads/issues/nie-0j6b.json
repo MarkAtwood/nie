@@ -1,0 +1,17 @@
+{
+  "id": "nie-0j6b",
+  "title": "Review: daemon/cli/tui round 18",
+  "notes": "Maintainer risk: HIGH — two P0 correctness bugs involve wire protocol mismatches (message_set Chat-not-PeerDeliver, TUI /pay broadcasts to all) that will produce silent failures in federated scenarios and privacy leaks. P0 blocking issues: TUI blocking I/O on tokio thread will freeze the UI on any slow command or filesystem operation.\nConfidence: 25% chance of missed bug. Uncertainty driven by: (1) jmap.rs is 4000+ lines and only the first 2400 were read in full - message_set update and delete paths, space_set update path, and the eventsource ping handler were not exhaustively checked; (2) the CLI commands.rs is 3000+ lines and only the first 500 and the /pay section were read - other slash commands not reviewed. Would raise confidence if: full read of jmap.rs message_set update/delete paths, and CLI /confirm, /file commands were reviewed.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:52:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

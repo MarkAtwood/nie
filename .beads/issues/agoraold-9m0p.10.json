@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-9m0p.10",
+  "title": "nie-bot: async stdin reader task",
+  "description": "What: Async task that reads BotCommands from stdin line-by-line and sends to main loop.\n\nAlgorithm:\n1. Create bot/src/stdin_reader.rs with pub async fn run(tx: mpsc::Sender<BotCommand>):\n   - use tokio::io::{AsyncBufReadExt, BufReader}\n   - loop: lines.next_line().await:\n     - Ok(None) \u2192 EOF \u2192 return (clean exit, do not send error)\n     - Ok(Some(line)) if line.trim().is_empty() \u2192 continue\n     - Ok(Some(line)) \u2192 serde_json::from_str::<BotCommand>(&line) \u2192 Ok(cmd) \u2192 tx.send(cmd).await (if Err, receiver dropped, return)\n     - parse Err \u2192 tx.send(BotCommand::Error equivalent is not a command... emit error somehow)\n   - Actually: on parse error, emit BotEvent::Error to a separate events tx, not the command tx\n2. Signature: pub async fn run(cmd_tx: mpsc::Sender<BotCommand>, event_tx: mpsc::Sender<BotEvent>)\n   - parse error \u2192 event_tx.send(BotEvent::Error{reason: ..})\n\nDefensive:\n- EOF is clean exit, not error\n- Malformed JSON: emit BotEvent::Error, continue reading (do not crash)\n- tx.send failure (receiver dropped): return silently\n\nAgent team: I (implementer). V (validator).\nTests: unit test with fake stdin channel in W2B scope or separate test file",
+  "acceptance_criteria": "cargo build -p nie-bot clean; EOF returns cleanly; malformed JSON emits BotEvent::Error and continues",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:43:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:57:44Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:37"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:43:19"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:38"
+    }
+  ]
+}

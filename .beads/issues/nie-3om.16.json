@@ -1,0 +1,25 @@
+{
+  "id": "nie-3om.16",
+  "title": "diversifier_index stored as TEXT decimal u128 to avoid SQLite i64 truncation",
+  "description": "db.rs accounts table stores diversifier_index as TEXT (decimal u128), not INTEGER. The comment explains: SQLite INTEGER is signed 64-bit; a u128 diversifier index exceeding i64::MAX would silently wrap to a negative value in SQLite, corrupting the index. ZIP-32 diversifiers are 11 bytes = 88 bits wide (max 2^88-1), which exceeds i64::MAX (2^63-1). Storing as decimal TEXT avoids this. advance_diversifier_to correctly handles lexicographic vs numeric ordering by doing the comparison in Rust. A contributor might suggest switching to INTEGER 'for efficiency'; that would silently corrupt diversifier indices above 2^63-1, causing address reuse.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:56:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:11:06Z",
+  "closed_at": "2026-04-19T04:11:06Z",
+  "close_reason": "Observation, no action: TEXT decimal u128 pattern and its rationale are correctly documented in code.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:56:24"
+    }
+  ]
+}

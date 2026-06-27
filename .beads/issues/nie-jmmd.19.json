@@ -1,0 +1,23 @@
+{
+  "id": "nie-jmmd.19",
+  "title": "activate_subscription_atomic: subscription+invoice deletion in single transaction prevents double-activation",
+  "description": "store.rs activate_subscription_atomic() writes subscription and deletes invoice in a single SQLite transaction. This is correct and non-obvious: if the relay crashes between these two writes, a duplicate payment_watcher scan would find the invoice and activate again. The atomic transaction eliminates that class of double-activation. Do not split into two separate calls; the current design is correct and should be defended against 'simplification'.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:45:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:45:33Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:45:32"
+    }
+  ]
+}

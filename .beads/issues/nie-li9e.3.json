@@ -1,0 +1,25 @@
+{
+  "id": "nie-li9e.3",
+  "title": "wasm NieRelayClient::connect hangs forever if challenge nonce never arrives",
+  "description": "wasm/src/client.rs line 72: challenge_rx.await has no timeout. If the relay closes before sending 'challenge', the onclose handler drains the pending map but the challenge oneshot is not in the pending map \u2014 it is never resolved. Result: connect() returns a JS Promise that never settles. Fix: add a wasm-compatible timeout around challenge_rx.await, or hook the onclose/onerror to also cancel the challenge channel.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:53:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:55:52Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:53:52"
+    }
+  ]
+}

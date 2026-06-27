@@ -1,0 +1,22 @@
+{
+  "id": "nie-r9nx.4",
+  "title": "payment_watcher: single-tx multiple outputs to same invoice address cause double-check",
+  "description": "relay/src/payment_watcher.rs scan_block() iterates over all outputs in all transactions in a block. If a single transaction contains two Sapling outputs to the same invoice address (both decryptable and both meeting the amount threshold), activate_subscription is called once for the first output. The DB atomically deletes the invoice and writes the subscription. For the second output, get_invoice_by_address returns None (invoice was deleted), so the second call is a no-op. This is safe today because activate_subscription_atomic deletes the invoice atomically. However, the behavior is not documented and relies on the atomic delete for correctness. A future change that makes activation non-atomic (e.g., splitting the DB transaction) would silently reintroduce double-activation. Should add an explicit break or dedup after the first successful activation within a tx.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:07:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:49:52Z",
+  "closed_at": "2026-04-26T11:49:52Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:07:01"
+    }
+  ]
+}

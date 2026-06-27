@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-4iod.27",
+  "title": "bot: Response events discarded with no logging",
+  "description": "In main.rs lines 196-198, all ClientEvent::Response messages are silently ignored with no logging. The bot sends BROADCAST and SET_NICKNAME commands that may generate responses, but they are discarded. This violates error discipline\u2014we cannot distinguish between 'relay sent no response' and 'we discarded it'. Correct: log responses at debug level or implement request ID tracking to match responses to requests.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:14:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:37Z",
+  "closed_at": "2026-04-20T01:27:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:14:31"
+    }
+  ]
+}

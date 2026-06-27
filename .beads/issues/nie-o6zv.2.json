@@ -1,0 +1,21 @@
+{
+  "id": "nie-o6zv.2",
+  "title": "AddressWatchRegistry: deregister() never called on session completion",
+  "description": "Location: cli/src/commands.rs \u2014 deregister() method exists but is never called. Sessions are registered at startup and on creation, but never removed when reaching terminal states (Confirmed/Failed/Expired). The registry accumulates stale mappings indefinitely.\n\nWhy it matters: When nie-ghf (block watcher) scans compact blocks and calls registry.lookup(), it will get hits for completed sessions. Additionally, a long-running wallet grows the registry without bound.\n\nMitigation: deregister() must be called in dispatch_payment() whenever a session transitions to Confirmed/Failed/Expired, passing session.address. The call site is in nie-ghf and nie-iiy (where the Confirmed transition happens). File a note on nie-ghf and nie-iiy descriptions to require deregister() call.\n\nNote: This is incomplete-by-design (nie-ghf not yet implemented). The issue is that the description of nie-ghf and nie-iiy does not explicitly mention deregister() \u2014 that omission is the bug.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:32:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T08:34:28Z",
+  "closed_at": "2026-04-19T08:34:28Z",
+  "close_reason": "Documented deregister() requirement in nie-ghf and nie-iiy bead notes",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:32:01"
+    }
+  ]
+}

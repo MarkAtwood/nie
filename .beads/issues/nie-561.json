@@ -1,0 +1,22 @@
+{
+  "id": "nie-561",
+  "title": "BIP-39 mnemonic generation and seed derivation",
+  "description": "Generate 24-word BIP-39 mnemonic from OS entropy (os::urandom 32 bytes). Derive 64-byte BIP-39 seed (PBKDF2-HMAC-SHA512, 2048 rounds, no passphrase for Phase 2). Feed seed into ZIP-32 HD derivation. Use bip39 crate. Never store the mnemonic \u2014 display once at init, require user to write it down.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T03:10:05Z",
+  "close_reason": "BIP-39 mnemonic + ZIP-32 Sapling master key in core/src/wallet.rs; test vector from Python hashlib oracle",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:06"
+    }
+  ]
+}

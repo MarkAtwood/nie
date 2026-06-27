@@ -1,0 +1,28 @@
+{
+  "id": "nie-k3f.5",
+  "title": "diversifier_index TEXT column invariant unenforced",
+  "description": "accounts.diversifier_index is stored as TEXT (decimal string) to hold u128 values safely \u2014 an INTEGER column would silently truncate values >= 2^63. This invariant is documented only in a code comment (lines 256\u2013260 in db.rs). A contributor optimizing storage could change the column to INTEGER in a future migration, silently corrupting all diversifier indices >= i64::MAX. No test exercises u128 values that would fail under INTEGER storage. Fix: add a migration test that writes and reads back a diversifier index >= u64::MAX and asserts round-trip correctness.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:55:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T06:07:31Z",
+  "closed_at": "2026-04-19T06:07:31Z",
+  "close_reason": "Schema comment at line 256 already explains the TEXT/INTEGER choice. diversifier_index_roundtrip test already exercises u128::MAX. Added one-line 'DO NOT change to INTEGER' warning to the schema comment pointing to the regression test.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:55:42"
+    }
+  ]
+}

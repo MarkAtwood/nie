@@ -1,0 +1,28 @@
+{
+  "id": "nie-7xs.3",
+  "title": "CLAUDE.md PubId section says base64 but code uses hex(SHA-256)",
+  "description": "Trigger: A contributor reads CLAUDE.md Section 6 ('PubId comparison and base64 encoding'). It states: 'The string is always standard base64 (base64::engine::general_purpose::STANDARD, alphabet A-Za-z0-9+/, padded). Do not use URL_SAFE or URL_SAFE_NO_PAD.' Bad behavior: The actual implementation uses hex(SHA-256(verifying_key_bytes)) -- 64 lowercase hex characters. identity.rs:hash_key() uses format!(\"{b:02x}\"). Test pub_id_is_hash_not_key() asserts pub_id.0.len()==64 and chars().all(|c| c.is_ascii_hexdigit()). Any external client or contributor following CLAUDE.md will encode PubIds as 44-char base64 strings that will never match the relay's 64-char hex PubIds, producing auth failures with no helpful diagnostic. The CLAUDE.md was not updated when the PubId scheme changed from raw-key-base64 to hash-of-key-hex.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:58:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T08:57:26Z",
+  "closed_at": "2026-04-16T08:57:26Z",
+  "close_reason": "Closed",
+  "labels": [
+    "contributor-experience",
+    "correctness",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:58:46"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-sjc4.2",
+  "title": "test_space_set_update_name_succeeds: is_null() check passes for missing key",
+  "description": "Line 2730 in jmap.rs tests: result[\"updated\"][&space_id].is_null(). In serde_json, indexing an Object with a missing key returns &Value::Null, so this assertion passes even if the server dropped space_id from the updated map entirely (returning empty updated AND empty notUpdated). The test would pass for a server bug that silently ignores the update. Fix: assert result[\"updated\"].as_object().unwrap().contains_key(&space_id) instead. Compare with the correct pattern at line 2821 where as_object().unwrap().is_empty() is used for the inverse check.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T02:43:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:50:55Z",
+  "closed_at": "2026-04-24T02:50:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 19:43:11"
+    }
+  ]
+}

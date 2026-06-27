@@ -1,0 +1,27 @@
+{
+  "id": "nie-f4ce.8",
+  "title": "bridge-teams: text_body strips only first <at> tag; nested mentions forwarded raw",
+  "description": "bridge-teams/src/teams.rs text_body: strips only the first '<at>...</at>' block. If Teams sends multiple @mention tags (e.g. group mentions), remaining tags are forwarded to nie as raw XML. Scenario: user types '@Bot @Channel hello' \u2014 Teams may send '<at>Bot</at><at>Channel</at> hello', and the bridge forwards '<at>Channel</at> hello' to nie instead of 'hello'.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:05:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:29:13Z",
+  "closed_at": "2026-04-26T07:29:13Z",
+  "close_reason": "Teams text_body now strips all <at>...</at> spans in a loop",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:05:42"
+    }
+  ]
+}

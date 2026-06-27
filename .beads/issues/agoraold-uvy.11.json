@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-uvy.11",
+  "title": "BLAKE2b check before groth16 parse gives actionable error",
+  "description": "load_sapling_params verifies the BLAKE2b-512 hash of each param file before calling SpendParameters::read(). A contributor may suggest removing the hash check 'since groth16 parsing will fail anyway.' Without the check, a truncated or corrupt file produces a confusing internal groth16 deserialisation error with no path or hint. With the check, the user sees 'sapling-spend.params at /path/... failed BLAKE2b-512 integrity check \u2014 delete it and re-run nie wallet init.' The hash check also prevents the ~2 minute groth16 parser from running on a file that will definitely fail, which matters for UX on first-run errors.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:07:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:52Z",
+  "closed_at": "2026-04-19T02:18:08Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:07:46"
+    }
+  ]
+}

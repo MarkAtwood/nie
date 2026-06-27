@@ -1,0 +1,23 @@
+{
+  "id": "nie-13e3.14",
+  "title": "scan_block: full witnesses HashMap cloned on every block for rollback",
+  "description": "scanner.rs scan_block() clones self.witnesses (the full HashMap) on every block: let witnesses_snapshot = self.witnesses.clone(). For a wallet with N unspent notes this allocates O(N * witness_size) bytes on every block. Each IncrementalWitness<sapling::Node, 32> is a non-trivial data structure; Clone walks the entire tree. At 1000 notes * 75-second blocks = ~1000 clones/day * ~1 KB per witness = ~1 MB/day of transient allocation. This is acceptable for small wallets but grows linearly with note count. Alternative: snapshot only the changed witness IDs and values (the delta), or use a copy-on-write / structural sharing approach. This is not a blocking issue for typical wallets but will hurt performance at scale (>10,000 notes).",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:28:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:28:29Z",
+  "labels": [
+    "efficiency",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:28:28"
+    }
+  ]
+}

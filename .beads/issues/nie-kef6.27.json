@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.27",
+  "title": "strip_unsafe_chars misses OSC/DCS terminal escape sequences",
+  "description": "A peer sends a message containing ESC]0;TITLE BEL (OSC sequence for terminal title injection) or ESC P...ST (DCS sequence). tui/ui.rs strip_unsafe_chars() tracks in_escape by setting it true on ESC and clearing it on the next ASCII letter. OSC terminates with BEL (0x07) not a letter, so in_escape stays true until the 64-char escape-length cap is hit, at which point the BEL and all subsequent characters are emitted verbatim. Any OSC sequence under 64 chars passes through to the terminal, enabling title-bar spoofing and potentially other terminal state manipulation depending on the terminal emulator.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:50:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:16:25Z",
+  "closed_at": "2026-04-25T00:16:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:50:53"
+    }
+  ]
+}

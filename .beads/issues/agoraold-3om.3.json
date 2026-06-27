@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-3om.3",
+  "title": "select_with_fee always assumes 2 outputs; builder sees 1 output when change==0",
+  "description": "tx_builder.rs select_with_fee computes fee using sapling_logical_actions(n, 2) (2 outputs assumed). When change == 0, build_shielded_tx adds only 1 output. FeeRule::standard() in builder.build() then computes fee for (n spends, 1 output). For n <= 2: max(n, 2) == max(n, 1) so fees agree. For n >= 3 spends and change == 0: our fee = 5000*n (from max(n,2)=n), builder fee = 5000*max(n,1) = 5000*n \u2014 same. Conclusion: the values happen to match for all plausible inputs because max(n, 2) == max(n, 1) when n >= 2. The assumption is not documented and could break if n_outputs is changed from 2 without updating both the selection and the actual output count. Not currently broken but the implicit coupling is a latent defect.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:54:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:52Z",
+  "closed_at": "2026-04-19T04:36:45Z",
+  "close_reason": "Documented: added 'Output count assumption' comment to select_with_fee explaining that 2 vs 1 output produces identical fees due to GRACE_ACTIONS=2 floor, and what must be re-verified if the fee formula changes.",
+  "labels": [
+    "correctness",
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:54:13"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-uf6a.4",
+  "title": "is_simple_space_prop + parse_simple_space_prop coupling not compile-enforced",
+  "description": "Adding a new simple Space property requires updating is_simple_space_prop AND parse_simple_space_prop AND SimplePropPatch. The _ => arm in parse_simple_space_prop produces a runtime invalidPatch when this is missed \u2014 visible only in testing, not at compile time. The doc comment claims 'compile-time exhaustiveness check for free' which overstates: the exhaustiveness check is on the Phase 2 match (SimplePropPatch variants), not on the routing (is_simple_space_prop). A contributor who adds to is_simple_space_prop but not the enum will get a runtime error, not a compiler error.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:28:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:41:51Z",
+  "closed_at": "2026-04-24T05:41:51Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:28:21"
+    }
+  ]
+}

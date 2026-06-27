@@ -1,0 +1,25 @@
+{
+  "id": "nie-uf6a.7",
+  "title": "cannotCalculateChanges is the correct response and should be defended",
+  "description": "The old ChatContact/changes and Space/changes returned all current IDs as 'created' when state changed. That was a protocol lie \u2014 clients would cache duplicate entries on every sync cycle. The new cannotCalculateChanges response forces clients to do a full refresh (ChatContact/get with ids=null), which is correct per RFC 8620 \u00a75.2. A future contributor might suggest reinstating the 'created' list as a convenience. Reject: that convenience is only correct for the first sync; subsequent syncs would accumulate duplicates.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:28:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T05:46:36Z",
+  "closed_at": "2026-04-24T05:46:36Z",
+  "close_reason": "Design decision recorded in issue description; no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:28:40"
+    }
+  ]
+}

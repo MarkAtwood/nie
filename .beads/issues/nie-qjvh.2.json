@@ -1,0 +1,28 @@
+{
+  "id": "nie-qjvh.2",
+  "title": "Change PaymentAction amount: String \u2192 amount_zatoshi: u64 + sweep call sites",
+  "description": "## What\nChange PaymentAction::Request and PaymentAction::Sent to carry amount_zatoshi: u64. Update every call site so the workspace compiles cleanly.\n\n## Core type change (core/src/messages.rs)\n- PaymentAction::Request { chain: Chain, amount: String }  \u2192  { chain: Chain, amount_zatoshi: u64 }\n- PaymentAction::Sent { chain: Chain, tx_hash: String, amount: String }  \u2192  { chain: Chain, tx_hash: String, amount_zatoshi: u64 }\n- Update the test at ~line 175: amount: \"0.1\".to_string() \u2192 amount_zatoshi: 10_000_000\n\n## cli/src/commands.rs call sites (identified by INVENTORY)\n1. Line ~2058: PaymentAction::Request { chain, amount: amount_str.to_string() }\n   \u2192 { chain, amount_zatoshi: parse_zec_to_zatoshi(amount_str).map_err(|e| format!(\"invalid amount: {e}\"))? }\n2. Line ~1895: PaymentAction::Sent { ..., amount: amount.clone() } where amount = zatoshi_to_zec_string(...)\n   \u2192 { ..., amount_zatoshi: session.amount_zatoshi }  (use the session's zatoshi value directly)\n3. Line ~2840: PaymentAction::Sent { ..., amount: amount_str }\n   \u2192 { ..., amount_zatoshi: amount_zatoshi_value }  (use the u64 variable directly)\n4. Line ~2598 (resync Payer/Requested): PaymentAction::Request { ..., amount: zatoshi_to_zec_string(s.amount_zatoshi) }\n   \u2192 { ..., amount_zatoshi: s.amount_zatoshi }\n5. Line ~2618 (resync Payer/Sent): PaymentAction::Sent { ..., amount: zatoshi_to_zec_string(s.amount_zatoshi) }\n   \u2192 { ..., amount_zatoshi: s.amount_zatoshi }\n6. Line ~2997 destructure: if let PaymentAction::Request { chain, amount } = action\n   \u2192 if let PaymentAction::Request { chain, amount_zatoshi } = action\n   Remove the parse_zec_to_zatoshi call that follows; dust check becomes: if amount_zatoshi < DUST_THRESHOLD\n\n## tui/src/event.rs call sites\n1. Line ~1336: PaymentAction::Request { chain, amount: zatoshi_to_zec_string(amount_zatoshi) }\n   \u2192 { chain, amount_zatoshi }  (variable is already u64)\n2. Line ~687 destructure: PaymentAction::Request { chain, amount }\n   \u2192 PaymentAction::Request { chain, amount_zatoshi }\n   Change parse_zec_to_zatoshi call \u2192 use amount_zatoshi directly\n   Display: format!(\"... {} ZEC\", zatoshi_to_zec_string(amount_zatoshi))\n3. Line ~726 destructure: PaymentAction::Sent { tx_hash, amount, .. }\n   \u2192 { tx_hash, amount_zatoshi, .. }\n   Display: format!(\"... {} ZEC ...\", zatoshi_to_zec_string(amount_zatoshi))\n\n## bot/src/dispatcher.rs\n1. Line ~59: if let PaymentAction::Request { chain, amount } = action\n   \u2192 if let PaymentAction::Request { chain, amount_zatoshi } = action\n   The BotEvent::PaymentRequest has amount: String \u2014 convert: amount: zatoshi_to_zec_string(amount_zatoshi)\n\n## Defensive programming\n- At the incoming PaymentAction::Request destructure in cli (line ~2997): dust_threshold check uses the u64 directly, no parse call needed\n- No unwrap() added\n- BotEvent retains amount: String \u2014 convert with zatoshi_to_zec_string at the dispatcher only\n- Do not change relay code (relay/src/ws.rs) \u2014 relay never deserializes ClearMessage\n\n## Compile check\ncargo build --workspace must succeed at the end of this bead.",
+  "acceptance_criteria": "cargo build --workspace succeeds. grep -r 'amount: String' core/src/messages.rs returns nothing for PaymentAction variants. cargo clippy --workspace -- -D warnings is clean.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T04:47:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T05:07:32Z",
+  "close_reason": "All 23 call sites updated; cargo build and cargo test --workspace both clean; BotEvent retains amount:String, dispatcher converts via zatoshi_to_zec_string",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 21:47:57"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 21:48:04"
+    }
+  ]
+}

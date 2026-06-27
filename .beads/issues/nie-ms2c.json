@@ -1,0 +1,19 @@
+{
+  "id": "nie-ms2c",
+  "title": "Review: jmap correctness and space_set atomicity",
+  "notes": "Maintainer risk: MEDIUM — two correctness bugs (P0 + P1) around existence checks for empty/member-only patches; the core atomicity fix and validation logic are sound.\nConfidence: 20% chance of missed bug. Uncertainty driven by: not running the test suite locally, not checking the relay/ws.rs typing phantom implementation to confirm the synthesis is actually in the disconnect path. Would raise confidence if: test suite runs clean, and I trace the typing_notify synthesis from relay disconnect to broadcast.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T04:28:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T04:44:28Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

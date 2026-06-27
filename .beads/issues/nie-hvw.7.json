@@ -1,0 +1,33 @@
+{
+  "id": "nie-hvw.7",
+  "title": "CLI: /subscribe command",
+  "description": "Add /subscribe slash command to the CLI chat loop.\n\nWhat: the user types /subscribe in the chat REPL; the CLI sends subscribe_request to relay and displays the invoice.\n\nAlgorithm:\n1. In cli/src/commands.rs, locate the strip_prefix block above handle_slash() (around line 1693) where /pay, /balance, /receive are handled.\n2. Add: if line.trim() == '/subscribe' { ... }\n3. Inside: send JsonRpcRequest { method: rpc_methods::SUBSCRIBE_REQUEST, params: SubscribeRequestParams { duration_days: 30 } } via relay_tx.\n4. Await the response on relay_rx (use the same request-response correlation as other CLI commands).\n5. On success (SubscribeInvoiceResult): print:\n   'Subscription invoice:'\n   '  Address: <address>'\n   '  Amount:  <amount_zatoshi> zatoshi (<amount_zec> ZEC)'\n   '  Expires: <expires_at>'\n   '  Send ZEC to the above address to activate your subscription.'\n6. On error SUBSCRIPTION_REQUIRED: print 'A pending invoice already exists. Check your previous invoice or wait for it to expire.'\n7. On METHOD_NOT_FOUND: print 'This relay does not support subscription payments.'\n8. Handle subscription_active notification in the incoming message loop: when received, print 'Subscription activated. Expires: <expires_at>'. Update any local subscription display.\n\nDefensive rules:\n- The address displayed to the user is a public UA \u2014 no key material.\n- Do not log the full invoice to debug output.\n- Duration in output should be in human-readable ZEC (divide by 1e8), not raw zatoshi.\n\nTests:\n- Manual/integration: in a test relay, send /subscribe and verify invoice is printed.",
+  "acceptance_criteria": "cargo build --bin nie passes; /subscribe prints invoice in the chat REPL",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:54:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T06:24:02Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:04"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:38"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:38"
+    }
+  ]
+}

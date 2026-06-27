@@ -1,0 +1,26 @@
+{
+  "id": "nie-uvy.6",
+  "title": "try_load_wallet_fvks: comment wrong about empty passphrase semantics",
+  "description": "The code comment says 'Empty passphrase means the user left the field blank \u2014 wallet will be unavailable for this session.' This is wrong: if the wallet was created with --no-passphrase, decrypt_wallet_key('') succeeds and the wallet IS available. The comment describes the no-passphrase-protected case only. What it should say: 'If the wallet was created with --no-passphrase, an empty passphrase here will successfully decrypt it. If a passphrase was set, an empty string here will fail decryption and the wallet will be unavailable.' A future maintainer reading the current comment will think pressing Enter always disables the wallet, and might introduce a short-circuit on empty passphrase that breaks no-passphrase wallets.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:07:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T02:17:58Z",
+  "closed_at": "2026-04-19T02:17:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:07:11"
+    }
+  ]
+}

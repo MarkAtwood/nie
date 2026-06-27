@@ -1,0 +1,25 @@
+{
+  "id": "nie-80jt.9",
+  "title": "relay ws: GROUP_LIST does N+1 queries (one per group for member_count)",
+  "description": "relay/src/ws.rs GROUP_LIST fetches all groups for the user (1 query) then calls store.member_count() for each group (N queries). For a user in 50 groups this is 51 sequential DB round-trips. Fix: add a single aggregation query SELECT group_id, COUNT(*) FROM group_members GROUP BY group_id and join the results in memory, reducing to 2 queries total.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:09:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:20:50Z",
+  "closed_at": "2026-04-24T19:20:50Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:09:14"
+    }
+  ]
+}

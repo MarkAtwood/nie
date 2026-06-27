@@ -1,0 +1,20 @@
+{
+  "id": "agoraold-x87e.26",
+  "title": "block_range_construction test is a roundtrip oracle",
+  "description": "wallet/src/client.rs test block_range_construction constructs a BlockRange with start height 100 and end height 200, then reads those same heights back and asserts they equal 100 and 200. This is a pure roundtrip with no independent oracle: the struct is set then read, which trivially passes by Rust's type system. It does not test serialization, deserialization, or any behavior of get_block_range(). Per CLAUDE.md test oracle discipline this type of test is explicitly prohibited. The test should be removed or replaced with a test that encodes a BlockRange to proto bytes and checks the wire encoding against a known vector.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:12:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:12Z",
+  "closed_at": "2026-04-20T05:12:51Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:12:20"
+    }
+  ]
+}

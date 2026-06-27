@@ -1,0 +1,25 @@
+{
+  "id": "nie-75ra.8",
+  "title": "Regression test uses independent oracle (Space/get after failed set)",
+  "description": "test_space_set_mixed_patch_invalid_role_leaves_name_unchanged verifies atomicity with an independent oracle: after the failed Space/set, it issues a Space/get and checks the name is still \"Original Name\". This is the correct pattern \u2014 it does not trust the notUpdated response alone, it goes back to the store and confirms the state. A contributor might suggest removing the Space/get check as redundant; it is not \u2014 it is the actual atomicity proof.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:02:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T03:10:09Z",
+  "closed_at": "2026-04-24T03:10:09Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:02:06"
+    }
+  ]
+}

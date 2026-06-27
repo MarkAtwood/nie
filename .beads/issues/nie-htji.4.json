@@ -1,0 +1,25 @@
+{
+  "id": "nie-htji.4",
+  "title": "unwrap() over into_iter().flatten(): fails closed, comment explains safety",
+  "description": "The old as_object().into_iter().flatten() silently produced an empty iterator if the value was not an object \u2014 which would have silently skipped the unknown-key check (fail open, wrong behavior). The new as_object().unwrap() panics in that case (fail closed, better for security). The safety is guaranteed by the is_object() guard at line 486 that hits 'continue' before this code runs; the comment at line 539 documents this. A future contributor might suggest reverting to the defensive idiom \u2014 resist this; failing closed on an 'unreachable' path is more correct than silently skipping a security-relevant validation.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:56:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:57:01Z",
+  "closed_at": "2026-04-24T16:57:01Z",
+  "close_reason": "Decision records \u2014 no code change needed; recorded for future reference",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:56:01"
+    }
+  ]
+}

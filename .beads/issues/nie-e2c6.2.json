@@ -1,0 +1,25 @@
+{
+  "id": "nie-e2c6.2",
+  "title": "SUBSCRIBE_REQUEST consumes diversifier before validating duration_days",
+  "description": "ws.rs:1902 \u2014 alloc_subscription_address() is called before the duration_days==0 guard at line 1926 and the max_days cap at line 1937. A client sending duration_days:0 (or > max_days) triggers an address allocation that permanently advances the diversifier index before the guard fires and returns an error. The rate limit cap bounds the burn rate but does not stop it. Fix: move both duration_days guards above the alloc_subscription_address call.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:34:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:49:52Z",
+  "closed_at": "2026-04-25T02:49:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:34:11"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.13",
+  "title": "bridge-teams axum router missing DefaultBodyLimit allows large-payload DoS",
+  "description": "bridge-teams/src/bridge.rs sets up an axum router for POST /teams/webhook with no DefaultBodyLimit layer. bridge-slack and bridge-matrix both add .layer(axum::extract::DefaultBodyLimit::max(1024 * 1024)). Without the limit, a sender can POST an arbitrarily large body, causing the bridge to buffer and process it before the HMAC check rejects it. Trigger: unauthenticated HTTP POST with a multi-MB body to the Teams webhook port.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:49:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:11:59Z",
+  "closed_at": "2026-04-25T00:11:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:49:38"
+    }
+  ]
+}

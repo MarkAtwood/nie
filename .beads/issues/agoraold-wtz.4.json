@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-wtz.4",
+  "title": "Full cargo check + fvm flutter analyze validation",
+  "description": "Validate all created artifacts. Run cargo check --workspace, flutter analyze on android/ dir.\n\nAlgorithm:\n1. cargo check --workspace (must be clean)\n2. fvm flutter --project-root android analyze (Dart static analysis)\n3. fvm flutter --project-root android pub get\n\nAcceptance: Both commands exit 0 with no errors.",
+  "acceptance_criteria": "cargo check --workspace exits 0; flutter analyze exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:12:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:01Z",
+  "closed_at": "2026-04-23T01:17:21Z",
+  "close_reason": "cargo check --workspace clean; fvm flutter analyze clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:12:32"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:12:27"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:12:33"
+    }
+  ]
+}

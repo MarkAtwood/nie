@@ -1,0 +1,18 @@
+{
+  "id": "agoraold-bkw1",
+  "title": "Terminal restoration outside event loop on all exit paths",
+  "description": "GOOD CHOICE: Terminal raw mode and alternate screen are disabled AFTER the event loop exits (main.rs 177-178), even if the loop exits via error. The disable happens unconditionally outside the try block.\n\nA contributor might put terminal restoration inside a finally-like block or only on success paths. But if error handling short-circuits before reaching the restore code, the terminal would be left in raw mode, causing corruption of the user's shell.\n\nThis ordering (try event loop, then always restore) is non-obvious but load-bearing for terminal safety.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:15Z",
+  "closed_at": "2026-04-22T06:24:35Z",
+  "close_reason": "Verified invariant holds in current code; documented in DESIGN.md §14 TUI terminal safety invariants",
+  "labels": [
+    "review"
+  ]
+}

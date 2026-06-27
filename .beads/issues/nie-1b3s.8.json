@@ -1,0 +1,24 @@
+{
+  "id": "nie-1b3s.8",
+  "title": "transport.rs: relay_disconnect=true falls through to backoff without comment clarity",
+  "description": "transport.rs:263-270: when relay_disconnect=true the code falls through to the reconnect-backoff block with only a short comment. A future contributor extracting backoff logic could break the reconnect path for clean closes. Add a comment explicitly stating that relay_disconnect=true and a connection failure are intentionally unified here.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:14:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:14:45Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:14:45"
+    }
+  ]
+}

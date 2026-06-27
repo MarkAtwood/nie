@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-3ft",
+  "title": "Unified Address generation (Sapling + Orchard receivers)",
+  "description": "Generate a ZIP-316 Unified Address combining a Sapling receiver and an Orchard receiver for account 0. This is the default receive address shown to peers. Use zcash_address crate.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T04:35:07Z",
+  "close_reason": "Done: ZIP-316 Unified Address (Sapling + Orchard receivers) implemented in wallet/src/unified.rs and wallet/src/address.rs. Commit 3e70508 feat(wallet): ZIP-316 Unified Address encoding.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:43:09"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:39"
+    }
+  ]
+}

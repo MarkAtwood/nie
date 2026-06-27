@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.5",
+  "title": "SUBSCRIBE_REQUEST: invoice expires_at uses chrono::Utc::now(), not subscription creation time",
+  "description": "ws.rs SUBSCRIBE_REQUEST: expires_at = Utc::now() + Duration::days(duration_days). This is computed before create_invoice() is called. If the DB write is slow (e.g. under load), the stored expires_at is slightly earlier than the actual creation time. Minor drift but inconsistent: the invoice tells the user 'expires at T' but the DB stores a time computed before the insert. Bigger issue: if the relay is processing a backlog of requests, users at the end of the queue get invoices that expire sooner than users at the front. Should compute expires_at from the database clock (datetime('now', '+N days')) for consistency.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:40:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:43:55Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:40:24"
+    }
+  ]
+}

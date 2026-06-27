@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-2zh.1",
+  "title": "Six as-u64 casts in db.rs violate DESIGN-sqlite-amount-cast; scan_tip worst case",
+  "description": "The same anti-pattern fixed in payment.rs (nie-91j.1) is repeated six times in db.rs. Project convention: use u64::try_from(i64_value) with a descriptive Err, never as u64.\n\nInstances (all convert i64 DB values to u64 without checking for negative):\n\n1. scan_tip() line 720: Ok(h as u64) \u2014 MOST DANGEROUS. If the DB scan_state row has a negative tip_height (e.g. from corruption or direct write), scan_tip() returns a value near u64::MAX. check_lag then sees local_tip >> chain_tip, computes saturating lag = 0, and the sync guard silently passes \u2014 allowing a spend with a wildly wrong anchor height. The spend would fail at proof time, but the guard is bypassed.\n\n2. unspent_notes() lines 515,517: r.value_zatoshi as u64, r.block_height as u64 \u2014 corrupt note rows produce wrong amounts and heights silently.\n\n3. all_sessions() line 444: r.amount_zatoshi as u64 \u2014 corrupt session rows show wrong amounts in /payments.\n\n4. recent_txs() line 700: r.amount_zatoshi as u64 \u2014 same for tx history.\n\n5-6. balance() lines 786-787: row.confirmed.unwrap_or(0) as u64, row.pending.unwrap_or(0) as u64 \u2014 SUM returns i64; a negative sum (corrupt data) produces a near-MAX balance display.\n\nFix: replace each as u64 with u64::try_from(...).map_err(|_| anyhow::anyhow!(\"...\"))?, matching the pattern in upsert_session (lines 395-400) and payment.rs.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:31:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:51Z",
+  "closed_at": "2026-04-19T05:46:13Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:31:55"
+    }
+  ]
+}

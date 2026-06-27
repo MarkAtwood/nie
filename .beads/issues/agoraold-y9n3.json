@@ -1,0 +1,14 @@
+{
+  "id": "agoraold-y9n3",
+  "title": "Review round 3: nie-07t E2E payment test",
+  "description": "Third review pass after Round 2 fix wave. Only P3/P4 items remain in nie-x87e. Determine if the code is ready to stop or if any remaining items are actually P0-P1.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:20:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T05:23:52Z",
+  "close_reason": "Closed"
+}

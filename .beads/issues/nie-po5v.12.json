@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.12",
+  "title": "bot/scripting.rs: stdout/stderr read after wait() \u2014 may deadlock if child fills pipe",
+  "description": "scripting.rs run_hook calls child.wait() before reading stdout/stderr from the pipe handles. If the child writes more data than the OS pipe buffer (typically 64 KB on Linux) before exiting, the child will block waiting for the parent to read from the pipe, and the parent will block waiting for the child to exit \u2014 a deadlock. The current code caps at HOOK_STDOUT_MAX_BYTES=65536 bytes but the deadlock happens BEFORE the cap is applied, at the OS buffer level. Fix: read stdout/stderr concurrently with wait using tokio tasks, or use std::process::Command::output() semantics. The timeout kills the child at 30s but the deadlock would trigger within that window for large-output hooks.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:37:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:07:53Z",
+  "closed_at": "2026-04-25T04:07:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:37:28"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-qdlu.9",
+  "title": "select_with_fee zero-change overcounts outputs: silent mismatch if GRACE_ACTIONS changes",
+  "description": "select_with_fee always passes sapling_logical_actions(n, 2) for 2 outputs, but build_shielded_tx only adds change output when change > 0. Works only because GRACE_ACTIONS=2 makes max(n,1)==max(n,2). If ZIP-317 reduces GRACE_ACTIONS or a contributor changes output count without reading the coupling comment, fee computed by select_with_fee disagrees with FeeRule::standard() in builder.build(). Fix: debug_assert in build_shielded_tx verifying selected fee matches actual output count fee.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:41:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:41:53Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:41:53"
+    }
+  ]
+}

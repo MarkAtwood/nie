@@ -1,0 +1,37 @@
+{
+  "id": "nie-22n",
+  "title": "send_payment() integration: compose builder + fee + broadcast",
+  "description": "Wire build_shielded_tx + broadcast_tx into a single send_payment(to: &str, amount_zatoshi: u64, memo_session_id: Uuid) -> Result<TxId> function on WalletHandle. Memo must be populated with session_id UUID per wallet security rules (ZIP-302, design-sqlite-amount-cast memory). This is the top-level function that /pay calls. Defensive programming: (1) check wallet sync status before sending \u2014 refuse if last sync > 10 blocks behind chain tip, return Err(SyncRequired) with block lag count; (2) the from-guard pattern: verify session.peer_pub_id matches the payment session before calling (design-from-guard memory); (3) log: 'payment initiated amount=N zatoshi session=<uuid>' \u2014 never log the recipient address or key material. Use a subagent to verify the memo encoding is correct per ZIP-302 (UTF-8 memo must be left-padded to 512 bytes with zeros \u2014 confirm the convention).",
+  "acceptance_criteria": "Integration test (no real node): mock wallet with known notes, verify send_payment returns a mocked txid. Test: SyncRequired returned when last_sync is stale. Test: session ID appears in the memo bytes at the correct offset.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:21:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T04:34:04Z",
+  "close_reason": "Done: send_payment() wired into /pay dispatch in commit bfad1cd. Includes sync-lag guard, note selection, tx build+broadcast, memo encoding, MockClient tests, DB recording.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:30"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:29"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:29"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:41:53"
+    }
+  ]
+}

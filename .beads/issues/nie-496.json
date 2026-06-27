@@ -1,0 +1,19 @@
+{
+  "id": "nie-496",
+  "title": "Review: 3-commit wallet arc (feat + 2 fix rounds)",
+  "notes": "Maintainer risk: MEDIUM — one false-comment bug that will cause repeated double-spend reports (nie-496.1); two P3 polish items with no correctness consequence today.\nConfidence: 20% chance of missed bug. Uncertainty driven by: scanner.rs not fully read — only confirmed absence of nullifier logic via grep; payment state machine transitions under concurrency not exhaustively traced. Would raise confidence if: scanner.rs fully read, payment state machine stress-tested with concurrent sends.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:23:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T06:33:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-ftwb.4",
+  "title": "store.rs get_chats(None) has no LIMIT \u2014 unbounded result set",
+  "description": "store.rs get_chats: the ids=None branch fetches all rows from the chat table with no LIMIT clause. Unlike get_contacts (LIMIT 1000) and query_contacts (LIMIT 1000), get_chats is unbounded. chat_query and chat_get both call get_chats(None); a large chat table causes an unbounded result set loaded into memory. Scenario: daemon with many spaces each having multiple channels; Chat/get ids:null loads all rows per request.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:55:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:04:44Z",
+  "closed_at": "2026-04-26T08:04:44Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:55:19"
+    }
+  ]
+}

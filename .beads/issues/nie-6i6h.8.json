@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.8",
+  "title": "bridge-jmap: SeenIds resets on restart; emails replayed once per process start",
+  "description": "SeenIds (bridge.rs:34-61) is in-memory only. On process restart, all previously-seen email IDs are forgotten. The next poll fetches all emails in the mailbox (up to the pagination limit), and all of them are new to the fresh SeenIds. Every email currently in the mailbox is forwarded to nie as a chat message. For a mailbox with many emails this means a flood on every bridge restart. bridge-matrix persists SentIds to a JSON file; bridge-jmap should do the same. The email IDs are stable (JMAP email IDs are permanent), so persistence would eliminate the restart-replay issue.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:28:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:47:00Z",
+  "closed_at": "2026-04-26T05:47:00Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:28:45"
+    }
+  ]
+}

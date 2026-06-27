@@ -1,0 +1,25 @@
+{
+  "id": "nie-13e3.4",
+  "title": "balance() query counts notes with block_height=0 as confirmed when scan_tip >= min_confirmations",
+  "description": "db.rs balance() SQL: WHERE n.block_height <= threshold_i64. Notes inserted before migration v4 have block_height DEFAULT 0. When scan_tip >= min_confirmations, threshold_i64 = scan_tip - min_confirmations >= 0, so block_height=0 satisfies block_height <= threshold and those notes appear as confirmed. This is the nie-br9a.3 issue that the code claims is being fixed. Checking the current code: the threshold logic was fixed (uses -1 when scan_tip < min_confirmations) but when scan_tip >= min_confirmations, threshold = scan_tip - min_confirmations which could be 0 for a fresh wallet with scan_tip == min_confirmations, making block_height=0 notes appear confirmed. The WHERE clause does not exclude note_diversifier IS NULL (undecrypted notes) or block_height=0 sentinel notes. Trigger: any unspent note with block_height=0 in the DB when scan_tip >= min_confirmations. Bad outcome: falsely confirmed balance reported.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:21:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:30:26Z",
+  "closed_at": "2026-04-26T06:30:26Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:21:52"
+    }
+  ]
+}

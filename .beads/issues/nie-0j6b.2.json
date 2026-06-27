@@ -1,0 +1,26 @@
+{
+  "id": "nie-0j6b.2",
+  "title": "TUI /!: std::process::Command blocks tokio event loop",
+  "description": "tui/src/event.rs handle_slash bang arm calls std::process::Command::new().output() on a tokio worker thread (blocking syscall). A slow command freezes the entire TUI loop: no keyboard, no relay events, no reconnection during that window. This is worse than the nie-po5v.17 ticket indicates - it stalls all relay events, not just UI redraws. Fix: use tokio::process::Command.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:53:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:36:27Z",
+  "closed_at": "2026-04-25T04:36:27Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:53:03"
+    }
+  ]
+}

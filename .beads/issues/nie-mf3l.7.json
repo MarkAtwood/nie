@@ -1,0 +1,37 @@
+{
+  "id": "nie-mf3l.7",
+  "title": "nie-wasm: unit tests (JSON-RPC parsing + auth signing)",
+  "description": "## What\nWrite wasm-bindgen-test unit tests covering: (1) JSON-RPC 2.0 message parsing, (2) auth challenge signing using known test vectors, (3) PubId derivation.\n\n## Algorithm\n1. Create wasm/tests/wasm.rs with #![cfg(target_arch = 'wasm32')] and use wasm_bindgen_test::*\n2. Test set A: JSON-RPC parsing (oracle: spec-defined JSON-RPC 2.0 examples)\n   - test_parse_challenge_notification: parse hardcoded JSON string '{\"jsonrpc\":\"2.0\",\"method\":\"challenge\",\"params\":{\"nonce\":\"...\"}}'; assert method == 'challenge', params.nonce extracted correctly\n   - test_parse_auth_success_response: parse '{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"pub_id\":\"...\",\"sequence\":5}}'; assert id==1, result.pub_id is 64 hex chars\n   - test_parse_deliver_notification: parse deliver notification; assert method=='deliver', from is 64-char hex, payload field is base64 string\n   - test_parse_error_response: parse error response; assert error.code == -32001, message is string\n3. Test set B: Auth signing (oracle: independently derived from ed25519-dalek test vectors)\n   - Use a KNOWN 64-byte seed (all zeros or a fixed test seed)\n   - Compute expected pub_key_b64: base64(VerifyingKey::from(&SigningKey::from(&[0u8;32])).to_bytes())\n   - Use a known nonce string: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' (base64 of 32 zero bytes)\n   - Call nie_core::auth::sign_challenge(&identity, &nonce) \u2192 (pk, sig)\n   - Verify sig with nie_core::auth::verify_challenge(&pk, &nonce, &sig) returns Ok(pub_id)\n   - Assert returned pub_id is SHA-256 hash of the verifying key bytes (compute independently)\n4. Test set C: PubId derivation (oracle: SHA-256 of known verifying key)\n   - Use fixed seed, derive verifying key, compute SHA-256, hex-encode\n   - Assert == identity.pub_id().0\n   - This is not the code under test as its own oracle: the expected value is computed separately with sha2::Sha256::digest()\n\n## Defensive programming\n- All test vectors are hardcoded constants, NOT derived by calling the code under test\n- Tests must include rejection cases: verify_challenge with wrong nonce returns Err\n- Tests must include rejection cases: verify_challenge with wrong signature returns Err\n\n## Agent team\nTester agent only (derives expected values from external oracles, writes tests independently of implementation).\n\n## Tests\n- wasm-pack test --headless --chrome wasm/ exits 0 (all tests pass)\n- Rejection tests confirm auth fails with wrong nonce/signature",
+  "acceptance_criteria": "wasm-pack test --headless --chrome wasm/ exits 0; at least 6 tests: 4 JSON-RPC parsing + 2 auth (happy path + rejection); test vectors are hardcoded constants not derived from code under test",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:55:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T02:10:28Z",
+  "close_reason": "WASM unit tests written; 7 tests covering JSON-RPC parsing (4 tests) and auth sign/verify (3 tests) and PubId derivation (1 test); cargo check --target wasm32-unknown-unknown -p nie-wasm --tests passes clean; clippy errors are pre-existing in api.rs outside task scope",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:54"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:53"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:54"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:00"
+    }
+  ]
+}

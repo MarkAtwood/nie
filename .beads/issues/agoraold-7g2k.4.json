@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-7g2k.4",
+  "title": "SEC6: validate_did_key() error messages avoid implementation leaks",
+  "description": "Error messages in identity.rs:167-189 are generic (e.g. 'base decode failed') rather than exposing codec internals. Avoids timing/structure side-channels that could reveal key format details to attackers. Each validation step has a distinct error path that doesn't conflate different failure modes.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:15:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:03Z",
+  "closed_at": "2026-04-23T00:22:50Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:48"
+    }
+  ]
+}

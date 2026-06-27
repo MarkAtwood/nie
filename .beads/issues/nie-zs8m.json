@@ -1,0 +1,19 @@
+{
+  "id": "nie-zs8m",
+  "title": "Review: SpaceRole enum, contact_set atomicity",
+  "notes": "Maintainer risk: LOW — The runtime behavior is correct and well-tested. The only real risk issues are: (1) a misleading test comment that overstates compiler enforcement for SpaceRole::all(), which could lead to a future variant being missed in all(); and (2) a precondition violation returning Err instead of unreachable!, which leaks an internal debug message if it somehow fires.\nConfidence: 90% no missed bugs. Uncertainty driven by: did not trace all JMAP call paths (only contact_set, contact_query, space_set reviewed in depth); did not run the test suite to verify the state-bump test passes cleanly. Would raise confidence with: cargo test --workspace output, and reviewing contact_get/space_get to ensure they read the single state token correctly after a two-field patch.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:25:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T17:34:14Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

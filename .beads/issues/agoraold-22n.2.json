@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-22n.2",
+  "title": "Sync-lag guard: refuse to send if wallet is > N blocks behind chain tip",
+  "description": "Implement a guard that refuses to build and broadcast a transaction if the wallet's scan tip is too far behind the chain tip. Sending with a stale scan risks double-spends (notes already spent in unscanned blocks).\n\npub async fn check_sync_lag(\n    store: &WalletStore,\n    client: &LightwalletdClient,\n    max_lag_blocks: u64,   -- const MAX_SYNC_LAG: u64 = 10\n) -> Result<(), SyncLagError>\n\npub struct SyncLagError {\n    pub scan_tip: u64,\n    pub chain_tip: u64,\n    pub lag: u64,\n}\nimpl Display for SyncLagError: 'wallet is N blocks behind chain tip (scan_tip=X, chain_tip=Y) \u2014 run sync first'\n\nAlgorithm:\n1. store.scan_tip() \u2192 local_tip\n2. client.get_chain_tip() (LightwalletdClient method \u2014 spawn research subagent to find the correct gRPC call name, likely GetLatestBlock returning BlockID with height field)\n3. if chain_tip > local_tip + max_lag_blocks \u2192 return Err(SyncLagError { ... })\n4. if local_tip == 0 \u2192 Err(SyncLagError) \u2014 wallet has never synced (extra guard)\n\nDefensive rules:\n- If get_chain_tip() fails (network error), return Err \u2014 do not silently allow sending on a network failure\n- The lag check uses saturating arithmetic to avoid underflow if local_tip > chain_tip (chain reorg edge case)\n- MAX_SYNC_LAG = 10 defined as a const with a doc comment explaining the safety rationale\n\nTests (mock LightwalletdClient):\n- scan_tip=100, chain_tip=105, max=10 \u2192 Ok\n- scan_tip=100, chain_tip=111, max=10 \u2192 Err(SyncLagError { lag: 11 })\n- scan_tip=0, chain_tip=1 \u2192 Err (never-synced wallet)\n- scan_tip=200, chain_tip=198 (chain reorg) \u2192 Ok (not behind)\n- network error on get_chain_tip \u2192 Err\n- Verify error Display message contains 'sync' and the lag count",
+  "acceptance_criteria": "all 5 tests pass; const MAX_SYNC_LAG has doc comment; SyncLagError Display is actionable (tells user to run sync)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:50:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T02:25:54Z",
+  "close_reason": "check_lag() + check_sync_lag() in wallet/src/sync_guard.rs, 7 tests passing; pure check_lag separated from async I/O for testability",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:50:19"
+    }
+  ]
+}

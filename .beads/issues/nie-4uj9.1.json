@@ -1,0 +1,25 @@
+{
+  "id": "nie-4uj9.1",
+  "title": "SpaceRole enum makes invalid roles a compile error \u2014 type system enforces the contract",
+  "description": "Replacing role: &str with role: SpaceRole in upsert_space_member_with_role and SpaceMemberOp::Upsert moves the validation from a runtime precondition (documented in a doc comment that callers had to read) to the type system. Before this, any call site that passed an arbitrary &str would silently store garbage in the DB. Now passing an arbitrary string is a compile error. A contributor might suggest reverting to &str for 'flexibility' \u2014 resist this; the compile error is the point.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:07:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T17:07:37Z",
+  "closed_at": "2026-04-24T17:07:37Z",
+  "close_reason": "Decision records only",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 10:07:20"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-lflg.10",
+  "title": "HPKE OpModeS::Base correctly provides sender deniability",
+  "description": "hpke.rs uses OpModeS::Base (no sender authentication) which means the seal does not bind the ciphertext to a specific sender key. This is intentional: sealed_broadcast hides sender identity from the relay. A contributor might suggest switching to OpModeS::Auth for sender authentication, but that would defeat the sealed-sender property. The security model comment in mls.rs room_hpke_keypair documents the accepted limitation.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:26:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:26:14Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:13"
+    }
+  ]
+}

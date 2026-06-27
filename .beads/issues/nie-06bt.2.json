@@ -1,0 +1,27 @@
+{
+  "id": "nie-06bt.2",
+  "title": "space_set: non-Object patch value silently dropped from both updated and notUpdated",
+  "description": "Trigger: client sends Space/set with update: {space-id: 'delete'} (non-Object patch). At jmap.rs:1138, if let Some(Value::Object(patch_map)) = Some(patch) silently skips non-Object values. The space_id never appears in either updated or notUpdated, so the client has no way to tell whether the update succeeded or failed. RFC 8620 \u00a77.1 requires notUpdated to be populated. Pre-existing code, but these commits touched the surrounding path without fixing this. Fix: add an else branch that inserts into notUpdated with invalidArguments.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:54:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:07:58Z",
+  "closed_at": "2026-04-24T04:07:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:54:48"
+    }
+  ]
+}

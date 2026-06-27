@@ -1,0 +1,24 @@
+{
+  "id": "nie-f4ce.12",
+  "title": "bridge-jmap: email_get fetches up to 50 emails in one JMAP request without batching",
+  "description": "bridge-jmap/src/jmap.rs email_get: sends all new IDs (up to 50) in a single Email/get request. JMAP servers enforce maxObjectsInGet (commonly 10-50). If the server applies this cap, it returns a subset and the rest are never seen in this poll cycle (also affects nie-y9mn.1). Should paginate or batch in chunks of min(ids.len(), server-reported maxObjectsInGet).",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:08:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:08:42Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:08:42"
+    }
+  ]
+}

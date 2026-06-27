@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-4iod.7",
+  "title": "Pass only required config to handle_relay_event()",
+  "description": "At main.rs:125, handle_relay_event() takes &ResolvedBotConfig but uses only:\n- config.on_message_hook\n- config.relay\n\nPassing the entire config object:\n- Couples the relay event handler to unrelated config fields (insecure, self_test, keyfile, etc.)\n- Makes unit testing harder (must construct full ResolvedBotConfig instead of just passing hooks)\n- Hides the function's actual dependencies\n\nFix: Pass only the required fields:\n  handle_relay_event(client_event, &conn_tx, on_message_hook: Option<&String>, relay_url: &str, my_pub_id).await;\n\nAcceptance: handle_relay_event() signature no longer takes ResolvedBotConfig, unit test overhead reduced, function contract is clearer.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:47Z",
+  "closed_at": "2026-04-20T01:29:00Z",
+  "close_reason": "deferred: handle_relay_event() receiving full config is acceptable for Phase 4f; minimize-params refactor belongs in Phase 4g",
+  "labels": [
+    "elegance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:16"
+    }
+  ]
+}

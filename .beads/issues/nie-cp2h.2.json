@@ -1,0 +1,28 @@
+{
+  "id": "nie-cp2h.2",
+  "title": "SpaceMemberOp::Upsert role unchecked at type level",
+  "description": "SpaceMemberOp::Upsert { role: &str } accepts any string. Validation lives only in jmap.rs Phase 1 (validate_member_patch). A future caller constructing SpaceMemberOp directly \u2014 e.g. a new invite-promotion endpoint or a bulk-import path \u2014 can produce an invalid role that reaches upsert_space_member_with_role and gets stored verbatim. The store's precondition doc comment documents the invariant but the type system does not enforce it. An enum Role { Admin, Moderator, Member } would eliminate this class of bug at compile time. As a solo maintainer this will silently bite you when you wire up a second call site.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:54:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T06:06:54Z",
+  "closed_at": "2026-04-24T06:06:54Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 22:54:22"
+    }
+  ]
+}

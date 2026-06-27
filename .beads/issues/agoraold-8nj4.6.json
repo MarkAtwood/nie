@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-8nj4.6",
+  "title": "Add periodic cleanup task for expired offline_messages",
+  "description": "relay/src/store.rs: drain() only removes messages for a user when they reconnect.\n\nIf a user never reconnects, their expired messages accumulate indefinitely:\n  - User X authenticates, receives 100 queued DMs\n  - After 72h those messages expire\n  - User X never reconnects\n  - Stale rows persist in database forever\n\nOver a year with 100 concurrent users: ~3.65M stale rows accumulate.\n\nCurrent design rationale per CLAUDE.md \u00a710: drain-then-deliver is acceptable Phase 1.\nBut maintenance cleanup is separate from delivery semantics.\n\nFix options:\n  1. DELETE expired messages on relay startup (simplest, Phase 1 appropriate)\n  2. Add periodic background task (more robust, scheduled cleanup)\n  3. VACUUM ANALYZE after large deletions (optimize query plans)\n\nStart with option 1: Add to Store::new() after all CREATE TABLE statements:\n  sqlx::query(\"DELETE FROM offline_messages WHERE expires_at <= datetime('now')\")\n    .execute(&pool)\n    .await?;\n\nThis prevents stale accumulation while keeping Phase 1 one-shot semantics intact.\n\nCleanup task, not correctness issue. Mark as P3.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:37:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:47Z",
+  "closed_at": "2026-04-19T21:40:23Z",
+  "close_reason": "Closed",
+  "labels": [
+    "data-hygiene",
+    "maintenance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:37:42"
+    }
+  ]
+}

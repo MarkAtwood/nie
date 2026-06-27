@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-8lcm.9",
+  "title": "asymmetric WalletStore balance API creates refactor trap",
+  "description": "The send-side uses alice_store.balance(alice_scan_tip, 1) while the receive-side uses bob_store.balance_with_confirmations(1). These two methods have different signatures on WalletStore. If WalletStore is later refactored to consolidate them, one call will break at compile time and the other will not \u2014 the asymmetry is invisible at the call sites. The test should use one consistent method for both sides, or add a comment explaining why each form is used (e.g. Alice needs an explicit tip because the preloaded DB tip may differ from the live chain tip).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:42Z",
+  "closed_at": "2026-04-20T05:09:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:36"
+    }
+  ]
+}

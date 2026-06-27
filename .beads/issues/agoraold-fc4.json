@@ -1,0 +1,32 @@
+{
+  "id": "agoraold-fc4",
+  "title": "Watcher persistence across restarts",
+  "description": "What: On nie-cli startup (inside chat() before spawning watcher), load all PaymentSessions in Watching state from the wallet DB and register their addresses in AddressWatchRegistry.\n\nAlgorithm:\n1. Call wallet_store.all_sessions() (returns Vec<PaymentSession>).\n2. Filter: retain only sessions where state == PaymentState::Watching and address.is_some().\n3. For each such session: registry.register(session.address.unwrap(), session.id).\n4. Log the count at debug level: 'Restored N watching sessions into watcher registry'.\n\nDefensive programming:\n- Silently skip sessions missing address (should not happen, but guard defensively).\n- This runs at startup before the watcher task is spawned; no concurrency concern here.\n- Do not log any session payment amounts or address alongside key material.\n\nTests:\n- test_persistence_reload: create wallet DB with 2 Watching sessions and 1 Complete session, call the reload logic, assert registry contains exactly 2 entries.\n- test_persistence_reload_no_address: session without address is skipped, no panic.\n\nAcceptance: cargo test passes; Complete sessions not loaded into registry; clippy clean.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:37Z",
+  "closed_at": "2026-04-19T08:27:02Z",
+  "close_reason": "watch_registry startup restore added to chat(); sessions_to_watch() loads Watching sessions into registry; 268 tests pass; clippy clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:29"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:13:11"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:13:11"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-pf86.1",
+  "title": "FileHeader/FileChunk protocol types + extend pad buckets",
+  "description": "## What\nAdd FileHeader and FileChunk variants to ClearMessage enum in core/src/messages.rs. Extend pad() BUCKETS to include 65536 bytes (allows ~65KB padded chunks). Add serde_with Base64 encoding for FileChunk::data.\n\n## Algorithm\n1. In messages.rs, import use serde_with::{serde_as, Base64}; and add #[serde_with::serde_as] attribute to ClearMessage.\n2. Add FileHeader { transfer_id: Uuid, name: String, size_bytes: u64, sha256_hex: String, total_chunks: u32, mime_type: String } variant.\n3. Add FileChunk { transfer_id: Uuid, seq: u32, #[serde_as(as = 'Base64')] data: Vec<u8> } variant.\n4. In pad(), change BUCKETS from [256, 512, 1024, 4096] to [256, 512, 1024, 4096, 65536]. Update error message to '65532-byte maximum'. Update pad_too_large_returns_err test to use 65533 bytes instead of 4093.\n5. Add roundtrip tests: file_header_roundtrips, file_chunk_data_base64_in_json, file_chunk_roundtrips_binary_data.\n6. Run cargo test -p nie-core.\n\n## Defensive programming\n- transfer_id Uuid is always client-generated (never relay-supplied)\n- sha256_hex field is hex only (64 chars) - validated at receive side\n- Never log chunk data bytes\n- name field: validated at receive side before writing to disk (path traversal check)\n- seq is 0-indexed, total_chunks is the count\n\n## Tests\n- file_header_roundtrips: serialize FileHeader, deserialize, assert all fields match (oracle: serde_json)\n- file_chunk_data_base64_in_json: serialize FileChunk with binary data, assert JSON contains 'data' field as base64 string not array (oracle: base64 spec - binary round-trips through base64)\n- file_chunk_roundtrips_binary_data: roundtrip FileChunk with 48000 bytes of random-ish data, assert data preserved\n- pad_accepts_65532_bytes: pad with 65532-byte input, assert output is 65536 bytes, unpad recovers original\n- pad_rejects_65533_bytes: assert pad([0u8; 65533]) returns Err",
+  "acceptance_criteria": "cargo test -p nie-core passes; FileHeader and FileChunk serialize/deserialize correctly; pad(65532 bytes) produces 65536-byte output",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T13:56:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T14:05:03Z",
+  "close_reason": "FileHeader/FileChunk variants added, pad() extended to 65536 bucket, all match arms updated across codebase, 108 core tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 06:56:29"
+    }
+  ]
+}

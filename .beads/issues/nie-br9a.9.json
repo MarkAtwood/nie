@@ -1,0 +1,22 @@
+{
+  "id": "nie-br9a.9",
+  "title": "advance_diversifier_to rolls back an empty SQLite transaction on no-op path",
+  "description": "db.rs advance_diversifier_to: when idx <= current, the function returns Ok(()) without calling tx.commit(). SQLite rolls back the empty transaction on drop. This is functionally correct but wastes a transaction begin + rollback on the fast path. In send_payment this can be called even when actual_u128 == change_di_start (no gap to close). The guard 'if actual_u128 > change_di_start' in payment.rs prevents the call most of the time, but alloc_fresh_address always calls advance_diversifier_to even on the no-gap path and that function does the transaction unconditionally. Low impact \u2014 SQLite WAL transactions are cheap \u2014 but worth noting.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:03:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:03:23Z",
+  "labels": [
+    "efficiency"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:03:23"
+    }
+  ]
+}

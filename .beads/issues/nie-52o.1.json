@@ -1,0 +1,27 @@
+{
+  "id": "nie-52o.1",
+  "title": "Mnemonic display: duplicate words get wrong numbers",
+  "description": "Trigger: BIP-39 allows repeated words (e.g. 'zoo zoo zoo ... vote' is a valid 24-word mnemonic). The display loop uses words.iter().position(|w| w == &row[0]) which always returns the index of the FIRST occurrence of row[0] in the full word list. For a mnemonic where 'zoo' appears in positions 0-22, every chunk after the first will compute start=1 instead of 5, 9, 13, 17, 21. The user writes down labels '1. zoo 2. zoo 3. zoo 4. zoo' for EVERY row except the last.\n\nBad behavior: user writes down word numbers based on display, attempts to restore from backup in a different wallet using those numbers as reference, discovers words are correctly ordered but incorrectly labeled. Does not corrupt the wallet itself, but creates a mislabeled backup that could cause confusion during restore.\n\nFix: replace iter().position() with chunks(4).enumerate():\n  for (chunk_idx, row) in words.chunks(4).enumerate() {\n      let start = chunk_idx * 4 + 1;\n      for (j, word) in row.iter().enumerate() {\n          print!(\"{:2}. {:<12}\", start + j, word);\n      }\n      println!();\n  }",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:24:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T03:37:40Z",
+  "closed_at": "2026-04-18T03:37:40Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:24:03"
+    }
+  ]
+}

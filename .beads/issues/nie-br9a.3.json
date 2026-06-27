@@ -1,0 +1,24 @@
+{
+  "id": "nie-br9a.3",
+  "title": "balance() confirms notes with block_height=0 DEFAULT after migration v4",
+  "description": "Migration v4 added block_height INTEGER NOT NULL DEFAULT 0 to notes. Any note row that existed before v4 now has block_height=0. balance() computes threshold = scan_tip - min_confirmations; at mainnet height ~2.5M the threshold is ~2.5M, which is >> 0, so these legacy notes satisfy block_height <= threshold and are permanently classified as confirmed regardless of their actual receipt height. The notes also appear with value_zatoshi from before decryption was added (migration v6). Impact: stale pre-migration rows, if any exist in production wallets, inflate confirmed balance.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:01:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:36:56Z",
+  "closed_at": "2026-04-25T04:36:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:01:24"
+    }
+  ]
+}

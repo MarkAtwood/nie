@@ -1,0 +1,25 @@
+{
+  "id": "nie-s4qr.8",
+  "title": "mls: process_for_group returns committer pub_id for Commit messages; callers may misattribute",
+  "description": "In mls.rs process_for_group, sender_pub_id is extracted from processed.credential() before the match on processed.into_content(). For ApplicationMessage the sender_pub_id is meaningful and returned. For StagedCommitMessage and ProposalMessage, the function returns Ok(None), but the sender_pub_id was still computed and not returned \u2014 that is fine. However, the credential for a Commit message is the committer's identity, which is correct. BUT: there is no validation that sender_pub_id matches a known/expected identity format. The credential bytes are user-supplied at group-creation time; a malicious joiner could craft a credential with pub_id bytes that are not a valid hex pub_id (not SHA-256 of their actual pub key). The relay does enforce that the wire-protocol pub_id matches the Ed25519 key, but MLS credentials are set by the joining client and the relay does not see them. A malicious client could set an MLS credential that spoofs another user's pub_id. This would be caught only if receivers independently validate that MLS sender_pub_id == authenticated relay pub_id.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:14:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:00Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:14:49"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.32",
+  "title": "SOCKS5 connect error omits proxy and relay addresses",
+  "description": "In open_authenticated_ws, the SOCKS5 tunnel connect error context is:\n\n  .with_context(|| \"SOCKS5 tunnel connect failed\")\n\nThis includes no information about which proxy or relay address was attempted. When the connection fails (proxy unreachable, proxy rejects the relay target, SOCKS5 auth failure), the user or operator sees only the generic 'SOCKS5 tunnel connect failed' message plus the low-level OS/socks error.\n\nBy contrast, the direct-path TCP connect error at least logs the addr via info!(). The proxy path logs at info! level ('connected via SOCKS5 tunnel to ...') only on success, so on failure there is nothing in the log that identifies the endpoints.\n\nFix: include the proxy and relay addresses in the context string:\n\n  .with_context(|| format!(\"SOCKS5 tunnel connect failed (proxy={proxy_host}:{proxy_port} target={relay_host}:{relay_port})\"))\n\nNote: do not include the full proxy_url string in the error, as it may contain credentials (see related issue on credential handling).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:22:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:32:03Z",
+  "closed_at": "2026-04-19T19:32:03Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:22:23"
+    }
+  ]
+}

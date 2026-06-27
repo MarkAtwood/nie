@@ -1,0 +1,19 @@
+{
+  "id": "nie-xw00",
+  "title": "Review: full diff final pass before commit",
+  "notes": "Maintainer risk: LOW — the full diff is coherent. Security fixes (ULID entropy, auth bypass) are significant additions. Type validation is consistent with the rest of the codebase. Tests cover the fixed paths. Doc comment ordering fixed. No new API surface that cannot be changed.\nConfidence: 90% chance of no missed bug. Remaining uncertainty: SQLite WAL mode not set (pre-existing), no FK constraints (pre-existing design), invite expiry not settable via API (pre-existing gap). These are all pre-existing and not in this diff.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:37:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T18:38:49Z",
+  "closed_at": "2026-04-24T18:38:49Z",
+  "close_reason": "No new findings. All issues from this session are fixed. Remaining concerns are pre-existing and not in this diff. Ready for commit.",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.44",
+  "title": "Non-UTF-8 keyfile path silently becomes empty string in relay connector",
+  "description": "In daemon/src/main.rs line 222, keyfile_path.to_str().unwrap_or(\"\") passes an empty string to start_relay_connector() if the data directory path contains non-UTF-8 bytes. The relay connector then fails with an I/O error like 'No such file or directory' on path '' rather than a clear diagnostic about the invalid keyfile path. Fix: use .to_str().context('keyfile path contains non-UTF-8 characters')? to propagate a clear error instead of silently substituting empty string.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:02:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:17:47Z",
+  "closed_at": "2026-04-24T22:17:47Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:02:18"
+    }
+  ]
+}

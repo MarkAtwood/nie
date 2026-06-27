@@ -1,0 +1,24 @@
+{
+  "id": "nie-8lcm.15",
+  "title": "GOOD: mine-wait budget documented with slack calculation",
+  "description": "The receive-side verification in testnet_shielded_payment_end_to_end() documents the time budget explicitly in a comment: 'mine-wait <= 300 s, scan <= 120 s; together 420 s within PAYMENT_TIMEOUT_SECS'. PAYMENT_TIMEOUT_SECS is 600, leaving 180s of slack. The 30s poll interval for mine-wait is appropriate for Zcash testnet (~75s block time): it detects mining within one poll cycle after a block arrives without hammering the server. The inner timeout (300s) and outer timeout (600s) are separate so scan failures do not consume the mine-wait budget and vice versa.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:00:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:10:04Z",
+  "closed_at": "2026-04-20T05:10:04Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:00:00"
+    }
+  ]
+}

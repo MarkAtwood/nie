@@ -1,0 +1,19 @@
+{
+  "id": "nie-4uj9",
+  "title": "Review: SpaceRole enum, contact_set atomic writes",
+  "notes": "Maintainer risk: LOW — all issues from this commit were addressed by subsequent commits or by today's beads fixes. No remaining issues.\nConfidence: 15% chance of missed bug. Uncertainty driven by: this commit is large (3 files, major refactor) and I did not trace every call site of SpaceMemberOp and update_space_fully. Would raise confidence if: grep all SpaceMemberOp::Upsert construction sites and verify each uses SpaceRole, not a raw string.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:07:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T17:07:39Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

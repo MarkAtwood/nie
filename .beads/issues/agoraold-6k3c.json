@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-6k3c",
+  "title": "MLS: process_incoming returns (plaintext, sender_pub_id)",
+  "description": "Change MlsClient::process_incoming and process_for_group to return Result\u003cOption\u003c(Vec\u003cu8\u003e, String)\u003e\u003e instead of Result\u003cOption\u003cVec\u003cu8\u003e\u003e\u003e. Extract sender identity from ProcessedMessage::credential() before calling into_content(). This is the core change that makes MLS sender authentication available to callers.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T05:28:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T05:39:20Z",
+  "close_reason": "implemented; build clean, all tests pass"
+}

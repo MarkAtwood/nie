@@ -1,0 +1,27 @@
+{
+  "id": "nie-uyhc.3",
+  "title": "Integration test: two devices same pub_id both receive",
+  "description": "Add a relay integration test verifying that two connections from the same pub_id both receive delivered messages, and that disconnecting one does not affect the other.\n\nWhat: end-to-end integration test using the existing relay test harness pattern.\n\nAlgorithm:\n1. Start an in-process relay (follow pattern from e2e_jsonrpc.rs or wasm_protocol.rs)\n2. Create identity A. Connect device_1 (identity A) \u2014 authenticate, get into the main loop\n3. Connect device_2 (identity A, same key) \u2014 authenticate separately\n4. From a third client (identity B), broadcast a message\n5. Assert device_1 receives the message\n6. Assert device_2 receives the message\n7. Disconnect device_1\n8. Broadcast another message from B\n9. Assert device_2 still receives it (device_1 disconnect did not affect device_2)\n\nOracle: known message strings sent by identity B, compared at each receiver.\n\nDefensive rules:\n- Test must not rely on message ordering beyond each client's own channel\n- Use timeouts to avoid hanging if delivery fails",
+  "acceptance_criteria": "Test passes; no existing tests regress; confirms multi-device delivery works end-to-end",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:15:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T00:22:50Z",
+  "closed_at": "2026-04-23T00:22:50Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:44"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:50"
+    }
+  ]
+}

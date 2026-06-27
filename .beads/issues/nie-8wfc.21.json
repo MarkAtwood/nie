@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.21",
+  "title": "db.rs: migrations 4/7/8 ALTER TABLE not wrapped in transaction",
+  "description": "db.rs WalletStore::new(): migration versions 4, 7, and 8 execute DDL (ALTER TABLE / CREATE INDEX) followed by PRAGMA user_version = N as separate calls with no explicit transaction. A crash between the DDL and the PRAGMA leaves the schema partially migrated: user_version is not advanced, so the next open re-runs the migration block and fails with 'duplicate column name' / 'index already exists'. Migration v6 correctly uses pool.begin()/commit() to wrap both the DDL and the PRAGMA. Migrations 4, 7, and 8 should do the same. SQLite DDL is only atomic when issued within an explicit BEGIN/COMMIT.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:20:25Z",
+  "closed_at": "2026-04-24T22:20:25Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:08"
+    }
+  ]
+}

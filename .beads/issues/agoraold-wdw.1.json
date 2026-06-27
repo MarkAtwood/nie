@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-wdw.1",
+  "title": "Add zcash_primitives dep to workspace Cargo.toml",
+  "description": "Add zcash_primitives to the workspace [dependencies] in the root Cargo.toml and to wallet/Cargo.toml.\n\nUse the same librustzcash git rev already in use (d8491512). Pattern:\n  zcash_primitives = { git = 'https://github.com/zcash/librustzcash', rev = 'd8491512' }\n\nAlso add zcash_protocol (needed for MemoBytes and Zatoshis) and incrementalmerkletree (needed for IncrementalWitness serialization).\n\nSteps:\n1. Spawn a research subagent to find the exact rev string and existing git deps in Cargo.toml\n2. Add the deps\n3. Run cargo check --workspace and fix any version conflicts\n4. Verify no core2 transitive dep appears (the known yanked crate) \u2014 cargo tree -i core2\n5. Run cargo test --workspace to confirm nothing regressed\n\nDefensive: if cargo tree shows a version conflict, spawn a second subagent to resolve it before proceeding. Do not guess \u2014 read the existing lockfile.",
+  "acceptance_criteria": "cargo build --workspace succeeds; cargo tree -p nie-wallet | grep zcash_primitives shows the correct rev; no core2 dep",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:47:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T23:58:51Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:47:56"
+    }
+  ]
+}

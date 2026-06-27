@@ -1,0 +1,27 @@
+{
+  "id": "nie-gsyn.9",
+  "title": "SUBSCRIBE_REQUEST missing per-user pending invoice cap",
+  "description": "SKIP \u2014 already tracked as nie-qgag.4 (being fixed). Confirmed not implemented in round 19 code but flagged to avoid re-filing.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:26:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:27:04Z",
+  "closed_at": "2026-04-25T04:27:04Z",
+  "close_reason": "Duplicate of nie-qgag.4 already tracked",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:45"
+    }
+  ]
+}

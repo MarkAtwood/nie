@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-x47.2",
+  "title": "MLS key packages encoded as serde_json, not RFC 9420 TLS",
+  "description": "mls.rs:key_package_bytes() serializes KeyPackage via serde_json::to_vec() instead of TLS encoding (RFC 9420 \u00a711). The comment at line 87-93 acknowledges this is wrong but defers to nie-7xs.8. Trigger: any standard MLS implementation (Phase 4 Android client, any third-party MLS peer) attempts to parse the key package. Bad behavior: deserialization fails silently or crashes on both sides; interop is impossible. The commit and welcome messages correctly use TLS encoding; only key packages are wrong. This creates a protocol-level split \u2014 the session encryption is fine internally but the onboarding handshake is not RFC-compliant.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:46:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:39Z",
+  "closed_at": "2026-04-18T04:16:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:46:21"
+    }
+  ]
+}

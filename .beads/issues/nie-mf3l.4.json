@@ -1,0 +1,32 @@
+{
+  "id": "nie-mf3l.4",
+  "title": "nie-wasm: IndexedDB identity storage",
+  "description": "## What\nImplement async IndexedDB storage in `wasm/src/storage.rs` to persist and load the 64-byte identity secret key in the browser.\n\n## Algorithm\n1. Define the storage schema:\n   - DB name: 'nie-identity'\n   - Object store: 'keys'\n   - Keys stored by string key (e.g. 'default')\n   - Value stored: JSON object { secret_b64: String } where secret_b64 is base64-encoded 64 bytes\n2. Implement async fn open_db() -> Result<web_sys::IdbDatabase, String>:\n   - Get window().indexedDB() factory\n   - Call factory.open_with_u32('nie-identity', 1)\n   - Set onupgradeneeded callback: create object store 'keys' if not exists\n   - Set onsuccess callback: resolve with database handle\n   - Convert IdbOpenDbRequest to Promise via Closure and JsFuture\n   - Return Result<IdbDatabase, String>\n3. Implement async fn save_identity(secret_bytes: &[u8; 64]) -> Result<(), String>:\n   - Open DB\n   - Start readwrite transaction on 'keys' store\n   - Call store.put_with_key(value, key) where value is {secret_b64: base64(secret_bytes)} as JsValue, key is 'default'\n   - Await request.onsuccess as JsFuture\n4. Implement async fn load_identity() -> Result<Option<[u8; 64]>, String>:\n   - Open DB\n   - Start readonly transaction on 'keys' store\n   - Call store.get(JsValue::from_str('default'))\n   - Await result\n   - If result is undefined/null: return Ok(None)\n   - Deserialize JSON, base64-decode the secret_b64 field\n   - Validate length == 64, return Ok(Some([u8; 64]))\n5. Converting IdbRequest to Future: use a helper function that:\n   - Creates a Promise via Promise::new\n   - Sets onsuccess Closure that resolves the Promise with request.result()\n   - Sets onerror Closure that rejects with request.error()\n   - Returns JsFuture::from(promise).await\n6. All Closures used for callbacks must be Closure::once() (they fire at most once)\n\n## Defensive programming\n- Validate decoded byte length == 64 before returning; return descriptive Err if wrong\n- Never log the secret_bytes value \u2014 log only 'identity saved' or 'identity loaded'\n- Handle case where IndexedDB is unavailable (private browsing in some browsers): return Err with clear message\n- Never unwrap() on IndexedDB result; all paths must return Result<_, String>\n\n## Agent team\nResearcher: read web-sys IdbDatabase/IdbRequest/IdbTransaction API; check if idb crate is available in cargo cache as alternative to raw web-sys.\nImplementer: write wasm/src/storage.rs following algorithm.\n\n## Tests\n- cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0\n- Manual test in browser: load, save, reload, verify same bytes returned",
+  "acceptance_criteria": "cargo check --target wasm32-unknown-unknown -p nie-wasm exits 0; save_identity and load_identity functions present; no key material logged",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:54:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T02:04:42Z",
+  "close_reason": "IndexedDB identity storage implemented; cargo check wasm32 passes",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:54:01"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:48"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-nbqp.10",
+  "title": "daemon/store: set_message_reaction uses read-modify-write on reactions JSON \u2014 unbounded key injection",
+  "description": "set_message_reaction (store.rs line 1856) reads reactions JSON, deserializes to a Map, inserts reaction_id as a key, and writes back. The reaction_id is caller-supplied and has no length or count validation. A caller can add an unbounded number of reaction_id keys to a single message's reactions column, growing it without bound. At 1000 reactions \u00d7 100-byte keys = 100 KB of reactions JSON per message; at the JMAP layer there is no cap on how many set_message_reaction calls can be made per message. The reactions JSON blob is loaded into RAM on every read. Trigger: client calls MessageReaction/set repeatedly for the same message. Bad behavior: reactions JSON grows without bound; every message read allocates proportionally more RAM.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:35:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:46:35Z",
+  "closed_at": "2026-04-26T08:46:35Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:35:56"
+    }
+  ]
+}

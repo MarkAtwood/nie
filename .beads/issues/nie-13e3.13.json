@@ -1,0 +1,23 @@
+{
+  "id": "nie-13e3.13",
+  "title": "scan_tx: no bound on number of witnesses loaded into memory",
+  "description": "scanner.rs CompactBlockScanner holds self.witnesses: HashMap<i64, IncrementalWitness<sapling::Node, 32>>. load_state() loads ALL spendable notes witnesses. Each IncrementalWitness<sapling::Node, 32> has a depth-32 tree; the serialized form is ~1 KB; the in-memory form is larger. For a wallet that has received 10,000 notes, self.witnesses holds ~10 MB in memory. On each block, scan_tx iterates ALL witnesses for EACH Sapling output. A block with 1000 outputs * 10,000 witnesses = 10,000,000 witness.append() calls per block. This is O(outputs_per_block * total_notes_ever) \u2014 quadratic in active wallet age. Sapling witnesses accumulate for the lifetime of the wallet unless nie-en5f.2 is fixed. Expected impact: a moderately active wallet with 1000+ notes will see multi-second scan times per block.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:28:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:28:12Z",
+  "labels": [
+    "efficiency",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:28:12"
+    }
+  ]
+}

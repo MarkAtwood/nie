@@ -1,0 +1,26 @@
+{
+  "id": "nie-6i6h.1",
+  "title": "bridge-jmap: malformed email retried forever",
+  "description": "email_get deserializes emails one by one; on serde failure it logs a warning and skips the email (bridge.rs:351-357) but never inserts its ID into seen_ids. On every subsequent poll the same malformed email reappears in new_ids, is fetched again, fails deserialization again, and logs again \u2014 indefinitely. Trigger: any JMAP email whose RFC 8621 representation is malformed or has missing required fields. Bad behavior: perpetual warn-log spam per poll interval; the email never drains from the JMAP mailbox.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:26:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:37:25Z",
+  "closed_at": "2026-04-26T06:37:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:40"
+    }
+  ]
+}

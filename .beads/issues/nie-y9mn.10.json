@@ -1,0 +1,23 @@
+{
+  "id": "nie-y9mn.10",
+  "title": "bridge-slack Slack signature verification uses correct constant-time comparison",
+  "description": "verify_slack_signature uses a manual fold+XOR comparison (all byte pairs, no short-circuit) rather than a string equality that could short-circuit. The oracle test verifies the HMAC computation against a Python hmac module reference. The replay guard uses a \u00b15 minute window consistent with Slack docs. A contributor might replace the fold with a string compare or remove the oracle test; both should be rejected. The implementation is correct and well-justified.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:40:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:40:57Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:40:56"
+    }
+  ]
+}

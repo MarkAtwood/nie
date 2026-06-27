@@ -1,0 +1,26 @@
+{
+  "id": "nie-ftwb.1",
+  "title": "Space/queryChanges sends full id list as 'added' on any state mismatch",
+  "description": "jmap.rs space_query_changes: when since \\!= new_state the handler enumerates ALL current space ids and emits them as added entries with sequential index values. RFC 8620 \u00a75.4 requires 'added' to contain only ids newly present in the result set since sinceQueryState \u2014 not the entire result. A client that already holds the query result will double-add every space on next poll after any Space mutation. Trigger: Space/set create or destroy followed by Space/queryChanges with the old queryState.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:54:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:05:33Z",
+  "closed_at": "2026-04-26T08:05:33Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:54:15"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-bld.2",
+  "title": "client.rs txid validation accepts uppercase but doc says lowercase",
+  "description": "client.rs txid validation uses is_ascii_hexdigit() which accepts A-F (uppercase) and a-f (lowercase). The comment says txids are lowercase per spec. A test named parse_send_response_uppercase_hex_is_accepted explicitly documents this permissive behavior. The inconsistency is between the comment (says lowercase) and the implementation (accepts both). Either enforce lowercase with a targeted check (lowercasing the txid before validation, or rejecting uppercase) or update the comment to say the validator accepts any hex case. No security consequence \u2014 txids are public.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T06:48:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T07:11:34Z",
+  "closed_at": "2026-04-19T07:11:34Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 23:48:40"
+    }
+  ]
+}

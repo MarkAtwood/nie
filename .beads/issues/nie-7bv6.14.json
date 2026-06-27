@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.14",
+  "title": "SEC2: notify_closure leaked on every set_event_callback call",
+  "description": "File: wasm/src/client.rs line 250.\n\nwire_notify_callback ends with notify_closure.forget(), which leaks the Closure allocation into the JS GC permanently. The API documentation (api.rs line 151) explicitly states 'Replaces any previously registered callback.' Each replacement call to on_event -> set_event_callback -> wire_notify_callback leaks the previous Closure \u2014 it is never freed.\n\nCost: each call to on_event leaks one Closure<dyn FnMut(JsValue)> (~heap allocation for the Box<dyn FnMut> vtable + captures including the Rc<RefCell<Vec<UserInfo>>> clone). With repeated callback registration (e.g. React component remounts, hot-reload during development) this accumulates unbounded memory.\n\nFix: Store the Closure in the struct rather than forgetting it. Change notify_cb field in WasmTransport (or NieRelayClient) from Option<Function> to Option<Closure<dyn FnMut(JsValue)>>. Replacing it drops the old Closure, which calls set_onmessage(None) or equivalent cleanup automatically. This requires restructuring the callback ownership but eliminates the leak entirely.\n\nClassify: P2 (confirmed memory leak on every callback replacement; compounds with SPA frameworks that remount components)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:37:48Z",
+  "closed_at": "2026-04-20T02:37:48Z",
+  "close_reason": "duplicate of nie-7bv6.28: same notify_closure forget() leak; nie-7bv6.28 covers the issue at P1 with full context",
+  "labels": [
+    "efficiency",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:23"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.8",
+  "title": "bridge-jmap config accepts http:// session URL, sending bearer token in cleartext",
+  "description": "bridge-jmap/src/config.rs validate() allows jmap_session_url starting with http:// as well as https://; the bearer token is then sent in cleartext on every session fetch, email_query, email_get, and email_set call; restrict to https:// only",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:55:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:22:36Z",
+  "closed_at": "2026-04-24T23:22:36Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:55:19"
+    }
+  ]
+}

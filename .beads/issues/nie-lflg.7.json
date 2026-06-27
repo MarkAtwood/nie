@@ -1,0 +1,24 @@
+{
+  "id": "nie-lflg.7",
+  "title": "hash_key hex formatting is O(n) allocations",
+  "description": "identity.rs hash_key: uses map(format!).collect() which makes 32 heap allocations. Use write! into a pre-allocated String or the hex crate instead. Pattern will be copied.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:23:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:23:04Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:23:04"
+    }
+  ]
+}

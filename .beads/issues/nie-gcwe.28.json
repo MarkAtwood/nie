@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.28",
+  "title": "IPv6 relay via SOCKS5 sends malformed domain ATYP",
+  "description": "When the relay URL contains an IPv6 address (e.g. wss://[::1]:8443/ws), parse_relay_addr returns the host string as '[::1]' \u2014 with the RFC 3986 brackets still included.\n\nThis host string is then passed to Socks5Stream::connect as the second argument's &str. tokio-socks IntoTargetAddr for (&str, u16) first tries '[::1]'.parse::<IpAddr>(), which FAILS because Rust's IpAddr parser does not accept bracket notation. It falls through to TargetAddr::Domain('[::1]', port), and the SOCKS5 CONNECT request is sent with ATYP=0x03 (domain name) containing the literal string '[::1]'.\n\nThis is malformed per RFC 1928: domain name ATYP must contain a valid hostname, not a bracketed IPv6 literal. Tor and most SOCKS5 proxies will reject the connection with a general failure code. The caller receives an opaque socks error rather than a clear 'IPv6 not supported in this form' message.\n\nReproduction: call open_authenticated_ws with relay URL 'wss://[::1]:8443/ws' and any socks5h:// proxy.\n\nFix: in parse_relay_addr (and symmetrically in parse_proxy_addr), after extracting the host string, strip leading '[' and trailing ']' if both are present, yielding a bare IPv6 address that IpAddr::parse and tokio-socks IntoTargetAddr will correctly handle as TargetAddr::Ip.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:31:08Z",
+  "closed_at": "2026-04-19T19:31:08Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:51"
+    }
+  ]
+}

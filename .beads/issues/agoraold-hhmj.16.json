@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-hhmj.16",
+  "title": "RISK: register_user failure silently admits auth; DirectoryList skips user",
+  "description": "relay/src/ws.rs lines 142-145: store.register_user() failure is logged but auth continues. User appears online (in clients map) but not in users table. all_users() at line 176 omits them from DirectoryList. Other clients never see this user, MLS groups become incomplete. If this happens during DB contention, DirectoryList inconsistency is intermittent. Solo maintainer sees error log but won't realize auth succeeded despite registration failure. Risk: silent DirectoryList corruption; invisible users online.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:11:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:47Z",
+  "closed_at": "2026-04-19T18:19:59Z",
+  "close_reason": "Fixed: added INTERNAL_ERROR (-32603) to rpc_errors; subscription_expiry/register_user errors now send error response and abort auth; all_users error disconnects and returns; try_set_nickname Err branch sends internal error response.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:11:13"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "nie-6e1",
+  "title": "Bug: admin election uses historical first_seen not session order",
+  "description": "DirectoryList online list is ordered by store.all_users() which queries ORDER BY first_seen ASC. first_seen is historical (set once, never updated). If Alice connected in a previous session before Bob, she appears as online[0] (admin) even if Bob has been online continuously in the current session and Alice just connected. Both clients think they're admin. Both call create_group(). MLS epoch collision — messages are undeliverable.\\n\\nFix: add a monotonic connection_counter to AppState. store.connect() assigns each client a sequence number. ws.rs sorts the online slice of DirectoryList by sequence number ascending before sending it. The first-connected-this-session client (lowest seq) is always admin.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:37:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T22:39:09Z",
+  "closed_at": "2026-04-17T22:39:09Z",
+  "close_reason": "added connection_counter AtomicU64 to AppState; connect() assigns monotonic seq; ws.rs sorts online slice by seq before sending DirectoryList; admin is always the first-connected client in the current session, not historical first_seen"
+}

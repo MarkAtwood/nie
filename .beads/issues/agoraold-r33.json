@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-r33",
+  "title": "/who command — print current online list",
+  "description": "Add /who slash command that prints the current online Vec and nicknames without requiring the user to scroll back to the last DirectoryList. online and nicknames are already in scope in the chat loop.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T22:04:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:41Z",
+  "closed_at": "2026-04-17T22:29:59Z",
+  "close_reason": "implemented in cli/src/commands.rs: /who, /me (CTCP ACTION), /cat (4KB text file), /! (shell stdout), /alias (contacts.json persistence), /clear; Ctrl+L handled natively by rustyline"
+}

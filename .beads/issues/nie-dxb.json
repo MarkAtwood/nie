@@ -1,0 +1,15 @@
+{
+  "id": "nie-dxb",
+  "title": "payee silently stores 0 zatoshi on malformed payer amount",
+  "description": "dispatch_payment uses parse_zec_to_zatoshi(\u0026amount).unwrap_or(0) when creating the payee session. If the payer sends a malformed or out-of-range amount string, the payee session is created with amount_zatoshi=0 and the auto-response address is sent anyway. The payee UI shows a payment address but the stored amount is wrong. Trigger: payer sends PaymentAction::Request{amount:'bad'} (e.g., a future bug or version mismatch). Bad behavior: payee creates a Payee session recording the wrong amount, responds with STUB address, user has no indication anything went wrong.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:50:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T06:07:53Z",
+  "closed_at": "2026-04-18T06:07:53Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-8feq.1",
+  "title": "message_set non-Object patch silently dropped from response",
+  "description": "message_set update loop uses 'if let Some(Value::Object(patch_map)) = Some(patch)' with no else branch. When patch is a non-Object JSON value (null, 42, 'string'), the if-let fails silently. The msg_id appears in neither updated nor notUpdated \u2014 the client gets no feedback. Identical pattern to the space_set bug fixed by adding the 'else { not_updated.insert(...invalidArguments...) }' branch. Fix: add else branch that puts msg_id in notUpdated with invalidArguments.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:14:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T18:22:05Z",
+  "closed_at": "2026-04-24T18:22:05Z",
+  "close_reason": "Added else branch for non-Object patch values; msg_id now lands in notUpdated with invalidArguments",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 11:14:33"
+    }
+  ]
+}

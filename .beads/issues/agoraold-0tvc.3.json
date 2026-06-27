@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-0tvc.3",
+  "title": "nie-daemon server core: AppState, CORS, token auth, PID file",
+  "description": "**What:** Implement DaemonState (Arc-shared server state holding identity, relay channels, directory, event broadcaster), token auth middleware, CORS (localhost-only), loopback binding validation, and PID file single-instance enforcement.\n\n**Algorithm:**\n1. Add deps to daemon/Cargo.toml: subtle='2', tokio (sync feature for broadcast), chrono.workspace, rand='0.8' (for token gen), uuid.workspace\n2. Create daemon/src/state.rs:\n   - struct Inner { my_pub_id: String, token: String, relay_tx: tokio::sync::mpsc::Sender<nie_core::JsonRpcRequest>, directory: tokio::sync::Mutex<DirectoryState>, events_tx: tokio::sync::broadcast::Sender<DaemonEvent>, display_name: Option<String> }\n   - struct DirectoryState { online: Vec<UserInfo>, offline: Vec<UserInfo> }\n   - struct DaemonState(Arc<Inner>); impl Clone for DaemonState\n   - impl DaemonState: fn my_pub_id() -> &str, fn token() -> &str, fn relay_tx() -> &mpsc::Sender<_>, fn broadcast_event(&self, e: DaemonEvent), async fn update_directory(&self, online: Vec<UserInfo>, offline: Vec<UserInfo>), async fn directory_snapshot(&self) -> DirectoryState\n3. Create daemon/src/token.rs:\n   - fn load_or_create_token(data_dir: &Path) -> Result<String>: read daemon.token if exists (mode check <= 0o600); else generate 32 random bytes \u2192 base64url \u2192 write with mode 0o600 using OpenOptionsExt::mode; return token string\n   - fn validate_token_header(header_value: &str, expected: &str) -> bool: strip 'Bearer ' prefix; constant-time compare using subtle::ConstantTimeEq on byte slices; return false on any format error (never propagate details)\n4. Create daemon/src/pid.rs:\n   - fn acquire_pid_file(path: &Path) -> Result<()>: if path exists, read pid (u32), test if alive via kill(pid, 0); if alive return Err('daemon already running as PID {}'); if dead log warn and remove file; write current pid with mode 0o600\n   - fn release_pid_file(path: &Path): remove file, log if fails (don't panic)\n5. In daemon/src/main.rs: add LISTEN_ADDR env var (default 127.0.0.1:7734); parse as SocketAddr; assert ip.is_loopback() else bail!('LISTEN_ADDR must be loopback'); add tower_http::cors::CorsLayer allowing origins [http://localhost:7734, http://127.0.0.1:7734]; install auth extractor as axum middleware; acquire PID file before binding; release PID on tokio::signal::ctrl_c()\n\n**Defensive programming rules:**\n- Token comparison MUST use subtle::ConstantTimeEq \u2014 never string == comparison\n- Token file created with mode 0o600 (OpenOptionsExt on Unix); verify on read\n- Never log token value (not even truncated)\n- LISTEN_ADDR non-loopback \u2192 bail!, never silently accept\n- PID file written AFTER listener bind succeeds (not before)\n- auth middleware returns 401 with generic JSON body \u2014 never reveals token hints\n\n**Agent team:** Researcher (reads relay/src/main.rs for axum setup pattern) + Implementer + Validator.\n\n**Tests (oracle: HTTP status codes are defined by RFC 7235, UUID format is 8-4-4-4-12 hyphenated):**\n- test_loopback_validation: build a validation function, pass '0.0.0.0:0', verify Err returned\n- test_validate_token_missing: call validate_token_header('', expected) \u2192 false\n- test_validate_token_wrong: call validate_token_header('Bearer wrong', 'correct') \u2192 false\n- test_validate_token_ok: call validate_token_header('Bearer correct', 'correct') \u2192 true\n- test_stale_pid_cleaned: write PID of dead process to temp file, call acquire_pid_file, verify file overwritten with current pid",
+  "acceptance_criteria": "cargo test -p nie-daemon passes; token auth rejection tests pass; cargo clippy -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:38:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:47:05Z",
+  "close_reason": "AppState, token auth, PID file implemented; tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:38:56"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:40:58"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:40:58"
+    }
+  ]
+}

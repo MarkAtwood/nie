@@ -1,0 +1,25 @@
+{
+  "id": "nie-e2c6.1",
+  "title": "payment_watcher: late-confirmed payment activates expired subscription",
+  "description": "payment_watcher.rs:322 \u2014 activate_subscription() parses invoice.expires_at as the new subscription expiry. When a payment is confirmed after the invoice expires (the documented warn-and-activate path, line 256), the subscription row is written with a past expiry. The activate_subscription_atomic CASE preserves the MAX expiry, so if no prior subscription exists, the user gets one that is already expired \u2014 they paid and receive nothing. Fix: when the invoice expires_at is in the past, extend from Utc::now() + subscription_days instead of using invoice.expires_at.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:33:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:49:48Z",
+  "closed_at": "2026-04-25T02:49:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:33:57"
+    }
+  ]
+}

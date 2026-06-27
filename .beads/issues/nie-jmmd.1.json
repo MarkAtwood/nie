@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.1",
+  "title": "GROUP_SEND: membership check on nonexistent group returns NOT_A_MEMBER not GROUP_NOT_FOUND",
+  "description": "ws.rs GROUP_SEND handler calls is_group_member without first verifying the group exists (no get_group call). If a client sends GROUP_SEND with a fabricated group_id, the relay returns NOT_A_MEMBER instead of GROUP_NOT_FOUND \u2014 wrong error code. GROUP_ADD and GROUP_LEAVE both call get_group first; GROUP_SEND is inconsistent and leaks the distinction.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:32:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:36:46Z",
+  "closed_at": "2026-04-26T05:36:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:32:44"
+    }
+  ]
+}

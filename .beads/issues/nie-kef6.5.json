@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.5",
+  "title": "messages: deserialize_file_name allows single-dot filename",
+  "description": "deserialize_file_name() in messages.rs rejects path separators and '..' but permits '.' (single dot, which refers to the current directory on POSIX and Windows). A peer could send FileHeader with name: '.' without triggering a protocol error. The receiver's file-write code would attempt to open '.' in the download directory, which would fail at the OS level (cannot open a directory as a file), but the rejection should happen at the protocol layer. Add a check: if s == \".\" { return Err(...) } alongside the existing '..' check.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:48:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:11:16Z",
+  "closed_at": "2026-04-25T00:11:16Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:48:55"
+    }
+  ]
+}

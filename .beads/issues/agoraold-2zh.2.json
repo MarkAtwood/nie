@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-2zh.2",
+  "title": "select_with_fee convergence loop and FIFO stable-sort are correct \u2014 do not simplify",
+  "description": "Two design choices in tx_builder.rs worth defending:\n\n1. select_with_fee uses a convergence loop (not 2-pass). Reason: if pass 1 selects N1 notes but the fee for N1 requires N2>N1 notes, the fee used in pass 1 was wrong for the actual spend, causing the builder to reject the tx. The loop converges because zip317_fee is monotone-non-decreasing. A contributor may suggest 2-pass; do not change it.\n\n2. select_notes_spendable sorts by block_height with sort_by_key, which is stable. This guarantees that the two calls to select_with_fee in payment.rs (pre-selection and inside build_shielded_tx) produce identical selected notes for identical inputs \u2014 the INVARIANT documented in payment.rs. If the sort were changed to unstable, notes at the same block_height could be selected in different orders between the two calls, causing mark_note_spent to mark the wrong notes.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:32:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:50Z",
+  "closed_at": "2026-04-19T05:46:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 22:32:05"
+    }
+  ]
+}

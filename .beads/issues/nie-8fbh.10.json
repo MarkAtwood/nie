@@ -1,0 +1,23 @@
+{
+  "id": "nie-8fbh.10",
+  "title": "save_block_state atomically commits tree, witnesses, and scan_tip together",
+  "description": "scanner.rs scan_block and db.rs save_block_state wrap tree snapshot, all witness updates, and the scan tip advance in a single SQLite transaction. This is the correct design: splitting any pair would allow a crash to leave the DB with tip advanced but witnesses stale (or vice versa), causing permanently unspendable notes or double-scanned blocks. A future contributor might suggest splitting for simplicity or performance. The atomic write must be preserved.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:57:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:57:46Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:57:49"
+    }
+  ]
+}

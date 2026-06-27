@@ -1,0 +1,28 @@
+{
+  "id": "nie-bwaa.12",
+  "title": "Race: requestNotificationPermission fire-and-forget may not complete before startService",
+  "description": "background_service.dart calls _requestNotificationPermission() and awaits it, but on the Kotlin side MainActivity returns immediately (fire-and-forget). So Flutter resumes and calls startService before the system permission dialog has even been shown, let alone answered. On Android 13+, if the permission is not yet granted when startForeground() runs, a SecurityException is thrown. This is a race between the async permission flow and the sync service start. Fix: have MainActivity actually await the permission result and return the grant status to Dart before Dart calls startService.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:48:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:01:30Z",
+  "closed_at": "2026-04-24T00:01:30Z",
+  "close_reason": "Kotlin now stores MethodChannel.Result and resolves it in onRequestPermissionsResult; Dart awaits before calling startService",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:48:40"
+    }
+  ]
+}

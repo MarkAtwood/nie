@@ -1,0 +1,22 @@
+{
+  "id": "nie-c8bb.1",
+  "title": "Add nie-bridge-matrix crate skeleton and reqwest to workspace",
+  "description": "## What\nCreate bridge-matrix/ crate directory, Cargo.toml, src/main.rs skeleton. Add reqwest to workspace Cargo.toml.\n\n## Algorithm\n1. Add reqwest = { version = '0.12', features = ['json'] } to [workspace.dependencies] in Cargo.toml.\n2. Add 'bridge-matrix' to workspace members list.\n3. Create bridge-matrix/Cargo.toml with name='nie-bridge-matrix', deps: nie-core.workspace, reqwest.workspace, axum.workspace, tokio.workspace, serde.workspace, serde_json.workspace, anyhow.workspace, tracing.workspace, tracing-subscriber.workspace, toml.workspace, clap.\n4. Create bridge-matrix/src/main.rs with empty main() and mod declarations: config, matrix, bridge.\n5. Create bridge-matrix/src/config.rs, bridge-matrix/src/matrix.rs, bridge-matrix/src/bridge.rs with // TODO stubs.\n6. cargo build -p nie-bridge-matrix must compile.\n\n## Defensive programming\n- reqwest features: only 'json', no 'native-tls' by default (minimal dep surface)\n- No secrets in config struct Debug output (#[derive(Debug)] must redact tokens)",
+  "acceptance_criteria": "cargo build -p nie-bridge-matrix succeeds; new crate visible in workspace",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T14:27:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T14:41:21Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:27:47"
+    }
+  ]
+}

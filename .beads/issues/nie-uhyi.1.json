@@ -1,0 +1,26 @@
+{
+  "id": "nie-uhyi.1",
+  "title": "ClearMessage::Chat.text has no size cap",
+  "description": "ClearMessage::Chat { text: String } has no deserialize_with bound. A hostile MLS peer sends a Chat message with a 100 MiB text field; the receiver allocates it without any application check, causing OOM before any handler runs. All other ClearMessage string fields were bounded in recent rounds; Chat.text was missed. Fix: add a dedicated deserialize_bounded_chat_text with a reasonable cap (e.g. 64 KiB), same pattern as deserialize_bounded_body.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:42:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:47:44Z",
+  "closed_at": "2026-04-26T04:47:44Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:42:31"
+    }
+  ]
+}

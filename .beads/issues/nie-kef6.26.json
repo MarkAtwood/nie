@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.26",
+  "title": "peer-supplied receipt_type written to delivery_state without validation",
+  "description": "A remote peer sends a ClearMessage::PeerReceipt with an arbitrary receipt_type string. dispatch_peer_receipt() in relay.rs passes that string directly to store.update_message_delivery_state() which writes it unchanged to the delivery_state TEXT column with no validation. While the peer is MLS-authenticated, they can write any string as delivery_state, corrupting delivery tracking for messages they did not send. Fix: enumerate valid delivery state strings (e.g. 'delivered', 'read') and reject unknown values before the DB write.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:50:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:16:14Z",
+  "closed_at": "2026-04-25T00:16:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:50:44"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "agoraold-xjse",
+  "title": "Logging to stderr preserves TUI stdout",
+  "description": "GOOD CHOICE: Logging is deliberately routed to stderr (main.rs 62: .with_writer(io::stderr)) while the ratatui TUI uses stdout.\n\nA contributor might want to 'simplify' by unifying output streams or letting logs go to stdout for visibility. But log output to stdout would corrupt the TUI rendering — ratatui expects exclusive control of stdout.\n\nThis separation is non-obvious and easy to overlook, but it is load-bearing for TUI integrity.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:15Z",
+  "closed_at": "2026-04-22T06:24:35Z",
+  "close_reason": "Verified invariant holds in current code; documented in DESIGN.md §14 TUI terminal safety invariants",
+  "labels": [
+    "review"
+  ]
+}

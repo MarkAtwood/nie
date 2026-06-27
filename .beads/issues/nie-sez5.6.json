@@ -1,0 +1,25 @@
+{
+  "id": "nie-sez5.6",
+  "title": "START_NOT_STICKY prevents phantom notifications \u2014 intentional, defend against 'simplification'",
+  "description": "NieForegroundService returns START_NOT_STICKY from onStartCommand. This means Android will NOT restart the service if it kills it under memory pressure. The relay WebSocket lives in the Flutter/Dart isolate, not in the service. On app return the RelayService reconnects automatically and calls start() again. A contributor might suggest START_REDELIVER_INTENT or START_STICKY to 'be more reliable' \u2014 this would be wrong. A restarted service without an active Dart connection would show 'nie is running' with no actual relay connection, which is worse than no notification. The service is a notification wrapper, not the connection owner.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:39:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:24:14Z",
+  "closed_at": "2026-04-24T02:24:14Z",
+  "close_reason": "Design decision recorded for future reference. No code action required.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:39:27"
+    }
+  ]
+}

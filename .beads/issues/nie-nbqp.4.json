@@ -1,0 +1,26 @@
+{
+  "id": "nie-nbqp.4",
+  "title": "daemon/store: insert_message_ext is not atomic \u2014 unread_count can diverge",
+  "description": "insert_message_ext (store.rs line 1353) executes two separate queries: INSERT INTO message, then UPDATE chat SET unread_count = unread_count + 1. They are not wrapped in a transaction. If the process is killed or the SQLite connection drops between the two statements, the message row is inserted but the chat's unread_count is not incremented and last_message_at is not updated. The chat will show stale data until a user does something that triggers another unread_count update. Trigger: process crash or DB error between the two queries. Bad behavior: message exists in DB but chat.unread_count does not reflect it; UI shows wrong badge count indefinitely.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:32:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:46:14Z",
+  "closed_at": "2026-04-26T08:46:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:32:17"
+    }
+  ]
+}

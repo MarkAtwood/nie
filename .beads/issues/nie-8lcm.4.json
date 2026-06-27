@@ -1,0 +1,24 @@
+{
+  "id": "nie-8lcm.4",
+  "title": "GOOD: exact-value note assertion in receive-side verification",
+  "description": "After asserting spendable_notes is non-empty, the test also checks that at least one note has value_zatoshi == PAYMENT_AMOUNT_ZATOSHI (not >=). This rules out a false positive where a pre-existing note in the DB happened to satisfy the balance check. The exact-value check proves the specific payment was stored and decrypted correctly, not just that some note exists.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:09:46Z",
+  "closed_at": "2026-04-20T05:09:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:19"
+    }
+  ]
+}

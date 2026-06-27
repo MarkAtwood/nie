@@ -1,0 +1,28 @@
+{
+  "id": "nie-7xs.1",
+  "title": "GetKeyPackage race: Welcome silently dropped on join",
+  "description": "Trigger: Any new user B connects while admin A is online. A sends GetKeyPackage{B} immediately on UserJoined. But B sends PublishKeyPackage only after receiving DirectoryList -- which requires ECDH keygen + signing + JSON serialization. On loopback A's GetKeyPackage arrives at the relay before B's PublishKeyPackage by a margin of ~milliseconds (crypto) vs ~microseconds (Vec push). Relay returns KeyPackageResponse{data: None}. Admin pattern-matches only Some(kp_data) so None falls through to info!(). B never joins the MLS group and sees all messages as garbage.\n\nRoot cause: trigger (UserJoined) is decoupled from dependency (key package stored). There is no causality between the relay emitting UserJoined and B's PublishKeyPackage being processed.\n\nCorrect fix: relay broadcasts KeyPackageReady{pub_id} after storing a key package. Admin triggers GetKeyPackage from KeyPackageReady, not UserJoined. This is causal and deterministic -- the notification is downstream of the storage. The relay remains semantically blind (it just broadcasts 'this pub_id stored a blob').\n\nAlternative fix: retry GetKeyPackage with backoff on KeyPackageResponse{data: None} for recently-joined members. Works but adds latency and retry logic.",
+  "notes": "Static analysis confirms the race manifests reliably on loopback (primary dev/test scenario). B's path requires ECDH keygen + signing + JSON serialization (mls.key_package_bytes) before PublishKeyPackage is sent. A's path is a Vec push + string compare before GetKeyPackage is sent. On loopback the head start B gets (DirectoryList sent before UserJoined in the same relay task) is ~microseconds; B's crypto is ~milliseconds. A wins the race. On a real network with latency, B's proximity to relay could overcome the crypto overhead -- that outcome is runtime-dependent. But the primary test scenario is broken by static reasoning alone.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:58:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:01:57Z",
+  "closed_at": "2026-04-16T09:01:57Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:58:29"
+    }
+  ]
+}

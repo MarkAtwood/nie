@@ -1,0 +1,32 @@
+{
+  "id": "nie-elgs",
+  "title": "Implement check_rate_limit in relay and wire into 3 handlers",
+  "description": "Why: enforcement point for broadcast rate limiting. What: (1) Add a method to AppState (or a free fn): fn check_rate_limit(rate_limits: &DashMap<String, (u32, Instant)>, pub_id: &str, limit: u32) -> bool. Algorithm: use DashMap::entry(pub_id).or_insert((0, now)) to get/init entry, then alter to atomically: if now.duration_since(window_start) >= 60s then reset (0, now); if count >= limit return false (reject); else increment and return true. Rolling window: window_start only advances when window expires (not per-message). (2) In ws.rs BROADCAST handler: after subscription check, call check_rate_limit; on false, send_client_error RATE_LIMITED -32020 'rate limit exceeded' and continue. (3) Same for SEALED_BROADCAST and GROUP_SEND handlers. (4) In AppState disconnect (state.rs): add rate_limits.remove(&pub_id.0) for cleanup. Defensive rules: atomic DashMap operation (use entry().and_modify or alter), no unwrap on DashMap ops.",
+  "acceptance_criteria": "cargo build --workspace clean; cargo clippy -D warnings clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:13:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T06:18:33Z",
+  "close_reason": "check_rate_limit implemented with rolling 60s window; wired into BROADCAST, SEALED_BROADCAST, GROUP_SEND; disconnect cleanup added",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:13:59"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:13:58"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:13:59"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-2y0i.6",
+  "title": "nie-tui keyboard input handling: text input, navigation, and keybindings",
+  "description": "**What:** Implement handle_key() in event.rs \u2014 maps crossterm KeyEvents to AppState mutations and message send operations.\n\n**Algorithm:**\n1. In tui/src/event.rs, implement async fn handle_key(state: &mut AppState, tx: &mpsc::Sender<JsonRpcRequest>, key: KeyEvent) -> anyhow::Result<()>:\n2. Match key.code:\n   - KeyCode::Char(c) where key.modifiers == KeyModifiers::NONE or SHIFT:\n     Insert c at state.input_cursor in state.input (UTF-8 safe: use state.input.insert(state.input_cursor, c) and advance cursor by c.len_utf8()).\n   - KeyCode::Backspace: if input_cursor > 0, find prev char boundary, remove char.\n   - KeyCode::Delete: if input_cursor < input.len(), remove char at cursor.\n   - KeyCode::Left: move cursor to prev UTF-8 char boundary.\n   - KeyCode::Right: move cursor to next UTF-8 char boundary.\n   - KeyCode::Home: cursor = 0.\n   - KeyCode::End: cursor = input.len().\n   - KeyCode::Enter:\n     a. Clone input, clear state.input and state.input_cursor = 0.\n     b. If line starts with '/': call handle_slash(state, tx, &line).await?\n     c. Else: call send_chat(state, tx, &line).await? which:\n        - MLS encrypts if state.mls_active: let ct = state.mls_client.encrypt(line.as_bytes())?\n        - Else: plaintext: let payload = serde_json::to_vec(&ClearMessage::Chat{text:line})?\n        - Build BroadcastParams { payload } \u2192 JsonRpcRequest::new(next_request_id(), BROADCAST, params)?\n        - tx.send(request).await.ok() (channel send failure = relay gone, handle gracefully)\n   - KeyCode::PageUp: state.scroll_offset = state.scroll_offset.saturating_add(page_size).\n   - KeyCode::PageDown: state.scroll_offset = state.scroll_offset.saturating_sub(page_size).\n   - KeyCode::Tab: toggle state.focus between Focus::Input and Focus::UserList.\n   - KeyCode::Char('c') where modifiers == CONTROL: state.quit = true.\n   - KeyCode::Char('q') where modifiers == NONE and focus == UserList: state.quit = true.\n   - KeyCode::Esc: state.scroll_offset = 0 (jump to bottom).\n3. Clamp scroll_offset: never exceed state.messages.len().\n4. page_size = state.terminal_size.1.saturating_sub(4) as usize (minus borders + input + status).\n\n**Defensive programming rules:**\n- All input_cursor mutations must land on valid UTF-8 boundaries \u2014 use str::is_char_boundary().\n- Never panic on empty input (guard: if input.is_empty(), early return from Backspace/Delete).\n- tx.send() failure is not an error \u2014 relay is gone, set connection state, log with tracing::warn!.\n- Input length limit: if input.len() >= 65536, ignore new character inserts (display warning line).\n\n**Agent team:** Standard (R+I+V). R reads core/src/protocol.rs for BroadcastParams, core/src/mls.rs for encrypt(). I implements handle_key(). V runs tests.\n\n**Tests:**\n- Test: insert 'H', 'i' \u2192 input == \"Hi\", cursor == 2.\n- Test: insert 'a', 'b', Home \u2192 cursor == 0.\n- Test: insert 'a', Backspace \u2192 input == \"\", cursor == 0.\n- Test: UTF-8 insert: insert '\u20ac' (3-byte), Left \u2192 cursor moves to 0.\n- Test: PgUp increases scroll_offset by page_size; PgDown decrements by page_size; clamps at 0.\n- Test: Tab cycles focus Input\u2192UserList\u2192Input.\n",
+  "acceptance_criteria": "cargo test -p nie-tui input_tests all pass; UTF-8 cursor navigation correct on multi-byte chars; cargo clippy -p nie-tui exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:15:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:40:08Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:15:31"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:24"
+    }
+  ]
+}

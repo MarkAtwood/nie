@@ -1,0 +1,33 @@
+{
+  "id": "nie-2y0i.8",
+  "title": "nie-tui slash command dispatcher: core commands",
+  "description": "**What:** Implement handle_slash() \u2014 dispatches /command input to the appropriate action. Core commands: /iam, /who, /me, /alias, /dm, /clear, /help, /quit, /!, /cat.\n\n**Algorithm:**\n1. In tui/src/event.rs (or new tui/src/slash.rs), implement async fn handle_slash(state: &mut AppState, tx: &mpsc::Sender<JsonRpcRequest>, line: &str) -> anyhow::Result<()>:\n2. Split on first space: let (cmd, rest) = line[1..].split_once(' ').unwrap_or((&line[1..], \"\"));\n3. Match cmd (case-insensitive):\n   - \"quit\" | \"q\": state.quit = true.\n   - \"help\" | \"h\": push ChatLine::System(HELP_TEXT.to_string()).\n   - \"clear\": state.messages.clear(); state.scroll_offset = 0.\n   - \"who\": for each user in state.online, push ChatLine::System(format!(\"  {} {}\", if i==0 {\"[A]\"} else {\"   \"}, state.display_name(pub_id))).\n   - \"iam\" where !rest.is_empty(): send SetNicknameParams { nickname: rest.trim().to_string() } via JsonRpcRequest. Update state.own_profile[\"name\"] = nickname.\n   - \"alias\" where rest has two tokens: parse \"name pubid\", store in state.local_names[pubid]=name, persist via Contacts::add.\n   - \"me\" where !rest.is_empty(): send as ClearMessage::Chat { text: format!(\"\\x01ACTION {}\\x01\", rest) }.\n   - \"dm\" where rest has peer and message: parse \"handle msg\"; resolve handle to pub_id via display_name inverse; send WhisperParams { to: pub_id, payload }.\n   - \"!\" where !rest.is_empty(): shlex::split(rest) \u2192 argv; if argv is empty, push system error; else Command::new(&argv[0]).args(&argv[1..]).output(); if output.stdout.len() <= 4096, send as chat; else truncate. NEVER use sh -c. ANSI-escape the output before displaying.\n   - \"cat\" where !rest.is_empty(): read file with fs::read_to_string (max 4096 bytes); send as chat message.\n   - \"set\" where rest has key and value: state.own_profile[key] = value; broadcast profile update as ClearMessage::Profile.\n   - \"unset\" where !rest.is_empty(): remove state.own_profile[key]; broadcast profile update.\n   - \"profile\" [handle]: display own or peer's profile as system messages.\n   - unknown: push ChatLine::System(format!(\"Unknown command: /{cmd}. Type /help.\")).\n\n4. HELP_TEXT constant lists all slash commands with one-line descriptions.\n\n**Defensive programming rules:**\n- /! MUST use shlex::split then Command::new NOT sh -c. This is a security invariant (see CLAUDE.md \u00a7/! Shell Injection Boundary). Comment this explicitly.\n- /cat: cap at 4096 bytes; if file not found, push system error (not panic).\n- /dm: if handle not in contacts or online, push system error with available handles.\n- /iam nickname: validate non-empty after trim; max 64 chars.\n- /! output: apply ANSI escape stripping before display and before sending to chat room (peers' terminals are protected too).\n\n**Agent team:** Standard (R+I+V). R reads cli/src/commands.rs handle_slash (around line 2931) for the pattern. I reimplements for TUI (same semantics, different state struct). V runs tests.\n\n**Tests:**\n- Test /who with 3 online users verifies first has [A] prefix.\n- Test /iam empty arg pushes system error.\n- Test /! with shell metacharacters (semicolon, pipe) passes literal args (not interpreted by shell).\n- Test /cat nonexistent file pushes system error without panic.\n- Test /clear empties messages and resets scroll_offset.\n- Test unknown command pushes system error.\n",
+  "acceptance_criteria": "cargo test -p nie-tui slash_tests all pass; /! semicolon test confirms no shell injection; cargo clippy -p nie-tui exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:16:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:43:10Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:26"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:26"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:16:28"
+    }
+  ]
+}

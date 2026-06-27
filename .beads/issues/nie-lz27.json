@@ -1,0 +1,14 @@
+{
+  "id": "nie-lz27",
+  "title": "fix: bus.rs recursive recv on Lagged replaced with iterative loop",
+  "description": "BusSubscriber::recv recursed on broadcast::error::RecvError::Lagged, risking unbounded stack growth under sustained lag. Replaced with a simple loop.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:54:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:55:11Z",
+  "closed_at": "2026-04-24T21:55:11Z",
+  "close_reason": "Closed"
+}

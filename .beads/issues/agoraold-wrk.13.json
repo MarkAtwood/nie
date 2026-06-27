@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-wrk.13",
+  "title": "shlex word-splitting for /! is the correct injection boundary \u2014 not sh -c",
+  "description": "/! uses shlex::split then Command::new(&argv[0]).args(&argv[1..]) instead of sh -c. This means shell metacharacters (|, ;, &&, $(), >) in the user's command string are passed literally to the program rather than being interpreted by a shell. A contributor may suggest Command::new('sh').arg('-c').arg(cmd_str) for full shell support. Do not do that: /! sends output to all chat participants; shell injection (e.g. /! echo hi; cat ~/.ssh/id_rsa) would exfiltrate secrets over the room. The shlex path is an explicit injection boundary.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:54:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:58Z",
+  "closed_at": "2026-04-18T00:10:43Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:54:44"
+    }
+  ]
+}

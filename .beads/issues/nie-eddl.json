@@ -1,0 +1,14 @@
+{
+  "id": "nie-eddl",
+  "title": "(BUG) payment_watcher: reconnect always sleeps RECONNECT_DELAY even after normal stream exhaustion",
+  "description": "In run_watcher_loop(), after the inner block-stream loop exits, the code always falls through to 'tokio::time::sleep(RECONNECT_DELAY_SECS)' (60 seconds) before reconnecting to lightwalletd. This delay applies even on the normal path where the stream exhausted normally (stream_error=false) but the outer loop broke due to get_latest_block failing. The stream_error flag controls whether we break the inner scan loop, but the outer connection loop always sleeps 60 seconds before the next connect(). On normal catch-up (scan stream exhausted cleanly), the code continues the inner scan loop and sleeps POLL_INTERVAL_SECS (30 seconds), which is correct. But if latest_height() fails transiently (e.g. one bad RPC), the outer loop reconnects with a 60-second delay every time, even if the server is immediately healthy again. No exponential backoff is present. Impact: on transient lightwalletd failures, the relay delays subscription activation by 60s per retry regardless of actual server health. Consider adding exponential backoff or distinguishing healthy reconnects from error reconnects.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:06:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:07:36Z",
+  "closed_at": "2026-04-26T09:07:36Z",
+  "close_reason": "Closed"
+}

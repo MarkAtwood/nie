@@ -1,0 +1,26 @@
+{
+  "id": "nie-qmq3.4",
+  "title": "store: create_channel always bumps state_seq even on INSERT OR IGNORE no-op",
+  "description": "daemon/src/store.rs:1088-1098 \u2014 create_channel() uses INSERT OR IGNORE but always calls bump_state_seq('Chat') regardless of rows_affected. Called at daemon startup on every launch via bootstrap. On any restart, the Chat state token increments with no actual change, causing JMAP Chat/changes to report spurious changes to connected clients. Fix: guard the bump with if rows_affected > 0, like create_space() and create_category() already do.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:54:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:03:49Z",
+  "closed_at": "2026-04-25T03:03:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:54:19"
+    }
+  ]
+}

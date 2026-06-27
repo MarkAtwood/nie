@@ -1,0 +1,24 @@
+{
+  "id": "nie-qf7k.4",
+  "title": "Readability: canonicalize_display_name doc comment lacks security rationale",
+  "description": "The doc comment (lines 46\u201352) lists the steps but omits *why*: NFC normalization combined with bidi control rejection mitigates Unicode spoofing attacks (homoglyph + visual reordering). The distinction between 'reject with error' (bidi controls) vs. 'strip silently' (ZWS) implies intentionality vs. accidental invisible characters, but this intent is not explained. Adding a note like 'Prevents Unicode-based spoofing attacks: canonical homglyphs + RTL override abuse' would improve maintainability.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T06:01:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:39:16Z",
+  "closed_at": "2026-04-22T13:39:16Z",
+  "close_reason": "Updated doc comment with Unicode spoofing security rationale; renamed intermediate variables normalized/no_zwc/trimmed for clarity",
+  "labels": [
+    "readability"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 23:01:34"
+    }
+  ]
+}

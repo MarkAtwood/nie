@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.18",
+  "title": "PoW eviction calls retain on every auth, serializing concurrent handshakes",
+  "description": "ws.rs PoW replay check: pow_replay_set.retain() runs inside every authentication handshake, acquiring write locks on all DashMap shards in sequence. Under sustained auth traffic (attacker or reconnect storm), every concurrent handshake waits on retain() before it can complete the replay check. Move eviction to a periodic background task (tokio::spawn interval) so auth latency is not proportional to replay-set scan time.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:56:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:56:19Z",
+  "labels": [
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:56:19"
+    }
+  ]
+}

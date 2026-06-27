@@ -1,0 +1,26 @@
+{
+  "id": "nie-afg",
+  "title": "Payee-side state machine",
+  "description": "States: Notified (received PaymentAction::Request) \u2192 AddressSent (generated fresh subaddress, sent PaymentAction::Address) \u2192 Watching (waiting for on-chain confirmation) \u2192 Complete. On Watching entry: register address with wallet watcher. On confirmation: send PaymentAction::Confirmed.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:17:32Z",
+  "close_reason": "Fully implemented by nie-6sp, nie-c20, nie-c1v respectively",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:24"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:53"
+    }
+  ]
+}

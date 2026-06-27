@@ -1,0 +1,26 @@
+{
+  "id": "nie-t8j0.5",
+  "title": "messages: PaymentAction::Request allows amount_zatoshi=0; zero-value payment not rejected",
+  "description": "PaymentAction::Request { amount_zatoshi: u64 } has no minimum value check. A sender can request a payment of 0 zatoshi. The payee will generate a receive address and the payer can broadcast a zero-value transaction. This creates: (1) a state machine that reaches Confirmed on a worthless payment, (2) potential for dust-level transaction spam. The protocol should reject amount_zatoshi == 0 at deserialization, analogous to how total_chunks == 0 is rejected for FileHeader.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:34:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:07:36Z",
+  "closed_at": "2026-04-25T04:07:36Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:34:06"
+    }
+  ]
+}

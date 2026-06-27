@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.31",
+  "title": "bridge-jmap: since_state parameter silently ignored",
+  "description": "jmap/src/jmap.rs email_query() accepts since_state: Option<&str> but immediately does let _ = since_state. The bridge accumulates query_state across polls and passes it in, but it has no effect. The function always does a full Email/query scan. The dead parameter and the Arc<Mutex<Option<String>>> query_state in bridge.rs create a false impression that incremental polling is implemented. The query_state Arc should be removed from bridge.rs, and either the since_state parameter removed or the incremental Email/queryChanges path implemented.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:03:36Z",
+  "closed_at": "2026-04-24T23:03:36Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:51"
+    }
+  ]
+}

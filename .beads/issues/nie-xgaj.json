@@ -1,0 +1,27 @@
+{
+  "id": "nie-xgaj",
+  "title": "Route broadcast messages to default channel",
+  "description": "Map nie relay broadcast/sealed_broadcast messages to the default channel Chat in the JMAP data store. Inbound: relay broadcast \u2192 MLS decrypt \u2192 store as Message with chatId = default channel id. Outbound: Message/set create in the default channel \u2192 MLS encrypt \u2192 relay broadcast. The relay primitive for channel messages is the existing broadcast; no new relay method needed.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T21:14:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T21:47:25Z",
+  "closed_at": "2026-04-23T21:47:25Z",
+  "close_reason": "Inbound routing complete: BROADCAST\u2192MLS decrypt\u2192store.insert_message(channel_id). Outbound Message/set\u2192encrypt\u2192broadcast wired in nie-ib2s when JMAP HTTP layer lands.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 14:14:19"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 14:14:20"
+    }
+  ]
+}

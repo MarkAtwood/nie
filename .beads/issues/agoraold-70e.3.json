@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-70e.3",
+  "title": "mark_note_spent silently succeeds for missing note_id",
+  "description": "db.rs:313-319 \u2014 UPDATE notes SET spent=1 WHERE note_id=? returns Ok(()) regardless of rows_affected. If the scanner calls this with a note_id that was already deleted, never inserted, or has an off-by-one, the call silently succeeds, the note is never marked spent, and unspent_notes() keeps returning it. The scanner will attempt to re-spend the same note on every scan cycle, producing incorrect balance calculations and potentially double-spend attempts.\n\n**Why:** sqlx's execute() checks the DB operation succeeded, not that rows were affected. This is a common SQLite footgun.\n**How to apply:** After execute, check rows_affected() > 0 and return an Err if zero.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:55:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:56Z",
+  "closed_at": "2026-04-18T15:55:57Z",
+  "close_reason": "Fixed: mark_note_spent now checks rows_affected() and returns Err if zero. Added mark_note_spent_nonexistent_note_errors test.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:55:34"
+    }
+  ]
+}

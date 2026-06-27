@@ -1,0 +1,26 @@
+{
+  "id": "nie-hg3g.3",
+  "title": "tui: nested MlsClient::new().unwrap() panics on repeated MLS init failure",
+  "description": "tui/src/event.rs:108-113: on reconnect, MlsClient is reset with `MlsClient::new().unwrap_or_else(|e| { ...; MlsClient::new().unwrap() })`. If both attempts fail (e.g. OpenMLS in-memory storage corrupted), the second `.unwrap()` panics. The comment says the error is recoverable but then panics, crashing the TUI. Fix: replace the inner `.unwrap()` with a warn log and return the stale client (already correct comment intent): `tracing::warn!(\"MLS client reset failed twice: {e2}; keeping stale client\"); old_client`.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:36:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:45:43Z",
+  "closed_at": "2026-04-24T19:45:43Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:36:38"
+    }
+  ]
+}

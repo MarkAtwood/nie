@@ -1,0 +1,23 @@
+{
+  "id": "nie-k5dt.1",
+  "title": "insert_note_with_witness: add sync warning for SQL duplication",
+  "description": "insert_note_with_witness() in wallet/src/db.rs contains two-branch INSERT SQL (with/without plaintext columns) that is identical to the SQL in insert_note(). If the notes table schema changes in a future migration, a maintainer must update BOTH functions \u2014 but there is no warning comment communicating this. When the next column is added (e.g., account_index), the risk of updating one but not the other is high.\n\n## Fix\nAdd a warning comment directly above the INSERT SQL in insert_note_with_witness() that says:\n- This SQL is intentionally duplicated from insert_note()\n- Both must be updated together if the notes table schema changes\n- Reference insert_note() by line number or function name\n\nAlso add a brief note in insert_note() itself pointing back to insert_note_with_witness().\n\nNo code logic changes \u2014 documentation only.",
+  "acceptance_criteria": "cargo clippy -p nie-wallet -- -D warnings passes. The comment exists in both insert_note() and insert_note_with_witness(). No test changes needed.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T17:26:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T17:27:12Z",
+  "closed_at": "2026-04-19T17:27:12Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:26:31"
+    }
+  ]
+}

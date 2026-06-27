@@ -1,0 +1,25 @@
+{
+  "id": "nie-jq8m.13",
+  "title": "identity.rs: secret_bytes() and hpke_secret_bytes() return key material as plain arrays with no Zeroize wrapper",
+  "description": "secret_bytes() returns [u8; 32] and hpke_secret_bytes() returns [u8; 32] by value. The returned arrays sit on the stack of the caller and are not zeroed on drop. Callers (tui/main.rs extracts hpke_secret with let hpke_secret = identity.hpke_secret_bytes();) hold raw key material in a plain stack array for the lifetime of that binding. The existing issue nie-kef6.103 tracks to_secret_bytes_64 and callers, but the root cause is that these methods should return Zeroizing<[u8;32]> so the zeroize responsibility is not on every caller.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:23:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:23:09Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:23:08"
+    }
+  ]
+}

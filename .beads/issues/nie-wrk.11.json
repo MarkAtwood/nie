@@ -1,0 +1,26 @@
+{
+  "id": "nie-wrk.11",
+  "title": "KeyPackageReady broadcast happens-after write \u2014 the ordering guarantee is essential",
+  "description": "ws.rs broadcasts KeyPackageReady only after save_key_package() succeeds. This creates a happens-before edge: any GetKeyPackage sent in response to this notification is guaranteed to find the stored data. A contributor might suggest broadcasting immediately (before the await) to reduce latency. Do not do that: the async store write completes asynchronously and a concurrent GetKeyPackage could arrive before the write commits, returning None and silently failing to add the new member.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:54:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T00:10:39Z",
+  "closed_at": "2026-04-18T00:10:39Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:54:43"
+    }
+  ]
+}

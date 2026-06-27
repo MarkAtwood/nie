@@ -1,0 +1,24 @@
+{
+  "id": "nie-s4qr.18",
+  "title": "transport.rs recv_text_frame wraps loop in tokio::time::timeout \u2014 timeout error message drops context",
+  "description": "recv_text_frame uses tokio::time::timeout(..., async { loop { match ... }}).await.map_err(|_| anyhow::anyhow!('timeout waiting for relay response ({context})')). The timeout wraps the entire loop including the skipping of ping/pong frames. If a relay sends 999 pings before the challenge, the 30-second timeout counts all of them \u2014 the timeout is the right behavior. But the error message says 'timeout waiting for relay response' when context='challenge', which is slightly imprecise (it is waiting for any text frame, not a response). The parameter name 'context' suggests this is a descriptive string \u2014 but 'challenge' and 'auth response' are not self-describing to a user. A user who hits this timeout gets 'timeout waiting for relay response (auth response)' \u2014 the repetition of 'response' in the message is confusing. Suggested: 'timed out waiting 30s for {context} from relay'.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:23:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:23:38Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:23:38"
+    }
+  ]
+}

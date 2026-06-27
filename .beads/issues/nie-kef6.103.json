@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.103",
+  "title": "identity: hpke_secret_bytes and to_secret_bytes_64 return plain arrays; callers do not zeroize",
+  "description": "hpke_secret_bytes() returns [u8;32] and to_secret_bytes_64() returns [u8;64]. Multiple callers hold these in plain locals not wrapped in Zeroizing: tui/src/main.rs:124 holds hpke_secret for session lifetime, cli/src/commands.rs:232 holds hpke_identity_secret for session lifetime. Identity.hpke_secret (StaticSecret) zeroizes on drop, but copies via these methods do not. Fix: change return types to Zeroizing<[u8;32]> and Zeroizing<[u8;64]>.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:25:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:25:17Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:25:17"
+    }
+  ]
+}

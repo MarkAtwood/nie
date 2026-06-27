@@ -1,0 +1,25 @@
+{
+  "id": "nie-4iod.19",
+  "title": "MAINTAINER: stdin_reader skips blank lines silently, no diagnostic",
+  "description": "In stdin_reader.rs lines 32-33, blank lines are skipped silently with no event. If a user sends a blank line or an integration test sends a malformed command followed by a blank, they get no feedback. In 6 months, debugging a bot hang will be harder if blank-line handling isn't doc'd. Fix: doc comment explaining blank lines are silently skipped (not errors).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:28:03Z",
+  "closed_at": "2026-04-20T01:28:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:55"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-6sp",
+  "title": "Payee: handle Sent \u2192 echo tx hash, send Confirmed",
+  "description": "When ClearMessage::Payment action=Sent arrives for a Payee session in AddressProvided state: transition to Sent, echo '[payment] Payer broadcast tx <tx_hash>. Watching... (stub: auto-confirming since chain watcher not yet implemented)'. Immediately send PaymentAction::Confirmed { tx_hash } back and transition to Confirmed. When action=Unknown arrives: transition to Failed, echo error.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:19:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:14:35Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:12"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "id": "nie-uvy.3",
+  "title": "saturating_add in select_notes_spendable inconsistent with plain .sum() in caller",
+  "description": "In select_notes_spendable, sum is accumulated with sum.saturating_add(note.value_zatoshi). In build_shielded_tx, the caller recomputes: let selected_sum: u64 = selected_notes.iter().map(|n| n.value_zatoshi).sum(). If selected notes have values summing to > u64::MAX (impossible with real ZEC supply ~2.1e15 zatoshi << u64::MAX ~1.84e19, but possible with corrupted DB), saturating_add caps at u64::MAX making sum >= total_needed true. The caller's .sum() then panics in debug or wraps in release, producing wrong change. The two paths have different overflow semantics with no comment explaining why saturating_add was chosen or why .sum() is safe. A contributor who sees saturating_add and tries to add a checked sum in the caller will be confused. The inconsistency also makes the safety argument harder to audit \u2014 if the 'impossible in practice' assumption ever breaks, the two diverge silently in release.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:06:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T02:12:49Z",
+  "closed_at": "2026-04-19T02:12:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:06:46"
+    }
+  ]
+}

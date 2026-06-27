@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-th7.3",
+  "title": "MLS: multi-group support in MlsClient (HashMap of groups)",
+  "description": "What: Parameterize MlsClient to support multiple simultaneous named groups.\n\nAlgorithm:\n1. Replace Option<MlsGroup> field with HashMap<Vec<u8>, MlsGroup> keyed by group_id bytes\n2. Add group_id-parameterized methods:\n   - create_group_with_id(group_id: &[u8]) -> Result<()>\n   - add_member_to_group(group_id: &[u8], kp_bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>)>\n   - remove_member_from_group(group_id: &[u8], pub_id: &str) -> Result<Vec<u8>>\n   - join_from_welcome_for_group(group_id: &[u8], welcome: &[u8]) -> Result<()>\n   - encrypt_for_group(group_id: &[u8], plaintext: &[u8]) -> Result<Vec<u8>>\n   - process_for_group(group_id: &[u8], bytes: &[u8]) -> Result<Option<Vec<u8>>>\n   - has_group_id(group_id: &[u8]) -> bool\n   - group_contains_id(group_id: &[u8], pub_id: &str) -> bool\n   - epoch_for_group(group_id: &[u8]) -> Option<u64>\n3. Keep all existing methods (create_group, add_member, encrypt, process_incoming, etc.) as wrappers using b'nie-room' default group_id\n4. Update room_hpke_keypair() to optionally accept group_id (default b'nie-room')\n5. All existing tests must still pass (backward compat is mandatory)\n\nDefensive rules:\n- Return Err('no such group: ...') not panic when group_id not in HashMap\n- Never log group_id bytes as if they were text\n- No unwrap() on HashMap lookup in production paths\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-core passes including all existing MLS tests; two-group roundtrip test: message to group A does not decrypt in group B",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:50:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T11:58:11Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:50:45"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-felh.17",
+  "title": "Delete key panics if cursor not on UTF-8 boundary",
+  "description": "event.rs:754-757: KeyCode::Delete handler calls String::remove(input_cursor) without verifying input_cursor is on a UTF-8 char boundary.\n\nThe code documents (app.rs:98) that input_cursor must always be on a boundary, but the Delete handler assumes this without checking. The Backspace handler (line 743-752) explicitly finds and validates the char boundary before calling remove(). Delete should do the same for defensive programming.\n\nWhile the invariant should be maintained through all key handlers, Delete should include an explicit check like Backspace does to prevent potential panics if the invariant is ever violated elsewhere in the code.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:43Z",
+  "closed_at": "2026-04-20T04:08:11Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:32"
+    }
+  ]
+}

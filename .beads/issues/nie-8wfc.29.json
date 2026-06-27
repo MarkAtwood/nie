@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.29",
+  "title": "bridge-jmap: raw email JSON logged on deserialization failure",
+  "description": "jmap/src/jmap.rs email_get() logs the raw JSON value 'v' when serde_json::from_value::<EmailObject>(v.clone()) fails: 'raw: {v}'. The raw JSON may contain email body content, headers, and other private email metadata. This leaks potentially sensitive email content to whatever log sink is configured. Fix: log only the email id (if extractable) or omit the raw value entirely.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:59:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:18:48Z",
+  "closed_at": "2026-04-24T22:18:48Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:59:42"
+    }
+  ]
+}

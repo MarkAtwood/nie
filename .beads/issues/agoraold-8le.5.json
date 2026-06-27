@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-8le.5",
+  "title": "Admin = online[0] invariant not documented: trivial to break",
+  "description": "The rule that online[0] is the MLS group admin exists only in the programmer's head. It is not stated in any comment adjacent to the online vec, not in CLAUDE.md's invariant list, not in the MLS module. A contributor who sorts the online list alphabetically for display, or reverses it, or deduplicates it differently, silently breaks admin election for all users. Maintenance consequence: any PR touching the online list must be reviewed with this invariant in mind, but there is nothing to alert the reviewer that the invariant exists.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:07:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:58Z",
+  "closed_at": "2026-04-17T23:31:21Z",
+  "close_reason": "nie-8le.5: Added 'MLS Admin Election Invariant' section to CLAUDE.md with explicit rules about online[0], partition_point insertion, and what must not be changed. nie-8le.6: Guard UserJoined KP republication with \\!mls_active \u2014 members already in the group need not republish since the admin already holds their KP; reduces O(N\u00b2) publishes per session to near-O(1).",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:07:40"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.10",
+  "title": "token query param appears in access logs despite redact_token_query_param middleware",
+  "description": "main.rs adds redact_token_query_param middleware only to the browser_auth_routes layer (/ws/events and /jmap/eventsource/). The middleware is conditional on TRACE logging and does NOT mutate the URI \u2014 it only logs a redacted version. If a tracing TraceLayer is added in the future (common axum middleware), the original URI with the token will be logged by TraceLayer BEFORE redact_token_query_param runs (middleware ordering). The comment says 'token is stripped from the request URI by a middleware layer' which is inaccurate \u2014 it is not stripped, it is only conditionally logged at TRACE. Fix: clarify the comment and consider adding Content-Security-Policy or actual URI mutation if token logging is a real concern.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:36:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:15Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:36:57"
+    }
+  ]
+}

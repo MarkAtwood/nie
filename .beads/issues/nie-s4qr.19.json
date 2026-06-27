@@ -1,0 +1,24 @@
+{
+  "id": "nie-s4qr.19",
+  "title": "wasm client.rs: PoW limitation not documented \u2014 deployer enabling PoW will silently break all WASM clients",
+  "description": "wasm/src/client.rs NieRelayClient::connect() has no documentation mentioning that PoW-enabled relays are not supported. The relay README and DESIGN.md describe PoW as an optional feature. A deployer who enables POW_DIFFICULTY will unknowingly break all browser clients (WASM). There is no error in the relay logs indicating the WASM client failed due to PoW \u2014 only the client side gets a POW_REQUIRED error, and the WASM connect() returns Err(String) which is typically shown to the user as a generic connection error. The function-level doc on connect() should state: 'Note: PoW-enabled relays (difficulty > 0) are not supported; the WASM client will fail to authenticate'.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:23:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:23:48Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:23:47"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-0aj",
+  "title": "Load payment sessions on startup; resend last message for in-flight sessions",
+  "description": "On chat startup (after auth, before the event loop): load all sessions from wallet_store.all_sessions(). Populate the in-memory HashMap. For sessions in state Requested (payer) or AddressProvided (payee), check if the peer is online in the DirectoryList. If online: resend the last outgoing PaymentAction to re-sync state (payer resends Request, payee resends Address). Log '[payment] Resumed <n> active sessions.' This handles app restart mid-negotiation.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:19:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T06:20:21Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 22:20:19"
+    }
+  ]
+}

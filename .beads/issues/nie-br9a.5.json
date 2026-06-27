@@ -1,0 +1,24 @@
+{
+  "id": "nie-br9a.5",
+  "title": "fees.rs select_notes is dead code \u2014 tx_builder uses its own select_notes_spendable",
+  "description": "fees.rs exports select_notes (operating on &[Note]) but tx_builder.rs implements its own select_notes_spendable (operating on &[SpendableNote]). payment.rs calls build_shielded_tx which calls select_notes_spendable. fees::select_notes is tested but never called from any production send path. Two implementations of the same algorithm will diverge. Either unify them or remove the dead one.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:02:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:44:04Z",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:02:25"
+    }
+  ]
+}

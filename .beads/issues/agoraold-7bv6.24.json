@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.24",
+  "title": "SEC0: has_id check misroutes JSON-RPC errors with id:null to notification path",
+  "description": "File: wasm/src/transport.rs, lines 82-113. The has_id check is: \\!value['id'].is_null() && value['id'] \\!= Value::Null \u2014 both conditions are identical (is_null() tests for Value::Null), so the second condition is redundant. More importantly, JSON-RPC 2.0 allows 'id': null in error responses when the server cannot determine the id of the offending request (spec section 5). If the relay sends {'jsonrpc':'2.0','id':null,'error':{...}}, has_id is false (correct), but then has_method is also false so the frame is silently dropped. However the real danger is the opposite: the relay could send a null-id error whose method field from the notification path is never present. The actual misrouting would occur if a frame has both id:null and a method field \u2014 it would be treated as a notification instead of an error response, calling the user's notification callback with a response-shaped frame. The fix is to use value.get('id').is_some() (key present regardless of value) to distinguish responses (id key present, even if null) from notifications (id key absent entirely).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:32:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:45Z",
+  "closed_at": "2026-04-20T02:40:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:32:06"
+    }
+  ]
+}

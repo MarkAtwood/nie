@@ -1,0 +1,25 @@
+{
+  "id": "nie-9i9k.12",
+  "title": "pendingPermissionResult bridge in MainActivity: defend this",
+  "description": "MainActivity stores MethodChannel.Result in pendingPermissionResult, then completes it from onRequestPermissionsResult. This correctly bridges the async Android permission dialog back to a synchronous Dart Future. A future contributor might 'simplify' this to fire-and-forget (call requestPermissions, return result.success(true) immediately). Defend: the sequencing matters \u2014 startService should only be called after permission state is resolved to avoid the OS killing startForeground() before POST_NOTIFICATIONS is granted on API 33+.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T00:50:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:55:29Z",
+  "closed_at": "2026-04-24T00:55:29Z",
+  "close_reason": "Decision records \u2014 informational only, no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 17:50:33"
+    }
+  ]
+}

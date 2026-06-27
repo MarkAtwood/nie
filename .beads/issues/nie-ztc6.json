@@ -1,0 +1,17 @@
+{
+  "id": "nie-ztc6",
+  "title": "Review: ws.rs/store.rs/daemon/relay/mls round 28",
+  "notes": "Maintainer risk: MEDIUM — drain() message-loss race and daemon MLS reconnect failure are the most dangerous; both affect operational correctness silently. PoW retain and find_addr blocking SQLite will only appear at scale.\nConfidence: 20% chance of missed bug. Uncertainty driven by: MLS state transitions under reconnect have complex interactions (nie-ztc6.6 may have additional failure modes beyond the 'group already exists' error); store.rs drain() race window is narrow and I have not traced all callers of enqueue() to verify the concurrent-write case is actually possible during drain. Would raise confidence if: integration tests cover reconnect-during-drain and concurrent enqueue+drain scenarios; also want to verify nie-tb8e.7 (MLS lock held across from_slice) was actually fixed in current code.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:45:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

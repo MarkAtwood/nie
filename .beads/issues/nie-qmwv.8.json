@@ -1,0 +1,27 @@
+{
+  "id": "nie-qmwv.8",
+  "title": "store: migration v1\u2192v2 re-reads schema_version outside transaction, creating TOCTOU",
+  "description": "store.rs runs the v0\u2192v1 migration in a transaction (tx.commit()), then for v1\u2192v2 the code re-reads PRAGMA user_version with a fresh SELECT outside any transaction. If two relay instances start simultaneously against the same SQLite file (rare but possible), both could read sv=1, both enter the if sv < 2 block, and both execute the DDL. SQLite's DDL is not transactional for CREATE TABLE and ALTER TABLE in the same way \u2014 the second instance will get an error on 'CREATE TABLE group_members_v2' (already exists). The error would bubble up from Store::new() causing the second instance to crash at startup. Not a data-corruption risk, but a startup-race availability issue.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:49:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:00:49Z",
+  "closed_at": "2026-04-26T12:00:49Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:49:06"
+    }
+  ]
+}

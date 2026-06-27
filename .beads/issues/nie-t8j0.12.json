@@ -1,0 +1,25 @@
+{
+  "id": "nie-t8j0.12",
+  "title": "identity: secret_bytes() doc says 'never log' but no compiler enforcement; pattern propagates to callers",
+  "description": "Identity::secret_bytes() and hpke_secret_bytes() are documented with SECURITY comments but return plain [u8;32]. Any future caller can accidentally log, serialize, or display these values. The zeroize issue (nie-kef6.103) covers the zeroize aspect; this separate issue covers the propagation risk: callers of these functions return their own plain arrays, and new contributors can copy the pattern without noticing the SECURITY annotation. Consider wrapping the return type in a newtype that implements neither Debug nor Display, making accidental logging a compile error.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:37:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:13Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:37:39"
+    }
+  ]
+}

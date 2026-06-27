@@ -1,0 +1,24 @@
+{
+  "id": "nie-br9a.1",
+  "title": "get_block_range stream has no per-message timeout",
+  "description": "scanner.rs scan_to_tip calls get_block_range then loops stream.message().await? with no timeout on individual messages. If lightwalletd goes silent mid-stream (partial hang, half-open TCP), the scanner blocks forever, freezing spawn_scanner permanently. Trigger: any lightwalletd endpoint that sends some blocks then stalls. Fix: wrap each stream.message() with tokio::time::timeout.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:59:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:37:15Z",
+  "closed_at": "2026-04-26T06:37:15Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:59:28"
+    }
+  ]
+}

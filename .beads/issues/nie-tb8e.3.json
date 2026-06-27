@@ -1,0 +1,26 @@
+{
+  "id": "nie-tb8e.3",
+  "title": "dispatch_peer_retract emits MessageRetracted even when store soft_delete_message fails",
+  "description": "In daemon/src/relay.rs dispatch_peer_retract(): if store.soft_delete_message() returns Err, the function returns early without emitting MessageRetracted. However if there is no store (state.store() is None), dispatch_peer_retract emits MessageRetracted without any DB write. More critically: if the store IS present but soft_delete_message fails, the event is NOT emitted \u2014 this is the correct case (DB and SSE stay consistent). But the inverse \u2014 store absent \u2192 event emitted without persistence \u2014 means SSE clients see a retraction that is not persisted. On SSE reconnect the message reappears in the store (it was never deleted) while the client believed it was retracted. Trigger: daemon started without --db (store=None), peer sends PeerRetract \u2014 client receives MessageRetracted but the message persists in any other view.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:36:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:52:56Z",
+  "closed_at": "2026-04-26T07:52:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:36:50"
+    }
+  ]
+}

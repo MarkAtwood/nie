@@ -1,0 +1,25 @@
+{
+  "id": "nie-80jt.11",
+  "title": "core transport: SystemTime failure silently sets ts_floor=0, causing confusing auth error",
+  "description": "core/src/transport.rs computes ts_floor via SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()/60. If SystemTime::now() returns an error (broken clock), unwrap_or_default() silently returns Duration::ZERO, ts_floor=0. The PoW token is mined with ts_floor=0, sent to the relay, and rejected as stale (now_floor.abs_diff(0) > 10) with a POW_STALE error that gives the user no hint their system clock is broken. Fix: return an explicit Err (and surface it to the user as 'system clock error') instead of silently defaulting to 0.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:09:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:20:59Z",
+  "closed_at": "2026-04-24T19:20:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:09:28"
+    }
+  ]
+}

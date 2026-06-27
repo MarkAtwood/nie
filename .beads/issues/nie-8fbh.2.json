@@ -1,0 +1,26 @@
+{
+  "id": "nie-8fbh.2",
+  "title": "scan_to_tip does not validate block height monotonicity from gRPC stream",
+  "description": "scan_to_tip loops over stream.message() with no check that each block.height equals the previous height + 1. A buggy lightwalletd returning out-of-order or repeated blocks corrupts the Sapling commitment tree and all witness positions. The scan tip is set to whatever height the last streamed block reports.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:48:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:47:55Z",
+  "closed_at": "2026-04-26T04:47:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:48:49"
+    }
+  ]
+}

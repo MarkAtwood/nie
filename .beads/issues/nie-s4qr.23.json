@@ -1,0 +1,23 @@
+{
+  "id": "nie-s4qr.23",
+  "title": "transport.rs: build_connector separates TLS config from stream construction \u2014 ordering is load-bearing",
+  "description": "open_authenticated_ws() calls build_connector() before the SOCKS5/TCP connect, with a comment explaining that the connector is applied after the stream is established \u2014 TLS must wrap the tunneled stream, not the raw TCP socket. A contributor might move the build_connector() call inside each branch to 'co-locate' it with where it's used. That would be wrong: the connector is built once and passed to ws_upgrade_and_auth; moving it inside would create two separate connectors for the two code paths. The current structure (build once, pass down) is architecturally correct. The comment is load-bearing documentation \u2014 do not remove it.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:24:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:24:26Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:24:25"
+    }
+  ]
+}

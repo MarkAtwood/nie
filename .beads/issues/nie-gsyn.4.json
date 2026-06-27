@@ -1,0 +1,26 @@
+{
+  "id": "nie-gsyn.4",
+  "title": "GROUP_ADD caller membership check is non-atomic with add_group_member_capped",
+  "description": "ws.rs GROUP_ADD: is_group_member(caller) check is a separate DB query before add_group_member_capped. Between the two, the caller can be GROUP_LEAVE'd (or GROUP_REMOVE'd, if implemented). The caller then adds a member to a group they no longer belong to. The new member receives a group notification with a group_id the caller no longer owns. Consequence: non-member can add to group by racing a concurrent leave. Priority 1 not 0: requires tight timing and the consequence is bounded by the group still existing.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:25:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:06:42Z",
+  "closed_at": "2026-04-26T10:06:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:25:00"
+    }
+  ]
+}

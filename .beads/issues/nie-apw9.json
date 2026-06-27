@@ -1,0 +1,14 @@
+{
+  "id": "nie-apw9",
+  "title": "Flutter: message timestamps and sender names",
+  "description": "MessageBubble does not display timestamps or sender names. Add: (1) sent-at time under each bubble (HH:mm format), (2) display name above each bubble (derive from relay directory, fall back to first 8 hex chars of pub_id). The ChatMessage class in relay_service.dart already has 'sender' field; add 'timestamp' field (DateTime.now() on receive).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "feature",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:10:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:15:42Z",
+  "closed_at": "2026-04-23T23:15:42Z",
+  "close_reason": "Closed"
+}

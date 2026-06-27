@@ -1,0 +1,22 @@
+{
+  "id": "nie-ydvy",
+  "title": "Implement canonicalize_display_name in relay",
+  "description": "Why: central validation point for all user-supplied display names. What: add pub fn canonicalize_display_name(s: &str) -> Result<String, &'static str> to relay/src/ws.rs (or a new relay/src/canonicalize.rs module). Algorithm: (1) apply NFC via unicode_normalization::UnicodeNormalization::nfc().collect::<String>(); (2) scan chars: if any char is in bidi_controls list [U+202A, U+202B, U+202C, U+202D, U+202E, U+2066, U+2067, U+2068, U+2069, U+200E, U+200F] return Err('contains bidirectional control characters'); (3) filter out ZWS chars [U+200B, U+200C, U+2060]; (4) trim(); (5) if empty return Err('empty after canonicalization'); (6) if chars().count() > 32 return Err('display name too long'); (7) return Ok(normalized). Defensive rules: every error path returns typed Err, no unwrap(), input is untrusted wire data.",
+  "acceptance_criteria": "cargo test -p nie-relay canonicalize passes; cargo clippy -p nie-relay clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T05:50:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T05:53:10Z",
+  "close_reason": "canonicalize_display_name implemented in relay/src/ws.rs",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 22:50:50"
+    }
+  ]
+}

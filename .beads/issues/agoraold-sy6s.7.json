@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-sy6s.7",
+  "title": "Full cargo test --workspace and final validation",
+  "description": "What: Run full workspace test suite. Fix any compilation failures or test failures. Verify the guild/channel feature compiles and core tests pass.\n\nAlgorithm:\n1. cargo test --workspace 2>&1 \u2014 record pass/fail count for each crate\n2. cargo clippy --workspace -- -D warnings 2>&1 \u2014 record any new warnings\n3. cargo fmt --workspace -- --check 2>&1 \u2014 run cargo fmt if needed\n\nKnown pre-existing failures: relay/tests/ and cli/tests/ may have compilation failures from the nie->agora rename (referencing nie_core etc.). These are pre-existing and NOT caused by this epic \u2014 report them but do not fix them in this bead.\n\nFix any new failures introduced by this epic's changes (guild.rs, protocol.rs, ws.rs, store.rs).\n\nAlso validate:\n- grep -rn 'GROUP_CREATE\\|GROUP_ADD\\|GROUP_LIST\\|GROUP_LEAVE\\|GROUP_SEND' relay/src/ \u2014 should return 0 or only comment references\n- grep -rn 'guild.create\\|guild.list\\|channel.create' relay/src/ \u2014 should return handler matches\n\nReport:\n- cargo test output for each crate (pass/fail counts)\n- Clippy: clean or list of new issues\n- The grep validation results\n- Any new issues introduced by this epic (not pre-existing)",
+  "acceptance_criteria": "cargo test -p agora-core passes; cargo test -p agora-relay (lib unit tests) passes; cargo check --workspace exits 0; GROUP_* handlers removed from ws.rs",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:45:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:02Z",
+  "closed_at": "2026-04-23T01:00:24Z",
+  "close_reason": "cargo check --workspace clean; core 93/93 pass; relay lib 55/55 pass; integration test failures are pre-existing nie->agora rename artifacts",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:31"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:48"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-sjc4.5",
+  "title": "START_NOT_STICKY is the correct service restart policy for this use case",
+  "description": "START_STICKY would cause Android to phantom-restart the foreground service after the process is killed, producing a persistent 'nie relay active' notification with no live WebSocket behind it. START_NOT_STICKY is correct because the relay lives in the Dart isolate: when the user brings the app back, RelayService.connect() is called and start() is triggered from there. A future contributor might see START_NOT_STICKY and try to 'fix' it to STICKY for reliability. Resist this \u2014 STICKY produces a worse user experience (stale notification, no actual connection) and the Dart-side reconnect loop already handles restart correctly.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T02:43:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:51:59Z",
+  "closed_at": "2026-04-24T02:51:59Z",
+  "close_reason": "Decision recorded during review; no code change required",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 19:43:35"
+    }
+  ]
+}

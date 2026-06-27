@@ -1,0 +1,24 @@
+{
+  "id": "nie-wgk8.11",
+  "title": "tui: /cat file-read path doesn't strip_unsafe before send_chat \u2014 inconsistent with /! path",
+  "description": "tui/src/event.rs:1274-1277: /cat converts bytes to string with from_utf8_lossy, calls strip_unsafe, then send_chat. The /! path (line 1220-1235) does the same: from_utf8_lossy \u2192 strip_unsafe \u2192 send_chat. Both are correct. The duplication between these two code paths means a future fix to strip_unsafe ordering must be applied in two places. Consider extracting a helper fn prepare_for_broadcast(raw: &str) -> String that does the strip+truncate+strip flow, called by both /cat and /!.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:23:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:23:16Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:23:16"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nie-ftwb.14",
+  "title": "Space/set create: space name validated with canonicalize_display_name \u2014 32 char limit is too restrictive for a space name",
+  "description": "jmap.rs space_set create: space name is validated through canonicalize_display_name(), which caps at 32 Unicode scalars. This is the same function used for contact display names. A 32-character limit is reasonable for a person's nickname but quite short for a group space name (e.g., 'Engineering - Backend Infrastructure Team' is 41 chars). The display name validation is documented as matching relay/src/ws.rs:canonicalize_display_name, which is correct for person names, but space names are a different semantic concept. Suggested fix: add a separate canonicalize_space_name function with a higher cap (e.g. 128 chars).",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:57:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:57:32Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:57:31"
+    }
+  ]
+}

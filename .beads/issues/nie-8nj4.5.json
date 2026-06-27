@@ -1,0 +1,25 @@
+{
+  "id": "nie-8nj4.5",
+  "title": "Add INDEX on offline_messages.to_pub_id for drain() performance",
+  "description": "relay/src/store.rs lines 196-212 (drain method) performs full table scans on offline_messages without an index.\n\nEvery client reconnect triggers:\n  SELECT ... WHERE to_pub_id = ? (line 199)\n  DELETE FROM ... WHERE to_pub_id = ? (line 206)\n\nBoth queries are O(N) without an index. As the queue grows (N users \u00d7 72h retention), queries degrade.\n\nFix: In Store::new(), add after line 78:\n  CREATE INDEX IF NOT EXISTS idx_offline_messages_to_pub_id ON offline_messages(to_pub_id)\n\nThis converts both queries to O(log N) + O(K) where K = messages for that user.\n\nReal efficiency issue, not correctness. Mark as P2.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:37:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T21:40:16Z",
+  "closed_at": "2026-04-19T21:40:16Z",
+  "close_reason": "Closed",
+  "labels": [
+    "indexing",
+    "performance"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:37:36"
+    }
+  ]
+}

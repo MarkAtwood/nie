@@ -1,0 +1,26 @@
+{
+  "id": "nie-bgx",
+  "title": "Fresh diversified subaddress per payment request",
+  "description": "Each PaymentAction::Address response must return a fresh diversified Sapling/Orchard receiver, not the default UA. Prevents address reuse which would allow correlation of payments. Increment diversifier index; persist last-used index in wallet DB.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T04:35:08Z",
+  "close_reason": "Done: Fresh diversified subaddress per payment request implemented via next_diversifier() in db.rs and dispatch_payment generates address per session. Diversifier persisted across restarts.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:43:15"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:42:39"
+    }
+  ]
+}

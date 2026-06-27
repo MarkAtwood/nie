@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-0tvc.1",
+  "title": "nie-daemon crate: Cargo.toml + axum server skeleton",
+  "description": "**What:** Create the nie-daemon binary crate with a minimal axum health endpoint, add it to the workspace, and add tower-http to workspace dependencies.\n\n**Algorithm:**\n1. Create directory daemon/ in workspace root\n2. Write daemon/Cargo.toml: name=nie-daemon, edition=2021; deps: nie-core.workspace, axum.workspace (features=[ws]), tokio.workspace, tower-http={workspace=true, features=[cors,validate-request]}, serde.workspace, serde_json.workspace, anyhow.workspace, tracing.workspace, tracing-subscriber.workspace\n3. Add tower-http = { version = '0.6', features = [] } to [workspace.dependencies] in root Cargo.toml\n4. Write daemon/src/main.rs: #[tokio::main] async fn main() -> anyhow::Result<()>; bind TcpListener to 127.0.0.1:7734; single route GET /health returning 'ok'; axum::serve; return Ok(())\n5. Write daemon/src/lib.rs: empty for now (pub mod declarations added in later beads)\n6. Add 'daemon' to workspace.members in root Cargo.toml\n7. Run cargo build -p nie-daemon to verify compilation\n\n**Defensive programming rules:**\n- Default address is 127.0.0.1:7734 hardcoded in main() \u2014 never 0.0.0.0\n- No unwrap() without comment in production paths\n- Keyfile and sensitive data not touched in this bead (pure scaffold)\n\n**Agent team:** Single Implementer (R not needed \u2014 no existing code to read, just create new). Validator after.\n\n**Tests:**\n- test_health: cargo build -p nie-daemon exits 0 (compilation oracle)\n- After build: curl http://127.0.0.1:7734/health \u2192 200 'ok'",
+  "acceptance_criteria": "cargo build -p nie-daemon exits 0; cargo fmt --all exits 0; cargo clippy --workspace -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:38:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:42:46Z",
+  "close_reason": "crate scaffold created, cargo build passes",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:38:21"
+    }
+  ]
+}

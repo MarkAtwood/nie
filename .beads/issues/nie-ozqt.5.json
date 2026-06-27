@@ -1,0 +1,26 @@
+{
+  "id": "nie-ozqt.5",
+  "title": "add_group_member_capped uses BEGIN DEFERRED not BEGIN IMMEDIATE",
+  "description": "store::add_group_member_capped uses pool.begin() which in SQLite defaults to BEGIN DEFERRED. Two concurrent callers can both acquire read locks, both read count < cap, then both attempt to promote to write locks. One will succeed; the other will get SQLITE_BUSY. The count + insert is not safe without BEGIN IMMEDIATE. Same pattern as nie-kef6.29 (already filed) \u2014 confirming the same root cause is present after round 20 changes.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:43:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:44:26Z",
+  "closed_at": "2026-04-25T06:44:26Z",
+  "close_reason": "dup of nie-kef6.29",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:43:52"
+    }
+  ]
+}

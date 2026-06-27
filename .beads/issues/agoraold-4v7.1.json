@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-4v7.1",
+  "title": "relay/Cargo.toml: promote rand from dev to production dependency",
+  "description": "What: Move rand from [dev-dependencies] to [dependencies] in relay/Cargo.toml so jitter code in the write task can call rand::random::<u64>() in production builds.\n\nAlgorithm:\n1. Open relay/Cargo.toml\n2. Find the line rand = { workspace = true } (or similar) under [dev-dependencies]\n3. Add rand.workspace = true under [dependencies] (before dev-dependencies)\n4. Run cargo build -p nie-relay to confirm it compiles\n5. Run cargo test --workspace to confirm tests still pass\n\nDefensive rules:\n- Do not change the version \u2014 use workspace = true to inherit from root Cargo.toml\n- Do not remove from dev-dependencies if other dev-only code uses it (check with grep)\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo build -p nie-relay passes; cargo test --workspace passes; rand appears in [dependencies] section of relay/Cargo.toml",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T15:40:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T15:45:46Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 08:40:50"
+    }
+  ]
+}

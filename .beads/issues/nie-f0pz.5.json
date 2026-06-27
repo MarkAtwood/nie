@@ -1,0 +1,26 @@
+{
+  "id": "nie-f0pz.5",
+  "title": "bot dispatcher: MLS-encrypted payloads warn as unexpected pre-MLS",
+  "description": "dispatcher.rs dispatch_payload attempts serde_json::from_slice on the raw relay payload without MLS decryption. In production (MLS active), all payloads are MLS ciphertext \u2014 this will always fail deserialization and log a warn-level message 'payload not a ClearMessage (unexpected pre-MLS)'. The comment says 'Failure is expected once MLS ciphertext lands; debug log only' but the code uses tracing::warn, not tracing::debug. In a production MLS session every single message from the relay will produce a spurious warn log. If log aggregation alerts on warn-level events, this creates sustained alert noise. Trigger: any active MLS session. The bot does not decrypt MLS at all \u2014 it is pre-MLS-only by design, but the log level is wrong.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:25:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:04:05Z",
+  "closed_at": "2026-04-25T07:04:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:25:32"
+    }
+  ]
+}

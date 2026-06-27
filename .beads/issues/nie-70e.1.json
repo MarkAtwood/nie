@@ -1,0 +1,27 @@
+{
+  "id": "nie-70e.1",
+  "title": "ZIP-317: sapling_logical_actions uses sum not max",
+  "description": "ZIP-317 defines Sapling contribution as max(n_sapling_spends, n_sapling_outputs). The implementation does n_inputs + n_outputs. For (1,1) both formulas give 2 (accidentally correct). For (1,2) \u2014 one input, change output \u2014 sum=3\u2192fee=15_000 but spec max=2\u2192fee=10_000. User is overcharged 50% on every payment with change. The module docstring compounds the error by citing 'sapling_bundle_count * 2' which matches neither the spec nor the implementation. Spec: https://zips.z.cash/zip-0317",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:53:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T15:53:40Z",
+  "closed_at": "2026-04-18T15:53:40Z",
+  "close_reason": "Fixed: sapling_logical_actions now returns n_inputs.max(n_outputs) per ZIP-317 \u00a72. Module docstring corrected. Affected tests updated with correct expected values from spec. Symmetry test added.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:53:18"
+    }
+  ]
+}

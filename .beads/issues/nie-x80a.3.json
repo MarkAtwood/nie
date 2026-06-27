@@ -1,0 +1,25 @@
+{
+  "id": "nie-x80a.3",
+  "title": "HttpFetcher::fetch_combined is sync blocking \u2014 must use spawn_blocking in async callers",
+  "description": "params.rs:287 HttpFetcher::fetch_combined calls minreq::get().send() which is a blocking network operation. The function signature is synchronous (not async). If the caller is running inside a tokio async runtime (which is typical for wallet init code), calling this directly will block the tokio thread pool worker. The comment says 'intentionally synchronous' but does not document the spawn_blocking requirement. Any caller inside an async context must wrap ensure_params() in tokio::task::spawn_blocking(); failing to do so will stall the executor. The trait design is correct, but the contract is undocumented and the footgun is invisible to contributors writing async callers.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:53:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:53:42Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:53:42"
+    }
+  ]
+}

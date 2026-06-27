@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.39",
+  "title": "message_changes uses i64::MAX query limit causing unbounded allocation",
+  "description": "In jmap.rs, both message_changes (around line 1684) and message_query_changes (around line 2111) call store.query_messages(chan, 0, i64::MAX). This fetches every message row into a Vec<MessageRow> before slicing. On a store with millions of messages, a single JMAP /Email/changes or /Email/queryChanges call from a token holder exhausts heap. Fix: apply a reasonable maximum limit (e.g. 10_000) before calling query_messages, and return the standard JMAP 'tooManyChanges' error if sinceSate is too far behind.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:01:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:36:26Z",
+  "closed_at": "2026-04-24T22:36:26Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:01:30"
+    }
+  ]
+}

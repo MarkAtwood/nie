@@ -1,0 +1,22 @@
+{
+  "id": "nie-jedt.3",
+  "title": "wasm: NieRelayClient::connect() has no timeout on challenge_rx.await \u2014 hangs forever on misbehaving relay",
+  "description": "wasm/src/client.rs NieRelayClient::connect() installs a notify callback to capture the relay's 'challenge' notification, then awaits challenge_rx with no timeout (line 77-79). If the relay is misbehaving (slow, incorrect, or sends a non-challenge first message), the browser Promise returned by NieClient::connect() never resolves or rejects \u2014 it hangs indefinitely. In contrast, Tokio-based clients (FFI, CLI) can be wrapped with tokio::time::timeout. The WebAssembly single-threaded executor has no built-in cancellation mechanism; without a gloo_timers or js-based timeout, the connect Promise is permanently pending. Impact: any WASM caller awaiting connect() on a slow/broken relay will hang indefinitely with no error, no timeout, and no way for JS to detect or recover.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:55:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:10:33Z",
+  "closed_at": "2026-04-26T12:10:33Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:55:19"
+    }
+  ]
+}

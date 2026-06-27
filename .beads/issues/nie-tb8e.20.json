@@ -1,0 +1,23 @@
+{
+  "id": "nie-tb8e.20",
+  "title": "Welcome source validation in CLI: only accept Welcome from current MLS admin (online[0]) \u2014 prevents group hijacking",
+  "description": "cli/src/commands.rs WHISPER_DELIVER handler: binary payload (non-JSON) is treated as MLS Welcome only if the sender matches online[0] (the current MLS admin). This guard prevents a malicious peer from sending a crafted Welcome that pulls the target into an attacker-controlled group. The relay authenticates the sender pub_id (Ed25519 signature), so this is a meaningful check. A contributor might 'simplify' this by removing the admin check, arguing that MLS cryptography protects against bad Welcomes \u2014 but an attacker who controls a relay connection can forge a valid Welcome for a group they created, which would pass MLS validation but represent a different group context.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:43:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:43:57Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:43:57"
+    }
+  ]
+}

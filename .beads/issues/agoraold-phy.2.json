@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-phy.2",
+  "title": "expire_stale_sessions_before(now_ts, cutoff): parameter order is swappable with no type safety",
+  "description": "Scenario: a future caller writes expire_stale_sessions_before(expire_cutoff, now_ts) (args transposed). Both are i64 Unix timestamps with no type distinction. Transposing silently stores expire_cutoff as updated_at and uses now_ts as the threshold \u2014 every session ever updated before now_ts (i.e. all of them) gets expired with updated_at set to 24h ago. No error, no warning, sessions permanently mangled. The maintenance consequence: any new call site must know the semantic order from documentation alone. Suggest renaming to make order self-documenting or adding a named-parameter struct: ExpireParams { now_ts, cutoff }.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:11:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:55Z",
+  "closed_at": "2026-04-18T17:31:07Z",
+  "close_reason": "Fixed: second param renamed from cutoff:i64 to max_age_secs:i64; cutoff computed internally; call site updated to expire_stale_sessions_before(now_ts, 24*3600)",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:11:57"
+    }
+  ]
+}

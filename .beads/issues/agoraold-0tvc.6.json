@@ -1,0 +1,33 @@
+{
+  "id": "agoraold-0tvc.6",
+  "title": "nie-daemon API: POST /api/send (chat message)",
+  "description": "**What:** Implement POST /api/send { text } that serializes a ClearMessage::Chat, sends to relay via BROADCAST, and returns { message_id: UUID }.\n\n**Algorithm:**\n1. In daemon/src/api.rs:\n2. #[derive(Deserialize)] struct SendRequest { text: String }\n3. #[derive(Serialize)] struct SendResponse { message_id: String }\n4. #[derive(Serialize)] struct ApiError { code: String, message: String }\n5. async fn handle_send(State(state): State<DaemonState>, Json(req): Json<SendRequest>) -> Result<Json<SendResponse>, (StatusCode, Json<ApiError>)>:\n   a. if req.text.is_empty(): return Err((400, ApiError{code:'invalid_request', message:'text must not be empty'}))\n   b. const MAX_TEXT_BYTES: usize = 65536; if req.text.as_bytes().len() > MAX_TEXT_BYTES: return Err((413, ApiError{code:'payload_too_large',...}))\n   c. msg_id = Uuid::new_v4()\n   d. payload = serde_json::to_vec(&ClearMessage::Chat { text: req.text }) \u2014 unwrap() (derived Serialize cannot fail \u2014 add comment)\n   e. from = state.my_pub_id().to_string()\n   f. Build JsonRpcRequest::new(next_request_id(), BROADCAST, BroadcastParams { payload: payload, from }) \u2014 .unwrap() with comment\n   g. state.relay_tx().send(req).await.map_err(|_| (503, ApiError{code:'relay_unavailable', message:'relay connection down'}))?\n   h. Ok(Json(SendResponse { message_id: msg_id.to_string() }))\n6. Register: .route('/api/send', post(handle_send))\n\n**Defensive programming rules:**\n- Validate text length BEFORE serializing to prevent allocation DoS\n- relay_tx.send() Err \u2192 503, not panic\n- UUID returned as to_string() (hyphenated: 8-4-4-4-12 = 36 chars)\n- Never log payload bytes (architecture invariant: payload is opaque)\n- Never deserialize payload after construction\n\n**Agent team:** Implementer. Validator.\n\n**Tests (oracle: Uuid::to_string() produces exactly 36-char hyphenated lowercase string; defined by uuid crate docs):**\n- test_send_empty_text: POST with text='' \u2192 400 JSON with code='invalid_request'\n- test_send_too_long: POST with text of 65537 bytes \u2192 413\n- test_send_ok_message_id_format: POST with text='hello' \u2192 200, message_id.len()==36, message_id[8]=='-', message_id[13]=='-'\n- test_send_relay_down: relay_tx closed \u2192 503 with code='relay_unavailable'",
+  "acceptance_criteria": "cargo test -p nie-daemon passes including all validation tests; cargo clippy -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:39:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:53:38Z",
+  "close_reason": "POST /api/send handler implemented; UUID format test passes",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:39:41"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:05"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:04"
+    }
+  ]
+}

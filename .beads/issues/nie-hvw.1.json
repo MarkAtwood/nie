@@ -1,0 +1,23 @@
+{
+  "id": "nie-hvw.1",
+  "title": "Protocol: SubscribeRequestParams, SubscribeInvoiceResult, SUBSCRIPTION_REQUIRED",
+  "description": "Add three missing protocol types to core/src/protocol.rs needed for the subscription payment flow.\n\nWhat: add SUBSCRIPTION_REQUIRED error code, SubscribeRequestParams, SubscribeInvoiceResult structs.\n\nAlgorithm:\n1. In rpc_errors, add: pub const SUBSCRIPTION_REQUIRED: i32 = -32010;\n2. Add SubscribeRequestParams { duration_days: u32 } \u2014 client sends this with subscribe_request; duration_days=30 is the standard subscription period.\n3. Add SubscribeInvoiceResult { invoice_id: String, address: String, amount_zatoshi: u64, expires_at: String } \u2014 relay returns this; address is a bech32m UA string; expires_at is SQLite datetime format YYYY-MM-DD HH:MM:SS.\n4. Verify no collision with existing error codes (-32700, -32600, -32601, -32603, -32001, -32002, -32003, -32004).\n5. Add serde derive on all new structs; follow existing naming patterns.\n\nDefensive rules:\n- expires_at in SubscribeInvoiceResult must be SQLite format (not RFC3339) per CLAUDE.md \u00a79.\n- No Debug on structs containing key material (none here \u2014 these are wire types).\n\nTests: unit test round-trip serialization of each new struct via serde_json.",
+  "acceptance_criteria": "cargo test -p nie-core passes; both new structs serialize/deserialize correctly",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:52:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T06:00:33Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:52:07"
+    }
+  ]
+}

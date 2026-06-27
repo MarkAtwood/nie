@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.42",
+  "title": "update_message_delivery_state accepts arbitrary delivery_state string from wire",
+  "description": "store.rs update_message_delivery_state() takes a &str delivery_state and writes it directly to the delivery_state column without validating it against the allowed set (e.g. 'delivered', 'read'). The caller in relay.rs dispatch_peer_receipt passes the receipt_type string directly from the MLS-authenticated wire message. An MLS-authenticated peer can set delivery_state to an arbitrary string of any length, corrupting the column values for other clients consuming these rows. Fix: add an allowlist check (match receipt_type { 'delivered' | 'read' => ..., _ => return early }) before calling update_message_delivery_state.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:02:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:41:20Z",
+  "closed_at": "2026-04-24T22:41:20Z",
+  "close_reason": "Mitigated by nie-8wfc.30: receipt_type validated at deserialization, only 'delivered'/'read' reach the store",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:02:03"
+    }
+  ]
+}

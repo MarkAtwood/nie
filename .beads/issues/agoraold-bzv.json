@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-bzv",
+  "title": "Diversified subaddress generation from diversifier index",
+  "description": "Implement diversified_address(index: DiversifierIndex) -> Result<UnifiedAddress> that generates a fresh Sapling + Orchard receiver at the given diversifier index and assembles them into a ZIP-316 UA. This is the core of nie-bgx. The diversifier index from next_diversifier() is passed in \u2014 this function is pure (no DB writes). Defensive programming: if the Sapling diversifier at index is invalid (not all 11-byte combinations produce valid Sapling receivers), increment until a valid one is found per ZIP-32 spec, bounded to 256 attempts, return Err on exhaustion. Log only the diversifier index (u128), never any key material. Use a subagent to check the zcash_primitives sapling API for diversified address generation (PaymentAddress::from_diversifier or equivalent).",
+  "acceptance_criteria": "Test: 1000 consecutive addresses (diversifier 0..999) are all distinct. Test: known diversifier index 0 produces the same default address as get_default_address(). Test: invalid diversifier handling doesn't panic.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:20:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T19:35:06Z",
+  "close_reason": "diversified_address(sapling, orchard, start, network) -> Result<(DiversifierIndex, String)> implemented in unified.rs. Returns found DI so callers can chain calls with found+1. Tests: 1000 chained distinct, index-0 manual assembly, out-of-range returns Err.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:25"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:26"
+    }
+  ]
+}

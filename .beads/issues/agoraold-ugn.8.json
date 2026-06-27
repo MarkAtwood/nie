@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-ugn.8",
+  "title": "send_fn_box comment explains what (per-call connection) but not why",
+  "description": "commands.rs line 131: comment says 'Connects to lightwalletd on every call'. Does not explain why a persistent connection isn't held. A contributor will 'fix' this by hoisting LightwalletdClient creation outside the closure. Fix: add: 'A new connection per call avoids storing LightwalletdClient across await points in the chat loop, which would require Arc<Mutex<...>>.' ",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:13:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:09Z",
+  "closed_at": "2026-04-19T03:44:30Z",
+  "close_reason": "Doc/comment fixes applied",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:13:35"
+    }
+  ]
+}

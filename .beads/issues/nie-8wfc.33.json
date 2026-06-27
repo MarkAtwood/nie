@@ -1,0 +1,21 @@
+{
+  "id": "nie-8wfc.33",
+  "title": "bridge-slack: verify_signature test uses code-under-test as oracle",
+  "description": "slack/src/slack.rs test verify_signature_accepts_correct_signature() claims 'Oracle: known HMAC computed offline with Python' but the test body recomputes the HMAC in Rust using the same HmacSha256::new_from_slice/mac.update/mac.finalize path as the implementation. This violates DESIGN.md \u00a715 test oracle discipline: the test proves only that the same code computes the same result twice, not that the result is correct. Fix: hardcode a known-good HMAC computed from a fixed timestamp and body using an external tool (Python hmac module, openssl), using a timestamp far enough in the future to not expire (or mock time).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:00:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:35:32Z",
+  "closed_at": "2026-04-24T22:35:32Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:00:01"
+    }
+  ]
+}

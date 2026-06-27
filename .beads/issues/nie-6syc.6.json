@@ -1,0 +1,21 @@
+{
+  "id": "nie-6syc.6",
+  "title": "DECISION: Fee display with explicit uncertainty disclaimer",
+  "description": "/pay shows estimated fee with 'actual may vary by note count'. Correct: the estimate assumes 1-in 2-out but real coin selection may select more inputs. Honest uncertainty beats false precision.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:23:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:45:38Z",
+  "closed_at": "2026-04-22T13:45:38Z",
+  "close_reason": "Architectural decisions acknowledged as correct \u2014 no code change needed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:23:27"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "nie-ezwb",
+  "title": "codemagic.yaml for Android cloud builds",
+  "description": "Write codemagic.yaml: install Rust, cargo-ndk, cross-compile nie-ffi for 3 Android ABI targets, flutter_rust_bridge_codegen generate, flutter build apk --release. Artifact: app-release.apk.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:49:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T02:01:47Z",
+  "closed_at": "2026-04-23T02:01:47Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:49:32"
+    }
+  ]
+}

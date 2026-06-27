@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-hhmj.19",
+  "title": "RISK: broadcast() ignores send errors; no delivery failure tracking",
+  "description": "relay/src/state.rs line 108: broadcast() collects all send futures and awaits them with join_all(), but every send error is silently ignored (let _ = tx.send(m).await). If a client's channel fills (unlikely but possible under load), that client never receives the broadcast. If a malicious client holds the channel without reading (backpressure), they receive nothing while others get the message. No delivery confirmation, no failed-client list, no operator visibility. A solo maintainer sees 'client says they never got message X' and has no diagnostic data. Risk: blind broadcast failures; no delivery accountability.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:11:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:28Z",
+  "closed_at": "2026-04-19T18:16:49Z",
+  "close_reason": "False positive. CLAUDE.md \u00a78: broadcast ignores send errors is correct \u2014 a disconnected client's channel close is treated as clean exit. state.rs broadcast() ignoring send errors is load-bearing correct behavior.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:11:28"
+    }
+  ]
+}

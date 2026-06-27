@@ -1,0 +1,32 @@
+{
+  "id": "agoraold-ady2.4",
+  "title": "Fix identity tests, remove hash_key(), run full cargo test",
+  "description": "Clean up after the encoding change: fix the pub_id_is_hash_not_key test, remove dead hash_key(), verify all tests pass.\n\nWhat: Test fixes and dead code removal; final cargo test validation.\n\nAlgorithm:\n1. In core/src/identity.rs, find test pub_id_is_hash_not_key():\n   a. Remove assert_eq!(pub_id.0.len(), 64)\n   b. Remove assert!(pub_id.0.chars().all(|c| c.is_ascii_hexdigit()))\n   c. Add assert!(pub_id.0.starts_with(\"did:key:z\"), \"pub_id must have did:key format: {}\", pub_id.0)\n   d. Add assert!(validate_did_key(&pub_id.0).is_ok())\n   e. Remove the hash_key() recomputation block (it verified hex match \u2014 no longer valid)\n   f. Rename test to pub_id_has_did_key_format if that better describes what it checks\n2. Remove fn hash_key() from identity.rs (no callers after W1A)\n3. Remove fn hash_key() from auth.rs if it exists there as a copy\n4. Run: cargo test -p agora-core 2>&1\n5. Run: cargo test -p agora-relay 2>&1\n6. Run: cargo test -p agora-cli 2>&1\n7. Run: cargo clippy --workspace -- -D warnings 2>&1\n8. Run: cargo fmt --workspace -- --check 2>&1\n9. Report pass/fail for each command\n\nDefensive programming:\n- Do not modify tests to make them pass by weakening assertions \u2014 only change the expected VALUE (hex format \u2192 did:key format)\n- If cargo test fails for any crate after expected test fixes, report the failure; do not work around it\n\nAgent team: standard (R + I + T where T verifies the full suite)\n\nTests:\n- All existing tests in agora-core must pass\n- All existing tests in agora-relay must pass\n- All existing tests in agora-cli must pass\n- No clippy warnings\n- cargo fmt --check passes",
+  "acceptance_criteria": "cargo test --workspace exits 0; cargo clippy --workspace -- -D warnings exits 0; cargo fmt --workspace -- --check exits 0; grep -rn 'hash_key' core/src/ returns 0 lines (function fully removed)",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:06:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:03Z",
+  "closed_at": "2026-04-23T00:14:38Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:06:17"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:06:15"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:06:07"
+    }
+  ]
+}

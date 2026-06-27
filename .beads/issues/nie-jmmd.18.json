@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.18",
+  "title": "bus.rs: LocalBus BusMessage::Direct is defined but never consumed by any relay handler",
+  "description": "bus.rs defines BusMessage::Direct for point-to-point cross-instance delivery. The bus publish path in state.rs only sends BusMessage::Broadcast. No code subscribes to the bus and routes Direct messages. The Direct variant is dead code in the current single-instance deployment and there is no subscriber task. A contributor who adds Redis bus support will publish Direct messages that are never delivered, with no compile-time error.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:45:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:11Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:45:21"
+    }
+  ]
+}

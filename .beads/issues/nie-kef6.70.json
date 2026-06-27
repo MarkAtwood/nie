@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.70",
+  "title": "payment watcher silently drops confirmed payment if invoice already expired",
+  "description": "scan_block calls get_invoice_by_address which filters expires_at > datetime(now). If payment confirms on-chain after invoice expires_at, the invoice is not found and code takes Ok(None) => continue. Payment is silently lost \u2014 subscriber paid but receives no subscription. purge_expired_invoices also deletes the row every 100 blocks, preventing manual recovery.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:53:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:10:55Z",
+  "closed_at": "2026-04-25T01:10:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:53:25"
+    }
+  ]
+}

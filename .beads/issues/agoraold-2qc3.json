@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-2qc3",
+  "title": "Remove unauthenticated 64-byte prefix from sealed wire format",
+  "description": "Callers of seal_message no longer prepend 64-byte self-asserted sender pub_id prefix. Sealed plaintext becomes just the MLS ciphertext. Receivers call process_incoming on the full HPKE plaintext and use the returned MLS-authenticated sender. Update cli/src/commands.rs, tui/src/event.rs, bot/src/dispatcher.rs, and relay/tests/sealed_sender_e2e.rs.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T05:28:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-22T05:39:21Z",
+  "close_reason": "implemented; build clean, all tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-21 22:28:13"
+    }
+  ]
+}

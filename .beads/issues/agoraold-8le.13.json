@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-8le.13",
+  "title": "connection_seq monotonic counter for admin election is correct",
+  "description": "relay/src/state.rs uses a monotonically incrementing AtomicU64 to assign each connection a sequence number, and ws.rs sorts the online slice by connection_seq before sending DirectoryList. This correctly reflects session connection order rather than historical first_seen, so the first client to connect in the current relay process lifetime is always admin \u2014 not some user who connected once months ago. A contributor might suggest using first_seen (simpler, already in DB) but that breaks admin election in multi-session scenarios. Why this choice is correct: admin is a session property, not a historical property.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:08:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:59Z",
+  "closed_at": "2026-04-17T23:35:10Z",
+  "close_reason": "decision already recorded in CLAUDE.md / architecture is intentional; no code change needed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:08:38"
+    }
+  ]
+}

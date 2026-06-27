@@ -1,0 +1,25 @@
+{
+  "id": "nie-e2c6.4",
+  "title": "SEALED_WHISPER not rate-limited; offline queue flood via sealed path",
+  "description": "ws.rs:1191 \u2014 the SEALED_WHISPER handler has a user_exists check and a subscription check but no check_rate_limit call before enqueue. N authenticated senders each at unlimited message rate can fill a recipient's offline queue (1000-message cap per user) via the sealed path. This is the same class of bug as nie-14sh.29 (WHISPER not rate-limited) but on the sealed sender path. Fix: add check_rate_limit call to SEALED_WHISPER at the same position as WHISPER's subscription check, mirroring the pattern used by BROADCAST/GROUP_SEND.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:34:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:49:57Z",
+  "closed_at": "2026-04-25T02:49:57Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:34:27"
+    }
+  ]
+}

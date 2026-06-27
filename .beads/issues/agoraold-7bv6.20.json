@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.20",
+  "title": "SEC3: clone-Rc-before-await pattern duplicated across API methods",
+  "description": "api.rs: The pattern of cloning the inner Rc out of the RefCell before entering an async block, with an early-return not-connected error, is repeated verbatim in `send_message` (lines 177-182) and `set_nickname` (lines 198-203), and would be repeated for every future method (`send_whisper`, `publish_key_package`, etc.). Extract a private helper `fn get_client(&self) -> Result<Rc<NieRelayClient>, JsValue>` that performs the borrow, clone, and not-connected check in one place. Each async API method then calls `let client = self.get_client()?` before the `future_to_promise` block.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:46Z",
+  "closed_at": "2026-04-22T13:33:25Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:45"
+    }
+  ]
+}

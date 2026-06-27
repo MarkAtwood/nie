@@ -1,0 +1,25 @@
+{
+  "id": "nie-13e3.6",
+  "title": "load_state() loads ALL unspent notes witnesses including spent-during-session",
+  "description": "scanner.rs load_state() calls self.store.spendable_notes(0) to rebuild the in-memory witnesses map. spendable_notes() joins notes with witnesses WHERE spent=0. If a payment is sent (notes marked spent via mark_notes_spent) between process restarts, those notes correctly disappear from the next load_state() call \u2014 that part is fine. However, if mark_notes_spent fails after broadcast (the MarkSpentFailed path in payment.rs), the notes remain spent=0 in the DB but their nullifiers are on-chain. load_state() will reload those notes into witnesses and the scanner will continue tracking them as live witness candidates. The witnesses table rows for those notes are never deleted. Combined with nie-en5f.2 (witnesses not purged on spend during a running session), this means the witnesses map can accumulate zombie entries from two sources: (1) notes spent during the running session, (2) notes whose mark_notes_spent failed. Trigger: mark_notes_spent failure after successful broadcast. Bad behavior: zombie notes persist in witnesses map across restarts; double-spend attempt on next send_payment.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:22:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:30:16Z",
+  "closed_at": "2026-04-26T06:30:16Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:22:46"
+    }
+  ]
+}

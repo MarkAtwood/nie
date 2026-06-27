@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.12",
+  "title": "env var parse failures warn+default instead of bail: operator misconfiguration silent",
+  "description": "main.rs: KEEPALIVE_SECS, SUBSCRIPTION_DAYS, RATE_LIMIT_MSG_PER_MIN, and DIRECTORY_EXPIRY_DAYS all warn and use defaults on parse failure. An operator who sets KEEPALIVE_SECS=30s or RATE_LIMIT_MSG_PER_MIN=unlimited silently gets defaults. Consistent policy: either all parse errors bail (safest) or all warn. Currently SUBSCRIPTION_PRICE_ZATOSHI=0 bails but =invalid silently defaults \u2014 the inconsistency will generate issue reports from operators who never saw the warning.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:43:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:43:54Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:43:22"
+    }
+  ]
+}

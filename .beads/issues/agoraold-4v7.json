@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-4v7",
+  "title": "Phase 5: Multi-chain payments and polish",
+  "description": "Expand payment support and harden metadata resistance.\\n\\nPayments:\\n- Monero integration: monero-rs, light wallet mode (connect to remote node)\\n- MobileCoin integration: if user demand warrants it\\n- Chain selection in /pay command: /pay alice 10 ZEC vs /pay alice 10 XMR\\n\\nUX polish:\\n- ratatui TUI replacing current line-mode chat (split panes: message list + input)\\n- Contacts list with online/offline status indicators\\n- Message delivery status: sent / delivered / read receipts (optional, user-toggleable)\\n\\nMetadata resistance:\\n- Envelope padding: pad all payloads to fixed bucket sizes (256, 512, 1024, 4096 bytes)\\n- Delivery delay jitter: relay holds messages 0-500ms random before delivering (prevents timing correlation)\\n- Cover traffic: optional dummy messages to mask send patterns\\n\\nFederation: decided NO for now \u2014 single-relay model preserves legal clarity and simplifies key distribution.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T05:51:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T15:59:39Z",
+  "close_reason": "all steps complete",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 22:51:32"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-15 22:51:32"
+    }
+  ]
+}

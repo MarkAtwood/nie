@@ -1,0 +1,25 @@
+{
+  "id": "nie-80jt.6",
+  "title": "relay ws: GROUP_ADD does not verify member pub_id exists in users table",
+  "description": "relay/src/ws.rs GROUP_ADD validates member_pub_id format (64 hex chars) but does not check it references a real enrolled user (store.users table). Without PRAGMA foreign_keys = ON + FK constraint, any 64-char hex string is accepted and added to group_members. Downstream: GROUP_SEND enqueues messages for non-existent users (they expire without being read). Fix: query store to check pub_id exists in users, return invalidRequest if not, before calling add_group_member().",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T19:08:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T19:20:38Z",
+  "closed_at": "2026-04-24T19:20:38Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 12:08:50"
+    }
+  ]
+}

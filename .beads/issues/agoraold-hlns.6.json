@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-hlns.6",
+  "title": "nie-hlns W3: Stress test + full workspace CI",
+  "description": "## What\nRewrite relay/tests/stress.rs to match on JsonRpcNotification (instead of RelayMessage), verify both barriers still work correctly, and confirm the full workspace test suite passes.\n\n## Algorithm\n1. In relay/tests/stress.rs:\n   a. Replace imports of RelayMessage with JsonRpcNotification, rpc_methods constants\n   b. Change DirectoryList barrier: match on JsonRpcNotification where method == DIRECTORY_LIST\n   c. Change Deliver count: match on JsonRpcNotification where method == DELIVER\n   d. Change Broadcast send: create JsonRpcRequest { method: BROADCAST, params: BroadcastParams { payload } }\n   e. Verify DRAIN_SECS is still sufficient (JSON-RPC adds no significant latency)\n2. Run cargo test --workspace and fix any remaining compilation errors from W0-W2\n3. Verify the two-barrier design still holds:\n   - start_barrier: all N clients wait until they have received DIRECTORY_LIST notification\n   - done_barrier: all N clients wait until all have finished sending\n   - received count == sent * (N-1) assertion must pass\n\n## Defensive programming rules\n- Do not change DRAIN_SECS, N_CLIENTS, or message counts without documenting why\n- The two-barrier invariant is load-bearing per CLAUDE.md \u2014 do not collapse to one barrier\n- If the count assertion is off by more than 0, that is a bug in the relay, not the test\n\n## Agent team: Standard (R + I + T)\n- R: Read relay/tests/stress.rs in full; confirm exact lines that reference RelayMessage\n- I: Apply the mechanical updates; run cargo test --workspace; report results\n- T: Read the original test's comment explaining the two-barrier design; verify the new code preserves both barriers\n\n## Tests\n- Stress test itself is the test: N=4 clients, each sends 100 messages, both barriers hold, count == sent*(N-1)\n- cargo test --workspace (full workspace) must pass clean",
+  "acceptance_criteria": "cargo test --workspace passes with no failures; stress test passes; clippy --workspace passes; no RelayMessage references anywhere in codebase",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T17:44:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:05:24Z",
+  "close_reason": "W1A already rewrote and validated stress test; zero RelayMessage refs; 308 tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:41"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 10:44:15"
+    }
+  ]
+}

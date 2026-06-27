@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.20",
+  "title": "remove_member_and_maybe_delete_group redundant DELETE on final leave",
+  "description": "store.rs: first DELETE removes the leaving member by (group_id, pub_id). COUNT returns 0 (no other members). The branch then runs a second DELETE FROM group_members WHERE group_id = ?1 before deleting the group row. This second DELETE is always a no-op when remaining == 0. Wasted DB round-trip per final group leave.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:50:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:50:17Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:50:17"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-bwaa.19",
+  "title": "Peer/* ClearMessage variants explicitly ignored in non-daemon clients",
+  "description": "PeerDeliver, PeerReceipt, PeerTyping, PeerRetract, PeerGroupUpdate are explicitly matched and ignored in bot/dispatcher.rs, cli/commands.rs, and tui/event.rs with comments directing to nie-daemon. A contributor might suggest 'handling' them or marking them as unreachable. The explicit ignore with comment is correct: these message types flow through the relay to all clients, so non-daemon clients WILL receive them and must handle them gracefully (no panic, no warning noise).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:49:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:07:13Z",
+  "closed_at": "2026-04-24T00:07:13Z",
+  "close_reason": "decision recorded in beads for future contributor reference",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:49:29"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-4iod.2",
+  "title": "MAINTAINER: hook execution failure logging omits stderr, hard to debug",
+  "description": "In main.rs, when on_message_hook runs and fails, we log 'hook failed: {e}' but the hook's stderr is captured in HookResult.stderr and never logged or emitted. If a user's script breaks, they get a cryptic 'hook failed' event on stdout with zero detail about why. The stderr sits in memory and is discarded. In 6 months when a user reports 'my hook stopped working', the maintainer won't be able to diagnose why without adding logging. Fix: emit ScriptOutput with both stdout AND stderr visible, or log stderr at warn level when exit code \\!= 0.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:46Z",
+  "closed_at": "2026-04-20T01:27:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:04"
+    }
+  ]
+}

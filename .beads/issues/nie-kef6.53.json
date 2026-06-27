@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.53",
+  "title": "SUBSCRIPTION_PRICE_ZATOSHI=0 allows any payment to activate subscription",
+  "description": "main.rs does not validate that subscription_price_zatoshi > 0. If SUBSCRIPTION_PRICE_ZATOSHI=0 is set, every invoice has amount_zatoshi=0. In scan_block(), the check 'if value_zatoshi < invoice.amount_zatoshi' becomes 'if value_zatoshi < 0' which is never true for u64. Any output to the invoice address \u2014 including a zero-value or dust output \u2014 satisfies the payment check and activates the subscription for free. Fix: add 'anyhow::ensure!(subscription_price_zatoshi > 0, ...)' in main.rs after parsing SUBSCRIPTION_PRICE_ZATOSHI.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:36:59Z",
+  "closed_at": "2026-04-25T00:36:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:51"
+    }
+  ]
+}

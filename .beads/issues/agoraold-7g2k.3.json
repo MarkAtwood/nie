@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-7g2k.3",
+  "title": "SEC6: PubId only derived via verify_challenge()",
+  "description": "Single point of derivation: verify_challenge() in auth.rs line 42 is the only place PubId can be constructed. This enforces that every user identity must be backed by cryptographic proof. The relay enforces this invariant at ws.rs:311 before accepting user operations. Prevents identity spoofing at the protocol boundary.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:15:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:03Z",
+  "closed_at": "2026-04-23T00:22:46Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:45"
+    }
+  ]
+}

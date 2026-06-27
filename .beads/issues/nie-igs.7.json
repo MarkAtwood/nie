@@ -1,0 +1,25 @@
+{
+  "id": "nie-igs.7",
+  "title": "MaybeUninit dummy params for error-path tests: correct and the right trade-off",
+  "description": "Error-path tests that fire before builder.build() (NoSpendableNotes, DustAmount, etc.) use an uninitialized MaybeUninit<(SpendParameters, OutputParameters)> and assume_init_ref() to avoid depending on the 48MB Sapling params files. The safety argument holds: MaybeUninit<T> has no Drop impl, so no destructor UB; assume_init_ref() creates a reference that is never used to access any field or call any method before the early return. Rejected alternatives: (a) skip-if-no-params \u2014 creates a false runtime dependency on 48MB files for logic that tests zero proof code; (b) unsafe zeroed() \u2014 Arc fields in params would crash on drop because the refcount pointer would be null/invalid. A contributor seeing 'unsafe' here might suggest 'just use Option' (wrong: the signature requires &(SpendParameters, OutputParameters)) or 'download the files' (wrong: 48MB downloads in unit tests are not acceptable).",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:25:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T01:30:57Z",
+  "closed_at": "2026-04-19T01:30:57Z",
+  "close_reason": "decision records documented in beads; no code change required",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 18:25:31"
+    }
+  ]
+}

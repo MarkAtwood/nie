@@ -1,0 +1,26 @@
+{
+  "id": "nie-uvy.4",
+  "title": "generate_fresh_address: Result<String, PaymentAction> uses Err as a business response",
+  "description": "generate_fresh_address returns Result<String, PaymentAction>. The Err variant carries PaymentAction::Unknown{...} \u2014 not an error in the Rust sense (unexpected failure) but the actual response to send to the payer. The caller does: Err(unknown) => return send_payment_message(session_id, unknown, ...). Using Err to carry a business response inverts the idiomatic meaning of Result::Err. Suggested rewrite: return an enum or a newtype that makes the two paths explicit. For example: enum AddressResult { Address(String), SendUnknown(PaymentAction) }. Alternatively, return Ok(Either<String, PaymentAction>). The current pattern compiles and works, but any future contributor seeing Result<String, PaymentAction> will assume Err means 'something went wrong' and treat it with ? propagation, which would incorrectly silence the Unknown reply.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T02:06:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T02:17:56Z",
+  "closed_at": "2026-04-19T02:17:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 19:06:54"
+    }
+  ]
+}

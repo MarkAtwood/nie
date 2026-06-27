@@ -1,0 +1,21 @@
+{
+  "id": "nie-nttk.2",
+  "title": "bridge-jmap: Reconnected event ignored; HPKE/key-package not republished after relay restart",
+  "description": "In bridge-jmap/src/bridge.rs, the main event loop handles ClientEvent::Reconnecting (logs) and ClientEvent::Disconnected (breaks), but there is no arm for ClientEvent::Reconnected:\n\n  ClientEvent::Reconnecting { delay_secs } => {\n      tracing::info!(\"relay reconnecting in {delay_secs}s\");\n  }\n  ClientEvent::Disconnected => {\n      tracing::error!(\"relay disconnected\");\n      break;\n  }\n  _ => {}   // <-- Reconnected silently falls here\n\nThe relay clears HPKE key and MLS key package slots on restart. daemon/relay.rs correctly calls republish_keys() on ClientEvent::Reconnected. The bridge does not.\n\nAfter a relay restart:\n1. The bridge reconnects (connect_with_retry handles this).\n2. No HPKE public key is published -- peers cannot send sealed messages to the bridge.\n3. No MLS key package is published -- the bridge cannot be added to MLS groups.\n4. Existing BROADCAST group messages are received but cannot be decrypted (no group state reset either).\n\nThe bridge effectively becomes invisible to other clients after any relay restart.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:40:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:50:11Z",
+  "closed_at": "2026-04-26T10:50:11Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:40:05"
+    }
+  ]
+}

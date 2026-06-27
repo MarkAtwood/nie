@@ -1,0 +1,17 @@
+{
+  "id": "nie-tb8e",
+  "title": "Review: relay/daemon/cli/mls round 22",
+  "notes": "Maintainer risk: HIGH — Four P0 correctness bugs found across the payment subsystem and daemon event dispatch. The diversifier-before-invoice ordering and the stream exhaustion/error conflation affect the payment flow. The no-store MessageRetracted event and handle_send UUID fallback affect daemon contract correctness. Several P1 risks involve lock scope, missing field in public event types, and unbounded query results.\nConfidence: 25% chance of missed bug. Uncertainty driven by: (1) ws.rs not fully read — only the SUBSCRIBE_REQUEST and alloc_subscription_address sections were reviewed; (2) payment_watcher block-stream behavior depends on LightwalletdClient stream semantics which were not read; (3) MLS process_for_group sender_pub_id for Commit path (nie-s4qr.8 overlap) not fully re-examined. Would raise confidence if: full ws.rs relay handler read (it is the largest file), test coverage for payment_watcher stream exhaustion vs error paths, and LightwalletdClient stream interface read to confirm Ok(None) semantics.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:35:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-t8j0.6",
+  "title": "transport: ws:// in production silently sends unencrypted traffic with no warning",
+  "description": "open_authenticated_ws() accepts ws:// URLs without warning. The TLS Connector is only applied for wss:// URLs; for ws:// it is a no-op and all traffic goes in cleartext. The accept_invalid_certs flag is warned on, but an operator setting relay_url=ws://... in production gets no warning. This is a footgun: the relay may be accessible over ws:// for local testing but that setting leaks message content. At minimum, warn at the tracing level when a non-localhost ws:// URL is used.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:34:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:34:22Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:34:22"
+    }
+  ]
+}

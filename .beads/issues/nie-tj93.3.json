@@ -1,0 +1,26 @@
+{
+  "id": "nie-tj93.3",
+  "title": "remove_member_and_maybe_delete_group has redundant DELETE group_members when count=0",
+  "description": "store.rs remove_member_and_maybe_delete_group (~line 1021): after deleting the specific (group_id, pub_id) row at line 1027 and confirming remaining==0 at line 1032, the code issues a second DELETE FROM group_members WHERE group_id=?1 at line 1038 before deleting the group row. Since remaining==0 was just confirmed within the transaction, this second DELETE always affects 0 rows (it is dead code). More importantly, if this logic were ever adjusted (e.g. to a DEFERRED transaction that misses a concurrent insert), the second DELETE would silently purge a newly added member. The fix is to remove the redundant DELETE at line 1038-1041; the first DELETE at line 1027 is sufficient, and the group DELETE at line 1042 is the correct next step.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:55:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:10Z",
+  "closed_at": "2026-04-25T02:08:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:55:03"
+    }
+  ]
+}

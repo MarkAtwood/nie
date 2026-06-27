@@ -1,0 +1,26 @@
+{
+  "id": "nie-u966.12",
+  "title": "relay event: deliver path sends ClearMessage even when MLS active",
+  "description": "daemon/src/relay.rs dispatch_notification: the DELIVER arm accepts a ClearMessage::Chat payload from the relay and broadcasts it as a MessageReceived event. This path carries unencrypted text in the relay protocol. When MLS is active, the relay should only carry BROADCAST (encrypted) messages; the DELIVER path is the pre-MLS plaintext channel. If both paths are active simultaneously, a client that receives via DELIVER sees unencrypted messages and never knows MLS was bypassed. The daemon does not gate DELIVER handling on mls_active. Trigger: any MLS-capable daemon connected to a relay that still routes plaintext DELIVER. Fix: when mls_client is set and an MLS group is established, reject or warn on DELIVER payloads that are valid ClearMessage::Chat (they should have arrived as BROADCAST/MLS).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:50:36Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:37:01Z",
+  "closed_at": "2026-04-26T05:37:01Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:50:36"
+    }
+  ]
+}

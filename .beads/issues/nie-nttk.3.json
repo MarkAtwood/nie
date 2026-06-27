@@ -1,0 +1,21 @@
+{
+  "id": "nie-nttk.3",
+  "title": "bridge-jmap: BROADCAST messages silently ignored; MLS group chat invisible to bridge",
+  "description": "In bridge-jmap/src/bridge.rs, the relay event handler only processes ClientEvent::Message notifications where notif.method == rpc_methods::DELIVER:\n\n  ClientEvent::Message(notif) => {\n      if notif.method == rpc_methods::DELIVER {\n          handle_nie_deliver(...).await;\n      }\n      // BROADCAST is not handled\n  }\n\nBROADCAST is the method used for MLS-encrypted group messages (the primary message type once a group is established). The bridge completely ignores all BROADCAST notifications. This means:\n\n1. Any group chat message (the standard MLS-encrypted path) is silently dropped by the bridge -- it never reaches JMAP.\n2. Only legacy DELIVER messages (unencrypted peer-to-peer) are forwarded.\n\nIf the relay session has an MLS group active (which daemon.rs encourages), the bridge forwards nothing. This is a correctness bug: the bridge claims to forward nie chat to JMAP but silently drops the majority of traffic when MLS is in use.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:41:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:50:18Z",
+  "closed_at": "2026-04-26T10:50:18Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:41:09"
+    }
+  ]
+}

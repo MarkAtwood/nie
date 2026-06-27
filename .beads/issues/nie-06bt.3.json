@@ -1,0 +1,28 @@
+{
+  "id": "nie-06bt.3",
+  "title": "space_set Phase 2: server-error atomicity gap left unfixed and untracked",
+  "description": "Scenario: update_space_props succeeds (name is written) then a subsequent apply_member_patch returns a store/DB error. The name change is persisted but notUpdated is returned to the client. RFC 8620 \u00a77.1 violation \u2014 partial write on server errors. The code comment at jmap.rs:1157 explicitly documents this as a known limitation and defers the fix. Maintenance consequence: if a user files a bug report ('I got an error but my space name changed'), the maintainer must remember this comment. The fix (a combined SQLite transaction) is described in the comment but not tracked anywhere. File a separate issue so this does not disappear into the diff.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:54:53Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T04:08:17Z",
+  "closed_at": "2026-04-24T04:08:17Z",
+  "close_reason": "Converted to tracked work item nie-cs9j for future fix; the review child's purpose was to ensure this doesn't disappear, which it now won't",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 20:54:53"
+    }
+  ]
+}

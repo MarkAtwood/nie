@@ -1,0 +1,27 @@
+{
+  "id": "nie-ld0c.6",
+  "title": "bridge-matrix: hs_token constant-time compare leaks length via short-circuit",
+  "description": "as_transaction (bridge.rs:151-153) does expected.len() == provided.len() && bool::from(expected.ct_eq(provided)). The length check short-circuits before ct_eq: an attacker probing tokens of different lengths gets a faster rejection than tokens of the correct length. Length is leaked in timing. The hs_token is a random bearer token; timing on length narrows brute-force from all-lengths to a single length. Use a crate-level constant-time comparison that handles unequal lengths internally (e.g. subtle::ct_eq on zero-padded inputs, or ring::constant_time::verify_slices_are_equal).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:44:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:48:17Z",
+  "closed_at": "2026-04-26T04:48:17Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:44:52"
+    }
+  ]
+}

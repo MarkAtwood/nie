@@ -1,0 +1,26 @@
+{
+  "id": "nie-qdlu.10",
+  "title": "build_shielded_tx anchor_height precondition unenforced: wrong height causes cryptic proof failure",
+  "description": "build_shielded_tx doc states anchor_height must equal WalletStore::scan_tip(), not note.block_height. There is no runtime enforcement: a caller passing note.block_height (the natural mistake) will get AnchorMismatch or a cryptic builder error from the prover, not a clear diagnostic. The current callers in payment.rs read scan_tip() correctly, but this is load-bearing implicit caller discipline. Fix: accept anchor_height from the call site but assert it matches the first witness's computed root at the tree's expected height, or at minimum add a debug_assert comparing anchor_height to scan_tip() when a WalletStore reference is available.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:42:07Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:55:34Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:42:06"
+    }
+  ]
+}

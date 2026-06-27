@@ -1,0 +1,33 @@
+{
+  "id": "nie-0tvc.7",
+  "title": "nie-daemon WebSocket: /ws/events event stream to browser",
+  "description": "**What:** Implement GET /ws/events WebSocket endpoint that authenticates browser clients and streams DaemonEvents as JSON text frames.\n\n**Algorithm:**\n1. Create daemon/src/ws.rs (daemon-side WS, not relay-side):\n2. async fn handle_ws_events(ws: WebSocketUpgrade, State(state): State<DaemonState>, headers: axum::http::HeaderMap) -> impl IntoResponse:\n   a. Extract headers.get('Authorization') \u2192 Option<&HeaderValue>\n   b. let auth_ok = header.and_then(|v| v.to_str().ok()).map(|s| state.validate_token(s)).unwrap_or(false)\n   c. if !auth_ok: return StatusCode::UNAUTHORIZED.into_response()\n   d. ws.on_upgrade(move |socket| ws_client_loop(socket, state))\n3. async fn ws_client_loop(socket: axum::extract::ws::WebSocket, state: DaemonState):\n   a. let mut events_rx = state.events_tx().subscribe()  // broadcast::Receiver\n   b. let (mut sink, mut stream) = socket.split()\n   c. loop { tokio::select!:\n      - biased; event = events_rx.recv() => { match event:\n           Ok(e) \u2192 let json = serde_json::to_string(&e).unwrap(); if sink.send(Message::Text(json.into())).await.is_err() { break; }\n           Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) \u2192 warn!('ws client lagged {} events', n); continue\n           Err(Closed) \u2192 break\n         }\n      - msg = stream.next() => { match msg:\n           Some(Ok(Message::Close(_))) \u2192 break\n           Some(Err(e)) \u2192 warn!('ws client error: {e}'); break\n           None \u2192 break\n           _ \u2192 { }  // ping/pong/text ignored (browser-to-daemon not needed)\n         }\n      }\n4. Register: .route('/ws/events', get(handle_ws_events))\n5. NOTE: The auth middleware set up in W1-A via ValidateRequestHeaderLayer does NOT cover WebSocket upgrades automatically (tower-http validate-request may not intercept WS upgrades); we do manual token check in handler as above\n\n**Defensive programming rules:**\n- Token check BEFORE on_upgrade() \u2014 reject unauthenticated connections before handshake\n- Lagged receiver: warn and continue (don't disconnect on lag)\n- Sink send Err \u2192 break cleanly, no error log flood\n- serde_json::to_string on derived Serialize cannot fail \u2014 unwrap() is documented\n- Never send key material in events (DaemonEvent types already have no key fields per W0-B)\n\n**Agent team:** Implementer (reads relay/src/ws.rs for WebSocket split/select pattern) + Validator.\n\n**Tests (oracle: WebSocket JSON frame content matches DaemonEvent serde output):**\n- test_ws_no_auth: connect without token \u2192 HTTP 401, no WS upgrade\n- test_ws_wrong_auth: connect with 'Bearer wrong' \u2192 HTTP 401\n- test_ws_event_arrives: connect with valid token; broadcast MessageReceived via state; receive matching JSON frame within 1s\n- test_ws_lagged_client_stays_connected: overflow broadcast channel; verify client not disconnected (just warns)",
+  "acceptance_criteria": "cargo test -p nie-daemon passes including WS auth tests; cargo clippy -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:39:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T23:54:02Z",
+  "close_reason": "/ws/events WebSocket handler implemented; token auth tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:05"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:39:56"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:06"
+    }
+  ]
+}

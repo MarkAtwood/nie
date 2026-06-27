@@ -1,0 +1,19 @@
+{
+  "id": "nie-5r5",
+  "title": "Review: sync_guard + 7 commits",
+  "notes": "Maintainer risk: LOW — the critical issues (dead code, wrong doc) are purely internal and don't affect users. The MAX_SYNC_LAG doc is the only user-visible risk. The core payment stack is solid.\nConfidence: 92% chance of no missed bug. The sync_guard logic is simple arithmetic; the tests cover all branches including the reorg edge case (chain_tip \u003c scan_tip). Uncertainty: happy_path payment test is still params-gated and skips in CI without sapling-spend.params.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T05:10:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T05:22:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

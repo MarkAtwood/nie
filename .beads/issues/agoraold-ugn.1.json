@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-ugn.1",
+  "title": "PaymentAction::Sent notification lost; session stuck in Sent forever",
+  "description": "Trigger A: broadcast succeeds and session is persisted as Sent, then the relay mpsc channel closes before send_payment_message(PaymentAction::Sent) delivers \u2192 dispatch_payment returns false, loop breaks. Trigger B: MLS encryption fails inside send_payment_message (returns true, silently drops the message). In both cases: payer is in Sent state in DB with a real txid; payee is stuck in AddressProvided. On reconnect, resync_sessions handles Payer/Requested and Payee/AddressProvided only \u2014 Payer/Sent is the _ => continue arm. The Sent notification is never retransmitted. Both sessions time out at 24h with no error. The zatoshi left the wallet; the session never reaches Confirmed.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:12:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:38Z",
+  "closed_at": "2026-04-19T03:30:27Z",
+  "close_reason": "Added Payer/Sent arm to resync_sessions; added retransmits and skipped-no-tx-hash tests",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:12:54"
+    }
+  ]
+}

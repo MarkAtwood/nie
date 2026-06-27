@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.36",
+  "title": "decrypt_keyfile returns plain [u8;64]; seed not zeroized on caller stack",
+  "description": "decrypt_keyfile returns a plain [u8; 64] array. In load_identity, 'let seed = decrypt_keyfile(...)?' binds secret key material to an unzeroized stack variable. After Identity::from_secret_bytes(&seed) returns, seed is dropped without being zeroed, leaving the 64-byte secret seed in memory. The Zeroizing<Vec<u8>> wrapper inside decrypt_keyfile zeroizes the age plaintext buffer, but the copy returned to callers is unprotected. Fix: change return type to Zeroizing<[u8; 64]> or Zeroizing<Vec<u8>>.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:21:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:34:40Z",
+  "closed_at": "2026-04-25T00:34:40Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:21:35"
+    }
+  ]
+}

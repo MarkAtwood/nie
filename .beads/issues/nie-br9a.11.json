@@ -1,0 +1,23 @@
+{
+  "id": "nie-br9a.11",
+  "title": "SaplingIvkDecryptor missing: no way to derive SaplingIvkDecryptor from wallet key API",
+  "description": "scanner.rs SaplingIvkDecryptor::new takes a raw &[u8; 32] IVK scalar. address.rs SaplingDiversifiableFvk::ivk_bytes() returns Zeroizing<[u8; 32]>. These two are compatible but there is no public bridge: SaplingIvkDecryptor::new(&*dfvk.ivk_bytes()) is the correct call but this is not documented anywhere. A user of the library must independently discover both APIs and know the format. The only test using SaplingIvkDecryptor is in scanner.rs and it uses NullDecryptor in all integration paths. There is no test that wires dfvk.ivk_bytes() -> SaplingIvkDecryptor and actually finds a note.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:04:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:04:09Z",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:04:10"
+    }
+  ]
+}

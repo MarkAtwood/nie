@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-7xs.4",
+  "title": "MLS Commit arrives before Welcome: garbage displayed on join",
+  "description": "Trigger: Admin adds B via add_member(), broadcasts Commit, then whispers Welcome to B. B receives the Commit (as a Deliver broadcast) before the Welcome arrives (as WhisperDeliver). At the time B receives the Commit, mls_active=false. The code path (commands.rs:303-304) does payload.clone() -- the raw TLS-serialized MLS Commit bytes -- and then prints them via String::from_utf8_lossy as the message body. B sees unreadable binary garbage attributed to the admin's pub_id in their terminal, then the Welcome arrives and mls_active=true for subsequent messages. This is not a security issue but is confusing UX with no indication to B that a protocol join is in progress. The fix is to buffer or silently drop pre-join Deliver messages when mls_active=false.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:58:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:00Z",
+  "closed_at": "2026-04-16T09:04:10Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:58:47"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "nie-wneu",
+  "title": "Direct messages (1:1 whisper conversations)",
+  "description": "Expose the existing Whisper/WhisperDeliver relay primitives as a user-facing DM feature. The relay routing is already implemented; the work is one relay fix, MLS 2-party group setup, and client conversation management.\n\n## Relay fix (one line)\nWhispers to offline recipients are currently silently dropped. ws.rs handles Whisper with deliver_live() only \u2014 no enqueue() call. Fix: add store.enqueue(to, WhisperDeliver{from, payload}) when deliver_live() finds the recipient offline (same pattern as Broadcast offline queueing).\n\n## MLS 2-party setup\nBefore the first DM can be sent, sender and recipient need a shared MLS group:\n1. Sender fetches recipient KeyPackage via GetKeyPackage (already works)\n2. Sender creates 2-party MLS group, generates Commit + Welcome\n3. Sender sends Welcome to recipient via Whisper (already works \u2014 this is the existing MLS welcome flow)\n4. Both sides now share an MLS epoch; DMs are encrypted ClearMessage::Chat payloads inside Whisper\n\nPhase 1 (pre-MLS): DMs are plaintext ClearMessage::Chat inside Whisper, same as current broadcast. Upgrade to MLS-encrypted automatically once nie-t4t lands.\n\n## Client changes\n- New ClearMessage variant or reuse ClearMessage::Chat \u2014 the payload is identical to a broadcast chat message, just routed point-to-point via Whisper instead of Broadcast\n- Conversation model: maintain a per-peer message history (separate from the room log)\n- CLI: /dm <handle> <text> \u2014 send a DM; or /dm <handle> to open a DM session\n- TUI: separate DM thread pane or tab per peer\n- Notifications: distinguish DM delivery from room messages in all clients\n\n## What the relay does NOT need\n- No new DB tables (whispers use existing offline queue)\n- No new message types (Whisper/WhisperDeliver already exist)\n- No routing changes (deliver_live already handles it)\n\n## Dependencies\n- nie-hlns (JSON-RPC protocol) \u2014 DM client implements Whisper over the updated protocol",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:46:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T21:35:32Z",
+  "close_reason": "all steps complete",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:46:43"
+    }
+  ]
+}

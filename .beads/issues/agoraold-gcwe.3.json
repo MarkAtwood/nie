@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.3",
+  "title": "socks5_helper: oneshot fires before relay connect succeeds",
+  "description": "In relay/tests/socks5_helper.rs, the oneshot sender fires (line 85: 'let _ = tx.send(())') to signal 'CONNECT received' BEFORE the helper attempts to connect to the actual relay target (line 88: TcpStream::connect(&target_addr)).\n\nIf the relay connect fails, the spawned task panics (line 90: unwrap_or_else panic), but the oneshot has already sent Ok(()). The e2e_proxy test asserts:\n\n    match tokio::time::timeout(Duration::from_secs(2), connect_rx).await {\n        Ok(Ok(())) => {} // proxy confirmed CONNECT was received\n\nThis assertion can be satisfied even if the proxy failed to forward traffic. The overall transport::connect() call would still return Err in that case (since the WebSocket upgrade would fail), so the test's primary assertion (result.is_ok()) would catch it \u2014 but the 'proxy was actually used' assertion is weaker than it appears.\n\nThe fix is to fire the oneshot after the relay TCP connect succeeds, before the success reply is sent to the client. This tightens the happens-before guarantee the test relies on.\n\nFile: relay/tests/socks5_helper.rs, around line 85.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:26Z",
+  "closed_at": "2026-04-19T19:31:31Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:31"
+    }
+  ]
+}

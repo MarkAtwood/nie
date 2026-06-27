@@ -1,0 +1,38 @@
+{
+  "id": "agoraold-th7.6",
+  "title": "ws.rs: GROUP_CREATE, GROUP_LIST, GROUP_LEAVE handlers",
+  "description": "What: Add three relay WebSocket handlers in relay/src/ws.rs.\n\nGROUP_CREATE:\n1. Parse GroupCreateParams\n2. Check subscription gate (if require_subscription)\n3. group_id = Uuid::new_v4().to_string()\n4. store.create_group(group_id, pub_id.0, name).await\n5. store.add_group_member(group_id, pub_id.0).await  -- creator is first member\n6. Return GroupCreateResult { group_id, name }\n\nGROUP_LIST:\n1. store.list_groups_for_user(pub_id.0).await\n2. For each group: store.member_count(group_id).await\n3. Return GroupListResult { groups: Vec<GroupInfo> }\n\nGROUP_LEAVE:\n1. Parse GroupLeaveParams { group_id }\n2. store.is_group_member(group_id, pub_id.0).await \u2192 if false return NOT_A_MEMBER error\n3. store.remove_group_member(group_id, pub_id.0).await\n4. If store.member_count(group_id).await == 0: store.delete_group(group_id).await\n5. Return OkResult { ok: true }\n\nDefensive rules:\n- Subscription gate check before any store operation\n- Verify group exists (get_group returns Some) before GROUP_LEAVE\n- NOT_A_MEMBER error code (-32012) when caller not in group\n- GROUP_NOT_FOUND error code (-32011) when group does not exist\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-relay passes; e2e test: create \u2192 list shows 1 group; leave \u2192 list shows 0 groups; leave non-member returns NOT_A_MEMBER error",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:51:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:07:56Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:40"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:38"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:51:22"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:39"
+    }
+  ]
+}

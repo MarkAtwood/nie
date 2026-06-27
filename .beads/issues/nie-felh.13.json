@@ -1,0 +1,26 @@
+{
+  "id": "nie-felh.13",
+  "title": "Payment session state machine lacks transition validation",
+  "description": "event.rs lines 626-670 handle PaymentAction events but don't validate state transitions. A malicious peer could send out-of-order actions (Confirmed before Sent, multiple Cancelled, etc.) and corrupt session state. No invariant prevents invalid transitions. Payment state machine needs explicit transition guards or enum variants to prevent invalid intermediate states.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:00:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T04:08:21Z",
+  "closed_at": "2026-04-20T04:08:21Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:00:15"
+    }
+  ]
+}

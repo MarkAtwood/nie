@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-sy6s.3",
+  "title": "DB migration: guild_states/channel_states/members tables in store.rs",
+  "description": "What: Add new SQLite tables for guild/channel state model to relay/src/store.rs.\n\nAlgorithm:\n1. Read /home/mark/PROJECT/Agora/relay/src/store.rs \u2014 find Store::new() and the existing CREATE TABLE IF NOT EXISTS blocks\n2. After the existing tables (users, subscriptions, key_packages, hpke_keys, offline_messages, groups, group_members), add:\n\n   a) guild_states table:\n      guild_cid TEXT PRIMARY KEY,  -- CIDv1 of genesis GuildState\n      guild_name TEXT NOT NULL,\n      owner_did TEXT NOT NULL,\n      created_by TEXT NOT NULL,\n      state_json TEXT NOT NULL,    -- full signed GuildState JSON\n      seq INTEGER NOT NULL DEFAULT 0,\n      created_at TEXT NOT NULL DEFAULT (datetime('now')),\n      updated_at TEXT NOT NULL DEFAULT (datetime('now'))\n\n   b) guild_members table:\n      guild_cid TEXT NOT NULL,\n      member_did TEXT NOT NULL,\n      joined_at TEXT NOT NULL DEFAULT (datetime('now')),\n      PRIMARY KEY (guild_cid, member_did)\n\n   c) guild_admins table:\n      guild_cid TEXT NOT NULL,\n      admin_did TEXT NOT NULL,\n      granted_at TEXT NOT NULL DEFAULT (datetime('now')),\n      PRIMARY KEY (guild_cid, admin_did)\n\n   d) channel_states table:\n      channel_cid TEXT PRIMARY KEY,  -- CIDv1 of genesis ChannelState\n      guild_cid TEXT NOT NULL,\n      channel_path TEXT NOT NULL,\n      channel_name TEXT NOT NULL,\n      channel_type TEXT NOT NULL,   -- 'text', 'voice', 'category'\n      mode TEXT NOT NULL,           -- 'interactive', 'community', 'broadcast'\n      mls_group_id TEXT,            -- null for broadcast channels\n      state_json TEXT NOT NULL,     -- full signed ChannelState JSON\n      seq INTEGER NOT NULL DEFAULT 0,\n      created_at TEXT NOT NULL DEFAULT (datetime('now')),\n      updated_at TEXT NOT NULL DEFAULT (datetime('now'))\n      CREATE UNIQUE INDEX idx_channel_path ON channel_states(guild_cid, channel_path)\n\n   e) channel_members table:\n      channel_cid TEXT NOT NULL,\n      member_did TEXT NOT NULL,\n      joined_at TEXT NOT NULL DEFAULT (datetime('now')),\n      PRIMARY KEY (channel_cid, member_did)\n\n   f) mls_group_mapping table:\n      mls_group_id TEXT PRIMARY KEY,\n      channel_cid TEXT NOT NULL,\n      created_at TEXT NOT NULL DEFAULT (datetime('now'))\n\n3. Add these Store methods (new impl block or same impl block):\n\n   pub async fn create_guild(&self, guild_cid: &str, owner_did: &str, created_by: &str, name: &str, state_json: &str) -> Result<()>\n   pub async fn get_guild(&self, guild_cid: &str) -> Result<Option<String>>  -- returns state_json\n   pub async fn list_guilds_for_member(&self, member_did: &str) -> Result<Vec<String>>  -- returns guild_cids\n   pub async fn add_guild_member(&self, guild_cid: &str, member_did: &str) -> Result<()>\n   pub async fn remove_guild_member(&self, guild_cid: &str, member_did: &str) -> Result<()>\n   pub async fn is_guild_member(&self, guild_cid: &str, member_did: &str) -> Result<bool>\n   pub async fn add_guild_admin(&self, guild_cid: &str, admin_did: &str) -> Result<()>\n   pub async fn is_guild_admin(&self, guild_cid: &str, admin_did: &str) -> Result<bool>\n   pub async fn create_channel(&self, channel_cid: &str, guild_cid: &str, path: &str, name: &str, channel_type: &str, mode: &str, mls_group_id: Option<&str>, state_json: &str) -> Result<()>\n   pub async fn get_channel_by_path(&self, guild_cid: &str, path: &str) -> Result<Option<String>>  -- returns state_json\n   pub async fn list_channels(&self, guild_cid: &str) -> Result<Vec<String>>  -- returns channel_cids\n   pub async fn register_mls_group(&self, mls_group_id: &str, channel_cid: &str) -> Result<()>\n\nDefensive rules:\n- All INSERT use INSERT OR IGNORE to be idempotent\n- All queries parameterized (, , ...) \u2014 never string-interpolate user input\n- No unwrap(); all sqlx errors propagated via ?\n\nAfter changes run: cargo check -p agora-relay 2>&1\nReport: pass/fail and list of new table names + new method signatures.",
+  "acceptance_criteria": "cargo check -p agora-relay exits 0; all 6 new tables present in Store::new(); all new Store methods compile",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:39:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:50:37Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:39:32"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:40"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.40",
+  "title": "FileHeader.total_chunks has no upper bound; resource exhaustion via large value",
+  "description": "messages.rs FileHeader accepts total_chunks: u32 with no upper limit. A malicious peer can send total_chunks: 4294967295, causing the receiver to wait for billions of FileChunk messages that never arrive. If the receiver pre-allocates based on total_chunks (e.g. a Vec with capacity), this also causes an OOM. No validation rejects an implausibly large chunk count relative to size_bytes. Fix: add a deserializer or post-deserialization check that rejects total_chunks > some reasonable ceiling (e.g. ceil(size_bytes / MIN_CHUNK_SIZE)) or a hard cap.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:22:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:35:30Z",
+  "closed_at": "2026-04-25T00:35:30Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:22:04"
+    }
+  ]
+}

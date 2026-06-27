@@ -1,0 +1,26 @@
+{
+  "id": "nie-lflg.3",
+  "title": "PaymentAction: address, tx_hash, reason are unbounded strings",
+  "description": "PaymentAction::Address.address, Sent.tx_hash, Unknown.reason, and Cancelled.reason are all bare String fields with no serde length guard. PaymentAction travels inside MLS-encrypted payloads, so any MLS peer can trigger this. Trigger: send PaymentAction::Address with address set to a multi-MiB string. Bad outcome: unbounded heap allocation in the receiver before any application-layer check runs. Confirmed.tx_hash is also unguarded.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:18:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:02:19Z",
+  "closed_at": "2026-04-25T07:02:19Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:18:27"
+    }
+  ]
+}

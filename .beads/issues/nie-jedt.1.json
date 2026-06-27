@@ -1,0 +1,21 @@
+{
+  "id": "nie-jedt.1",
+  "title": "bot: BotCommand::Send sends unpadded payload \u2014 interop broken with CLI receiver",
+  "description": "bot/src/main.rs handle_command() BotCommand::Send serializes ClearMessage::Chat with serde_json::to_vec() but does NOT call pad(). The CLI receiver (commands.rs:1165) calls unpad() on every DELIVER payload; an unpadded payload fails unpad() and the message is silently dropped with 'DELIVER unpad failed' warning. Both ffi/src/api/client.rs encode_chat_payload() and wasm/src/client.rs build_payload() correctly call pad(). The bot self-test (run_self_test) also skips pad() but then reads back with from_slice() not unpad(), so it passes while masking the interop failure. Impact: messages sent from nie-bot are invisible to nie-cli recipients.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:54:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:59:51Z",
+  "closed_at": "2026-04-26T10:59:51Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:54:37"
+    }
+  ]
+}

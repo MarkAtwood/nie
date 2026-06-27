@@ -1,0 +1,22 @@
+{
+  "id": "nie-33d",
+  "title": "Wallet seed encrypted storage",
+  "description": "Encrypt the ZIP-32 master key (not the mnemonic) using argon2id KDF + XChaCha20-Poly1305 AEAD, same scheme as identity.key passphrase. Store at data_dir/wallet.key. Key is separate file from identity.key. Passphrase prompted at startup, cached in memory only for session duration.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:43:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T03:10:05Z",
+  "close_reason": "wallet.key encrypted with age (64 bytes spending_key||chain_code); paranoid write-verify in wallet_init and wallet_restore",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:44:09"
+    }
+  ]
+}

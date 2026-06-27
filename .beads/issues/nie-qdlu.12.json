@@ -1,0 +1,24 @@
+{
+  "id": "nie-qdlu.12",
+  "title": "scan_block clones entire witness map per block \u2014 O(N) deep clone in scan hot path",
+  "description": "scanner.rs scan_block lines 404-405: tree_snapshot = self.tree.clone() and witnesses_snapshot = self.witnesses.clone() deep-clone the entire witness HashMap before each block. Each IncrementalWitness<sapling::Node, 32> is ~1KB (32 levels \u00d7 32 bytes). With 1000 unspent notes this is ~1MB of cloning per block, in the scan hot path. Blocks arrive at 75s intervals on mainnet, making this workload ~800 KB/min in steady state, but during initial sync (downloading years of blocks at network speed) this blows up. The snapshot is only needed if save_block_state fails. Consider copy-on-write or a dirty-flag approach: only snapshot when save_block_state actually fails, or batch witness updates in a shadow map and swap atomically.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:44:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:14Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:44:13"
+    }
+  ]
+}

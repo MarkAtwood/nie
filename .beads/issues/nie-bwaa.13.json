@@ -1,0 +1,26 @@
+{
+  "id": "nie-bwaa.13",
+  "title": "Space/queryChanges enumerates entire collection every call",
+  "description": "space_query_changes and message_query_changes enumerate all items to reconstruct the 'added' list on every call when state has changed. There is no delta tracking. For a relay with many spaces or message history, this is O(n) per poll, and clients that poll frequently will generate repeated full scans. canCalculateChanges: false is correct and honest, but the handler still builds the full added array each time. This is acceptable for Phase 4 scale but will not survive a multi-tenant deployment. Track new IDs incrementally in the store instead of reconstructing.",
+  "status": "deferred",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:48:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:06:41Z",
+  "defer_until": "2026-06-01T00:00:00Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:48:47"
+    }
+  ]
+}

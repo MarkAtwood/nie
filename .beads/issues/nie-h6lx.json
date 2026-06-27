@@ -1,0 +1,14 @@
+{
+  "id": "nie-h6lx",
+  "title": "fix: subscription error code NOT_AUTHENTICATED→SUBSCRIPTION_REQUIRED",
+  "description": "Three locations in ws.rs returned -32002 (NOT_AUTHENTICATED) when the client lacked a subscription. Fixed to -32010 (SUBSCRIPTION_REQUIRED).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:54:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:55:09Z",
+  "closed_at": "2026-04-24T21:55:09Z",
+  "close_reason": "Closed"
+}

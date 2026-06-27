@@ -1,0 +1,19 @@
+{
+  "id": "nie-kzsp",
+  "title": "Review: contact_query invalidArguments names offending field",
+  "notes": "Maintainer risk: LOW — correct fix applied; one pattern inconsistency found (method_error vs inline). Tests now verify description field names the offending field, which is the core correctness goal.\nConfidence: 5% chance of missed bug. Uncertainty driven by: not reading the full contact_query flow to check other argument validation paths. Would raise confidence if: grep all invalidArguments returns in contact_query and verify each names the offending field or that naming is not applicable (e.g. missing required field errors).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T17:01:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T17:03:03Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

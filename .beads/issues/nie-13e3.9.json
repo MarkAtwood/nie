@@ -1,0 +1,25 @@
+{
+  "id": "nie-13e3.9",
+  "title": "WalletStore::new migration: user_version read before transactions; race on fresh DB",
+  "description": "db.rs WalletStore::new() reads user_version once before all migration blocks: let version: i64 = sqlx::query_scalar(PRAGMA user_version).fetch_one(&pool). Each migration checks if version < N. If two processes open a brand-new DB simultaneously (version=0 in both reads) both will execute migration 1 through 8. CREATE TABLE IF NOT EXISTS is idempotent so the table creation does not error, but PRAGMA user_version = N is not transactional across processes \u2014 both processes will commit their transactions and the final user_version will be whichever commits last. In practice with SQLite WAL and max_connections=1 per process this is unlikely to cause data corruption, but the version read outside any lock means two concurrent openers can both believe they are running migration N and both set PRAGMA user_version = N after completing it, which is correct only because the migrations are idempotent. If a future migration is not idempotent (e.g. a data migration rather than DDL) this pattern will cause silent double-execution. This is nie-br9a.12 class. Trigger: two processes race to open the same wallet DB for the first time. Bad behavior: future non-idempotent migration executed twice.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:26:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:24:41Z",
+  "closed_at": "2026-04-26T06:24:41Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:02"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-felh.8",
+  "title": "Remove or justify blanket #![allow(dead_code)] in tui modules",
+  "description": "All three tui modules (app.rs, ui.rs, event.rs) have blanket #![allow(dead_code)] at the module level. This hides actual dead code that should be removed or justified. Dead code markers (/* scaffolding for Phase 4x */) should be used instead, allowing the compiler to warn about actual unused functions and fields.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:59:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:15Z",
+  "closed_at": "2026-04-20T04:08:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:59:57"
+    }
+  ]
+}

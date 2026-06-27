@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-3om.5",
+  "title": "params=None escape hatch in build_shielded_tx is a production footgun",
+  "description": "build_shielded_tx accepts params: Option<&(SpendParameters, OutputParameters)> with None meaning 'skip proof generation'. The doc says 'Production callers must always pass Some'. A new caller who copies the function signature and passes None will get ParamsNotLoaded at runtime with no compile-time guard. The test helper call_build_for_error passes None explicitly, which is the only legitimate use. Scenario that triggers the cost: a contributor adds a payment code path, copies the existing call site, accidentally passes None or wires it wrong, and gets a runtime error instead of a compile-time error. Maintenance consequence: every future call site must be audited for the None case; there is no type-system enforcement. An alternative that would eliminate this: a newtype ParamsRef that cannot be None, with test helpers using a separate test-only builder function that stops before the proof step.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:54:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:52Z",
+  "closed_at": "2026-04-19T04:06:39Z",
+  "close_reason": "Deliberate design: None is documented in send_payment doc comment as test-only; production callers must pass Some(params). The option is needed because SpendParameters has no Default and tests that exit before the proof step cannot construct a dummy.",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:54:39"
+    }
+  ]
+}

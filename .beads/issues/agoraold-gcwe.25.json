@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.25",
+  "title": "dispatch_payment has 13 arguments; #[allow] suppresses legitimate warning",
+  "description": "dispatch_payment in cli/src/commands.rs takes 13 arguments and carries #[allow(clippy::too_many_arguments)]. The allow is a code smell: the function has grown to hold the entire payment-dispatch context (wallet fvks, MLS state, session map, watch registry, send closure) because those contexts have no dedicated struct. A PaymentDispatchCtx struct holding the read-only references (wallet_fvks, nicknames, local_names, mls, send_fn, watch_registry) would reduce the argument count to a manageable set and make future additions to the payment subsystem cheaper. chat() has 8 arguments with the same suppress; it is less urgent because it is a top-level command function, not an internal helper.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:04Z",
+  "closed_at": "2026-04-19T19:37:06Z",
+  "close_reason": "dispatch_payment is out of scope for the proxy feature epic.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:32"
+    }
+  ]
+}

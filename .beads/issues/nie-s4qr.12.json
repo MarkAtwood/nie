@@ -1,0 +1,26 @@
+{
+  "id": "nie-s4qr.12",
+  "title": "AppState::broadcast fans out to all live clients before publishing to bus \u2014 partial delivery to cross-instance peers on error",
+  "description": "AppState::broadcast() delivers to local clients via join_all, then publishes to the message bus. If join_all succeeds but bus.publish fails (bus publish failed warning logged), local clients have already received the message but cross-instance clients have not. The bus failure is silently logged at warn level with no retry and no error return to the caller. For the LocalBus (single process), this is a no-op. For a RedisBus deployment, a Redis outage causes partial delivery: local instances delivered, remote instances missed. The caller at the ws.rs BROADCAST handler has no way to detect this \u2014 it always sends a BroadcastResult success response. Users on remote relay instances silently miss messages.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:22:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:06Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:22:12"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "agoraold-7ri",
+  "title": "In-memory payment session map + ClearMessage::Payment dispatch",
+  "description": "Add HashMap\u003cUuid, PaymentSession\u003e to the chat event loop state in cli/src/commands.rs. Replace the 'ClearMessage::Ack { .. } | ClearMessage::Payment { .. } =\u003e { // Not yet implemented — ignore }' arm with a dispatch function that routes Payment messages to a session handler. The handler looks up the session by session_id; if not found, sends PaymentAction::Unknown back to the sender. This is the shared foundation for both payer and payee state machines.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:18:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T05:30:14Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,53 @@
+{
+  "id": "nie-wdw.7",
+  "title": "build_shielded_tx: core Sapling transaction builder",
+  "description": "Implement the main function in wallet/src/tx_builder.rs:\n\npub fn build_shielded_tx(\n    sk: &SaplingExtendedSpendingKey,\n    to_address: &str,\n    amount_zatoshi: u64,\n    memo: &[u8; 512],\n    notes: &[SpendableNote],        -- from spendable_notes() + witness_data blobs\n    params: &(SpendParameters, OutputParameters),\n    network: ZcashNetwork,\n    anchor_height: u64,\n) -> Result<Vec<u8>, TxBuildError>\n\nAlgorithm:\n1. Validate amount_zatoshi >= DUST_THRESHOLD (const = 1_000 zatoshi; cite ZIP-317 in comment)\n2. Parse to_address with zcash_address \u2014 extract Sapling PaymentAddress; reject transparent/Orchard-only with TxBuildError::UnsupportedAddressType\n3. Compute fee using fees::zip317_fee(sapling_logical_actions(n_spends, n_outputs=1+change_output))\n4. Select notes using fees::select_notes(notes, amount_zatoshi, fee) \u2014 propagate CoinSelectError to TxBuildError\n5. Reconstruct each selected note via spendable_note_to_sapling()\n6. Deserialize each witness via witness_to_merkle_path()\n7. Verify all merkle path roots are equal \u2014 TxBuildError::AnchorMismatch if not\n8. Build zcash_primitives::transaction::builder::Builder with the verified anchor\n9. add_sapling_spend for each note\n10. add_sapling_output for the recipient amount\n11. If change > 0: derive a change address (use sk.default_address().1), add_sapling_output for change\n12. builder.build(...) with spend/output provers and ZIP-317 fee rule\n13. Serialize transaction: tx.write(&mut bytes)\n14. Return bytes\n\nDefensive rules:\n- Never log sk, note plaintext values, or recipient address \u2014 log only 'building tx: N inputs, amount=X zatoshi' at info level\n- If builder.build() returns an error, wrap in TxBuildError::BuilderError(msg) \u2014 never unwrap\n- If serialization fails: TxBuildError::BuilderError('tx serialization failed: ' + msg)\n- amount_zatoshi == 0 is treated as dust (below DUST_THRESHOLD)\n- Implement as a pure function (no async, no DB calls) \u2014 testable with synthetic data\n\nSpawn at minimum three subagents in parallel during implementation:\n- Subagent A: research zcash_primitives Builder::new signature and BuildConfig construction\n- Subagent B: research how the ZIP-317 fee rule is passed to builder.build()\n- Subagent C: research how the FVK and ExtendedSpendingKey are provided to the builder",
+  "acceptance_criteria": "build_shielded_tx returns non-empty bytes for a synthetic 1-input 1-output tx; all TxBuildError variants are exercised in tests; no unwrap() in production code",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:49:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T00:40:28Z",
+  "close_reason": "build_shielded_tx implemented in wallet/src/tx_builder.rs: dust check, address parsing, 2-pass fee-aware coin selection, note/witness reconstruction, anchor verification, sapling builder API, transaction serialization",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:50"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:50"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:48"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:48"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:49:17"
+    }
+  ]
+}

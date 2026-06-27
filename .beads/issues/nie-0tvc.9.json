@@ -1,0 +1,43 @@
+{
+  "id": "nie-0tvc.9",
+  "title": "nie-daemon tests: auth, whoami, send, ws events integration",
+  "description": "**What:** Write integration tests for nie-daemon covering token auth rejection, /api/whoami, /api/send, and /ws/events event delivery end-to-end via a test relay.\n\n**Algorithm:**\n1. Create daemon/tests/integration.rs\n2. Add test deps to daemon/Cargo.toml [dev-dependencies]: reqwest={version='0.12', features=['json']}, tokio-tungstenite.workspace, portpicker='1' (for free port selection)\n3. Test helper: async fn start_test_daemon() -> (SocketAddr, String, DaemonGuard) \u2014 spawns daemon with fresh tmp identity + test relay; returns (addr, token, guard that stops daemon on drop)\n4. Test: test_auth_rejected_no_token:\n   - start daemon; GET /api/whoami without Authorization header\n   - assert HTTP 401\n5. Test: test_auth_rejected_wrong_token:\n   - start daemon; GET /api/whoami with 'Authorization: Bearer wrong-token'\n   - assert HTTP 401\n6. Test: test_whoami_ok:\n   - start daemon; GET /api/whoami with valid token\n   - assert HTTP 200, body.pub_id.len()==64, body.pub_id chars all in '0-9a-f'\n7. Test: test_send_returns_message_id:\n   - start daemon; POST /api/send { text: 'integration test' } with valid token\n   - assert HTTP 200, body.message_id length==36, body.message_id[8]=='-'\n8. Test: test_ws_auth_rejected:\n   - connect WS /ws/events without token \u2192 HTTP 401 (no upgrade)\n9. Test: test_ws_event_delivery:\n   - start daemon, connect WS /ws/events with valid token\n   - POST /api/send { text: 'hello' } from another reqwest client\n   - assert WS receives JSON event within 5 seconds: type=='message_received', text=='hello'\n   - Use tokio::time::timeout(Duration::from_secs(5), ...) \u2014 never an infinite wait\n\n**Defensive programming rules:**\n- Tests must generate fresh identity per run (not hardcoded pub_id)\n- WS event test has 5s timeout \u2014 not an infinite wait\n- UUID format check uses structural assertion (length + hyphen positions), not regex magic\n- Test relay uses random port (portpicker) to avoid conflicts\n\n**Agent team:** Implementer (reads relay/tests/ for test relay spawn pattern) + Validator.\n\n**Tests:** These are the tests \u2014 each named above with independent oracle (HTTP spec, UUID spec).\n\nNotes: If test relay spawn pattern is complex, reuse spawn_relay helper from relay/tests/stress.rs or create a lightweight stub relay for unit testing.",
+  "acceptance_criteria": "cargo test -p nie-daemon passes all integration tests; no test hangs (all have timeouts); cargo clippy -- -D warnings exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T23:40:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:02:17Z",
+  "close_reason": "integration tests pass: auth rejection, whoami, send 503, WS connect+event delivery \u2014 14 tests total",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:40:31"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:15"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:13"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:14"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 16:41:14"
+    }
+  ]
+}

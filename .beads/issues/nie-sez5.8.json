@@ -1,0 +1,25 @@
+{
+  "id": "nie-sez5.8",
+  "title": "apply_member_patch JMAP error codes: invalidPatch vs invalidArguments vs notFound",
+  "description": "apply_member_patch distinguishes three error conditions with correct JMAP types: unknown patch path \u2192 invalidPatch (RFC 8620 \u00a75.3); invalid role value \u2192 invalidArguments (bad value in a recognized field); store failure \u2192 serverFail. The space_join Ok(None) case was changed from invalidArguments to notFound, which is also correct \u2014 the code is syntactically valid, it just doesn't refer to an existing resource. A contributor might collapse these into a single error type for simplicity \u2014 resist this. Clients use the type field to decide whether to show 'bad request' vs 'resource not found' UI, and JMAP-aware clients may implement automatic retry on certain error types.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:39:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:24:20Z",
+  "closed_at": "2026-04-24T02:24:20Z",
+  "close_reason": "Design decision recorded for future reference. No code action required.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:39:36"
+    }
+  ]
+}

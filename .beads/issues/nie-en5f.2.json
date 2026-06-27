@@ -1,0 +1,24 @@
+{
+  "id": "nie-en5f.2",
+  "title": "scanner: spent-note witnesses never pruned from in-memory map",
+  "description": "scanner.rs:472 \u2014 scan_tx updates self.witnesses for every note on every output. When send_payment calls mark_notes_spent, only the DB is updated; self.witnesses retains the entry. Subsequent scan_tx calls continue updating the spent note witness (O(N_spent) extra work per output), and save_block_state serializes and writes all of them every block. The leak is bounded per restart (load_state only loads unspent notes) but grows unboundedly within a long process run. Fix: remove note_id from self.witnesses when the scanner detects a nullifier match, or skip serializing witnesses for spent notes in save_block_state.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:55:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:55:24Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:55:23"
+    }
+  ]
+}

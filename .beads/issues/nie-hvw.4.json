@@ -1,0 +1,28 @@
+{
+  "id": "nie-hvw.4",
+  "title": "Relay store: subscription_invoices table + CRUD",
+  "description": "Add subscription_invoices table to relay SQLite store with CRUD methods for invoice lifecycle.\n\nWhat: persist pending subscription invoices so the payment watcher can match incoming payments to pub_ids.\n\nAlgorithm:\n1. In relay/src/store.rs, add migration (next version after current) creating:\n   CREATE TABLE IF NOT EXISTS subscription_invoices (\n       address       TEXT PRIMARY KEY,   -- bech32m UA string, unique per invoice\n       pub_id        TEXT NOT NULL,\n       amount_zatoshi INTEGER NOT NULL,\n       expires_at    TEXT NOT NULL        -- YYYY-MM-DD HH:MM:SS\n   )\n2. Add pub async fn create_invoice(&self, pub_id: &str, address: &str, amount_zatoshi: u64, expires_at: DateTime<Utc>) -> Result<()>\n   - Formats expires_at as %Y-%m-%d %H:%M:%S (same pattern as set_subscription).\n   - INSERT OR IGNORE \u2014 if address already exists, do nothing (idempotent for retry).\n3. Add pub async fn get_pending_invoice(&self, pub_id: &str) -> Result<Option<InvoiceRow>>\n   - SELECT WHERE pub_id = ? AND expires_at > datetime('now')\n   - Used to enforce one-invoice-per-pub_id rate limit.\n4. Add pub async fn get_invoice_by_address(&self, address: &str) -> Result<Option<InvoiceRow>>\n   - SELECT WHERE address = ? AND expires_at > datetime('now')\n   - Used by payment watcher to match payment to pub_id.\n5. Add pub async fn delete_invoice(&self, address: &str) -> Result<()>\n   - Called after payment confirmed and subscription activated.\n6. Add pub async fn purge_expired_invoices(&self) -> Result<u64>\n   - DELETE WHERE expires_at < datetime('now'); return rows deleted.\n7. Add InvoiceRow struct: { address: String, pub_id: String, amount_zatoshi: u64, expires_at: String }\n\nDefensive rules:\n- amount_zatoshi stored as INTEGER \u2014 use i64::try_from(u64) with descriptive error (same pattern as WalletStore).\n- expires_at in YYYY-MM-DD HH:MM:SS format \u2014 enforce at write time via format string, never from caller string.\n- purge_expired_invoices should be called on a timer (every 5 minutes) from main.rs to prevent table bloat.\n\nTests:\n- create_invoice then get_pending_invoice returns the row.\n- get_pending_invoice on expired invoice returns None.\n- delete_invoice removes the row; subsequent get_invoice_by_address returns None.\n- purge_expired_invoices deletes only expired rows, not future ones.\n- Two create_invoice calls for same pub_id; get_pending_invoice returns the first (older one stays, rate-limit check is caller responsibility).",
+  "acceptance_criteria": "cargo test -p nie-relay passes; all 5 store tests pass",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:52:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T06:05:45Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:33"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:52:56"
+    }
+  ]
+}

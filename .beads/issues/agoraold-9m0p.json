@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-9m0p",
+  "title": "Phase 4f: Headless bot / scripting client",
+  "description": "A scriptable nie-bot binary and/or library for automation, bridges, and testing. No UI. Receives and sends messages programmatically.\n\n## Two integration modes\n\n### Mode A: daemon API client (recommended for most bots)\n- Bot talks to a running nie-daemon (nie-0tvc) over its local JSON-RPC HTTP+WebSocket API\n- nie-bot is a thin CLI wrapper: reads commands from stdin or a config file, posts to daemon\n- Bot author writes logic in any language \u2014 they just call the daemon API\n- Example: pipe incoming messages to a webhook, auto-respond to payment requests\n\n### Mode B: direct nie-core embedding (for high-performance or offline bots)\n- nie-bot links nie-core directly (same as nie-cli today)\n- No daemon process required\n- Suitable for testing harnesses and relay load generators\n\n## Features\n- Config: TOML file or env vars (relay URL, identity keyfile path, log level)\n- Event loop: connects to relay, emits JSON events to stdout (one JSON object per line, NDJSON)\n- Command interface: reads JSON commands from stdin or a named pipe\n- Scripting hooks: optional -- execute a shell command on each message event (with shlex safety from CLAUDE.md)\n- Payment automation: respond to PaymentAction::Request with Address automatically (payee bot)\n- Built-in test mode: --self-test sends a message to self and verifies delivery (useful in CI)\n\n## Use cases\n- Notification bridge: forward nie messages to email/Signal/Slack webhook\n- Payment bot: accept automated micropayments for a service\n- Load tester: spam the relay with N concurrent connections for stress testing\n- CI smoke test: two bot instances exchange a message end-to-end without human interaction\n\n## Dependencies\n- nie-0tvc (JSON daemon) \u2014 Mode A uses the daemon API; daemon must be designed with bot clients in mind\n- nie-hlns (JSON-RPC protocol) \u2014 Mode B implements the relay protocol directly",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:43:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T01:09:57Z",
+  "close_reason": "all steps complete",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:43:50"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:43:51"
+    }
+  ]
+}

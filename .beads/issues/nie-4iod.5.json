@@ -1,0 +1,25 @@
+{
+  "id": "nie-4iod.5",
+  "title": "MAINTAINER: BotEvent field inconsistency -- message_id always empty, no doc why",
+  "description": "In dispatcher.rs line 52, when dispatching a DELIVER or WHISPER_DELIVER, we create BotEvent::MessageReceived with message_id = String::new() (empty). The comment says 'message_id not carried in DeliverParams; leave empty' but this is misleading: message_id IS in Envelope (the UUID), but the notification doesn't include it. A future maintainer (or API consumer) reading the BotEvent schema will ask 'why is message_id always empty?' and won't find an invariant doc. In Phase 2, when acking is added, this will cause confusion. Fix: doc comment on BotEvent::MessageReceived explaining why message_id is reserved-but-empty in Phase 4f.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:27:52Z",
+  "closed_at": "2026-04-20T01:27:52Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:13"
+    }
+  ]
+}

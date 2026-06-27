@@ -1,0 +1,21 @@
+{
+  "id": "nie-rpm2.1",
+  "title": "ws.rs: PoW replay TTL (600s) < token validity window (659s)",
+  "description": "relay/src/ws.rs:321 sets replay set TTL to 600 seconds. But core/src/pow.rs allows PoW tokens where abs_diff(now_floor, ts_floor) <= 10 minute-floors. A ts_floor at the boundary (now_floor - 10) means the token is valid until now_floor reaches ts_floor + 11, which at 60s/floor is up to ts_floor*60 + 659 seconds from epoch zero \u2014 so the effective validity window is up to 659 seconds, not 600. A token used at second T is evicted from the replay set at T+600, but remains mathematically valid until T+659 (worst case). An attacker who observes a used valid token (e.g. via network capture) can replay it in the [T+600, T+659] window \u2014 approximately 59 seconds per minute boundary. Fix: increase replay TTL to 720s (12 minutes) to cover the full \u00b110-minute-floor window with margin.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:34:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:43:58Z",
+  "closed_at": "2026-04-26T10:43:58Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:34:16"
+    }
+  ]
+}

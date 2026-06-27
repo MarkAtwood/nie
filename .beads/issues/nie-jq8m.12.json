@@ -1,0 +1,24 @@
+{
+  "id": "nie-jq8m.12",
+  "title": "tui/event.rs: MLS Welcome accepted from online[0] which is determined by unverified sequence number",
+  "description": "In the WHISPER_DELIVER handler, Welcome messages are only accepted from state.online.first() \u2014 the peer with the lowest relay-assigned sequence number. The 'admin' check is: let admin = state.online.first().map(|u| u.pub_id.as_str()); The online list is built from USER_JOINED notifications that include a relay-provided sequence field. The relay determines sequence server-side and it is authenticated by TLS, but the client-side online list can be in a transient state (partially built, out-of-order joins) when a Welcome arrives. If a Welcome arrives before the full directory is processed, online.first() may be wrong and the Welcome is rejected, leaving the user unable to join the MLS group until the next reconnect. This is a TOCTOU issue between directory state and Welcome acceptance.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:22:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:22:58Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:22:58"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "nie-4iod.17",
+  "title": "main: channel buffer sizes insufficient under high message load",
+  "description": "Lines 115-116: both cmd_tx and event_tx have capacity 32. Under a relay broadcast to 100+ users, 100+ Deliver notifications arrive concurrently. Each triggers parse + dispatch + emit. If event processing lags message arrival, event channel fills and senders block.\n\nCost: Blocking relay event loop, message loss or delays under sustained high throughput.\n\nFix: Increase event_tx buffer to 256-512, or make configurable. Add metrics to observe backpressure in production.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:21:31Z",
+  "closed_at": "2026-04-20T01:21:31Z",
+  "close_reason": "premature optimization: channel buffer of 32 is sufficient for bot workloads",
+  "labels": [
+    "efficiency"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:44"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "id": "nie-bwaa.2",
+  "title": "startForeground() unhandled SecurityException on Android 12+",
+  "description": "On Android 12+ (API 31+), calling startForeground() without POST_NOTIFICATIONS permission throws SecurityException and crashes the service. MainActivity fires requestNotificationPermission() as fire-and-forget (returns immediately), then Flutter calls startService. NieForegroundService.onStartCommand() calls startForeground() before the system permission dialog has been answered. If the user denies or the dialog hasn't appeared yet, the service crashes. No try-catch around startForeground() in NieForegroundService.kt:29.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:47:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T23:58:13Z",
+  "closed_at": "2026-04-23T23:58:13Z",
+  "close_reason": "wrapped startForeground() in try-catch SecurityException; on failure logs and calls stopSelf() to avoid crash",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:47:33"
+    }
+  ]
+}

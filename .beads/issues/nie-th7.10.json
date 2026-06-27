@@ -1,0 +1,43 @@
+{
+  "id": "nie-th7.10",
+  "title": "CLI: /group create, /group list, /group leave commands",
+  "description": "What: Add three slash commands to the CLI chat loop.\n\n/group create <name>:\n1. Parse name from rest of line; reject empty\n2. Build GroupCreateParams { name }\n3. Send JsonRpcRequest(GROUP_CREATE) via tx\n4. Response: add to active_groups; print confirmation\n\n/group list:\n1. Send JsonRpcRequest(GROUP_LIST, {})\n2. Response: print table; update active_groups map\n\n/group leave <name>:\n1. Resolve name to group_id from active_groups keys/names\n2. Send JsonRpcRequest(GROUP_LEAVE, GroupLeaveParams { group_id })\n3. On OkResult: remove from active_groups; print confirmation\n\nAlso add /group to /help text.\n\nDefensive rules:\n- Resolve group by name case-insensitively\n- If name not found in active_groups: print error message, do not crash\n- Empty name \u2192 print usage message, do not send\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo build -p nie passes; /group with no args prints usage; /group leave <unknown> prints error without crashing",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:52:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:16:09Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:49"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:52"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:50"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:01"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:51"
+    }
+  ]
+}

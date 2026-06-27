@@ -1,0 +1,17 @@
+{
+  "id": "nie-qdlu",
+  "title": "Review: wallet round 17",
+  "notes": "Maintainer risk: HIGH — Seven correctness bugs including two P0s (infinite loop, non-atomic insert), plus five P1 maintainer-burden issues covering fragile caller contracts (anchor_height, params=None, zero-change fee coupling), destructive cache corruption on download failure, and silent DB downgrade. Any one of the P0s can produce data loss or hang in production.\nConfidence: 25% chance of missed bug. Uncertainty driven by: (1) I did not trace the full fee-rejection path through zcash_primitives Builder::build to confirm exactly when FeeRule::standard() rejects mismatched fees — there may be a window where a wrong fee produces a signed but invalid transaction rather than an error; (2) I did not verify the interaction between FIFO note ordering in select_notes_spendable and any tiebreaking behavior when block_height values are equal (same block, multiple notes); (3) I did not audit client.rs gRPC retry semantics under partial failure. Would raise confidence if: a test exercises build_shielded_tx with a zero-change transaction end-to-end against a mock builder that validates the fee; and if select_with_fee has a property test covering convergence with adversarially-chosen note value sets.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:31:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

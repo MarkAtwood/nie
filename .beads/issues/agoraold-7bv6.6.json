@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.6",
+  "title": "SEC4: notify callback JS exception silently swallowed",
+  "description": "transport.rs line 113-118: the notification dispatch path calls f.call1(...) and maps the result with .map() but discards it. A JS exception thrown inside the callback is silently dropped \u2014 call1 returns Result<JsValue, JsValue> and the outer .map() just discards Ok/Err. There is no comment explaining this is intentional. A maintainer debugging a callback that throws will see no error. Fix: add comment // JS exceptions in the notify callback are intentionally ignored \u2014 the relay loop must not crash on bad user-supplied handlers, or propagate errors to console.error.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:47Z",
+  "closed_at": "2026-04-20T02:38:25Z",
+  "close_reason": "duplicate of nie-7bv6.5: both report the silent discard of f.call1() result in the notify callback path on transport.rs lines 113-118",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:00"
+    }
+  ]
+}

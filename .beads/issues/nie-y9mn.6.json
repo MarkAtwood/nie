@@ -1,0 +1,25 @@
+{
+  "id": "nie-y9mn.6",
+  "title": "bridge-jmap ignores JMAP session capabilities; cannot adapt to server limits",
+  "description": "init_session() fetches the JMAP session and caches apiUrl, but ignores the entire capabilities object including maxObjectsInGet (limits email_get batch size), maxCallsInRequest, maxSizeUpload, etc. The bridge hardcodes limit:50 in email_query and sends all IDs in one email_get call. A server that advertises maxObjectsInGet < 50 will reject email_get with requestTooLarge; the bridge has no way to adapt without restarting with a lower config value. A contributor adding features (e.g. calendar bridging) will copy the same pattern and hit the same limitation.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:37:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:37:05Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:37:04"
+    }
+  ]
+}

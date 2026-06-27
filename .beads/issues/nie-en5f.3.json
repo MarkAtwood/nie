@@ -1,0 +1,24 @@
+{
+  "id": "nie-en5f.3",
+  "title": "tx_builder doc: DUST_THRESHOLD comparison direction wrong",
+  "description": "tx_builder.rs:243 \u2014 doc comment says 'must be > DUST_THRESHOLD = 10_000' but the actual check is 'if amount_zatoshi < DUST_THRESHOLD' which allows amount == DUST_THRESHOLD (10_000). A payment of exactly 10_000 zatoshi pays 10_000 in fees and delivers nothing net to the recipient, but passes the dust filter. The doc comment should say 'must be >= DUST_THRESHOLD' or the check should be '<=' (which would match the intent of rejecting economically irrational transactions). The inconsistency misleads contributors about the intended behavior.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:55:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:55:31Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:55:30"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-7bv6.37",
+  "title": "SEC1: wasm-bindgen-test has no runnable CI path",
+  "description": "wasm/tests/wasm.rs:5 has a comment 'tests run headless with --headless --chrome flag' but there is no CI configuration, no shell script, no Makefile target, and no CLAUDE.md entry that actually runs 'wasm-pack test --headless --chrome wasm/'. A contributor running 'cargo test --workspace' will see the wasm crate silently excluded (it only compiles natively as rlib) and get a false green. Chrome/chromedriver must also be installed for the tests to work. Fix: add 'wasm-pack test --headless --chrome wasm/' to the quality gates section of CLAUDE.md and add a note that chromedriver must be installed.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:35:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:47:17Z",
+  "closed_at": "2026-04-20T02:47:17Z",
+  "close_reason": "Filed as tracking issue nie-rd4f for Phase 4g CI work",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:35:40"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-7g2k.6",
+  "title": "SEC6: ED25519_MULTICODEC named constant vs magic bytes",
+  "description": "const ED25519_MULTICODEC at identity.rs:10 names the multicodec prefix with spec reference. Prevents magic bytes [0xed, 0x01] from scattered throughout codebase. Centralizes future codec changes (if needed for spec updates) and makes intent explicit. The constant is used consistently in make_did_key (line 154) and validated strictly in validate_did_key (line 184).",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:15:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:03Z",
+  "closed_at": "2026-04-23T00:22:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:55"
+    }
+  ]
+}

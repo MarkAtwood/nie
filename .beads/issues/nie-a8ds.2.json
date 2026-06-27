@@ -1,0 +1,28 @@
+{
+  "id": "nie-a8ds.2",
+  "title": "PARTIAL_WAKE_LOCK acquired without timeout",
+  "description": "NieForegroundService.onCreate() calls wakeLock.acquire() with no timeout. Android best practice (and lint warning) requires a timeout for PARTIAL_WAKE_LOCK to prevent indefinite CPU hold if the service gets stuck. If the Flutter engine crashes after service start, onDestroy never fires and the wake lock holds until the next reboot, silently draining battery. Use wakeLock.acquire(timeoutMs) with a reasonable upper bound (e.g. 3600_000L for one hour) \u2014 maintenance consequence: users will file battery drain bugs that are hard to reproduce because they require a specific crash path.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:04:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:17:38Z",
+  "closed_at": "2026-04-24T01:17:38Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:04:19"
+    }
+  ]
+}

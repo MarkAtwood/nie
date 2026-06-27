@@ -1,0 +1,25 @@
+{
+  "id": "nie-bwaa.17",
+  "title": "Typing indicators are relay-enforced sender identity, not client-supplied",
+  "description": "The TypingNotifyParams.from field is always set from the authenticated pub_id on the relay side (ws.rs), never from client-supplied params. This prevents a client from spoofing another user's typing state. A contributor might suggest 'let the client set the from field for flexibility' \u2014 this would be a security regression. The relay must always override from with the session-authenticated identity.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:49:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:07:04Z",
+  "closed_at": "2026-04-24T00:07:04Z",
+  "close_reason": "decision recorded in beads for future contributor reference",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:49:17"
+    }
+  ]
+}

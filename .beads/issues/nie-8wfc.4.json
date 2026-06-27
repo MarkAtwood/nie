@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.4",
+  "title": "scanner: duplicate-note path skips in-memory witness population on restart rescan",
+  "description": "scanner.rs scan_tx() lines ~525-534: when insert_note_with_witness() returns a unique-constraint error (scanner re-processing an already-indexed block after restart), the code logs 'note already in DB' and continues without inserting into self.witnesses. This is correct for the first scan session. However, if the scanner restarts and load_state() is NOT called (or fails), self.witnesses starts empty, and then the scanner re-processes blocks the note was already in. The note's witness is present in the DB (from the first session), but self.witnesses never gets it populated because only the Ok path calls self.witnesses.insert(). Subsequent blocks append new commitments to self.tree but not to the note's witness. When the user then calls spend, the witness from the DB is stale (missing commitments since the first scan session), and load_state() only runs once at startup \u2014 it does not auto-heal if called before new blocks are appended. The witness gap between DB state and current tree causes AnchorMismatch. Fix: on the unique-constraint path, load the existing note_id from the DB and insert the freshly-forked witness into self.witnesses.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:36:54Z",
+  "closed_at": "2026-04-24T22:36:54Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:00"
+    }
+  ]
+}

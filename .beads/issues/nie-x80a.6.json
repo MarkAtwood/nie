@@ -1,0 +1,24 @@
+{
+  "id": "nie-x80a.6",
+  "title": "fees.rs AmountOverflow for running note sum misuses variant fields; misleading error message",
+  "description": "fees.rs:146-149: When the running note sum overflows u64 inside select_notes(), the code returns CoinSelectError::AmountOverflow { target: sum, fee: note.value_zatoshi }. The AmountOverflow variant's Display says 'target {target} + fee {fee} overflows u64' \u2014 but here 'target' is actually the running selection sum and 'fee' is a note's value, not the transaction fee. A user reading this error would think their target amount plus fee overflowed, which is not what happened. Either add a separate variant (e.g. NoteValueOverflow) or use the existing variant correctly by only triggering it for target+fee overflow. The in-note-sum overflow path should either be unreachable (real ZEC supply can't overflow u64) or produce a distinct, accurate error.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:54:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:54:20Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:54:19"
+    }
+  ]
+}

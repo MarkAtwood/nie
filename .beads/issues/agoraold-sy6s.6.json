@@ -1,0 +1,27 @@
+{
+  "id": "agoraold-sy6s.6",
+  "title": "channel.* JSON-RPC handlers in relay/src/ws.rs",
+  "description": "What: Implement channel.create, channel.list, channel.get JSON-RPC handlers in relay/src/ws.rs.\n\nAlgorithm (must run AFTER W2B which removes old GROUP_* handlers):\n1. Read current relay/src/ws.rs to understand the updated dispatch match structure\n2. Add channel handlers:\n\n   rpc_methods::CHANNEL_CREATE => {\n     // 1. Parse ChannelCreateParams { guild_cid, path, name, mode }\n     // 2. Validate mode is one of: \"interactive\", \"community\", \"broadcast\"\n     // 3. Verify caller is guild member: state.inner.store.is_guild_member(&guild_cid, &pub_id).await?\n     //    Return error if not member\n     // 4. Build ChannelState:\n     //    context = AGORA_CONTEXT, type_ = \"ChannelState\", schema_version = \"1\"\n     //    guild_cid = params.guild_cid, path = params.path, name = params.name\n     //    channel_type = \"text\", mode = params.mode\n     //    mls_group_id = if mode != \"broadcast\" { Some(hex::encode(rand::random::<[u8; 32]>())) } else { None }\n     //    channel_secret_b64 = if mode == \"broadcast\" { Some(base64::encode(rand::random::<[u8; 32]>())) } else { None }\n     //    seq = 0, created_at = Utc::now().to_rfc3339(), prev_state_cid = None, proof = None\n     //    id = \"agora://pending\"  // set after signing\n     // 5. Sign with relay key: sign_channel_state(&mut state, relay_did, relay_signing_key)?\n     // 6. Set state.id = format!(\"agora://{}/{}\", guild_cid, channel_cid)\n     // 7. state_json = serde_json::to_string(&state)?\n     // 8. Store: state.inner.store.create_channel(&channel_cid, &guild_cid, &path, &name, \"text\", &mode, mls_group_id.as_deref(), &state_json).await?\n     // 9. If mls_group_id is Some, register mapping: state.inner.store.register_mls_group(&mls_group_id, &channel_cid).await?\n     // 10. Return ChannelCreateResult { channel_cid, guild_cid, path }\n   }\n\n   rpc_methods::CHANNEL_LIST => {\n     // 1. Parse ChannelListParams { guild_cid }\n     // 2. Verify caller is guild member\n     // 3. channel_cids = state.inner.store.list_channels(&guild_cid).await?\n     // 4. For each, fetch state_json, parse into ChannelState, build ChannelInfo\n     // 5. Return ChannelListResult { channels }\n   }\n\n   rpc_methods::CHANNEL_GET => {\n     // 1. Parse ChannelGetParams { guild_cid, path }\n     // 2. Verify caller is guild member\n     // 3. state_json = state.inner.store.get_channel_by_path(&guild_cid, &path).await?\n     // 4. Return ChannelGetResult { channel_cid, state_json } or error if not found\n   }\n\nDefensive rules:\n- Validate mode string: if not one of [\"interactive\", \"community\", \"broadcast\"], return INVALID_PARAMS\n- Validate path string: no empty path, no path containing \"..\" or null bytes\n- Validate guild membership before any channel operation\n- Random bytes for mls_group_id and channel_secret via rand::random() or OsRng\n\nRun: cargo check -p agora-relay 2>&1\nReport: pass/fail, list new handler method names.",
+  "acceptance_criteria": "cargo check -p agora-relay exits 0; channel.create/list/get handlers present in ws.rs; mode validation and membership check present",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:45:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:00:17Z",
+  "close_reason": "channel.create/list/get handlers implemented in ws.rs",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:29"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:45:47"
+    }
+  ]
+}

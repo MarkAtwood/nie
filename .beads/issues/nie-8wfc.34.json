@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.34",
+  "title": "transport: connect() reader task silently eats post-close frames",
+  "description": "In core/src/transport.rs connect() reader task, when the relay closes the connection, in_tx is dropped and RelayConn.rx.recv() returns None. This is correct Tokio behavior. However, there is no ClientEvent::Disconnected variant and no documentation that None from rx means disconnect. RelayConnRetry callers receive ClientEvent::Reconnecting explicitly; RelayConn callers only get a silent None. Callers that loop on Some(_) without handling None will silently stop processing events. This is a documentation/API clarity risk for new callers of RelayConn.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:00:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:03:59Z",
+  "closed_at": "2026-04-24T23:03:59Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:00:06"
+    }
+  ]
+}

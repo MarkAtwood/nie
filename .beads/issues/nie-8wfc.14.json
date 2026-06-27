@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.14",
+  "title": "wasm: missing pad/unpad breaks CLI interop",
+  "description": "wasm/src/client.rs build_payload() never calls messages::pad() before encoding, and decode_payload_text() never calls messages::unpad() before JSON parsing. CLI always pads outgoing messages. Result: (1) WASM\u2192CLI messages arrive as unpadded payloads that CLI may misparse; (2) CLI\u2192WASM messages fail JSON parsing (padded bytes start with a 4-byte binary length prefix, not valid JSON), so all received chat text degrades to '(binary payload)'. WASM and CLI cannot communicate at all. Same bug exists in ffi/src/api/client.rs encode_chat_payload/decode_payload_text. Trigger: any WASM or FFI client talking to a CLI client.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:58:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:16:28Z",
+  "closed_at": "2026-04-24T22:16:28Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 14:58:45"
+    }
+  ]
+}

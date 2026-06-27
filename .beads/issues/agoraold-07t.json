@@ -1,0 +1,16 @@
+{
+  "id": "agoraold-07t",
+  "title": "Send a shielded ZEC payment end-to-end",
+  "description": "All work needed to go from /pay to a confirmed on-chain shielded transaction.\n\nInfrastructure already complete: params download (nie-bqe), gRPC broadcast (nie-5kc), fee + note selection (nie-zz8), balance query (nie-8t7), block scanner (nie-bgc), address generation (nie-adl, nie-8jv).\n\nRemaining work:\n1. nie-wdw: build_shielded_tx — spend proofs, SaplingBuilder, serialize to raw bytes\n2. nie-22n: send_payment() — compose builder + memo + broadcast, sync-lag guard\n3. nie-3no: testnet E2E — alice funds, bob receives, confirm fires, script is PASS\n\nThis epic is done when a /pay command results in a confirmed shielded transaction on testnet.",
+  "notes": "Phase 1 (research) and Phase 3 (test framework) complete. nie-3no payment test is blocked on scanner improvements nie-gw8k and agoraold-7766. Full E2E payment requires IVK note decryption + Merkle witness tracking before it can run.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T23:41:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T04:58:10Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-y9gm",
+  "title": "upsert_space_member: no space_id existence check; FK violation on deleted space",
+  "description": "daemon/src/store.rs:1298 upsert_space_member does INSERT OR IGNORE into space_member with no prior space existence check. With FK enforcement on, a nonexistent space_id causes a FK violation that propagates as Err to the caller. The production caller (relay.rs:362) uses a startup-set default_space_id, so if the space is deleted while running, subsequent USER_JOINED events silently fail to add users to the default space — member auto-enrollment breaks permanently until restart. Fix: add a space-existence pre-check inside upsert_space_member (matching update_space_fully pattern).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T06:29:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:48:46Z",
+  "closed_at": "2026-04-26T06:48:46Z",
+  "close_reason": "Closed"
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-jk70.4",
+  "title": "transport auth handshake has no deadline; ping flood blocks it indefinitely",
+  "description": "core/src/transport.rs: recv_text_frame (line 585) loops on ping/pong frames without any deadline. ws_upgrade_and_auth calls it twice (lines 362, 445) with no surrounding tokio::time::timeout. A rogue relay that continuously sends WebSocket Ping frames will keep the auth handshake in the loop forever, blocking the spawned mining task and the caller. This differs from nie-li9e.3 (wasm-specific): this is the native transport path. Fix: wrap each recv_text_frame call with tokio::time::timeout(Duration::from_secs(30), ...) and convert the Elapsed error to anyhow::Error.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:35:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:50:17Z",
+  "closed_at": "2026-04-25T02:50:17Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:35:22"
+    }
+  ]
+}

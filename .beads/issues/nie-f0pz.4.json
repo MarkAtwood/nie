@@ -1,0 +1,26 @@
+{
+  "id": "nie-f0pz.4",
+  "title": "space_join: caller already-member not checked before use_space_invite_code",
+  "description": "jmap.rs space_join calls use_space_invite_code with no prior guard that caller is not already a member of the target space. If use_space_invite_code does an INSERT OR IGNORE or INSERT OR REPLACE for space_member, calling Space/join twice creates ambiguity (is membership updated, or is it a no-op?). The response returns the spaceId on both calls as if both succeeded. Clients cannot distinguish a re-join from a first join. Trigger: call Space/join with same valid unexpired code twice.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:24:52Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:03:48Z",
+  "closed_at": "2026-04-25T07:03:48Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:24:52"
+    }
+  ]
+}

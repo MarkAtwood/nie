@@ -1,0 +1,27 @@
+{
+  "id": "nie-8le.9",
+  "title": "Relay URL not validated at startup: DNS error instead of 'invalid scheme'",
+  "description": "cli/src/main.rs accepts the relay URL from CLI flag, config file, or default without parsing or validating it. A typo like 'wss://relay.example.comm/ws' (extra m) fails at connect time with a DNS resolution error. A user who puts 'http://' instead of 'ws://' gets a protocol error deep in tungstenite. Neither error points back to the URL as the problem. What would make it clear: parse with url::Url at startup, reject non-ws/wss schemes with an explicit error message before attempting any connection.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:08:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T23:35:04Z",
+  "closed_at": "2026-04-17T23:35:04Z",
+  "close_reason": "scheme validation added in cli/src/main.rs before Chat dispatch; actionable error with correction hint",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:08:08"
+    }
+  ]
+}

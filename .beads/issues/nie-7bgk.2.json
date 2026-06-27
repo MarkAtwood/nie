@@ -1,0 +1,22 @@
+{
+  "id": "nie-7bgk.2",
+  "title": "relay.rs: unknown SpaceRole from relay silently coerces to Member",
+  "description": "In dispatch_peer_group_update, an unrecognized role string from the relay falls through SpaceRole::parse returning None and unwrap_or gives SpaceRole::Member. If the relay ever sends a role this client does not recognize (forward-compat, protocol bug, or future extension like 'owner'), the client silently stores the member as 'member' with no log, no error, and no way for the caller to know the coercion happened. Trigger: relay sends '{\"action\":\"add\",\"role\":\"owner\",...}' \u2014 contact is stored as member. Fix: log a warning when SpaceRole::parse returns None so the coercion is observable.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:37:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:49:19Z",
+  "closed_at": "2026-04-24T16:49:19Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:37:24"
+    }
+  ]
+}

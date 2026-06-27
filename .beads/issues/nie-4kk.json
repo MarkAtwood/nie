@@ -1,0 +1,22 @@
+{
+  "id": "nie-4kk",
+  "title": "/balance command",
+  "description": "Call wallet.balance() and display: confirmed shielded balance, pending (unconfirmed) balance, and next sync height. Format as ZEC (8 decimal places from zatoshi). Show a warning if wallet has never synced.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T02:42:31Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T04:42:16Z",
+  "closed_at": "2026-04-19T04:42:16Z",
+  "close_reason": "implemented",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 19:43:14"
+    }
+  ]
+}

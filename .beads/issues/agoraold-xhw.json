@@ -1,0 +1,14 @@
+{
+  "id": "agoraold-xhw",
+  "title": "Entry API (not contains_key+insert) in dispatch_payment is correct",
+  "description": "dispatch_payment uses sessions.entry(session_id) with Occupied/Vacant branches instead of sessions.contains_key(\u0026session_id) + sessions.insert(). The commit message calls this out explicitly. This is correct: the Entry API performs a single lookup; the contains_key+insert pattern performs two lookups and has a logical TOCTOU gap (between the check and the insert, a concurrent task could insert). While the HashMap is accessed from a single async task and there is no actual concurrency here, the Entry API is the correct idiomatic Rust pattern and prevents the bug class from being introduced if the code is ever refactored.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T05:52:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:56Z",
+  "closed_at": "2026-04-18T06:08:39Z",
+  "close_reason": "Already implemented correctly in the existing code"
+}

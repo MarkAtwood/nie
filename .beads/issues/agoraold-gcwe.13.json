@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.13",
+  "title": "parse_proxy_addr: IPv6 brackets break host string",
+  "description": "parse_proxy_addr extracts the host string from socks5://[::1]:9050 as \"[::1]\" (with brackets). This is then passed to Socks5Stream::connect((\"[::1]\", 9050), ...). Inside tokio-socks, IntoTargetAddr for (&str, u16) first tries self.0.parse::<IpAddr>() \u2014 which fails for \"[::1]\" because Rust's IpAddr parser does not accept RFC-2396 bracket notation. tokio-socks then falls through to the domain name path and treats \"[::1]\" as a literal hostname, causing a DNS lookup failure or proxy rejection. The fix is to strip brackets before returning: let host = host.trim_start_matches('[').trim_end_matches(']'); This is a well-known edge case documented in RFC 3986 \u00a73.2.2. A test case with socks5://[::1]:9050 would have caught this.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:47Z",
+  "closed_at": "2026-04-19T19:31:03Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:03"
+    }
+  ]
+}

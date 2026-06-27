@@ -1,0 +1,15 @@
+{
+  "id": "nie-u53f",
+  "title": "nie-teams: Microsoft Teams bridge",
+  "description": "Bridge bot that connects nie rooms to Microsoft Teams channels. The bot authenticates to the Teams Graph API and relays messages bidirectionally. Users on either side can participate without adopting the same client.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-20T17:45:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T15:47:51Z",
+  "closed_at": "2026-04-22T15:47:51Z",
+  "close_reason": "bridge-teams crate complete: Teams outgoing/incoming webhook, HMAC-SHA256 verify, 16 tests pass"
+}

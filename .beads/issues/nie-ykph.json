@@ -1,0 +1,14 @@
+{
+  "id": "nie-ykph",
+  "title": "Directory expiry: prune pub_ids not seen in 90 days",
+  "description": "The relay directory is currently permanent — every pub_id that ever authenticated is kept forever. This means a long-lived relay accumulates a growing social graph even for users who have stopped using the service. Pruning inactive entries reduces the metadata footprint.\n\n## Change\nAdd a periodic cleanup job in relay/src/store.rs:\n  DELETE FROM directory WHERE last_seen \u003c datetime('now', '-90 days')\n\nRun at relay startup and every 24h via a tokio::spawn background task.\n\n## Schema change\nAdd last_seen column to the directory table (migration v_next):\n  ALTER TABLE directory ADD COLUMN last_seen TEXT NOT NULL DEFAULT datetime('now')\n\nUpdate last_seen on every successful authentication for the connecting pub_id.\n\n## Configuration\nExpiry window defaults to 90 days. Configurable via DIRECTORY_EXPIRY_DAYS env var.\nValue of 0 disables expiry (opt-out for operators who want permanent directories).\n\n## What this does NOT affect\n- Active users: last_seen is updated on every connect, so active users are never pruned\n- Offline message queue: pruning a directory entry does not delete queued messages (separate TTL)\n- Subscriptions: subscription expiry is independent\n\n## Defensive rules\n- Deletion is permanent; log a count of pruned entries at INFO level: 'pruned N inactive directory entries'\n- Run the cleanup in a spawned task with its own error handler; failure must not crash the relay\n- The 90-day default is conservative; document the tradeoff (longer = more metadata retained, shorter = contacts appear to vanish)",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:54:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:37:14Z",
+  "closed_at": "2026-04-22T13:37:14Z",
+  "close_reason": "Added prune_inactive_users() to store.rs, DIRECTORY_EXPIRY_DAYS env var, startup+24h background task in main.rs, two unit tests"
+}

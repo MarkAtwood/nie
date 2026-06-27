@@ -1,0 +1,21 @@
+{
+  "id": "nie-gcwe.12",
+  "title": "parse_relay_addr: IPv6 host without port parses incorrectly",
+  "description": "parse_relay_addr() in core/src/transport.rs uses rsplit_once(':') to split host from port. For an IPv6 literal in brackets with an explicit port (e.g. ws://[::1]:3210/ws), rsplit_once finds the last colon correctly and produces ([::1], 3210). That case works.\n\nHowever, for an IPv6 literal WITHOUT an explicit port (e.g. ws://[::1]/ws), host_port becomes [::1]. rsplit_once(':') on [::1] finds the last colon inside the brackets and splits as ([:, 1]), then tries to parse 1] as a u16 port \u2014 which fails with a parse error. The caller gets Err instead of the correct (\"[::1]\", 80).\n\nThere is no unit test for ws://[::1]/ws or wss://[::1]/ws. A test would expose this parse failure. The fix requires bracket-aware IPv6 parsing.\n\nNote: the production relay is accessed via hostname (not IPv6 literal), so this is latent rather than currently reachable, but it is a correctness gap in the documented interface.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T19:33:05Z",
+  "closed_at": "2026-04-19T19:33:05Z",
+  "close_reason": "Fixed by IPv6 bracket handling implementation",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:00"
+    }
+  ]
+}

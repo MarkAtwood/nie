@@ -1,0 +1,25 @@
+{
+  "id": "nie-a8ds.9",
+  "title": "_typingTimers as single source of truth for typing state",
+  "description": "The parallel _typingUsers Set was removed; typingUsers getter now returns Set.unmodifiable(_typingTimers.keys). This eliminates a class of bugs where the Set and Map diverge (e.g. timer fires and removes from Map but Set isn't updated). The refactor is correct. A future contributor might add _typingUsers back for 'performance' (O(1) contains vs. Map.keys iteration), but the set is bounded by connected users which is small, and the Map lookup is already O(1) \u2014 the parallel Set provides no real benefit and reintroduces the sync risk.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:05:01Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:18:23Z",
+  "closed_at": "2026-04-24T01:18:23Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:05:00"
+    }
+  ]
+}

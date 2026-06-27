@@ -1,0 +1,25 @@
+{
+  "id": "nie-7bv6.11",
+  "title": "SEC3: challenge closure leaked via forget() after auth completes",
+  "description": "client.rs lines 40-62: The temporary challenge-capture closure is installed on the transport and then `forget()`-ed. After the challenge nonce is received and `wire_notify_callback` installs the permanent closure (overwriting the slot on `notify_cb`), the challenge closure is unreachable from Rust but JS still holds the allocation via the boxed FnMut. It fires at most once more (the `take()` makes subsequent calls no-ops) but the allocation is never freed. The fix is to NOT `forget()` the challenge closure, instead hold it alive in a local variable across the `challenge_rx.await`, then let it drop naturally when it goes out of scope after the nonce is received. `Closure::forget` should be reserved for closures that must outlive the stack frame; here the challenge closure has a well-defined end-of-life.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T02:47:50Z",
+  "closed_at": "2026-04-20T02:47:50Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:15"
+    }
+  ]
+}

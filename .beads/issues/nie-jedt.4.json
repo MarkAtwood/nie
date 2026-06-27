@@ -1,0 +1,22 @@
+{
+  "id": "nie-jedt.4",
+  "title": "wasm: NieClient::connect() does not transfer event callback to new client \u2014 silent callback loss on reconnect",
+  "description": "wasm/src/api.rs NieClient::connect() closes the existing WasmTransport (line 162) then creates a fresh NieRelayClient (line 165). The existing client's JS event callback (registered via on_event()) is stored on the old WasmTransport.notify_cb. After connect() completes, inner holds the new client, which has no notify_cb. Any events received after the second connect() call are silently discarded until on_event() is called again. This is not documented anywhere in the API. Impact: any JS caller that reconnects (calls connect() a second time without re-calling on_event()) will silently receive no events \u2014 messages, user_joined, directory_updated, etc. are all dropped with no error. The correct fix is to copy the old callback to the new client or document that on_event() must be re-called after every connect().",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:55:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:54:49Z",
+  "closed_at": "2026-06-19T20:54:49Z",
+  "close_reason": "callback preserved/transplanted when inner client is replaced on reconnect",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:55:30"
+    }
+  ]
+}

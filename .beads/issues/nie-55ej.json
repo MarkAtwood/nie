@@ -1,0 +1,14 @@
+{
+  "id": "nie-55ej",
+  "title": "message_set: no space-membership check before posting to channel",
+  "description": "The message_set create path in daemon/src/jmap.rs checks only that the chat exists (get_chats), not that the caller is a member of the space owning the channel chat. Any authenticated JMAP user who knows a channel's chatId can post to it. Fix: before inserting the message, verify the account_id is a member of the space that owns the channel using get_space_member_role or similar. Return invalidArguments if the caller is not a member.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:54:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:54Z",
+  "closed_at": "2026-04-26T05:11:54Z",
+  "close_reason": "Closed"
+}

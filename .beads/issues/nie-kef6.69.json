@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.69",
+  "title": "Space/set update and destroy have no admin/membership check \u2014 auth bypass",
+  "description": "space_set update and destroy arms call update_space_fully/delete_space without first checking whether the caller holds admin or moderator role in the target space. Any authenticated daemon user can rename, modify members of, or delete any space. SpaceInvite/set correctly guards via get_space_member_role; Space/set does not.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:53:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:10:29Z",
+  "closed_at": "2026-04-25T01:10:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:53:22"
+    }
+  ]
+}

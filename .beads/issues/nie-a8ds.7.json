@@ -1,0 +1,26 @@
+{
+  "id": "nie-a8ds.7",
+  "title": "Notification text static \u2014 misleads user when START_STICKY revives orphaned service",
+  "description": "buildNotification() hardcodes 'nie is running' regardless of relay connection state. If START_STICKY is kept (see nie-a8ds.1), the notification text 'nie is running' appears even when the service is an orphan with no WebSocket. A future contributor reading the notification spec will not understand why the text doesn't update with connection state. Fix: either update notification text dynamically (connected vs. reconnecting) or resolve nie-a8ds.1 first (remove START_STICKY), at which point the notification is only shown when genuinely connected.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:04:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:18:13Z",
+  "closed_at": "2026-04-24T01:18:13Z",
+  "close_reason": "Root cause fixed: START_NOT_STICKY means the service only runs when genuinely connected; static text 'nie is running' is now always accurate when the notification appears.",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:04:47"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "nie-0kki",
+  "title": "Review: reject empty contact_id and non-string role in member patches",
+  "description": "Deep pre-merge review of commits ecb97a8, c8bf9c7, 8325e58 covering space_set atomicity, member patch validation, and Android pendingPermissionResult fix.",
+  "notes": "Maintainer risk: MEDIUM — Three P0 correctness bugs remain in contact_set/contact_query (not touched by these commits). The reviewed commits themselves (space_set atomicity, member patch validation, Android pendingPermissionResult) are solid. No security surface exposures in the new code.\nConfidence: 15% chance of missed bug. Uncertainty driven by: did not read message_set, space_invite_set, or the full store — they may have the same rows_affected pattern as set_contact_display_name. Would raise confidence if: grep rows_affected across all store write methods that return Ok(()) to confirm whether the pattern repeats.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T03:17:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T03:41:38Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

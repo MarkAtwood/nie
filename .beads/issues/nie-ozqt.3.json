@@ -1,0 +1,26 @@
+{
+  "id": "nie-ozqt.3",
+  "title": "SUBSCRIBE_REQUEST invoice cap not atomic",
+  "description": "count_pending_invoices and create_invoice are separate DB calls with no transaction. Two concurrent SUBSCRIBE_REQUEST calls from the same pub_id both read count=4, both pass the cap check (n >= 5), and both insert, leaving 6 pending invoices instead of the 5-invoice cap. Fix: wrap count + insert in a single BEGIN IMMEDIATE transaction, same pattern as enqueue().",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:42:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:48:11Z",
+  "closed_at": "2026-04-26T04:48:11Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:42:47"
+    }
+  ]
+}

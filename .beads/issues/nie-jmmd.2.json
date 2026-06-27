@@ -1,0 +1,26 @@
+{
+  "id": "nie-jmmd.2",
+  "title": "activate_subscription: late payment grants operator subscription_days not invoice duration",
+  "description": "payment_watcher.rs activate_subscription() uses max(invoice.expires_at, now + subscription_days). For a late-arriving payment the subscriber gets now + current subscription_days, NOT now + the duration the invoice specified. If SUBSCRIPTION_DAYS was lowered after invoice creation, subscriber is shortchanged. The comment claims 'they must receive what they paid for' but the code does not fulfill that.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:33:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:05:53Z",
+  "closed_at": "2026-04-25T04:05:53Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:33:15"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "id": "nie-9m0p.8",
+  "title": "nie-bot: notification dispatcher (relay notification \u2192 BotEvent)",
+  "description": "What: Convert incoming JsonRpcNotification from relay into BotEvent values.\n\nAlgorithm:\n1. Create bot/src/dispatcher.rs with pub async fn dispatch(notif: JsonRpcNotification, config: &ResolvedBotConfig) -> Result<Option<BotEvent>>:\n   - match notif.method.as_str() against rpc_methods::* constants from nie_core::protocol::rpc_methods\n   - DELIVER: parse DeliverParams from notif.params; deserialize payload as ClearMessage; Chat \u2192 MessageReceived; Payment with PaymentAction::Request \u2192 PaymentRequest; other variants \u2192 None\n   - WHISPER_DELIVER: same as DELIVER\n   - DIRECTORY_LIST: parse DirectoryListParams; emit Nothing here (caller handles separately)\n   - USER_JOINED: parse UserJoinedParams \u2192 BotEvent::UserJoined\n   - USER_LEFT: parse UserLeftParams \u2192 BotEvent::UserLeft\n   - unknown method: return Ok(None) \u2014 never Err for unknown methods\n2. Payload deserialization failures: log at debug level, return Ok(None) \u2014 relay is untrusted; malformed payload must not crash bot\n\nDefensive:\n- notif.params missing \u2192 Ok(None), not panic\n- ClearMessage deserialization failure \u2192 debug log + Ok(None), never propagate\n- NEVER inspect payload as utf-8 string; always serde_json::from_slice on raw bytes\n\nAgent team: R (researcher: read core/src/protocol.rs, messages.rs), I (implementer), V (validator).\nTests: see Wave 4 dispatcher tests",
+  "acceptance_criteria": "cargo build -p nie-bot clean; dispatches DELIVER correctly; unknown methods return None; clippy clean",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:43:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:58:38Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:34"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:34"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:41"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:44:40"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:43:18"
+    }
+  ]
+}

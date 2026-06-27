@@ -1,0 +1,26 @@
+{
+  "id": "nie-hggn.3",
+  "title": "ws.rs nonce_is_fresh called on server-generated nonce (always passes)",
+  "description": "In relay/src/ws.rs handle(), new_challenge() generates 'nonce' at the top of the function. After receiving the Authenticate response (within the 30-second timeout), the relay calls nonce_is_fresh(&nonce) on its own freshly-generated nonce (line 359). This check always passes because the nonce was created moments ago in the same function invocation. The intent (reject stale replayed challenges) is satisfied by per-connection nonce generation \u2014 each connection gets a unique nonce that cannot be reused across connections. But the nonce_is_fresh call is dead code and a misleading comment target. No security regression: auth is correct because the relay holds the nonce locally and the client cannot substitute a different one. Bug class: dead code that could mislead a future maintainer into thinking replay protection comes from this check.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:11:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:20:56Z",
+  "closed_at": "2026-04-26T12:20:56Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:11:41"
+    }
+  ]
+}

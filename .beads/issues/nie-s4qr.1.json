@@ -1,0 +1,26 @@
+{
+  "id": "nie-s4qr.1",
+  "title": "DirectoryListParams cap is on combined total, not individual vec \u2014 partial OOM still possible",
+  "description": "DirectoryListParams custom Deserialize caps combined online+offline total at 10_000. But serde allocates both Vec<UserInfo> fully before the check runs. A relay sending {online:[...5001 entries...], offline:[...5001 entries...]} causes two 5001-element Vec allocations before the error is returned. The cap prevents a single combined list but not two individually-large lists each just under 10K. A rogue relay sending online=[9999 entries], offline=[9999 entries] allocates ~20K UserInfo structs (\u22482MB+) before the check fires. The cap logic is correct in intent but the execution window means serde materializes both vecs first. This is low severity given 10K cap but the invariant comment says 'cannot cause client OOM' which is slightly overstated.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:13:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:40:20Z",
+  "closed_at": "2026-04-26T07:40:20Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:13:09"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "nie-5aed",
+  "title": "relay store: list_groups_for_user no LIMIT — OOM on GROUP_LIST",
+  "description": "store::list_groups_for_user() (relay/src/store.rs:1036) issues SELECT with no LIMIT. The GROUP_LIST handler calls this for every authenticated client. A user in an unbounded number of groups (enforced only by group cap per group, not total groups per user) returns all rows. On a relay with many groups, this can return millions of rows per request, causing OOM in the relay process. Fix: add LIMIT N to the query and return a paginated response, or cap total groups-per-user at the registration point.",
+  "notes": "Part of security review round 23 (epic nie-nvk2)",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:57:56Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:33Z",
+  "closed_at": "2026-04-26T05:11:33Z",
+  "close_reason": "Closed"
+}

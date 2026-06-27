@@ -1,0 +1,21 @@
+{
+  "id": "nie-6syc.4",
+  "title": "DECISION: AtomicUsize round-robin for endpoint load distribution",
+  "description": "connect_with_failover() uses fetch_add(1, Relaxed) % len as a zero-contention rotating start index. No mutex, no lock, no synchronization overhead. Correct choice for a per-session counter where approximate fairness is sufficient.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:23:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T13:45:37Z",
+  "closed_at": "2026-04-22T13:45:37Z",
+  "close_reason": "Architectural decisions acknowledged as correct \u2014 no code change needed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:23:25"
+    }
+  ]
+}

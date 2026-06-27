@@ -1,0 +1,24 @@
+{
+  "id": "nie-kef6.16",
+  "title": "bus subscriber loop never started; cross-instance broadcast is dead",
+  "description": "AppState::broadcast() and deliver_live() publish to MessageBus (state.rs lines 303-309) but main.rs never calls bus.subscribe() or starts a receiver task. On a single-process (LocalBus) deployment messages publish to a broadcast channel with zero receivers and are silently dropped. On a Redis deployment the PUBLISH goes to Redis but no task reads from it. UserJoined, UserLeft, BROADCAST, DELIVER, and all other non-group messages are lost cross-instance. nie-14sh.35 tracks the group-send path specifically; this covers the subscriber loop being absent for all message types.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:50:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:55:47Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:50:03"
+    }
+  ]
+}

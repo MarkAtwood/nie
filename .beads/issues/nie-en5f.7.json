@@ -1,0 +1,26 @@
+{
+  "id": "nie-en5f.7",
+  "title": "scanner.rs: witness update loop full-tree silently continues producing invalid witnesses",
+  "description": "scanner.rs:472-481 and 485-490 \u2014 When witness.append(node) returns Err (tree full at 2^32 leaves) or self.tree.append(node) returns Err, the code logs a warning and continues. After a tree-full condition on self.tree, subsequent note discovery creates witnesses via IncrementalWitness::from_tree(self.tree.clone()). These witnesses are rooted at a tree that can no longer accept new leaves and is inconsistent with the chain. The tx builder will produce proofs against wrong anchors. The 2^32 leaf limit is ~4.3 billion Sapling notes, far beyond current chain state (~tens of millions), but the warning should also set a flag to halt scanning rather than continue producing corrupt witnesses.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:56:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:42Z",
+  "closed_at": "2026-04-25T03:44:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:56:19"
+    }
+  ]
+}

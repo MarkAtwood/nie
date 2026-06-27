@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7xs.16",
+  "title": "Ephemeral MLS state per session is correct for Phase 1",
+  "description": "The MLS group state is in-memory only and discarded on every disconnect (mls.rs header comment). A reviewer might suggest adding persistent ratchet state to sqlite to survive reconnects. Do not add this in Phase 1: persistent MLS state requires careful key storage design (encrypted sqlite keyed from the identity key), migration logic across MLS version upgrades, and cleanup of stale epochs. The design correctly defers this to Phase 2. Ephemeral state gives clean forward secrecy breaks between sessions and no attack surface for persistent state corruption. The cost -- users re-key on every connect -- is acceptable for the current phase.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T08:00:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:00Z",
+  "closed_at": "2026-04-16T09:07:47Z",
+  "close_reason": "Closed",
+  "labels": [
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 01:00:14"
+    }
+  ]
+}

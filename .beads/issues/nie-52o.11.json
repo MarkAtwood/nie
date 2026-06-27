@@ -1,0 +1,25 @@
+{
+  "id": "nie-52o.11",
+  "title": "session_id at ClearMessage::Payment level, not on each PaymentAction variant \u2014 correct layer",
+  "description": "session_id: Uuid is on ClearMessage::Payment, not duplicated into each PaymentAction variant. A contributor might suggest adding session_id to each variant so it is 'always available without pattern matching the outer enum.'\n\nThe current design is correct. session_id identifies the session, not the action. Putting it on the outer envelope (Payment) makes the relationship explicit: one session, multiple actions. Adding it to each variant would allow (in theory) a message where the outer session_id and an inner variant's session_id disagree, which would be a validation nightmare. The outer placement also correctly models the protocol: the relay wraps a Payment message, and session_id is metadata about the message, not about the action type.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T03:25:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T06:17:32Z",
+  "closed_at": "2026-04-18T06:17:32Z",
+  "close_reason": "Fully implemented by nie-6sp, nie-c20, nie-c1v respectively",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 20:25:46"
+    }
+  ]
+}

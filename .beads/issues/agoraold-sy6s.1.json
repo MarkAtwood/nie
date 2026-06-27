@@ -1,0 +1,22 @@
+{
+  "id": "agoraold-sy6s.1",
+  "title": "Add cid+multihash deps; JSON-LD context endpoint stub",
+  "description": "What: Two trivial infrastructure changes.\n\n1. In /home/mark/PROJECT/Agora/Cargo.toml [workspace.dependencies], add:\n   cid = \"0.11\"\n   multihash = \"0.19\"\n   Then add cid.workspace = true and multihash.workspace = true to core/Cargo.toml.\n\n2. In /home/mark/PROJECT/Agora/relay/src/main.rs, add a static JSON-LD context endpoint:\n   Route: GET /ns/v1\n   Response: Content-Type: application/ld+json\n   Body: a JSON object with @context mapping GuildState/ChannelState types to the agora vocab URI\n   Minimal context is fine:\n   {\"@context\":{\"agora\":\"https://agora.protocol/ns/v1\",\"GuildState\":\"agora:GuildState\",\"ChannelState\":\"agora:ChannelState\",\"DataIntegrityProof\":\"agora:DataIntegrityProof\"}}\n   Use axum::response::Json or a static string handler.\n\nDefensive: No user input involved. deps are version-pinned.\n\nAfter changes run: cargo check --workspace 2>&1\nReport: pass/fail. Show the two new dep lines in Cargo.toml.",
+  "acceptance_criteria": "cargo check --workspace exits 0; cid and multihash appear in workspace Cargo.toml; GET /ns/v1 route exists in main.rs",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:39:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:47:02Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:39:29"
+    }
+  ]
+}

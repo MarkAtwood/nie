@@ -1,0 +1,26 @@
+{
+  "id": "nie-x80a.2",
+  "title": "migrations v1/v2/v3/v5 not wrapped in transactions; crash-unsafe",
+  "description": "db.rs: Migrations v4, v6, v7, v8 are correctly wrapped in explicit SQLite transactions so a process-kill between DDL and PRAGMA user_version bumps rolls back cleanly. Migrations v1, v2, v3, and v5 are not: CREATE TABLE statements and the PRAGMA user_version update run as separate autocommitted statements. If the process is killed between the last DDL statement and 'PRAGMA user_version = N', the next open will re-enter the same migration block and hit 'table already exists' (even with IF NOT EXISTS, the UNIQUE index in v2 and INSERT in v3 will duplicate). v3 in particular seeds the scan_state row \u2014 a crash between CREATE TABLE and INSERT OR IGNORE causes v3 to re-run INSERT OR IGNORE harmlessly, but the tip stays at 0. Fix: wrap each of v1, v2, v3, v5 in a BEGIN/COMMIT transaction matching the pattern used in v4, v6, v7, v8.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:53:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:29Z",
+  "closed_at": "2026-04-25T02:08:29Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:53:15"
+    }
+  ]
+}

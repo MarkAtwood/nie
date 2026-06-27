@@ -1,0 +1,26 @@
+{
+  "id": "nie-ftwb.3",
+  "title": "bridge-matrix: AS handler drops events when channel is full with no log or retry",
+  "description": "bridge-matrix/src/bridge.rs as_transaction handler uses try_send to forward events to the bridge loop channel (capacity 64). When the channel is full, events are silently dropped (let _ = state.tx.try_send(event)). The homeserver receives HTTP 200 OK and considers the transaction delivered; the bridge never processes those messages. Trigger: burst of >64 Matrix room messages while the bridge loop is busy sending to nie relay. Note: nie-14sh.56 (channel capacity drop with no log) is a duplicate filing for the same symptom \u2014 this adds the correctness framing.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:54:37Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:06:00Z",
+  "closed_at": "2026-04-26T08:06:00Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:54:36"
+    }
+  ]
+}

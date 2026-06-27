@@ -1,0 +1,19 @@
+{
+  "id": "nie-fye",
+  "title": "Review: fix: balance threshold, expire param, birthday warn",
+  "notes": "Confidence: 92% chance no missed bugs beyond what is filed. nie-fye.1 is real but only triggerable with a sign error at a call site — currently one call site with a literal constant, so probability of triggering is near zero today. nie-fye.2 is real but only annoying, not data-corrupting. The diff is small (3 files, focused fixes) and well-tested. Would raise confidence if: a test exercised expire_stale_sessions_before with max_age_secs=0 and a negative value to verify the guard.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:57:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T17:58:08Z",
+  "close_reason": "Review complete: 0 P0, 2 P1 filed, 0 P2, 1 P3 elegance, 1 decision record",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

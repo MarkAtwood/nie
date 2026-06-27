@@ -1,0 +1,24 @@
+{
+  "id": "nie-tb8e.16",
+  "title": "activate_subscription parses expires_at from invoice string; re-serializes to same format \u2014 parse+format round trip is fragile",
+  "description": "payment_watcher.rs activate_subscription: parses invoice.expires_at (a YYYY-MM-DD HH:MM:SS string) into NaiveDateTime, calls .and_utc(), then .max(now + fallback_days) \u2014 then passes the resulting DateTime<Utc> to activate_subscription_atomic which re-formats it to YYYY-MM-DD HH:MM:SS. The expires_at field is also re-used in the SUBSCRIPTION_ACTIVE notification as expires_at.format('%Y-%m-%d %H:%M:%S'). This parse-then-reformat round trip is done to support the .max() comparison, which is reasonable. But the InvoiceRow.expires_at field is a String, not a DateTime \u2014 which forces every consumer to re-parse it. The field type should be DateTime<Utc> or a newtype; storing it as a formatted string and parsing at every use site is the root of this awkwardness.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:43:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:43:17Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:43:17"
+    }
+  ]
+}

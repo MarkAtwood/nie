@@ -1,0 +1,26 @@
+{
+  "id": "nie-tb8e.4",
+  "title": "handle_send: relay send succeeds but insert_message fails \u2014 message_id returned is a random UUID, not correlatable with any stored record",
+  "description": "In daemon/src/api.rs handle_send(): if insert_message fails (DB error), the handler falls back to Uuid::new_v4().to_string() as message_id and returns HTTP 200 with that UUID. The relay send already succeeded. Callers receive a message_id that does not exist in the JMAP store \u2014 any subsequent GET /api/messages?ids=[that-uuid] returns empty. This is a silent contract violation: the API doc implies the returned message_id is the persistent store ID. The message was broadcast to the relay but cannot be retrieved or correlated. Trigger: transient SQLite error during insert_message (e.g. WAL checkpoint collision, disk full).",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:37:47Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:53:06Z",
+  "closed_at": "2026-04-26T07:53:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:37:52"
+    }
+  ]
+}

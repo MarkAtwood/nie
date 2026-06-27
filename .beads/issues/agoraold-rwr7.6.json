@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-rwr7.6",
+  "title": "mls.rs: room_hpke_keypair() \u2014 derive room HPKE key from MLS epoch secret",
+  "description": "What: Add room_hpke_keypair() method to MlsClient that derives a deterministic X25519 HPKE keypair from the MLS group epoch secret via export_secret.\n\nAlgorithm:\n1. Read /home/mark/WORK/nie/core/src/mls.rs to find the MlsClient struct and MlsGroup usage\n2. Add method to MlsClient:\n   pub fn room_hpke_keypair(&self) -> Result<([u8; 32], [u8; 32])>\n   // Returns (secret_bytes, public_bytes)\n   // Returns Err if no group exists yet (mls_active must be true)\n3. Implementation:\n   a. Get group ref: let group = self.group.as_ref().ok_or(anyhow!(\"no MLS group\"))?;\n   b. Export 32 bytes: let seed = group.export_secret(&self.provider, \"nie-room-hpke-key\", b\"\", 32)?;\n   c. Convert to [u8;32]: let seed: [u8; 32] = seed.try_into().map_err(|_| anyhow!(\"export_secret wrong length\"))?;\n   d. Derive X25519 keypair from seed:\n      let secret = x25519_dalek::StaticSecret::from(seed);\n      let public = x25519_dalek::PublicKey::from(&secret);\n   e. Return (secret.to_bytes(), public.to_bytes())\n4. Also add helper:\n   pub fn room_hpke_public_key(&self) -> Result<[u8; 32]>\n   // Just returns the public key bytes (for publishing to relay)\n5. Run cargo check -p nie-core\n\nDefensive programming rules:\n- Return Err (not panic) if group is None\n- export_secret label 'nie-room-hpke-key' is a domain separator \u2014 must match exactly in all callers\n- Never log the secret bytes returned from this function\n- The seed from export_secret is a derive input, not key material to store \u2014 it's deterministically reproducible from MLS state\n- Different MLS epochs produce different seeds (automatic key rotation on member add/remove)\n- StaticSecret::from([u8;32]) is the correct X25519 key derivation API in x25519-dalek 2.x",
+  "acceptance_criteria": "cargo check -p nie-core exits 0; room_hpke_keypair() and room_hpke_public_key() compile; method returns Err when no group exists",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T20:00:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:06:35Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:02:12"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 13:00:11"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-70e.4",
+  "title": "PRAGMA foreign_keys set once; breaks silently if max_connections rises",
+  "description": "db.rs:74 sets PRAGMA foreign_keys = ON on the pool. SqlitePoolOptions::max_connections(1) ensures a single connection today, making this safe. But it is load-bearing fragility: raising max_connections above 1 creates additional connections that never receive the PRAGMA, silently disabling ON DELETE CASCADE on the witnesses table. Notes could be deleted while their witness rows linger, causing referential corruption with no error and no failing test (cascade_delete_removes_witness at line 720 only runs on connection 1).\n\n**Why:** SQLite PRAGMAs are per-connection; SQLx connection pools do not propagate them.\n**How to apply:** Use SqliteConnectOptions::pragma(\"foreign_keys\", \"ON\") on the connect options, which applies to every connection the pool creates.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:55:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T15:55:58Z",
+  "closed_at": "2026-04-18T15:55:58Z",
+  "close_reason": "Fixed: replaced post-connect PRAGMA with SqliteConnectOptions::foreign_keys(true) on the pool options. FK enforcement now applies to every connection regardless of max_connections.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:55:40"
+    }
+  ]
+}

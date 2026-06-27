@@ -1,0 +1,38 @@
+{
+  "id": "nie-060.4",
+  "title": "E2E: mainnet endpoints respond + /pay shows fee",
+  "description": "What: End-to-end verification that (1) all DEFAULT_MAINNET_ENDPOINTS respond to a GetLatestBlock RPC, and (2) the /pay command outputs a fee estimate line.\n\nAlgorithm:\n1. Write an integration test (gated behind MAINNET_ENABLED=1 env var) that:\n   a. Calls connect_with_failover(DEFAULT_MAINNET_ENDPOINTS) and asserts it succeeds\n   b. Calls client.latest_height() and asserts height > 0 and height < 3_000_000 (sanity bounds)\n2. Write a unit test for the /pay fee display:\n   a. Call the fee computation directly: zip317_fee(sapling_logical_actions(1, 2))\n   b. Assert == 10_000 zatoshi\n3. Ensure all tests in nie-060.1 (endpoints), nie-060.2 (fee display), nie-060.3 (round-robin) pass\n\nDefensive programming rules:\n- Mainnet connectivity test MUST be gated behind MAINNET_ENABLED=1 (not in CI by default \u2014 costs money to run)\n- Height bounds (> 0, < 3_000_000) guard against empty responses without hardcoding current height\n- Never log key material in this test (no wallets involved)\n\nAgent team: V only (Validator \u2014 run all tests, report pass/fail)",
+  "acceptance_criteria": "cargo test --workspace passes; MAINNET_ENABLED=1 cargo test mainnet_ passes with real endpoints; fee calculation test produces 10000 zatoshi for 1-in 2-out",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:03:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T16:15:49Z",
+  "closed_at": "2026-04-19T16:15:49Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:03:50"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:03:55"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:03:56"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:03:55"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "nie-3d1",
+  "title": "User profiles: open-ended self-description via encrypted broadcast",
+  "description": "Users want to share profile fields (handle, status, location, gender, etc.) with room members. These fields are sensitive — the relay must never see them. The right design is a ClearMessage::Profile variant that travels as an opaque encrypted payload, identical to chat messages from the relay's perspective. Clients store received profiles in-memory keyed by pub_id and republish their own profile on connect so new joiners see it. Pre-MLS the payload is plaintext-in-envelope (same as chat today); post-MLS it is automatically encrypted with no relay changes required.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "feature",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T00:21:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-18T00:38:33Z",
+  "close_reason": "Closed"
+}

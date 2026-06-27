@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.6",
+  "title": "balance() counts undecrypted stub notes as spendable",
+  "description": "balance() sums all unspent notes WHERE spent=0, including rows where note_diversifier/note_pk_d/note_rseed are NULL (not yet IVK-decrypted). spendable_notes() filters those out via IS NOT NULL. Result: wallet can show a positive confirmed balance but return NoSpendableNotes on spend \u2014 confusing and misleading to the user. Fix: add same IS NOT NULL guards to the balance query, or document that balance() is a superset of spendable funds.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:49:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:49:00Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:49:00"
+    }
+  ]
+}

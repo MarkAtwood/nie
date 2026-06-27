@@ -1,0 +1,43 @@
+{
+  "id": "nie-hvw.6",
+  "title": "Relay ws.rs: SUBSCRIBE_REQUEST handler + subscription_active notification",
+  "description": "Replace the SUBSCRIBE_REQUEST stub in ws.rs with a real handler, and add subscription_active notification path + is_subscribed staleness fix.\n\nWhat: three changes to relay/src/ws.rs.\n\nAlgorithm:\nCHANGE A \u2014 SUBSCRIBE_REQUEST handler (replace stub at ws.rs:810):\n1. Deserialize params as SubscribeRequestParams. If absent/malformed, return INVALID_REQUEST.\n2. Check state.inner.merchant is Some. If None, return METHOD_NOT_FOUND ('subscription payments not configured').\n3. Call state.inner.store.get_pending_invoice(&pub_id.0). If Some, return SUBSCRIPTION_REQUIRED (-32010) with 'a pending invoice already exists \u2014 pay or wait for it to expire'.\n4. Call alloc_fresh_address(dfvk, &merchant_wallet_store, 0) \u2014 this returns (di, payment_addr, ua_string).\n5. Set expires_at = Utc::now() + Duration::hours(24). Format as YYYY-MM-DD HH:MM:SS.\n6. Call state.inner.store.create_invoice(&pub_id.0, &ua_string, SUBSCRIPTION_PRICE_ZATOSHI, expires_at).\n7. Return SubscribeInvoiceResult { address: ua_string, amount_zatoshi: SUBSCRIPTION_PRICE_ZATOSHI, expires_at }.\n8. Add const SUBSCRIPTION_PRICE_ZATOSHI: u64 = 1_000_000 (0.01 ZEC); add const SUBSCRIPTION_DAYS: i64 = 30.\n9. SUBSCRIPTION_PRICE_ZATOSHI and SUBSCRIPTION_DAYS should be loaded from env vars SUBSCRIPTION_PRICE_ZATOSHI and SUBSCRIPTION_DAYS (with the above as defaults) and stored in AppState for flexibility.\n\nCHANGE B \u2014 subscription_active notification (called by payment watcher via AppState):\n- The payment watcher in payment_watcher.rs calls state.deliver_live(&pub_id, notification_json).\n- This already works via AppState::deliver_live.\n- No new code needed in ws.rs for this path.\n\nCHANGE C \u2014 is_subscribed staleness fix:\n- Current: is_subscribed cached once at connect time (line 150).\n- Fix: when the local ws task receives a subscription_active notification via its own channel, update the local is_subscribed flag.\n- In the write loop: if msg is a subscription_active notification, set is_subscribed = true.\n- Note: the deliver_live path already routes notifications to the client's write channel. We need to intercept them in the ws read-side loop for the is_subscribed update. The cleanest approach: share an Arc<AtomicBool> is_subscribed between the read and write tasks; the write task sets it to true when it forwards a subscription_active notification.\n\nDefensive rules:\n- pub_id in handler is ALWAYS from the authenticated session variable (ws.rs line 143), never from SubscribeRequestParams \u2014 SubscribeRequestParams must not contain pub_id.\n- No call to set_subscription() anywhere in ws.rs \u2014 that is payment_watcher.rs's exclusive domain.\n- SUBSCRIPTION_PRICE_ZATOSHI must be read from env at startup, not hardcoded inline (inline only as default).\n\nTests:\n- Integration: send SUBSCRIBE_REQUEST to relay without merchant configured \u2192 METHOD_NOT_FOUND.\n- Integration: send SUBSCRIBE_REQUEST with merchant configured \u2192 returns SubscribeInvoiceResult with valid UA string.\n- Integration: send SUBSCRIBE_REQUEST twice \u2192 second returns SUBSCRIPTION_REQUIRED.\n(These can use relay integration test patterns from relay/tests/ if they exist, or be added there.)",
+  "acceptance_criteria": "cargo test -p nie-relay passes; relay returns a valid invoice address on subscribe_request",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:53:39Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T06:20:09Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:37"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:36"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:35"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:53:39"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:54:36"
+    }
+  ]
+}

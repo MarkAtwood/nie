@@ -1,0 +1,25 @@
+{
+  "id": "nie-8lcm.1",
+  "title": "mine-wait/scan timeouts are unnamed magic numbers",
+  "description": "In e2e_testnet.rs the receive-side block uses Duration::from_secs(300) and Duration::from_secs(120) directly. PAYMENT_TIMEOUT_SECS is a named constant at the top of the file, but the two sub-budget values are not. The inline comment 'Budget: mine-wait \u2264 300 s, scan \u2264 120 s; together 420 s within PAYMENT_TIMEOUT_SECS' is the only thing keeping the arithmetic correct. If someone changes PAYMENT_TIMEOUT_SECS (e.g. to 400 s) without noticing the inline comment, the combined sub-budget silently exceeds the outer deadline. The 30-second poll interval inside the mine-wait loop is a third unnamed magic number. Fix: add named constants MINE_WAIT_TIMEOUT_SECS, SCAN_TIMEOUT_SECS, and MINE_POLL_INTERVAL_SECS at the top of the file alongside PAYMENT_TIMEOUT_SECS, with a debug_assert that their sum is less than PAYMENT_TIMEOUT_SECS.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:59:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:09:14Z",
+  "closed_at": "2026-04-20T05:09:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:59:09"
+    }
+  ]
+}

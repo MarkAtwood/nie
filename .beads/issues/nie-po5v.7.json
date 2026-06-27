@@ -1,0 +1,26 @@
+{
+  "id": "nie-po5v.7",
+  "title": "jmap.rs: message/set body_type not validated \u2014 arbitrary string stored in DB",
+  "description": "message_set (Message/set) in jmap.rs accepts a bodyType field and stores it directly into the message.body_type column without validating against the allowlist from the Session (supportedBodyTypes: ['text/plain']). An authenticated user can set bodyType to any string. When a future code path branches on body_type to decide how to render messages, unvalidated values will create undefined behavior. This will generate bug reports from users who encounter rendering anomalies. Fix: reject body_type values not in the supportedBodyTypes list with invalidArguments.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:35:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:48:09Z",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:35:56"
+    }
+  ]
+}

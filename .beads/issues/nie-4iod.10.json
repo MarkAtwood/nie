@@ -1,0 +1,25 @@
+{
+  "id": "nie-4iod.10",
+  "title": "MAINTAINER: run_hook() stdout cap of 65536 bytes is undocumented, appears arbitrary",
+  "description": "In scripting.rs line 64, stdout is capped at 65536 bytes. There's no doc comment explaining why this limit exists, no note about what happens if stdout exceeds it (silently truncated), and no rationale. A maintainer in 6 months will see this line and wonder: is this a security boundary? A performance optimization? A guess? What does the user see\u2014an error, silent truncation, or just the first 64KB? If a hook legitimately produces >64KB output, the maintainer won't know if it's 'by design' or a bug. Fix: doc comment explaining the limit is to prevent unbounded memory growth from runaway scripts, and clarify the truncation behavior.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:13:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:28:00Z",
+  "closed_at": "2026-04-20T01:28:00Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:13:22"
+    }
+  ]
+}

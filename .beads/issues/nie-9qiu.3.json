@@ -1,0 +1,25 @@
+{
+  "id": "nie-9qiu.3",
+  "title": "tui/event.rs: 'unreadable message' pushed to chat on any non-ClearMessage MLS ciphertext received via DELIVER before MLS active",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T12:23:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T12:24:49Z",
+  "closed_at": "2026-04-26T12:24:49Z",
+  "close_reason": "False positive: decrypt_and_display only reaches serde_json::from_slice after process_incoming succeeds; the unreadable message is post-decryption, not pre-decryption. Correct behavior.",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 05:23:20"
+    }
+  ]
+}

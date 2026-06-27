@@ -1,0 +1,24 @@
+{
+  "id": "nie-uhyi.5",
+  "title": "transport.rs serde_json unwrap undocumented infallibility",
+  "description": "transport.rs lines 110, 215, 439 call serde_json::to_string(&req).unwrap() with only a comment explaining infallibility. A future contributor adding a non-derived Serialize impl (e.g. a custom impl that can fail) will not see a compile error \u2014 they will ship a panic. The comment is correct but weak. Fix: use expect(\"JsonRpcRequest serialization is infallible for derived Serialize\") so the assumption is in the panic message, not just a nearby comment. Alternatively, encode the contract with a type that only holds serializable types, but that is over-engineering.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:44:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:44:40Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:44:40"
+    }
+  ]
+}

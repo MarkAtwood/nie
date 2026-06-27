@@ -1,0 +1,17 @@
+{
+  "id": "nie-wgk8",
+  "title": "Review: relay/state payment_watcher keyfile daemon/store bot tui",
+  "notes": "Maintainer risk: MEDIUM — Two P0 bugs (keyfile non-atomic write, invite code never consumed) are real and actionable. The DM plaintext issue is a systemic design gap that was likely known but undocumented. The rest are P1-P2 hardening items.\nConfidence: 15% chance of missed bug. Uncertainty driven by: payment_watcher IVK trial decryption correctness (depends on wallet/scanner internals not reviewed here), the BEGIN IMMEDIATE transaction in use_space_invite_code (correct as written, but subtle), and whether the space_invite unlimited-redemption was intentional (the comment says 'multi-use invites' are possible but there is no uses_remaining column). Would raise confidence with: integration tests for invite redemption (single-use vs multi-use), and a test that verifies keyfile write failure leaves no partial file.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:18:28Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

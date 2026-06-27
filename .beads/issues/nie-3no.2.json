@@ -1,0 +1,28 @@
+{
+  "id": "nie-3no.2",
+  "title": "Add receive-side verification to testnet_shielded_payment_end_to_end",
+  "description": "wallet/tests/e2e_testnet.rs test broadcasts Alice's tx but never verifies Bob received funds. Add: (1) poll loop waiting for tx to be mined (poll client.latest_height() until height > broadcast_block_height, max 5 min); (2) scan Bob's wallet with SaplingIvkDecryptor; (3) assert bob_store.balance_with_confirmations(1).await confirmed_zatoshi >= PAYMENT_AMOUNT_ZATOSHI.\n\nAlgorithm:\n1. After send_payment() returns txid, record broadcast_height = client.latest_height().await.\n2. Poll loop: every 30s, call client.latest_height(). When height > broadcast_height, break. Timeout after 300s (half the overall 600s budget) with hard failure.\n3. Construct Bob scanner: SaplingIvkDecryptor::new(&bob_sk.to_dfvk().ivk_bytes()), CompactBlockScanner::new(bob_client, bob_store.clone(), decryptor). Call scanner.load_state() then scanner.scan_to_tip().\n4. Assert bob_store.balance_with_confirmations(1).await?.confirmed_zatoshi >= PAYMENT_AMOUNT_ZATOSHI.\n5. Assert bob_store.spendable_notes(0).await? is non-empty (proves IVK decryption worked end-to-end).\n\nDefensive rules: wrap each await in proper error propagation; use tokio::time::timeout for both the mining wait and the Bob scan; never log bob_seed bytes; client.latest_height() is fallible, handle Err with retry.",
+  "acceptance_criteria": "Test compiles; Bob wallet scan + balance assertion present in source; cargo test -p nie-wallet succeeds",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T04:52:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T04:58:01Z",
+  "closed_at": "2026-04-20T04:58:01Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:52:47"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 21:52:48"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "nie-2f6j.4",
+  "title": "SEC3: extract handle_file_message helper to deduplicate DELIVER/SEALED_DELIVER",
+  "description": "The FileHeader/FileChunk match arms in DELIVER and SEALED_DELIVER are identical ~60 lines. Extract into a function: fn handle_file_message(msg: ClearMessage, from: &str, file_transfers: &mut HashMap<Uuid, FileReceiveState>). Called from both dispatch sites.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T14:17:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T14:21:38Z",
+  "closed_at": "2026-04-22T14:21:38Z",
+  "close_reason": "Deferred: extracting handle_file_message helper would require major refactor of async context; net gain minimal for P4 feature. Documenting as known duplication.",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:17:40"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "nie-xora.4",
+  "title": "SpaceRole enum as validated type at store boundary",
+  "description": "SpaceMemberOp::Upsert and upsert_space_member_with_role now take SpaceRole instead of &str. This is correct: validated types belong at the API boundary, not buried in a precondition doc comment. A future contributor adding a new call site cannot accidentally pass an arbitrary string \u2014 the compiler rejects it. Resist any suggestion to revert this to &str for 'flexibility'; the flexibility would be the ability to write invalid roles to the database.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T06:12:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T15:05:20Z",
+  "closed_at": "2026-04-24T15:05:20Z",
+  "close_reason": "Fixed in code; decision records documented",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 23:12:15"
+    }
+  ]
+}

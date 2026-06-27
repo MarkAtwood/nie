@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.45",
+  "title": "Message/set update returns notFound for unauthorized mutation instead of forbidden",
+  "description": "message_set update handler checks sender_id == my_pub_id and returns {type: notFound} when they differ (lines ~1897-1903 of jmap.rs); RFC 8620 \u00a77.1 requires {type: forbidden} for authorization failures \u2014 notFound confirms to the caller that the message ID exists and was found in the store, leaking information and violating the spec",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:23:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:23:12Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:23:11"
+    }
+  ]
+}

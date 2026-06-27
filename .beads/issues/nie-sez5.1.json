@@ -1,0 +1,28 @@
+{
+  "id": "nie-sez5.1",
+  "title": "No test for relay typing-phantom synthesis on disconnect",
+  "description": "The connection_is_typing flag in ws.rs synthesises typing=false on abrupt disconnect \u2014 a correctness-critical behavior path that has zero test coverage. Trigger: any refactor that reorders state.disconnect() vs broadcast(), or changes the typing handler flow, will silently break this. Maintenance consequence: phantom 'is typing\u2026' indicators become permanent for peers, and there is no automated signal that the fix has regressed.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:38:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T02:21:58Z",
+  "closed_at": "2026-04-24T02:21:58Z",
+  "close_reason": "Tests added and passing: relay/tests/e2e_jsonrpc.rs::typing_phantom_cleared_on_disconnect, daemon/src/jmap.rs::test_space_member_patch_{invalid_role,unknown_path,add_and_remove_roundtrip}",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:38:56"
+    }
+  ]
+}

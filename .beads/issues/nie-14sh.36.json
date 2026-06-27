@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.36",
+  "title": "daemon jmap message_set update applies patch non-atomically with no pre-validation",
+  "description": "message_set update path (jmap.rs ~line 1997) iterates patch keys and silently ignores unknown paths with a comment 'Unknown patch path: ignore (permissive)'. There is no phase-1 validation pass before mutations begin. A patch with a valid key followed by an invalid key will partially apply. RFC 8620 \u00a75.3 requires all patch operations to be validated before any are applied, and unknown patch paths must produce an invalidPatch error rather than being silently dropped.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:57:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:23:55Z",
+  "closed_at": "2026-04-24T23:23:55Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:57:35"
+    }
+  ]
+}

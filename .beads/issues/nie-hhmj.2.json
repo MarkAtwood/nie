@@ -1,0 +1,26 @@
+{
+  "id": "nie-hhmj.2",
+  "title": "RISK: parse_incoming silently drops malformed JSON-RPC from relay",
+  "description": "core/src/transport.rs lines 383-413: parse_incoming() deserialization failures (JsonRpcNotification or JsonRpcResponse) are logged as warn\\! but the frame is dropped with no indication of which field failed or why. When a relay bug or protocol mismatch sends slightly-malformed JSON-RPC, the client silently discards it and continues. A solo maintainer will see 'warn: failed to deserialize notification' in logs but have no context about which message type, which field was wrong, or whether this is a known protocol variant. Risk: protocol bugs hide as silent message drops; hard to diagnose.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:10:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T18:16:29Z",
+  "closed_at": "2026-04-19T18:16:29Z",
+  "close_reason": "False positive. CLAUDE.md \u00a711: serde_json::from_str on client input can and does fail \u2014 warn!+continue is documented intentional behavior. A client sending garbage gets ignored, not disconnected.",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:10:15"
+    }
+  ]
+}

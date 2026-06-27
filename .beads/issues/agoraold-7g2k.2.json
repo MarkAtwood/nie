@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7g2k.2",
+  "title": "SEC4: misleading 'hashing' language in pub_key_b64 doc comment",
+  "description": "Line 105 in identity.rs says 'derive the PubId by hashing' but the actual implementation in verify_challenge() uses make_did_key() which is a multicodec format encoder, not a hash function. The comment should say 'encode' or 'format' instead of 'hash' to accurately reflect the code behavior.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:15:41Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:01Z",
+  "closed_at": "2026-04-23T00:22:42Z",
+  "close_reason": "Closed",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:41"
+    }
+  ]
+}

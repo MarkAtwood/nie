@@ -1,0 +1,19 @@
+{
+  "id": "nie-nttk.6",
+  "title": "bridge-jmap: seen_ids.json.tmp path construction wrong when seen_ids_path has no extension",
+  "description": "In bridge-jmap/src/bridge.rs, SeenIds::persist() builds the temp path with:\n\n  let mut tmp_path = path.to_path_buf();\n  tmp_path.set_extension(\"json.tmp\");\n\nRust's PathBuf::set_extension() replaces the LAST component of the extension. For:\n- 'seen_ids.json' \u2192 'seen_ids.json.tmp'  (correct)\n- 'seen_ids' (no extension) \u2192 'seen_ids.json.tmp'  (correct but confusing)\n- '/var/lib/bridge/state.json' \u2192 '/var/lib/bridge/state.json.tmp'  (correct)\n- '/var/lib/bridge/state' \u2192 '/var/lib/bridge/state.json.tmp'  (correct)\n\nHowever, if the path already has a compound extension that is not '.json', e.g. 'seen.ids.bak', set_extension('json.tmp') replaces '.bak' to get 'seen.ids.json.tmp', not 'seen.ids.bak.tmp'. This is unlikely in practice given the default 'seen_ids.json', but the correct implementation should append '.tmp' unconditionally (e.g. format!(\"{}.tmp\", path.display())) rather than using set_extension which mutates the last extension component.\n\nAdditionally, the tmp file is written in the same directory as the final file, which is the correct behavior for atomic rename. However, if the seen_ids_path is in a different filesystem from the tmp write location (impossible here since they're in the same directory), rename would fail non-atomically. This is not an issue with the current implementation but documents why the paths must be co-located.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:42:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:42:22Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:42:22"
+    }
+  ]
+}

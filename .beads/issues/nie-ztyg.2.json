@@ -1,0 +1,26 @@
+{
+  "id": "nie-ztyg.2",
+  "title": "mls: secret_bytes not zeroized in room_hpke_keypair()",
+  "description": "mls.rs:389-396: secret_bytes is [u8;32] stack-allocated from group.export_secret(), then moved into StaticSecret::from(secret_bytes) without being zeroized first. The export_secret output is a live HPKE secret key. The return value is correctly wrapped in Zeroizing<[u8;32]>, but the intermediate secret_bytes on the stack is not cleared. Fix: mut-bind secret_bytes and call secret_bytes.zeroize() before returning, matching the pattern in identity::from_secret_bytes.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:54:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:02Z",
+  "closed_at": "2026-04-25T02:08:02Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review",
+    "security"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:54:21"
+    }
+  ]
+}

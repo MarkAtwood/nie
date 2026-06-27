@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.60",
+  "title": "group_members CREATE TABLE IF NOT EXISTS after migration v2 is misleading dead code",
+  "description": "store.rs lines 320-329: a bare CREATE TABLE IF NOT EXISTS group_members without FK constraints appears after migration v2 which already creates group_members with ON DELETE CASCADE constraints. The IF NOT EXISTS makes this a no-op on every real path, but it reads as the authoritative schema definition when it is not. A contributor editing this block believes they are changing schema when the migration v2 block is the real definition. Fix: remove the post-migration group_members block, leave a comment pointing to migration v2.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:24:38Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:24:38Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:24:37"
+    }
+  ]
+}

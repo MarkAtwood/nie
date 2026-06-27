@@ -1,0 +1,32 @@
+{
+  "id": "agoraold-7xs.2",
+  "title": "Admin reconnect leaves existing members with broken MLS state",
+  "description": "Trigger: Admin disconnects (network drop, Ctrl-C, relay restart) while B and C are connected and in the MLS group. Admin reconnects. Bad behavior: On Reconnecting, mls_active=false but mls.group is not cleared (commands.rs:121-126). On DirectoryList after reconnect, if i_am_admin && !mls_active, create_group() is called (line 176-184), creating a fresh group with just the admin at epoch 0. But the relay does NOT replay UserJoined events for B and C who are already connected -- they're in the DirectoryList but no UserJoined fires for them. Admin only calls GetKeyPackage in response to UserJoined (lines 201-208). B and C are never re-added to the new group. Admin encrypts messages with the new group keys (epoch 1+). B and C still have their old group keys from before the admin's reconnect. Every message from admin is undecryptable by B and C. The MLS session is permanently broken for all existing members until they individually disconnect and reconnect.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:58:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:40Z",
+  "closed_at": "2026-04-16T09:01:59Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 01:29:33"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:58:29"
+    }
+  ]
+}

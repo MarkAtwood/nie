@@ -1,0 +1,22 @@
+{
+  "id": "nie-x0dr",
+  "title": "Bootstrap default Space and channel on daemon init",
+  "description": "On nie-daemon first run (or migration), create one Space record and one channel Chat record in the local JMAP data store. Space name configurable (default: 'nie'). Channel name configurable (default: 'general'). IDs are stable ULIDs assigned at creation and persisted \u2014 not regenerated on restart. All users are @everyone members; no custom roles needed for the default space.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T21:14:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T21:44:23Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 14:14:18"
+    }
+  ]
+}

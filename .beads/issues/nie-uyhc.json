@@ -1,0 +1,15 @@
+{
+  "id": "nie-uyhc",
+  "title": "multidevice: relay client map supports N connections per pub_id",
+  "description": "Refactor relay/src/state.rs to allow multiple simultaneous connections from the same pub_id (different devices).\n\nWhy: currently clients: DashMap\u003cString, (ClientTx, u64)\u003e maps pub_id to a single connection channel. A second device connecting with the same pub_id overwrites the first, dropping delivery to the first device.\n\nWhat to do:\n- Change clients to DashMap\u003cString, Vec\u003c(ClientTx, u64)\u003e\u003e\n- connect(): append to the vec instead of replacing; assign a monotonically increasing seq per connection as before\n- disconnect(): remove only the specific ClientTx from the vec (match by channel identity or seq); remove the key entirely when vec is empty\n- deliver_live(): iterate all channels for the target pub_id, attempt delivery to each, return true if any succeeded\n- broadcast(): flatten all device channels across all pub_ids when collecting targets\n- broadcast_to_group(): same — flatten per-pub_id vecs when building the delivery list\n- connection_seq(): return minimum seq across all devices for a pub_id (lowest = admin, consistent with user-level admin election)\n\nAcceptance: two connections from the same pub_id both receive delivered messages; disconnect of one does not affect the other; all existing relay integration tests pass.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T20:13:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T00:22:57Z",
+  "close_reason": "DashMap refactored to Vec per pub_id; connect returns seq; disconnect removes by seq; connection_seq returns min; deliver_live fans out to all channels; all tests pass"
+}

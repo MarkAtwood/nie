@@ -1,0 +1,28 @@
+{
+  "id": "nie-4ui3.5",
+  "title": "Implement SOCKS5 tunnel in open_authenticated_ws",
+  "description": "When proxy is Some, create a SOCKS5 tunnel using tokio-socks before the WebSocket/TLS upgrade in open_authenticated_ws().\n\n## What\nThe actual SOCKS5 proxy implementation: parse the proxy URL, create an async SOCKS5 TCP stream to the relay host, then layer TLS and WebSocket on top of that stream.\n\n## Algorithm\n1. At the top of open_authenticated_ws(), if proxy.is_some():\n   a. Parse proxy URL with url::Url::parse(&proxy_url)?\n   b. Extract proxy host (url.host_str().ok_or(anyhow!('missing proxy host'))?) and port (url.port().ok_or(anyhow!('missing proxy port'))?)\n   c. Parse relay URL to extract relay host and port (parse with url::Url::parse(url)? since url is the relay URL)\n   d. Call: let socks_stream = tokio_socks::tcp::Socks5Stream::connect((proxy_host, proxy_port), (relay_host, relay_port as u16)).await.with_context(|| 'SOCKS5 connect failed')?\n   e. If relay scheme is wss:// AND accept_invalid_certs is false:\n      - Build TlsConnector::new()?\n      - tls_stream = connector.connect_async(relay_host, socks_stream).await?\n      - ws = client_async_tls_with_config(url, MaybeTlsStream::NativeTls(tls_stream), None, None).await?.0\n   f. If relay scheme is wss:// AND accept_invalid_certs is true:\n      - Build TlsConnector with danger_accept_invalid_certs(true)\n      - Same as above\n   g. If relay scheme is ws://:\n      - ws = client_async(url, socks_stream.into_inner()).await?.0  (or client_async_with_config)\n2. If proxy.is_none(), use existing code path unchanged.\n3. After splitting ws, proceed with the existing auth handshake.\n\n## Type notes (from API research)\n- tokio_socks::tcp::Socks5Stream::connect returns Socks5Stream<TcpStream>\n- Socks5Stream<TcpStream> implements AsyncRead + AsyncWrite + Unpin\n- IntoTargetAddr accepts (&str, u16) \u2014 for socks5h pass relay_host as &str; for socks5 resolve first\n- native_tls::TlsConnector::connect_async takes domain: &str + stream: impl AsyncRead + AsyncWrite\n- Resulting TlsStream<Socks5Stream<TcpStream>> also implements AsyncRead + AsyncWrite\n- client_async_tls_with_config accepts any stream impl AsyncRead + AsyncWrite + Unpin + Send + 'static\n- The socks5h vs socks5 distinction: if scheme is 'socks5h', pass relay_host as &str directly to Socks5Stream (proxy resolves DNS). If scheme is 'socks5', resolve relay_host locally first to SocketAddr.\n\n## Defensive programming rules\n- Every ? must include with_context() describing which step failed\n- Never log the proxy URL or relay host at info level in the proxy path\n- Never unwrap() in the proxy path \u2014 all errors are typed anyhow::Error variants\n- The socks5h path must pass relay_host as a string (&str, port) tuple to IntoTargetAddr\n- The socks5 path must resolve relay_host locally (tokio::net::lookup_host or similar) before passing to IntoTargetAddr as SocketAddr\n- accept_invalid_certs applies to the TLS layer, not to SOCKS5 \u2014 SOCKS5 connection itself has no cert\n\n## Agent team\nResearcher (re-read transport.rs + tokio-socks API), Implementer A, Implementer B (independent), Tester (derive expected from tokio-socks README + RFC 1928), DIFF (reconcile both impls)\nUse critical-path 5-agent team because a wrong implementation silently bypasses the proxy without error.\n\n## Tests\n- happy_path_socks5h: connect through a mock SOCKS5 proxy on 127.0.0.1 to a test relay \u2014 verify relay sees connection\n- no_proxy: verify existing direct connect path still works (no regression)\n- bad_proxy_host: proxy URL with unreachable host \u2192 returns Err with 'SOCKS5 connect failed' in message\n- socks5_vs_socks5h: verify socks5h passes hostname string (not IP) to proxy; verify socks5 resolves IP locally\nAcceptance: cargo test --workspace exits 0; clippy exits 0; all four test cases pass.",
+  "acceptance_criteria": "cargo test --workspace exits 0; clippy exits 0; SOCKS5 proxy path is exercised in tests",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:35:43Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T19:00:25Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:35:42"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:39"
+    }
+  ]
+}

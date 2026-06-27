@@ -1,0 +1,32 @@
+{
+  "id": "agoraold-mf3l.8",
+  "title": "nie-wasm: browser HTML/JS chat UI",
+  "description": "## What\nCreate `wasm/web/index.html` \u2014 a browser chat client that loads the WASM module and calls its #[wasm_bindgen] API instead of the daemon HTTP API. Reuse the layout from `daemon/web/index.html`.\n\n## Algorithm\n1. Copy daemon/web/index.html to wasm/web/index.html (use cp -f)\n2. Remove the entire token/daemon auth flow (lines related to getToken, apiFetch, daemon WS to /ws/events):\n   - Remove the token modal HTML\n   - Remove getToken(), setToken(), clearToken() JS functions\n   - Remove showTokenModal(), hideTokenModal(), apiFetch() JS functions\n   - Remove the daemon WebSocket connectWs() function\n3. Add WASM module initialization at the top of the <script> block:\n   - import init, { NieClient, generate_identity, load_identity, save_identity, pub_id_from_secret } from './pkg/nie_wasm.js'\n   - Use type='module' on the script tag\n   - Call await init() before any wasm functions\n4. Add identity setup flow:\n   - On page load: try load_identity() from IndexedDB\n   - If null (first visit): call generate_identity() to get secret_b64; call save_identity(secret_b64); display pub_id in status bar\n   - If found: call pub_id_from_secret(secret_b64) to get pub_id; display in status bar\n5. Add relay connection UI:\n   - Input field for relay URL (default: wss://localhost:3210/ws)\n   - 'Connect' button that calls: client = new NieClient(); await client.connect(relayUrl, secret_b64)\n   - Register event handler: client.on_event((event) => handleEvent(JSON.parse(event)))\n6. Implement handleEvent(event) switch on event.type:\n   - 'message_received': appendMessage(event.from, event.from_display, event.text, isMe)\n   - 'user_joined': insert user into online list in sequence order; renderUsers()\n   - 'user_left': remove from list; renderUsers()\n   - 'directory_updated': replace online list; renderUsers()\n   - 'connection_state_changed': update status indicator\n7. Implement sendMessage():\n   - Get text from input\n   - Call await client.send_message(text)\n   - Clear input\n8. Add a simple wasm/web/serve.py or document serving instructions (Python http.server or caddy) in a comment at top of index.html\n\n## Defensive programming\n- Never log the secret_b64 to console in production; OK for debug during development\n- Show user-friendly error if IndexedDB unavailable (private browsing)\n- Show user-friendly error if WASM fails to load\n- WASM module served from ./pkg/ (relative path); UI served from wasm/web/\n\n## Agent team\nImplementer: read daemon/web/index.html to understand DOM structure; write wasm/web/index.html.\n\n## Tests\n- Visual check: open wasm/web/index.html from a web server; page loads, identity appears in status bar\n- Manual test: connect to running relay, identity loads, send a message\n- cargo check and clippy unaffected (this is HTML/JS, not Rust)",
+  "acceptance_criteria": "wasm/web/index.html exists; loads WASM module with type=module import; identity generated/loaded from IndexedDB; relay URL input + Connect button present; send message calls client.send_message(); on_event callback wired to DOM updates",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:55:22Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T02:12:38Z",
+  "close_reason": "browser HTML/JS chat UI created at wasm/web/index.html; loads WASM via ES module; identity generated/stored in IndexedDB",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:55"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:22"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:55:56"
+    }
+  ]
+}

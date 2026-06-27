@@ -1,0 +1,25 @@
+{
+  "id": "nie-qgag.10",
+  "title": "activate_subscription grants current subscription_days not promised duration",
+  "description": "In payment_watcher.rs activate_subscription: when the invoice is expired (payment arrived late), the code grants max(invoice_expires_at, now + subscription_days). If SUBSCRIPTION_DAYS was changed after invoice creation (e.g. operator reduces from 30 to 7), a user who paid for 30 days but whose invoice expired before confirmation now only gets 7 days. The function should grant max(invoice_expires_at, now + duration_that_was_promised_at_invoice_creation). The invoice row does not store duration_days \u2014 it only stores expires_at. When the invoice is still valid (not expired), the correct value is invoice.expires_at. When expired, the operator change affects the late-payment path unexpectedly.",
+  "status": "in_progress",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:54:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-19T20:51:23Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:54:20"
+    }
+  ]
+}

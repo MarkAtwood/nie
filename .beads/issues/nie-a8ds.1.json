@@ -1,0 +1,27 @@
+{
+  "id": "nie-a8ds.1",
+  "title": "START_STICKY orphans service after process kill",
+  "description": "Android kills the Flutter process under memory pressure. START_STICKY causes NieForegroundService to restart with a null intent (handled as ACTION_START), showing the 'nie is running' notification \u2014 but no Flutter engine, no WebSocket, no relay connection. The Dart _running flag is false in the new process so BackgroundService.stop() can never be called until the user manually opens the app. Users will file issues: 'notification says running but I\\'m not using nie'. Fix: use START_NOT_STICKY. A relay-connectivity service should only run when the user is actively connected, not auto-resurrect.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T01:04:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T01:17:33Z",
+  "closed_at": "2026-04-24T01:17:33Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 18:04:15"
+    }
+  ]
+}

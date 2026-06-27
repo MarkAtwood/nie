@@ -1,0 +1,15 @@
+{
+  "id": "nie-uoja",
+  "title": "daemon store: get_space_members no LIMIT — unbounded member list per space in Space/get",
+  "description": "daemon/src/store.rs get_space_members() (line 685) issues SELECT with no LIMIT. Called once per space in the Space/get handler (jmap.rs:964). A space with thousands of members returns all rows into a Vec\u003cSpaceMemberRow\u003e. Combined with N+1 queries (one get_space_members per space returned by get_spaces), this creates O(S × M) memory pressure where S=number of spaces, M=members per space. Fix: add LIMIT to get_space_members and paginate space member lists, or return only member count in Space/get and expose members via a separate SpaceMember/query.",
+  "notes": "Part of security review round 23 (epic nie-nvk2)",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:58:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:35Z",
+  "closed_at": "2026-04-26T05:11:35Z",
+  "close_reason": "Closed"
+}

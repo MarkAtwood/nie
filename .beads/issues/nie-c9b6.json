@@ -1,0 +1,22 @@
+{
+  "id": "nie-c9b6",
+  "title": "multidevice: auto-add new device of existing group member",
+  "description": "When an existing group member connects a new device and publishes its KeyPackage, the group admin automatically adds that device's MLS leaf without requiring a manual group_add.\n\nWhy: if Alice is already in a group and connects her phone for the first time, she needs to be added to the group as a new leaf. Without this, her phone can connect to the relay but cannot decrypt any group messages. The admin must notice and act.\n\nWhat to do:\n- In the KEY_PACKAGE_READY broadcast handler on the admin client: check if the pub_id is already a member of any active group (check group membership table or local MLS group state)\n- If yes, and if this is a new device_id not already in the group, issue a group_add for just that device's KeyPackage (single-leaf Commit + Welcome)\n- Send the Welcome to the new device via whisper/deliver\n- Handle the race: two admins in different groups may both try to add the new device; MLS handles duplicate adds gracefully (second Commit rejected as out-of-epoch)\n- This logic runs on the client (admin side), not the relay. The relay just needs to deliver KEY_PACKAGE_READY to the admin and deliver the Welcome back.\n\nAcceptance: Alice's second device, on connecting and publishing its KeyPackage, receives a Welcome to every group Alice is a member of within one round-trip of the admin seeing KEY_PACKAGE_READY.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T20:17:50Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T01:13:16Z",
+  "closed_at": "2026-04-23T01:13:16Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 13:19:52"
+    }
+  ]
+}

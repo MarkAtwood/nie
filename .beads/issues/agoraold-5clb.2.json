@@ -1,0 +1,23 @@
+{
+  "id": "agoraold-5clb.2",
+  "title": "Add flutter_webrtc to Flutter project + call screen scaffold",
+  "description": "Add flutter_webrtc dependency and create call screen placeholder in android/ Flutter project.\n\nAlgorithm:\n1. Edit android/pubspec.yaml: add flutter_webrtc: ^0.11.0 to dependencies\n2. Run fvm flutter pub get in android/\n3. Create android/lib/screens/call_screen.dart: StatefulWidget with Camera/Mic mute buttons, End Call button\n4. Run fvm flutter analyze\n\nAcceptance: fvm flutter analyze exits 0; no errors.",
+  "acceptance_criteria": "fvm flutter analyze in android/ exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T01:22:32Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-23T01:23:55Z",
+  "close_reason": "flutter_webrtc added; call_screen.dart created; flutter analyze clean",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 18:22:31"
+    }
+  ]
+}

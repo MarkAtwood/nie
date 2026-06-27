@@ -1,0 +1,24 @@
+{
+  "id": "nie-0hjd.12",
+  "title": "relay/state: broadcast_to_group membership_cache per call, not shared across calls",
+  "description": "relay/src/state.rs:265-293: broadcast_to_group builds a membership_cache HashMap per call to memoize is_group_member DB lookups. This is correct. However: the live-delivery loop checks membership for each connection per pub_id (memoized), then the offline-enqueue loop does a separate DB is_group_member check per member (not memoized). For a group with 1000 members where 500 are online with 2 connections each, the live loop does 500 memoized lookups (500 DB queries), and the offline loop does up to 500 more DB queries for the 500 offline members. The membership_cache built in the live loop is not reused in the offline loop. A minor optimization: check if the member was already in membership_cache before the offline DB query.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:07:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:07:48Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:07:47"
+    }
+  ]
+}

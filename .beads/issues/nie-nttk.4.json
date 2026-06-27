@@ -1,0 +1,19 @@
+{
+  "id": "nie-nttk.4",
+  "title": "db.rs: scan_tip_and_spendable_notes isolation comment is wrong; relies on max_connections=1 not BEGIN DEFERRED",
+  "description": "The comment on scan_tip_and_spendable_notes (db.rs ~line 1098) states:\n\n  'A BEGIN DEFERRED transaction (SQLite default for pool.begin()) is sufficient:\n   it acquires a shared read lock on first read, blocking any concurrent\n   BEGIN IMMEDIATE write (from save_block_state) until both reads complete.'\n\nThis is incorrect on two counts:\n\n1. save_block_state also uses pool.begin() (deferred), not BEGIN IMMEDIATE. The comment implies save_block_state uses BEGIN IMMEDIATE but it does not.\n\n2. In SQLite's default journal mode (DELETE), a BEGIN DEFERRED read transaction does NOT block a concurrent writer until the reader has acquired a shared lock. Two deferred transactions can interleave. The correct isolation statement is that with max_connections=1, only one connection exists, making concurrent access from two async tasks impossible because sqlx serializes pool.begin() calls through the single connection.\n\nThe actual isolation guarantee is: max_connections=1 + sqlx serialization, not transaction isolation semantics. If max_connections is ever raised above 1 (e.g. to improve read throughput), the TOCTOU race described in the comment would become real. The code works correctly today but for the wrong stated reason, and would silently break if the connection pool limit is relaxed.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:41:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:41:54Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:41:53"
+    }
+  ]
+}

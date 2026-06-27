@@ -1,0 +1,21 @@
+{
+  "id": "nie-8lcm.18",
+  "title": "budget comment 'within PAYMENT_TIMEOUT_SECS' is factually wrong",
+  "description": "In wallet/tests/e2e_testnet.rs line 429 (the receive-side mine-wait block), the comment reads:\n\n  // Budget: mine-wait \u2264 300 s, scan \u2264 120 s; together 420 s within PAYMENT_TIMEOUT_SECS.\n\nThis is factually incorrect. The mine-wait and scan timeouts are NOT within PAYMENT_TIMEOUT_SECS. PAYMENT_TIMEOUT_SECS (600s) wraps only the send_payment() call (lines 395-410). The mine-wait (Duration::from_secs(300)) and scan timeout (Duration::from_secs(120)) are applied AFTER send_payment returns, in separate tokio::time::timeout() calls. Total maximum test runtime is 600 + 300 + 120 = 1020 seconds (17 minutes), not 600 seconds.\n\nThe nie-8lcm.1 debug_assert suggestion (assert mine_wait + scan < PAYMENT_TIMEOUT_SECS) would assert a false invariant and would fail if implemented literally since 300 + 120 = 420 < 600, but the assertion is based on the wrong premise that all three timeouts are sequential within one outer envelope. They are not \u2014 they are three independent sequential timeouts.\n\nThe correct comment should say something like: 'mine-wait \u2264 300 s + scan \u2264 120 s after send_payment (\u2264 600 s); total worst-case \u2264 1020 s'.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T05:01:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T05:09:11Z",
+  "closed_at": "2026-04-20T05:09:11Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 22:00:59"
+    }
+  ]
+}

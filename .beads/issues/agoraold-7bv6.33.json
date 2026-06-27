@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-7bv6.33",
+  "title": "SEC1: age/scrypt pulled into wasm32 bundle unnecessarily",
+  "description": "core/Cargo.toml: age is an unconditional dependency (not gated behind cfg(not(target_arch='wasm32'))). It is used only by keyfile.rs (which IS gated), but wallet.rs imports bip39/blake2b_simd unconditionally without using age. The age crate brings in scrypt (for passphrase-based encryption) \u2014 scrypt's WASM support is fragile and the whole dependency is useless in the browser (wallet is Phase 2+ and keyfile is gated). Cargo check currently passes but adding age features or a cargo update may trigger a compile failure. Fix: add [target.'cfg(not(target_arch=\"wasm32\"))'.dependencies] gate for age in core/Cargo.toml.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:35:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:17Z",
+  "closed_at": "2026-04-20T02:41:44Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:35:18"
+    }
+  ]
+}

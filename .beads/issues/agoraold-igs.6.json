@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-igs.6",
+  "title": "INNER JOIN witnesses in spendable_notes is semantically correct \u2014 not an optimization",
+  "description": "spendable_notes() uses INNER JOIN witnesses rather than LEFT JOIN or fetching witness_data separately. This is not a performance choice \u2014 it is a correctness constraint: a note without a witness cannot be spent. Including it via LEFT JOIN would return witness_data = NULL, which witness_to_merkle_path would then reject as WitnessDeserialize('empty witness data'), producing a confusing runtime error deep inside build_shielded_tx. The INNER JOIN makes the invariant 'spendable_notes always has a valid witness' hold at the query boundary rather than relying on callers to re-check. A contributor who changes this to LEFT JOIN 'to be more complete' is introducing a latent crash on any note the scanner has received but not yet witnessed.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T01:25:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:53Z",
+  "closed_at": "2026-04-19T01:30:56Z",
+  "close_reason": "decision records documented in beads; no code change required",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 18:25:23"
+    }
+  ]
+}

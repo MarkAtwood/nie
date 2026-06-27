@@ -1,0 +1,38 @@
+{
+  "id": "nie-th7.8",
+  "title": "ws.rs: GROUP_SEND handler (fan-out to all group members)",
+  "description": "What: Add GROUP_SEND relay WebSocket handler in relay/src/ws.rs \u2014 the core fan-out logic.\n\nAlgorithm:\n1. Parse GroupSendParams { group_id, payload }\n2. Check subscription gate (if require_subscription)\n3. store.is_group_member(group_id, pub_id.0).await \u2192 verify sender is member; if not: NOT_A_MEMBER error\n4. store.list_group_members(group_id).await \u2192 Vec<String> of member pub_ids\n5. message_id = Uuid::new_v4().to_string()\n6. Build GroupDeliverParams notification: from = pub_id.0 (relay-set), group_id, payload (opaque)\n7. Serialize notification to JSON string\n8. Call state.broadcast_to_group(members, Some(&pub_id.0), notify_json).await\n9. Return GroupSendResult { message_id }\n\nDefensive rules:\n- Subscription check FIRST before store.is_group_member\n- from ALWAYS set from authenticated pub_id, never from params (CLAUDE.md invariant #4)\n- Payload is opaque Vec<u8>; relay MUST NOT deserialize it (CLAUDE.md invariant #3 and #7)\n- Empty group (no members other than sender): still return success, but deliver to 0 peers\n\nTeam: standard R+I+T",
+  "acceptance_criteria": "cargo test -p nie-relay passes; non-member GROUP_SEND returns NOT_A_MEMBER; sender does not receive own GROUP_DELIVER; offline member gets message queued",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T11:51:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T12:08:00Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:43"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:51:28"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:44"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-20 04:52:45"
+    }
+  ]
+}

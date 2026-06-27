@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-wrk.12",
+  "title": "partition_point sorted insert for UserJoined maintains admin invariant correctly",
+  "description": "online.partition_point(|id| online_seq.get(id).copied().unwrap_or(u64::MAX) < sequence) inserts each UserJoined at the position that keeps the list sorted by connection_seq ascending, so online[0] is always the globally earliest-connected peer (the admin). A contributor may suggest appending to online for simplicity (online.push(pub_id)). Do not do that: UserJoined events arrive in different orders at different clients due to concurrent relay connections, so appending produces different admin elections at different peers \u2014 epoch collisions make messages undecryptable.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:54:44Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:58Z",
+  "closed_at": "2026-04-18T00:10:41Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:54:44"
+    }
+  ]
+}

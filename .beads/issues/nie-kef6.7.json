@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.7",
+  "title": "transport: next_request_id uses SeqCst unnecessarily",
+  "description": "next_request_id() in transport.rs uses REQUEST_ID.fetch_add(1, Ordering::SeqCst). SeqCst provides a total global memory ordering across all atomic operations on all threads, which is far stronger than needed for a simple monotonic counter. Relaxed ordering suffices here because there is no happens-before dependency between the counter increment and any other memory location. SeqCst imposes a full memory barrier on every call, which is measurable overhead on ARM. Replace with Ordering::Relaxed.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T23:49:03Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:49:03Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 16:49:02"
+    }
+  ]
+}

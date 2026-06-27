@@ -1,0 +1,26 @@
+{
+  "id": "nie-14sh.26",
+  "title": "fees.rs select_notes InsufficientFunds have total uses unchecked sum, can panic or wrap",
+  "description": "fees.rs select_notes: the InsufficientFunds error path computes have via .sum::<u64>() without overflow protection. Iterator::sum panics in debug on overflow and wraps silently in release. The selection loop uses checked_add correctly but the error summary recomputes the total without matching protection. With corrupted note values (e.g. from a test harness storing synthetic u64::MAX notes) the error message shows a wrong 'have' amount or panics in debug mode. Fix: use fold with saturating_add in the have computation, matching the rationale already in the selection loop comments.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:56:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T23:22:58Z",
+  "closed_at": "2026-04-24T23:22:58Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:56:48"
+    }
+  ]
+}

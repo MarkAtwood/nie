@@ -1,0 +1,23 @@
+{
+  "id": "nie-t8j0.17",
+  "title": "messages: pad/unpad bucket-based length hiding is correct and should be preserved",
+  "description": "pad() uses fixed-size buckets (256, 512, 1024, 4096, 65536) with a 4-byte length prefix. This correctly hides payload length to five discrete sizes. The u32 length cast is safe because the max bucket is 65536 and the max plaintext is 65532 < u32::MAX. unpad() validates the declared length against the buffer size before slicing. Both checks are necessary; a future 'simplification' removing the validation in unpad() would be a correctness regression.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:41:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:41:29Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:41:29"
+    }
+  ]
+}

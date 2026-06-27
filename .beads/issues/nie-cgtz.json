@@ -1,0 +1,22 @@
+{
+  "id": "nie-cgtz",
+  "title": "Blob storage: HTTP upload/download",
+  "description": "Implement RFC 8620 \u00a76 blob upload (POST uploadUrl) and download (GET downloadUrl) in nie-daemon. Store blobs locally with SHA-256 verification. Wire Attachment records into Message/set create. For outbound delivery to peers, fetch URL will be the local daemon's downloadUrl \u2014 peers fetch blobs over the JMAP blob channel rather than in-band chunked transfer. Supersedes ClearMessage.FileHeader/FileChunk for JMAP Chat clients.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T19:54:20Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-23T22:31:06Z",
+  "closed_at": "2026-04-23T22:31:06Z",
+  "close_reason": "RFC 8620 \u00a76 blob upload (POST /jmap/upload/{accountId}) and download (GET /jmap/download/{accountId}/{blobId}/{name}). SHA-256 content-addressed storage in SQLite. DB v3 migration. 4 integration tests.",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 12:55:01"
+    }
+  ]
+}

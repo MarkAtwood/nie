@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-cs0.6",
+  "title": "Passphrase skip UX: hitting Enter loses wallet for entire session",
+  "description": "Scenario: user has a wallet with a real passphrase, runs nie chat, sees 'Wallet passphrase (Enter to skip):', hits Enter accidentally. decrypt_wallet_key fails ('wrong passphrase or corrupt wallet.key'). Payment address generation is disabled for the entire session. To recover they must exit and restart nie chat. The phrase 'Enter to skip' implies the wallet is optional for the session, but the correct mental model is 'Enter = no passphrase attempt = wallet disabled'. Users who intend to receive payments will generate support issues. If the skip behavior is intentional, the prompt text must be unambiguous: 'Wallet passphrase (leave blank to skip payment address generation):', and the disabled-state message must say 'restart nie chat to enable payments'.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:07:05Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:54Z",
+  "closed_at": "2026-04-18T22:32:03Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:07:04"
+    }
+  ]
+}

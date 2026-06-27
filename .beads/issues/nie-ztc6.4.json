@@ -1,0 +1,24 @@
+{
+  "id": "nie-ztc6.4",
+  "title": "PoW replay set: DashMap::retain acquires global write-lock on every auth attempt",
+  "description": "ws.rs PoW verification runs pow_replay_set.retain(...) on every successful authentication (not on a timer). DashMap::retain internally acquires a write-lock on all shards sequentially \u2014 effectively a global lock on the replay set. Under concurrent auth load (PoW makes reconnection expensive, but burst re-auths are still possible), all authenticating tokio tasks serialize through retain(). Impact: O(N) scan on each auth where N can be up to MAX_REPLAY_ENTRIES=1,000,000. The eviction should run on a background timer (tokio::time::interval) rather than inline per-auth, or use a time-bucketed structure (e.g. separate sets per 10-minute window, evict by swapping).",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:51:21Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:51:21Z",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:51:20"
+    }
+  ]
+}

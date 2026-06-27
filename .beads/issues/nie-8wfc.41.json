@@ -1,0 +1,22 @@
+{
+  "id": "nie-8wfc.41",
+  "title": "Space name bypasses canonicalize_display_name allowing bidi/homoglyph attacks",
+  "description": "In jmap.rs space_set, the space 'name' field is stored as-is without passing through canonicalize_display_name(). The contact displayName path correctly calls canonicalize_display_name() which applies NFC normalization, bidi control character rejection, and zero-width char stripping. DESIGN.md \u00a7'Display Name Canonicalization' requires this for all user-visible names including group/space names. A client can create a space with a right-to-left override (U+202E) or invisible lookalike characters in its name. Fix: run name through canonicalize_display_name() in space_set before insertion, and return invalidArguments if it rejects the name.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:01:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:17:20Z",
+  "closed_at": "2026-04-24T22:17:20Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:01:45"
+    }
+  ]
+}

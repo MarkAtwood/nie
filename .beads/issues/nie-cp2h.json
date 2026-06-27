@@ -1,0 +1,19 @@
+{
+  "id": "nie-cp2h",
+  "title": "Review: fix: contact_set atomicity, unknown-key rejection, store SQL dedup",
+  "notes": "Maintainer risk: LOW — The two genuine risks (contact Phase 2 no-transaction, SpaceMemberOp role untyped) are both latent: contacts are permanently immutable so the race can't trigger today, and there's only one call site for SpaceMemberOp. Both will bite you when the codebase grows.\nConfidence: 90% chance no missed bug. Uncertainty driven by: only read the diff + store method bodies, not the full 4341-line jmap.rs or the full test suite execution. Would raise confidence if: (1) cargo test --workspace runs clean, (2) saw the full contact_set and space_set handlers in context to verify all error paths return from the function and not just break from the inner loop.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T05:51:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T06:07:09Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

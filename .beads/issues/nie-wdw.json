@@ -1,0 +1,32 @@
+{
+  "id": "nie-wdw",
+  "title": "Shielded transaction builder: sign and serialize tx",
+  "description": "Implement build_shielded_tx(spending_key, to_address: &str, amount_zatoshi: u64, memo: &[u8; 512]) -> Result<Vec<u8>> (raw tx bytes ready to broadcast). Steps: parse to_address with zcash_address, validate it is a valid Sapling or Unified Address; select notes from wallet DB sufficient to cover amount + fee (coin selection); build sapling_builder with the spend proofs; add outputs; finalize. Defensive programming: (1) check balance >= amount + fee before starting, return Err(InsufficientFunds { have, need }) not panic; (2) validate amount > dust_threshold (defined as const DUST_THRESHOLD: u64 = 1000; with doc comment citing ZIP-317); (3) memo must be exactly 512 bytes \u2014 assert, do not truncate silently; (4) return Err not panic on zcash_primitives builder errors; (5) log only amount and txid hash on success, never key material or note values. Use a subagent to read the zcash_primitives SaplingBuilder API before coding.",
+  "acceptance_criteria": "Unit test: build a tx with mocked note selection, verify serialized bytes are non-empty and parseable. Test: amount > balance returns Err(InsufficientFunds). Test: amount <= dust_threshold returns Err. No real network calls in unit tests.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T18:20:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T02:17:49Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:28"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 16:41:52"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 11:21:27"
+    }
+  ]
+}

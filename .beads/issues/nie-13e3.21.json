@@ -1,0 +1,25 @@
+{
+  "id": "nie-13e3.21",
+  "title": "scan_tx error mid-block leaves in-memory commitment tree partially mutated; retry corrupts tree",
+  "description": "scanner.rs scan_block() takes snapshots at entry (tree_snapshot, witnesses_snapshot) and restores them only on save_block_state failure. If scan_tx returns Err (e.g. invalid cmu causes anyhow::bail!), scan_block returns Err immediately WITHOUT restoring the snapshots. self.tree and self.witnesses have been partially mutated by the outputs processed before the error. spawn_scanner() logs the error and calls scan_to_tip() again on the next poll cycle. scan_to_tip() reads scan_tip from DB (unchanged \u2014 the failed block was not committed) and replays the block from scratch. But self.tree now has phantom leaf nodes from the partial scan_tx run on the previous attempt. The commitment tree is now permanently inconsistent with the DB-recorded tree_state: the DB holds the tree state from the last successful block, but in-memory self.tree has extra leaves. Witnesses forked from this corrupt tree will have wrong roots; spend proofs generated from them will fail. Trigger: any invalid cmu in a compact block output (could be from a malicious/buggy lightwalletd). Bad behavior: commitment tree silently diverges; all future notes are unspendable. Fix: restore snapshots in scan_block before returning Err from scan_tx.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:30:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T07:02:30Z",
+  "closed_at": "2026-04-25T07:02:30Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:30:27"
+    }
+  ]
+}

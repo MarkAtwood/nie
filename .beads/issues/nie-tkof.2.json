@@ -1,0 +1,21 @@
+{
+  "id": "nie-tkof.2",
+  "title": "daemon/relay.rs: PeerGroupUpdate and PeerRetract skip authorization when state.store() is None",
+  "description": "In daemon/src/relay.rs, both PeerGroupUpdate (lines 350-362) and PeerRetract (lines 319-329) use the pattern: if let Some(store) = state.store() { check ownership } else { true }. When state.store() is None, all PeerGroupUpdate and PeerRetract messages are authorized unconditionally. Any MLS peer can then add/remove/promote/demote members or retract any message. Current production always passes Some(jmap_store), but the else { true } branch creates a footgun for future storeless configurations and is structurally wrong \u2014 missing authorization must default to deny, not allow.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T11:29:17Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T11:36:34Z",
+  "closed_at": "2026-04-26T11:36:34Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 04:29:17"
+    }
+  ]
+}

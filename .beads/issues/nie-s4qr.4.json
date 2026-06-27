@@ -1,0 +1,26 @@
+{
+  "id": "nie-s4qr.4",
+  "title": "wasm directory_list deserializes Vec<UserInfo> directly, bypasses the 10K cap",
+  "description": "In wasm/src/client.rs set_event_callback(), the 'directory_list' branch does: serde_json::from_value::<Vec<UserInfo>>(v['params']['online'].clone()). This deserializes the online array as a plain Vec<UserInfo> with no size cap \u2014 it completely bypasses the DirectoryListParams custom Deserialize that enforces MAX_USERS_IN_DIRECTORY (10_000). A rogue relay can send a directory_list with millions of online entries and the WASM client will allocate them all into memory without error. The custom Deserialize was added precisely to prevent this, but the WASM client never uses it.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:13:45Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:40:39Z",
+  "closed_at": "2026-04-26T07:40:39Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:13:45"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-3om.8",
+  "title": "load_sapling_params reads ~51 MB at startup even if wallet is disabled",
+  "description": "commands.rs chat() loads Sapling params (load_sapling_params) inside the 'if let Some(ref fvks) = wallet_fvks' block during startup. Reading and hashing 51 MB from disk blocks the tokio runtime if the wallet is enabled but the params are present. This is on the cold startup path before any payment is ever made. Impact: 1-3 second startup delay on cold page cache, every chat session, even if no payment is planned. Expected impact at scale: significant for mobile/embedded where disk I/O is slow. The doc comment in payment.rs correctly identifies this and says params should be loaded once at startup \u2014 but the actual load is on the synchronous (non-async) cold path inside the tokio main thread, not in a spawn_blocking call. A blocking read of 51 MB on the async executor can starve other tasks during the hash verification.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T03:55:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:31Z",
+  "closed_at": "2026-04-19T04:06:44Z",
+  "close_reason": "Invalid finding: load_sapling_params is called inside the Some(wallet_fvks) branch in send_fn_box. If the wallet is disabled (no wallet_fvks), the code takes the early return path and params are never loaded.",
+  "labels": [
+    "efficiency",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 20:55:10"
+    }
+  ]
+}

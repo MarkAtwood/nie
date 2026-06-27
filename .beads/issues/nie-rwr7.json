@@ -1,0 +1,27 @@
+{
+  "id": "nie-rwr7",
+  "title": "Sealed sender: hide message origin from relay",
+  "description": "Hide the sender's identity from the relay. Currently every Deliver carries from: pub_id \u2014 the relay knows the full social graph. With sealed sender, the relay learns only who receives a message, never who sent it. The recipient verifies the sender after decryption.\n\n## Mechanism (Signal-style sealed sender via HPKE)\n\n### Key setup\nEach user publishes an HPKE public key alongside their MLS KeyPackage. The HPKE key is separate from the Ed25519 signing key (key separation invariant \u2014 see CLAUDE.md). This key is already planned for MLS key exchange.\n\n### Sending a sealed message\nInstead of:\n  Broadcast { payload: <MLS ciphertext> }\n\nClient sends:\n  SealedBroadcast { sealed: <opaque bytes> }\n\nWhere sealed = HPKE-Seal(recipient_group_hpke_key, plaintext={sender_pub_id || MLS_ciphertext})\n\nFor the single-room broadcast case, the 'recipient' is a well-known room HPKE key (a group key shared via MLS, or a relay-published ephemeral key for the room).\n\nFor DMs (Whisper):\n  SealedWhisper { to: pub_id, sealed: <HPKE-Seal(recipient_hpke_key, {sender_pub_id || payload})> }\n\n### Relay behavior\n- Relay forwards SealedBroadcast as SealedDeliver { sealed: <opaque> } \u2014 no from field\n- Relay forwards SealedWhisper as SealedWhisperDeliver { sealed: <opaque> } \u2014 no from field\n- Relay cannot read sealed; cannot learn sender\n\n### Recipient verification\nRecipient decrypts sealed with their HPKE private key, obtains {sender_pub_id, payload}.\nVerifies sender_pub_id is a known peer (from directory).\nMLS epoch key implicitly authenticates that a group member sent the outer MLS ciphertext.\n\n### Transition\n- Introduce SealedBroadcast / SealedDeliver alongside existing Broadcast / Deliver\n- Relay supports both during transition; old clients use Deliver (from visible), new clients use SealedDeliver (from hidden)\n- Deprecate unsealed variants once all clients upgrade\n\n## What the relay still learns\n- Who is online (connection presence)\n- When messages are sent and received\n- Message sizes (mitigated by padding \u2014 separate epic)\n- For DMs: who receives a message (the 'to' field in SealedWhisper is still visible)\n\n## What the relay no longer learns\n- Who sent any message\n- The social graph of who talks to whom\n\n## Dependencies\n- nie-t4t (MLS Phase 1) \u2014 HPKE keys are provisioned via MLS KeyPackage infrastructure\n- nie-hlns (JSON-RPC migration) \u2014 new SealedBroadcast/SealedDeliver message types added to the updated protocol",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T16:54:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T20:41:14Z",
+  "close_reason": "all steps complete",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:54:54"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 09:54:55"
+    }
+  ]
+}

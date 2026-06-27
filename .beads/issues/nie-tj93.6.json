@@ -1,0 +1,26 @@
+{
+  "id": "nie-tj93.6",
+  "title": "payment_watcher: zero-value block.height resets scan to tip-lookback silently",
+  "description": "payment_watcher.rs run_watcher_loop() line 126 checks if last_scanned_height == 0 to set the initial scan start. After processing a block, last_scanned_height = block.height (line 172). If lightwalletd returns a malformed CompactBlock with height == 0, last_scanned_height resets to 0, causing the next iteration to recalculate start from tip - INITIAL_LOOKBACK. This re-scans up to 100 blocks, re-activating any subscriptions found in those blocks a second time. activate_subscription_atomic uses CASE to preserve the max expiry, so double-activation is not catastrophic, but the re-scan wastes effort and logs spurious 'confirmed payment' lines. Fix: guard against block.height == 0 (or block.height < last_scanned_height) and log an error rather than accepting the height.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T01:57:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T02:08:19Z",
+  "closed_at": "2026-04-25T02:08:19Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 18:57:33"
+    }
+  ]
+}

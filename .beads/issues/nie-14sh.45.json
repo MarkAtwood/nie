@@ -1,0 +1,24 @@
+{
+  "id": "nie-14sh.45",
+  "title": "payment_watcher comment says step '3' but step '2' is absent \u2014 numbering gap",
+  "description": "payment_watcher.rs activate_subscription(): the comment block reads '1. Write subscription...' then '3. Notify the client...' skipping 2. The missing step 2 was likely a now-deleted intermediate step (e.g. persist scan height). Remove the step numbers or renumber 1/2 to avoid confusion about missing logic.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T22:58:11Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T22:58:11Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 15:58:11"
+    }
+  ]
+}

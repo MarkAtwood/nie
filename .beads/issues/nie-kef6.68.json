@@ -1,0 +1,23 @@
+{
+  "id": "nie-kef6.68",
+  "title": "SUBSCRIPTION_DAYS=0 silently blocks all subscription requests without operator warning",
+  "description": "If SUBSCRIPTION_DAYS=0, max_days=0 is set with no startup error. In SUBSCRIBE_REQUEST, 'params.duration_days as u64 > max_days' is true for any duration_days >= 1, so every request returns 'duration_days exceeds maximum'. The relay accepts payment config (MERCHANT_DFVK set) but silently denies all invoices. main.rs should reject SUBSCRIPTION_DAYS=0 the same way it rejects SUBSCRIPTION_PRICE_ZATOSHI=0.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:53:15Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T00:53:15Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:53:15"
+    }
+  ]
+}

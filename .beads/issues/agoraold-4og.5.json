@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-4og.5",
+  "title": "Test oracle discipline: no test uses code-under-test as its own oracle",
+  "description": "All tests across tx_builder, fees, db, payment, memo, sync_guard use independent oracles: known ZIP-32/ZIP-317 vectors, independent serializers (Transaction::read), property-based edge case enumeration, or Merkle tree structural properties. No test encrypts/signs with function A and decrypts/verifies with function A. Happy-path tx tests verify structure (spend/output count) via independent deserialization, not proof validity. This must be preserved \u2014 a contributor adding a 'roundtrip test' that uses the builder output as its own oracle proves nothing.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T04:27:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:51Z",
+  "closed_at": "2026-04-19T04:34:19Z",
+  "close_reason": "Decision already documented in code. No code change needed.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 21:27:26"
+    }
+  ]
+}

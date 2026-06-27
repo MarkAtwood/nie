@@ -1,0 +1,25 @@
+{
+  "id": "nie-kef6.81",
+  "title": "messages: deserialize_file_name does not reject null bytes",
+  "description": "deserialize_file_name rejects '/', '\\\\', '..' and empty names but does not reject null bytes (\\x00). A hostile peer can send name 'evil\\x00.txt', which passes validation. On POSIX, tokio::fs::write with a path containing \\x00 will error, but the error path just logs a warning and does not surface to the user. On Windows, the OS would truncate at \\x00 resulting in the name 'evil' and potentially overwriting an existing file. Fix: reject any name containing a null byte.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T00:56:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T01:12:45Z",
+  "closed_at": "2026-04-25T01:12:45Z",
+  "close_reason": "Closed",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 17:56:09"
+    }
+  ]
+}

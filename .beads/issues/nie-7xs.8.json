@@ -1,0 +1,28 @@
+{
+  "id": "nie-7xs.8",
+  "title": "KeyPackage serialized as serde_json, not TLS -- non-standard wire format",
+  "description": "mls.rs key_package_bytes() uses serde_json::to_vec(kpb.key_package()) and add_member() uses serde_json::from_slice(). The comment says 'KeyPackage only derives TlsDeserialize under test-utils feature'. This means the KeyPackage on the wire is JSON, not the TLS-encoded format defined in RFC 9420. The relay stores it opaquely (store.rs:save_key_package), which is correct. But this creates a non-standard wire format that will be incompatible with any RFC 9420-compliant implementation when Phase 4 (Android client) arrives. An Android MLS stack will produce TLS-encoded KeyPackages that the Rust client cannot parse with serde_json. The divergence should be fixed before any multi-implementation scenario. Fix: add the 'test-utils' feature to openmls (accept the build overhead) and use TLS serialization, or manually implement TLS encode/decode for KeyPackage.",
+  "notes": "CONFIRMED from openmls key_packages/mod.rs: KeyPackage derives TlsSize but NOT TlsSerialize or TlsDeserialize. KeyPackageIn (the deserialization wrapper) derives TlsDeserialize. There is no standard way to TLS-serialize a KeyPackage owned value -- TlsSerialize is simply not implemented. The mls.rs comment 'only derives TlsDeserialize under test-utils' is misleading: the real situation is that KeyPackage has no TlsSerialize at all, not a feature gate issue. The serde_json workaround is the only option given current openmls API. The wire format incompatibility with RFC 9420 compliant implementations (Android, Phase 4) remains real.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T07:59:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:05:22Z",
+  "closed_at": "2026-04-16T09:05:22Z",
+  "close_reason": "Closed",
+  "labels": [
+    "efficiency",
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 00:59:15"
+    }
+  ]
+}

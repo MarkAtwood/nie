@@ -1,0 +1,23 @@
+{
+  "id": "nie-bqoo.13",
+  "title": "GROUP_SEND passing group_id to broadcast_to_group for offline membership re-check is correct",
+  "description": "GROUP_SEND passes Some(&group_id) to broadcast_to_group, enabling the membership re-check guard for offline enqueue. This prevents the race where a member departs between list_group_members and the enqueue, receiving a message from a group they've already left. A contributor might suggest removing this guard as 'excessive DB calls' (it's one is_group_member per offline recipient). The guard is necessary: without it, group membership state in offline queues diverges from actual membership. The performance cost is proportional to offline members, which is typically a small fraction of group size.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T08:13:51Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T08:13:51Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 01:13:51"
+    }
+  ]
+}

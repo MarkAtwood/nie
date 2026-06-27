@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7bv6.15",
+  "title": "SEC4: send_whisper uses ClearMessage::Chat with no explanation",
+  "description": "client.rs lines 282-286: send_whisper() constructs a ClearMessage::Chat payload for a direct message. A reader would reasonably expect a ClearMessage::Whisper or ClearMessage::DirectMessage variant. There is no comment explaining why Chat is used here (presumably because the relay routes whispers by address, not by message type, so the payload type does not need to differ). Without this comment a maintainer will suspect the variant choice is a bug. Fix: add comment above the ClearMessage::Chat construction: // The payload type is Chat regardless of delivery mode \u2014 whisper routing is handled // by the relay at the envelope level; the payload type does not distinguish DMs.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T02:31:26Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:46Z",
+  "closed_at": "2026-04-20T03:01:09Z",
+  "close_reason": "Closed",
+  "labels": [
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 19:31:26"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.7",
+  "title": "PERF review: boxing, SOCKS5, alloc \u2014 no findings",
+  "description": "Performance review of core/src/transport.rs SOCKS5 proxy implementation. Areas checked:\n\n1. WsSink/WsStream boxing: Box allocated once per connection in ws_upgrade_and_auth; vtable dispatch per message is immaterial at human chat speed. No action needed.\n\n2. SOCKS5 handshake on reconnect: connection_manager correctly re-runs full SOCKS5 + WS auth on every reconnect iteration. This is correct behavior, not a bug.\n\n3. String allocations in parse_proxy_addr / parse_relay_addr: .to_owned() called once per connection attempt. Unavoidable; strings needed as owned values for Socks5Stream::connect. No unnecessary clones.\n\n4. Async task structure: All I/O (Socks5Stream::connect, TcpStream::connect) is async. build_connector() is synchronous but does zero I/O. No blocking operations in the async path.\n\n5. TLS connector construction: build_connector() called once per connection attempt. In the common path (accept_invalid_certs=false) it returns Ok(None) with zero allocation. In the dev-only insecure path it builds a TlsConnector once per reconnect \u2014 acceptable.\n\nOnly real finding filed separately as nie-gcwe.4 (double-parse in parse_incoming).",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:20:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:04:04Z",
+  "closed_at": "2026-04-19T19:33:09Z",
+  "close_reason": "Fixed by IPv6 bracket handling implementation",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:20:46"
+    }
+  ]
+}

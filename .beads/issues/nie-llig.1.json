@@ -1,0 +1,21 @@
+{
+  "id": "nie-llig.1",
+  "title": "SEC0/SEC1/SEC2/SEC3/SEC4: no issues found",
+  "description": "All review sections clean. 276 tests pass. 95% confidence.",
+  "status": "closed",
+  "priority": 4,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:56:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-19T23:28:07Z",
+  "closed_at": "2026-04-19T23:28:07Z",
+  "close_reason": "Review converged: P0=0, P1=0, P2=0, running out of real complaints",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:56:00"
+    }
+  ]
+}

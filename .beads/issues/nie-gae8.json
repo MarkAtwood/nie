@@ -1,0 +1,14 @@
+{
+  "id": "nie-gae8",
+  "title": "message_set: no space-membership check before posting to channel chat",
+  "description": "In daemon/src/jmap.rs message_set create path (around line 1942), the code calls get_chats() to verify the chat exists, then inserts the message. For a channel chat (kind='channel', space_id set), there is no check that account_id is a member of space_member for that space. Any authenticated JMAP user who knows a channel's chat_id can post messages to it, bypassing space access control entirely. Fix: after get_chats() succeeds, if the returned ChatRow.kind == 'channel' and ChatRow.space_id is Some, verify account_id has a space_member row for that space_id before proceeding.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:44:27Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:54:20Z",
+  "closed_at": "2026-04-26T04:54:20Z",
+  "close_reason": "Closed"
+}

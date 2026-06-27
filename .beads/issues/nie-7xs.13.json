@@ -1,0 +1,25 @@
+{
+  "id": "nie-7xs.13",
+  "title": "Ratchet tree in Welcome: relay stays blind to MLS group state",
+  "description": "use_ratchet_tree_extension(true) in both group_create_config() and group_join_config() embeds the ratchet tree directly in the Welcome message. A reviewer might suggest setting this to false to reduce Welcome message size. Do not do this: the alternative (false) requires the relay to serve the ratchet tree, which would require a relay endpoint that stores and returns group state per epoch. That breaks the core architectural invariant that the relay is blind to group membership and cryptographic state. The size overhead of embedding the tree is O(N log N) in group size -- acceptable for this use case. The invariant must be preserved.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-16T08:00:04Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-16T09:07:51Z",
+  "closed_at": "2026-04-16T09:07:51Z",
+  "close_reason": "Closed",
+  "labels": [
+    "internal-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-16 01:00:03"
+    }
+  ]
+}

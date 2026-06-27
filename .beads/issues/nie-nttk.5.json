@@ -1,0 +1,19 @@
+{
+  "id": "nie-nttk.5",
+  "title": "scanner.rs: witnesses map grows unboundedly during long scans when spend detection is slow",
+  "description": "In scanner.rs, spent note pruning happens once per block in scan_block() via spent_note_ids_in(). However:\n\n1. spent_note_ids_in() only checks notes that are already in self.witnesses (the in-memory map).\n2. The DB is queried for spent status, but only notes that payment.rs has called mark_notes_spent() on will be pruned.\n3. If the scanner runs for many blocks without any payments (normal wallet usage), the witnesses map grows by one entry per received note, forever.\n\nMore critically: the witnesses are serialized and written to the DB on *every block* for *every note* in the map. With N unspent notes, each block scan does O(N) serializations and O(N) DB writes to the witnesses table. For a heavily-used wallet that receives many notes and spends them slowly, this creates O(notes * blocks) I/O.\n\nExample: 100 unspent notes \u00d7 1000 blocks = 100,000 witness rows written per 1000 blocks. Each write is a separate SQL statement within save_block_state.\n\nThe witnesses map also holds strong memory references to IncrementalWitness structs, which are non-trivial in size. A wallet that has received many small notes (dust attack scenario) could exhaust memory.\n\nThe pruning after spent_note_ids_in() only removes notes that were spent AND are in the witnesses map. Notes added to the map during rescan that were then spent are correctly pruned, but the I/O bound is still O(unspent_notes \u00d7 blocks_since_receive) for long-lived notes.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:42:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:42:09Z",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:42:08"
+    }
+  ]
+}

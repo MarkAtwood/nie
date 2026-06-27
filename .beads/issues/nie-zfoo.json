@@ -1,0 +1,14 @@
+{
+  "id": "nie-zfoo",
+  "title": "transport: connection_manager reconnect loops forever with no termination condition",
+  "description": "connect_with_retry() spawns connection_manager which loops unconditionally: the outer loop has no break condition other than in_tx.is_closed() and the chat-exited path. If the relay is permanently down (domain no longer exists, certificate expired, etc.), the connection_manager will retry every 60s forever for the lifetime of the process. This is the intended design for a background reconnect service. However: 1) There is no maximum retry count or absolute timeout, so a daemon process that cannot reach its relay runs forever using CPU and generating log noise with no operator notification mechanism beyond the logs. 2) If open_authenticated_ws fails during the PoW mining step (spawn_blocking panics), the panic is caught by the JoinHandle and returned as an Err from the .await, which is then treated as a normal connection failure and retried — the error is lost in the warn!() log. No new P0 here but worth filing as P1 for operational correctness: consider adding a max-retry-count or a notifying channel.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T04:54:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:11:37Z",
+  "closed_at": "2026-04-26T05:11:37Z",
+  "close_reason": "Closed"
+}

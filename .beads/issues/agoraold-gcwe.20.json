@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.20",
+  "title": "socks5_helper: oneshot fires before CONNECT reply is sent",
+  "description": "In relay/tests/socks5_helper.rs, the oneshot tx.send(()) (line 85) fires before the SOCKS5 success reply is written to the client (lines 93-96):\n\n  // Signal that we received a CONNECT.\n  let _ = tx.send(());\n\n  // Connect to the real relay.\n  let mut relay = TcpStream::connect(&target_addr).await...;\n\n  // Success reply sent here \u2014 AFTER the signal\n  client.write_all(&[0x05, 0x00, ...]).await.unwrap();\n\nA test that awaits connect_received_rx and then immediately inspects connection state will see the signal before the CONNECT reply has been flushed. If there is any async scheduling jitter, the client's Socks5Stream::connect may not have received the success reply yet when the test assertion runs.\n\nThe signal should fire after write_all succeeds, not before the relay TCP connect.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:18Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:25Z",
+  "closed_at": "2026-04-19T19:31:39Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:17"
+    }
+  ]
+}

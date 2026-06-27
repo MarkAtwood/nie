@@ -1,0 +1,27 @@
+{
+  "id": "nie-f0pz.9",
+  "title": "CLI /! command: no size limit on command output before MLS encryption",
+  "description": "commands.rs /! handler truncates stdout at 4096 bytes before display but then calls mls.encrypt(&line_bytes) where line_bytes is the full serde_json-wrapped ClearMessage. The truncation happens to 'display' (the string formatted for output), not to 'line_bytes'. The code: let display = if truncated { format!(...truncated...) } else { text.trim_end() }; then let line_bytes = serde_json::to_vec(&ClearMessage::Chat { text: display }). The truncated flag is set from stdout.len() > 4096, and stdout is truncated before conversion to UTF-8 lossy. So line_bytes contains at most ~4096 bytes of content plus JSON overhead. This is fine \u2014 correctly bounded. However the current code is confusing: 'truncated' is computed on the raw bytes, 'display' is the (possibly truncated) string, and 'line_bytes' uses 'display'. A future contributor might accidentally use 'text' (the untruncated string) instead of 'display'. Flag as clarity/maintainability risk.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:26:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:40:04Z",
+  "closed_at": "2026-04-26T07:40:04Z",
+  "close_reason": "CLI /! already truncates stdout to 4096 bytes before MLS encrypt",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:26:55"
+    }
+  ]
+}

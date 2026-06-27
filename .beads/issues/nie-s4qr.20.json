@@ -1,0 +1,24 @@
+{
+  "id": "nie-s4qr.20",
+  "title": "payment.rs HAPPY_ANCHOR_HEIGHT test constant undocumented \u2014 testnet NU5 activation height magic number",
+  "description": "payment.rs test helper uses: const HAPPY_ANCHOR_HEIGHT: u64 = 2_000_001; with comment 'past NU5 activation on testnet (1_842_420) so the builder emits a v5 transaction'. The constant value (2_000_001) is correct but is a magic number with no cross-reference to where 1_842_420 comes from. The NU5 testnet activation height (1_842_420) is not in a named constant anywhere in the codebase \u2014 a future contributor would not know why 2_000_001 was chosen or how much margin to leave. The constant should either reference a named NU5_TESTNET_ACTIVATION or have a comment like '// NU5 activates at 1_842_420 on testnet; use 2_000_001 for 100K-block margin'.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:23:58Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:23:58Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:23:57"
+    }
+  ]
+}

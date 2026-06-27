@@ -1,0 +1,26 @@
+{
+  "id": "nie-ld0c.1",
+  "title": "bridge-jmap email_query: no iteration cap \u2192 infinite loop on malicious JMAP server",
+  "description": "email_query paginates in a loop, stopping only when page_len < PAGE_SIZE or position >= total. A JMAP server can set total=u64::MAX and always return a full 50-item page. The loop never terminates. Trigger: any JMAP server (misconfigured or adversarial) that returns a very large 'total' field and full pages. Bad behavior: bridge-jmap spins in an infinite HTTP request loop, exhausting the JMAP server's rate limits and hanging the main bridge loop indefinitely.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:41:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T05:47:06Z",
+  "closed_at": "2026-04-26T05:47:06Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:41:59"
+    }
+  ]
+}

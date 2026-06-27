@@ -1,0 +1,24 @@
+{
+  "id": "nie-s4qr.5",
+  "title": "wasm client has no reconnection logic \u2014 any WS drop is permanent",
+  "description": "wasm/src/client.rs NieRelayClient::connect() opens one WebSocket and installs onclose/onerror handlers that log the event. There is no reconnect loop. When the WebSocket closes (relay restart, network glitch, idle timeout), the WASM client becomes permanently dead \u2014 pending requests are rejected, but no new connection is attempted. The FFI client (ffi/src/api/client.rs) uses connect_with_retry which has exponential backoff reconnection. The WASM client provides no equivalent. This means a Zcash relay restart permanently disconnects every browser client until the page is manually reloaded.",
+  "status": "open",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T07:13:57Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T07:13:57Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 00:13:57"
+    }
+  ]
+}

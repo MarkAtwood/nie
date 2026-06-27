@@ -1,0 +1,24 @@
+{
+  "id": "nie-wgk8.14",
+  "title": "payment_watcher: no comment on why fallback_days uses unwrap_or not subscription_days",
+  "description": "relay/src/payment_watcher.rs:375-377: fallback_days = invoice.subscription_days.unwrap_or(state.inner.subscription_days). The comment says 'pre-migration invoices that lack it' but does not explain what version introduced subscription_days to InvoiceRow. A contributor 12 months from now will not know whether subscription_days can still be None in new invoices. Add a comment: subscription_days is always set for invoices created after version X (the DB migration that added it); None only occurs for pre-migration rows.",
+  "status": "open",
+  "priority": 4,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T10:25:09Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T10:25:09Z",
+  "labels": [
+    "my-oss",
+    "readability",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-26 03:25:09"
+    }
+  ]
+}

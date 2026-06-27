@@ -1,0 +1,27 @@
+{
+  "id": "nie-0o9.4",
+  "title": "oracle test calls diversified_address twice for same start",
+  "description": "In diversified_address_orchard_uses_found_di_not_start: the loop calls diversified_address(sapling, orchard, i, Mainnet) and discards the ua string (_). Then outside the loop it calls diversified_address(sapling, orchard, start, Mainnet) again to get the ua_str. Since diversified_address is deterministic (same key, same start \u2192 same output), the second call is redundant. Fix: change the loop tuple to Some((i, found, ua)) and use that ua_str directly, eliminating the second diversified_address call.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T22:42:54Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T22:49:16Z",
+  "closed_at": "2026-04-18T22:49:16Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 15:42:53"
+    }
+  ]
+}

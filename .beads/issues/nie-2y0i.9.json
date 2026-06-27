@@ -1,0 +1,28 @@
+{
+  "id": "nie-2y0i.9",
+  "title": "nie-tui payment slash commands and overlay notifications",
+  "description": "**What:** Wire /pay, /balance, /receive, /payments, /confirm slash commands and render payment overlay notifications on the status bar.\n\n**Algorithm:**\n1. Add payment-related slash command handlers in handle_slash():\n   - \"/pay <handle> <amount> [chain]\": parse args; resolve handle to pub_id; parse amount as ZEC decimal (zatoshi = round(amount * 1e8) as u64); chain default = zcash. Create PaymentSession with new Uuid, state=Requested, role=Payer. Store in state.subscriptions. Broadcast ClearMessage::Payment { session_id, action: PaymentAction::Request { chain, amount: amount_str } }.\n   - \"/balance\": query wallet_store.balance(1) (min 1 confirmation); push ChatLine::System(format!(\"Balance: {} ZEC confirmed, {} ZEC pending\", zats_to_zec(confirmed), zats_to_zec(pending))).\n   - \"/receive\": generate fresh Sapling subaddress via wallet: call wallet_store.next_diversifier(0) \u2192 index; derive Unified Address from index; push ChatLine::System with the address. Warn: \"Each /receive generates a fresh address for privacy.\".\n   - \"/payments\": list state.subscriptions as system messages with session_id (short), peer, direction, state, amount.\n   - \"/confirm <session_id>\": find session by partial UUID match; trigger payment send via send_fn closure (same pattern as nie-cli); update session state to Sent.\n\n2. Handle incoming PaymentAction in decrypt_payload (when ClearMessage::Payment received):\n   - PaymentAction::Request: if we are payee, auto-generate address, send PaymentAction::Address response.\n   - PaymentAction::Address: if we are payer, update session.address, trigger payment send.\n   - PaymentAction::Sent: update session state, push overlay.\n   - PaymentAction::Confirmed: update session state, push confirmed overlay.\n   - PaymentAction::Cancelled: update session state, push cancelled system message.\n\n3. Overlay notifications: push_overlay(state, text: String) appends PaymentOverlay { text, created_at: Instant::now(), dismiss_after: Duration::from_secs(8) }.\n\n4. In draw_status() in ui.rs: if state.payment_overlays is not empty, show first non-expired overlay text. On render tick, check is_expired() and pop expired overlays from front.\n\n5. Wallet integration: AppState needs optional wallet_store: Option<Arc<WalletStore>>. If wallet.db exists in data_dir, open it. If not found, /pay /balance /receive push system error: \"Wallet not initialized. Run: nie-tui wallet init\".\n\n6. Add wallet CLI subcommand: nie-tui wallet init (calls commands equivalent to nie-cli wallet init). nie-tui wallet restore.\n\n**Defensive programming rules:**\n- PaymentAction::Address: fresh subaddress each call. Document: \"Never reuse Sapling subaddresses \u2014 address reuse breaks privacy.\"\n- Amount parsing: validate amount is positive, finite, non-zero, < 21 million ZEC. Use Decimal or f64 with bounds check.\n- PaymentSession ID: use Uuid::new_v4() \u2014 never hardcode or reuse.\n- wallet_store access: wrap in Option; early return with system error if None.\n- Overlay dismiss_after: use Instant (not wall clock) for timer \u2014 immune to clock skew.\n\n**Agent team:** Standard (R+I+V). R reads cli/src/commands.rs payment handlers (lines 1690-2300 approx), wallet/src/db.rs balance/diversifier APIs. I implements in event.rs and ui.rs. V runs tests.\n\n**Tests:**\n- Test /pay parses ZEC amount correctly: \"0.5\" \u2192 50_000_000 zatoshi.\n- Test /pay with invalid amount (\"abc\") pushes system error.\n- Test /balance with no wallet initialized pushes system error (not panic).\n- Test overlay is_expired: created_at = 9s ago, dismiss_after = 8s \u2192 returns true.\n- Test overlay not expired: created_at = 3s ago, dismiss_after = 8s \u2192 returns false.\n- Test incoming PaymentAction::Request while payer generates fresh address response.\n",
+  "acceptance_criteria": "cargo test -p nie-tui payment_tests all pass; cargo clippy -p nie-tui exits 0; /balance with no wallet exits cleanly with error message",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T03:16:55Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T03:51:09Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:16:54"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 20:17:27"
+    }
+  ]
+}

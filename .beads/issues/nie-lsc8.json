@@ -1,0 +1,14 @@
+{
+  "id": "nie-lsc8",
+  "title": "(BUG) wallet/db.rs: all_sessions() has no LIMIT — unbounded result set from payment_sessions table",
+  "description": "WalletStore::all_sessions() runs 'SELECT ... FROM payment_sessions' with no WHERE or LIMIT clause. A wallet that has processed many sessions over its lifetime (or if an attacker created many sessions) will load the entire table into memory on every call. In a long-running deployment this becomes an OOM risk. The function is called from payment.rs and potentially from CLI history commands. Fix: add a reasonable LIMIT (e.g. 1000 most recent sessions) or change callers to use a scoped query.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-26T09:05:14Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T09:13:05Z",
+  "closed_at": "2026-04-26T09:13:05Z",
+  "close_reason": "Closed"
+}

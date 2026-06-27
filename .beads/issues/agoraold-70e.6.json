@@ -1,0 +1,26 @@
+{
+  "id": "agoraold-70e.6",
+  "title": "payment address/amount visible to all room members via Broadcast",
+  "description": "commands.rs:1316-1323 \u2014 send_payment_message uses RelayMessage::Broadcast, so PaymentAction::Address (containing the recipient's Zcash address) and PaymentAction::Request (containing the amount) are delivered to every MLS group member in the room. All room participants can decrypt and read payment negotiations between any two peers. The comment says 'Recipients filter by session_id; the MLS layer ensures confidentiality' but MLS confidentiality means only room members can decrypt \u2014 it does not prevent other room members from reading.\n\nThis is an architectural decision (broadcast-only relay), not an oversight, but it is undocumented from the user's perspective. A user in a room expects private payment negotiation; this implementation delivers it to the whole room.\n\n**Why:** Deciding whether to document this as a known limitation, add a warning in /pay output, or design a future point-to-point encrypted channel is a product decision.\n**How to apply:** At minimum, add a visible note when /pay is invoked that payment negotiation is visible to all room members. Long-term: whisper channel for payment messages.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T06:56:00Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:55Z",
+  "closed_at": "2026-04-18T15:59:56Z",
+  "close_reason": "Added [pay] notice that payment details are visible to all room members. Architecture unchanged; this is a documented constraint of the broadcast relay.",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 23:55:59"
+    }
+  ]
+}

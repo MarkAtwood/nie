@@ -1,0 +1,23 @@
+{
+  "id": "nie-f0pz.19",
+  "title": "GOOD: shlex+Command::new prevents shell injection in /! and bot hooks",
+  "description": "Both cli/src/commands.rs (/! handler) and bot/src/scripting.rs (run_hook) use shlex::split + tokio::process::Command::new rather than sh -c. This is the correct approach: shlex parses shell quoting rules, Command::new execs the binary directly with no shell metacharacter interpretation. A security test in scripting.rs confirms that 'echo foo;cat /etc/passwd' passes 'foo;cat' as a single literal argument. The injection surface is eliminated, not mitigated.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:31:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:31:46Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:31:45"
+    }
+  ]
+}

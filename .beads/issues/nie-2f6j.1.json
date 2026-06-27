@@ -1,0 +1,26 @@
+{
+  "id": "nie-2f6j.1",
+  "title": "SEC0: clamp total_chunks to prevent OOM on malicious FileHeader",
+  "description": "FileHeader receive handler does vec![None; total_chunks as usize] with no upper bound. A peer can send total_chunks=u32::MAX causing ~16 GB allocation. Fix: validate total_chunks <= FILE_MAX_CHUNKS before inserting. FILE_MAX_CHUNKS = ceil(FILE_MAX_BYTES / CHUNK_SIZE) + 1 = ceil(10MB / 45KB) + 1 = 229. Reject with warn!() if exceeded.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T14:17:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T14:21:31Z",
+  "closed_at": "2026-04-22T14:21:31Z",
+  "close_reason": "Fixed: total_chunks bounded to FILE_MAX_CHUNKS=230; rejects out-of-range values with warn!()",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 07:17:34"
+    }
+  ]
+}

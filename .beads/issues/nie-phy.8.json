@@ -1,0 +1,25 @@
+{
+  "id": "nie-phy.8",
+  "title": "foreign_keys on SqliteConnectOptions not as post-connect PRAGMA \u2014 correct pool-wide enforcement",
+  "description": "Why this choice is correct: a post-connect PRAGMA applies only to the connection it was executed on. With a pool of >1 connection, future connections would not have foreign_keys enabled and ON DELETE CASCADE would silently fail for them. The comment in WalletStore::new explains this. The current max_connections(1) makes it safe by coincidence today, but the SqliteConnectOptions approach makes it correct by design. A contributor might suggest moving back to a post-connect query because it is 'simpler' \u2014 do not do that. The pool might be widened in the future.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-18T17:12:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-18T17:31:20Z",
+  "closed_at": "2026-04-18T17:31:20Z",
+  "close_reason": "Decision record \u2014 no code change required; rationale preserved in codebase",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-18 10:12:46"
+    }
+  ]
+}

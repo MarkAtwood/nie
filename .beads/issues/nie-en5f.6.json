@@ -1,0 +1,26 @@
+{
+  "id": "nie-en5f.6",
+  "title": "scanner.rs: in-memory tree/witnesses state diverges from DB on unexpected scan_block failure",
+  "description": "scanner.rs:400-437 \u2014 scan_block appends commitments to self.tree and updates self.witnesses in-memory throughout scan_tx, then calls save_block_state at the end. If save_block_state fails (I/O error, DB full), scan_block returns Err, but self.tree and self.witnesses have already been mutated for this block's outputs. The scan tip in the DB is not advanced (correct), but the in-memory state is now ahead of what the DB knows. On the next scan_to_tip call, scan_block replays the same block: scan_tx attempts to re-insert notes (hitting UNIQUE constraints, handled), but also re-appends each output's cmu to self.tree and updates all witnesses again. This double-appends those commitments to self.tree, producing a tree root that is inconsistent with the chain's actual commitment tree. Subsequent witness validity checks and anchor comparisons in the tx builder will fail. Fix: save_block_state failure should either reset self.tree and self.witnesses to their pre-block state (requires snapshotting), or the scan should reload state from DB before retrying.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T02:56:10Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:44:35Z",
+  "closed_at": "2026-04-25T03:44:35Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 19:56:09"
+    }
+  ]
+}

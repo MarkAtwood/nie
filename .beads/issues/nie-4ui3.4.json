@@ -1,0 +1,28 @@
+{
+  "id": "nie-4ui3.4",
+  "title": "Add --proxy CLI flag and thread to commands::chat",
+  "description": "Add --proxy <url> global clap flag to nie CLI; resolve it from CLI arg or config.toml proxy field; pass it through commands::chat() to transport layer.\n\n## What\nWire the proxy URL from CLI flag or config into the chat command so it reaches connect_with_retry().\n\n## Algorithm\n1. In cli/src/main.rs, in the Cli struct after the lightwalletd field, add:\n   #[arg(long, global = true, help = 'SOCKS5 proxy URL (e.g. socks5h://127.0.0.1:9050 for Tor)')]\n   proxy: Option<String>,\n2. After the relay/lightwalletd resolution block (around line 106), add:\n   let proxy = cli.proxy.or(file_config.proxy);\n3. In the commands::chat() call, pass proxy as the new last argument.\n4. In cli/src/commands.rs, add proxy: Option<String> as the last param to pub async fn chat().\n5. In commands.rs line ~260, update connect_with_retry() call to pass proxy.clone().\n6. Run: cargo build -p nie-cli exits 0; nie --help shows --proxy flag.\n\n## Defensive programming rules\n- Never log the proxy URL at info level or below (may contain credentials)\n- clap help text must describe socks5h:// as recommended for .onion (Tor)\n- proxy resolution order: CLI flag > config.toml key > None \u2014 same as relay and lightwalletd\n- Do not validate the proxy URL in this bead \u2014 that is the validation bead's job\n\n## Agent team\nResearcher (read main.rs + commands.rs), Implementer, Validator\n\n## Tests\nAcceptance: cargo build -p nie-cli exits 0; nie --help output contains '--proxy'; cargo test --workspace exits 0.",
+  "acceptance_criteria": "cargo build -p nie-cli exits 0; --proxy appears in nie --help; cargo test --workspace exits 0",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T18:35:19Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T18:43:17Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:35:19"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 11:36:38"
+    }
+  ]
+}

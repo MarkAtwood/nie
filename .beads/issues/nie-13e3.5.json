@@ -1,0 +1,25 @@
+{
+  "id": "nie-13e3.5",
+  "title": "scan_tx updates witnesses for spent notes, growing witnesses map unboundedly",
+  "description": "scanner.rs scan_tx() calls witness.append(node) for ALL entries in self.witnesses on every Sapling output processed. self.witnesses is loaded from all unspent notes in load_state(). Spent notes are removed from the notes table but their entries remain in self.witnesses for the entire lifetime of the scanner process (they are never removed from the in-memory map after send_payment marks them spent). Over time self.witnesses grows to include every note ever received. On each block each output triggers O(total_notes_ever) append operations. This is the nie-en5f.2 class of bug (witnesses not purged on spend). The DB save_block_state correctly overwrites witness rows but does not delete rows for spent notes. The in-memory witnesses map is never pruned. Trigger: wallet that has received and spent many notes. Bad behavior: scan_block time grows linearly with lifetime note count; eventually memory exhaustion.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:22:08Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T06:30:05Z",
+  "closed_at": "2026-04-26T06:30:05Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:22:08"
+    }
+  ]
+}

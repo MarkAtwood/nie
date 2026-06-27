@@ -1,0 +1,26 @@
+{
+  "id": "nie-bwaa.15",
+  "title": "space_set member patch uses dense nested if/else \u2014 extract helper",
+  "description": "In jmap.rs space_set, member operations use path.strip_prefix('members/') then nested if/else for null vs non-null value, then another nested branch for role handling. The logic is correct but reading the control flow requires tracking three nesting levels. Suggested rewrite: extract fn handle_space_member_patch(store, space_id, member_id, value: Option<&JsonValue>) -> Result<()> and call it from the top-level patch loop. This mirrors the existing pattern for other patch handlers and makes the intent readable at a glance.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T23:49:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T00:08:50Z",
+  "closed_at": "2026-04-24T00:08:50Z",
+  "close_reason": "extracted apply_member_patch helper; space_set member loop is now two lines",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-23 16:49:01"
+    }
+  ]
+}

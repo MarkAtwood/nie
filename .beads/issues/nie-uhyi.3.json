@@ -1,0 +1,26 @@
+{
+  "id": "nie-uhyi.3",
+  "title": "PaymentAction::Sent.amount_zatoshi allows zero",
+  "description": "PaymentAction::Request uses deserialize_nonzero_zatoshi to reject zero amounts, but PaymentAction::Sent.amount_zatoshi is a plain u64 with no bound. A hostile peer sends Sent { amount_zatoshi: 0 }; the receiver accepts it and records a confirmed 0-zatoshi payment. The inconsistency is a logic gap: if zero is invalid in a Request, it is equally invalid in a Sent confirmation. Fix: apply deserialize_nonzero_zatoshi to PaymentAction::Sent.amount_zatoshi.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:44:02Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-26T04:47:51Z",
+  "closed_at": "2026-04-26T04:47:51Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:44:01"
+    }
+  ]
+}

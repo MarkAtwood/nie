@@ -1,0 +1,26 @@
+{
+  "id": "nie-y9mn.2",
+  "title": "bridge-jmap silently loses emails when >50 arrive between polls",
+  "description": "email_query always requests limit:50. If more than 50 new messages arrive in the JMAP mailbox between poll cycles, the oldest ones are never fetched and never forwarded. No warning is logged. Trigger: burst 51+ emails into the mailbox during one poll interval; the oldest N-50 vanish silently.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:34:16Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:07:01Z",
+  "closed_at": "2026-04-25T04:07:01Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:34:15"
+    }
+  ]
+}

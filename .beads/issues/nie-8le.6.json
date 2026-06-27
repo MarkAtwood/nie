@@ -1,0 +1,28 @@
+{
+  "id": "nie-8le.6",
+  "title": "KeyPackage re-published on every UserJoined: O(N\u00b2) per session",
+  "description": "On every UserJoined event, every connected client re-publishes its MLS key package. With N clients connected, each new join triggers N PublishKeyPackage messages. A room with 16 clients joining sequentially generates 16+15+14+...+1 = 136 key package publishes instead of 16. The relay stores and broadcasts KeyPackageReady for each, and all other clients process N\u00b2 notifications. This is not a hard bug today (small N), but it is a repeating inefficiency baked in to the join flow. Maintenance consequence: as N grows this becomes the first user-visible slowdown on connect; will generate performance issue reports.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-17T23:07:48Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-17T23:31:22Z",
+  "closed_at": "2026-04-17T23:31:22Z",
+  "close_reason": "nie-8le.5: Added 'MLS Admin Election Invariant' section to CLAUDE.md with explicit rules about online[0], partition_point insertion, and what must not be changed. nie-8le.6: Guard UserJoined KP republication with \\!mls_active \u2014 members already in the group need not republish since the admin already holds their KP; reduces O(N\u00b2) publishes per session to near-O(1).",
+  "labels": [
+    "maintainer-burden",
+    "my-oss",
+    "review",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-17 16:07:48"
+    }
+  ]
+}

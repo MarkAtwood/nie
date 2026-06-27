@@ -1,0 +1,19 @@
+{
+  "id": "nie-xora",
+  "title": "Review: SpaceRole enum, contact_set/space_set atomicity fixes",
+  "notes": "Maintainer risk: LOW — the single live risk is the hardcoded role list in the validate_member_patch error message (nie-xora.1), which will silently diverge from SpaceRole when a new role is added. All other fixes are correct and well-tested.\nConfidence: 15% chance of missed bug. Uncertainty driven by: the three-state Option\u003cOption\u003c\u0026str\u003e\u003e threading for description/display_name, and the contact_set empty-patch path using a non-transactional get_contacts read (safe because contacts are permanent, but the invariant is implicit). Would raise confidence if: there were a test for contact_set with blocked=Some(current_value) to verify it correctly returns updated on a no-op write, and a test verifying no intermediate state is visible during a two-field patch (though the single-bump test is a strong proxy).",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T06:11:40Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T15:05:23Z",
+  "close_reason": "all steps complete",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

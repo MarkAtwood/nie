@@ -1,0 +1,25 @@
+{
+  "id": "nie-43zd.6",
+  "title": "pow: h16 replay set maps 16-byte key to 32-byte hash; wasted space",
+  "description": "The PoW replay set (state.inner.pow_replay_set) keys on h16 ([u8;16]) and stores an Instant. The h16 is already the first 16 bytes of the double-SHA256 \u2014 it uniquely identifies the token. No issue there. However, the map value is Instant (platform size, typically 16 bytes on Linux). Total per-entry cost is 32 bytes key (DashMap alignment) + 16 bytes value + overhead. At 1M cap that's ~48MB. The retention TTL is 600s matching PoW staleness window, which is correct. This is fine as-is; documenting the sizing in a comment near MAX_REPLAY_ENTRIES would prevent future over-estimation of memory cost.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T04:10:33Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T04:10:33Z",
+  "labels": [
+    "elegance",
+    "my-oss",
+    "opinion",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 21:10:32"
+    }
+  ]
+}

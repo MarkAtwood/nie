@@ -1,0 +1,24 @@
+{
+  "id": "nie-po5v.16",
+  "title": "cli/send: break in chunk loop prints false success, does not exit connection loop",
+  "description": "In cli/src/commands.rs, the /send file-transfer inner loop (for (seq, chunk) in chunks) breaks on tx.send error at line 2097. This break exits only the inner chunk loop, not the outer select loop. The code then unconditionally prints '[send] done: {file_name}' (line 2103) and continues the outer loop. The user sees a false success message. The outer loop will detect the closed channel on the next command and exit, but the window between false 'done' and actual disconnect can confuse operators. Fix: track whether the inner loop exited early and skip the 'done' print, or use a labeled break to exit the outer loop directly.",
+  "status": "open",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:45:12Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:45:12Z",
+  "labels": [
+    "correctness",
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:45:12"
+    }
+  ]
+}

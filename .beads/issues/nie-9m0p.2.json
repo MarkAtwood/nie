@@ -1,0 +1,23 @@
+{
+  "id": "nie-9m0p.2",
+  "title": "core: extract keyfile module (load_identity, encrypt/decrypt)",
+  "description": "What: Extract identity keyfile functions from cli/src/commands.rs into core/src/keyfile.rs.\n\nAlgorithm:\n1. Create core/src/keyfile.rs with:\n   - pub fn load_identity(keyfile_path: &str, no_passphrase: bool) -> Result<Identity>\n   - pub fn decrypt_keyfile(ciphertext: &[u8], passphrase: &str) -> Result<[u8; 64]>\n   - pub fn encrypt_keyfile(seed: &[u8; 64], passphrase: &str) -> Result<Vec<u8>>\n2. Add pub mod keyfile; to core/src/lib.rs\n3. In cli/src/commands.rs: replace function bodies with calls to nie_core::keyfile::*\n4. Add age, rpassword to core/Cargo.toml deps (already workspace deps)\n5. cargo test -p nie-core && cargo test -p nie-cli\n\nDefensive:\n- validate bytes.len() == 64 with descriptive error (not panic)\n- never log identity bytes\n- fn decrypt_keyfile validates ciphertext before passing to age decryptor\n\nAgent team: I (implementer). V (validator) runs full cargo test --workspace.\nTests: existing cli tests still pass; new unit tests in core verify load roundtrip with no_passphrase=true",
+  "acceptance_criteria": "cargo test --workspace passes; no new unwrap() without explanatory comment in keyfile.rs",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T00:42:13Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-20T00:50:47Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 17:42:12"
+    }
+  ]
+}

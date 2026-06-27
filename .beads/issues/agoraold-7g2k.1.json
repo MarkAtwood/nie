@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7g2k.1",
+  "title": "SEC3: validate_did_key should use ED25519_MULTICODEC constant for slice comparison",
+  "description": "In validate_did_key (identity.rs:184-188), the multicodec prefix is validated against hardcoded bytes [0xed, 0x01]. Since ED25519_MULTICODEC is already defined, comparing &decoded_bytes[0..2] != ED25519_MULTICODEC would be more elegant and ensure consistency with make_did_key. Reduces magic number duplication and makes the connection between validation and production code explicit.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:15:34Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:43Z",
+  "closed_at": "2026-04-23T00:22:38Z",
+  "close_reason": "Closed",
+  "labels": [
+    "elegance",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:15:33"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-qdlu.17",
+  "title": "params.rs verifies hash before writing to disk \u2014 correct, not after",
+  "description": "ensure_param_file verifies the BLAKE2b-512 hash of downloaded bytes in memory before writing to disk (line 239). A naive implementation would write first then hash, leaving a corrupt or tampered file on disk if verification fails. The current approach means the temp file and final path only ever contain verified bytes. A contributor might reorder to verify-after-write to avoid holding 48MB in memory, but that would allow a brief window where a bad file exists on disk.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T03:47:25Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T03:47:25Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 20:47:25"
+    }
+  ]
+}

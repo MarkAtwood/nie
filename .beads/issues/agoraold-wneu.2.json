@@ -1,0 +1,28 @@
+{
+  "id": "agoraold-wneu.2",
+  "title": "Relay ws.rs: enqueue whisper for offline + drain on reconnect",
+  "description": "What: Wire store.enqueue() into the Whisper handler and store.drain() into the auth-success path in relay/src/ws.rs, so offline DMs are queued and delivered on reconnect.\n\nPrereq: nie-wneu.1 must be done (enqueue/drain functions exist in store.rs).\n\nAlgorithm:\n1. Find the WHISPER handler in ws.rs (around rpc_methods::WHISPER match arm):\n   - Change: state.deliver_live(&params.to, notif).await;\n   - To:\n     let delivered = state.deliver_live(&params.to, notif.clone()).await;\n     if !delivered {\n         if let Err(e) = state.store.enqueue(&params.to, &notif).await {\n             warn!(\"whisper enqueue failed for {}: {e}\", params.to);\n         }\n     }\n   - Note: notif must be .clone() before the deliver_live call since it's consumed\n\n2. Find the auth success path in ws.rs (where client is added to the clients map and DirectoryList is sent, after write_task is spawned and client_tx is available):\n   - After the client is registered but before the main read loop:\n     let queued = match state.store.drain(&pub_id.0).await {\n         Ok(msgs) => msgs,\n         Err(e) => { warn!(\"drain failed for {pub_id}: {e}\"); vec![] }\n     };\n     for msg in queued {\n         client_tx.send(msg).await.ok();\n     }\n\n3. Also do the same for SEALED_WHISPER handler (around line 748-784): enqueue when deliver_live returns false.\n   - The sealed variant stores the notification string with no from field.\n\nDefensive rules:\n- Enqueue failure is warn + continue, never fatal (CLAUDE.md \u00a78: channel close is clean exit)\n- Drain failure is warn + use empty vec (same policy)\n- Must clone notif before deliver_live if enqueue also uses it\n- Drain must be called AFTER client_tx is fully established (write_task spawned)\n- State.deliver_live already returns bool \u2014 do not change its signature\n\nTests:\n- cargo test --workspace passes\n- cargo clippy --workspace -- -D warnings passes",
+  "acceptance_criteria": "cargo test --workspace passes; cargo clippy --workspace -- -D warnings passes; Whisper to offline pub_id is findable in DB via test_enqueue_drain_roundtrip in store tests",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "assignee": "Mark Atwood",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T21:19:46Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-19T21:30:33Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:19:45"
+    },
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 14:20:35"
+    }
+  ]
+}

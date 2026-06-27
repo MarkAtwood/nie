@@ -1,0 +1,25 @@
+{
+  "id": "nie-4iod.26",
+  "title": "MAINTAINER: parse_params() discards deserialization errors at debug log, can't diagnose relay protocol bugs",
+  "description": "In dispatcher.rs lines 91-100, parse_params() returns None on deserialization failure and logs at debug level. If a relay sends a malformed notification (e.g., wrong types in a json-rpc update), the bot silently ignores it with no way to diagnose the issue without re-running at debug log level. In 6 months, if the relay's protocol changes and a notification breaks, maintainers won't have visibility into what the relay is sending. Fix: log at warn level when a known method has unparseable params (indicates a relay/client version mismatch), keep debug for truly unknown methods.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:14:30Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-20T01:27:40Z",
+  "closed_at": "2026-04-20T01:27:40Z",
+  "close_reason": "Closed",
+  "labels": [
+    "maintainer-burden",
+    "risk"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:14:30"
+    }
+  ]
+}

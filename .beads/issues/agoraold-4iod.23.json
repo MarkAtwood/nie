@@ -1,0 +1,24 @@
+{
+  "id": "agoraold-4iod.23",
+  "title": "bot: self_test uses unwrap_or_default() on missing params",
+  "description": "In main.rs self_test (line 281), notif.params.unwrap_or_default() returns empty JSON {} if params is None. This masks deserialization failures\u2014if the relay sends WhisperDeliver without params, serde_json::from_value will deserialize the empty object and silently produce WhisperDeliverParams with zero/None fields, not an error. Correct: require params field or log a warning if None.",
+  "status": "closed",
+  "priority": 0,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-20T01:14:24Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:02:37Z",
+  "closed_at": "2026-04-20T01:27:35Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 18:14:24"
+    }
+  ]
+}

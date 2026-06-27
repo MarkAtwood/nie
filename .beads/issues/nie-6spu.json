@@ -1,0 +1,15 @@
+{
+  "id": "nie-6spu",
+  "title": "Rate limiting: cap broadcast/send at 120 msg/min per user",
+  "description": "Implement per-session message rate limiting as specified in IMPROVEMENTS.md §2.\n\nWhat: Add DashMap-based rate limiter to AppState; return JSON-RPC error -32020 RATE_LIMITED when exceeded.\n\nWhy: Currently a subscribed client can broadcast thousands of messages per second. Rate limiting prevents abuse without requiring payment per message.\n\nAlgorithm:\n1. Add dashmap = '6' dep (already in workspace).\n2. Add RateLimitState struct to relay/src/state.rs: DashMap\u003cString, (u32, Instant)\u003e keyed by pub_id.\n3. Extend AppState::Inner with rate_limit field.\n4. In ws.rs broadcast/sealed_broadcast/group_send handlers: call check_rate_limit(pub_id, now) before processing.\n5. check_rate_limit: if entry missing or Instant older than 60s, reset to (1, now). Else if count \u003e= 120, return Err(RATE_LIMITED). Else increment.\n6. Return JSON-RPC error: code=-32020, message='rate limited'.\n\nApply to: broadcast, sealed_broadcast, group_send. Not whisper (1:1 has natural cost).\n\nDefensive programming:\n- Rate limiter never panics on lock failure (DashMap is lock-free).\n- Clock reads use std::time::Instant (monotonic).\n- Counter wrap not possible: u32::MAX \u003e\u003e 120.\n\nTests:\n- test_rate_limit_allows_120_per_window: send 120 broadcast calls, verify all succeed.\n- test_rate_limit_blocks_121st: send 121 calls, verify 121st returns -32020.\n- test_rate_limit_resets_after_window: send 120, advance time by 61s, send 1 more, verify success.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "feature",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-22T15:52:42Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-22T15:54:49Z",
+  "closed_at": "2026-04-22T15:54:49Z",
+  "close_reason": "rate limiting already implemented in relay/src/ws.rs; IMPROVEMENTS.md item pre-empted"
+}

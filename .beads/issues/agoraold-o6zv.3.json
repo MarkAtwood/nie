@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-o6zv.3",
+  "title": "db.rs: Row struct duplicated 3x in payment_sessions queries",
+  "description": "Location: wallet/src/db.rs \u2014 all_sessions(), get_session_by_address(), sessions_to_watch() each define an identical local Row struct with 10 fields and identical row\u2192PaymentSession mapping logic (duplicated ~20 lines 3x).\n\nWhy it matters: If payment_sessions schema changes (new column, type change), all three Row structs and all three mapping closures must be updated in lockstep. Missing one will silently compile but produce incorrect data.\n\nFix: Extract a module-level SessionRow struct and a session_from_row(r: SessionRow) -> Result<PaymentSession> helper. The three query methods become 5-line functions that differ only in the SQL WHERE clause.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "task",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T08:32:06Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:30Z",
+  "closed_at": "2026-04-19T08:37:12Z",
+  "close_reason": "SessionRow + session_from_row() extracted; all three query methods refactored; 175 wallet tests pass",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 01:32:06"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "id": "nie-u966.19",
+  "title": "shlex injection guard in bot scripting is correct and well-tested",
+  "description": "scripting.rs uses shlex::split + Command::new (not sh -c) to prevent shell injection, drains stdout/stderr concurrently to prevent deadlock on pipe-full, enforces a hard timeout, and caps output at 64KiB/8KiB. All four properties are independently tested. A contributor might suggest simplifying to sh -c for convenience; the existing design correctly prevents command injection when the hook string comes from user config.",
+  "status": "open",
+  "priority": 3,
+  "issue_type": "decision",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-25T06:54:49Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-25T06:55:02Z",
+  "labels": [
+    "my-oss",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 23:54:48"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "agoraold-7g2k.11",
+  "title": "SEC0: misleading docstring terminology",
+  "description": "identity.rs line 105: docstring for pub_key_b64() states 'derive the PubId by hashing' but the actual implementation uses make_did_key() which encodes via multicodec prefix [0xed, 0x01], not hashing. The code is correct; the comment is misleading. Should say 'encode' instead of 'hash'.",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-23T00:16:23Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:43Z",
+  "closed_at": "2026-04-23T00:23:14Z",
+  "close_reason": "Closed",
+  "labels": [
+    "correctness",
+    "review"
+  ],
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-22 17:16:22"
+    }
+  ]
+}

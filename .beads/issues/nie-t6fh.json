@@ -1,0 +1,19 @@
+{
+  "id": "nie-t6fh",
+  "title": "Review: remaining jmap.rs handlers pass",
+  "notes": "Maintainer risk: LOW — the security fixes (ULID entropy, authorization bypass) are the significant work this iteration. No new public API surface added. Remaining findings are elegance/clarity.\nConfidence: 88% chance of no missed bug. Uncertainty driven by: haven't deeply audited chat_get, chat_query, contact_query paths. SQLite FK enforcement is off — orphaned data is possible but not a security issue in single-user model. Would raise confidence if: confirmed SQLite WAL mode is set to prevent concurrent write corruption.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "epic",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T18:31:59Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-06-26T19:21:37Z",
+  "closed_at": "2026-04-24T18:35:38Z",
+  "close_reason": "All findings filed and fixed",
+  "labels": [
+    "my-oss",
+    "review"
+  ]
+}

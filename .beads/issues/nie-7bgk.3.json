@@ -1,0 +1,22 @@
+{
+  "id": "nie-7bgk.3",
+  "title": "contact_set Phase 2b: ContactPatchOp vec is an unnecessary indirection",
+  "description": "Phase 1 builds a Vec<ContactPatchOp> and Phase 2b immediately loops over it to decompose back into blocked: Option<bool> and display_name: Option<Option<String>>. The Vec buys nothing \u2014 the same two Option fields could be set directly in Phase 1 with the same semantics. Suggested rewrite: remove ContactPatchOp enum and the ops vec; replace with let mut blocked: Option<bool> = None; let mut display_name: Option<Option<String>> = None; set directly in Phase 1 validation. The is_empty check becomes (blocked.is_none() && display_name.is_none()) which reads more naturally than ops.is_empty().",
+  "status": "closed",
+  "priority": 3,
+  "issue_type": "chore",
+  "assignee": "Mark Atwood",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T16:37:29Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T16:49:22Z",
+  "closed_at": "2026-04-24T16:49:22Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-24 09:37:28"
+    }
+  ]
+}

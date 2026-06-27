@@ -1,0 +1,14 @@
+{
+  "id": "nie-1al0",
+  "title": "fix: payment.rs change address diversifier gap",
+  "description": "send_payment calls next_diversifier then passes the index to build_shielded_tx which calls find_address internally. find_address may skip invalid diversifiers, leaving a gap that causes the next payment to re-allocate the same change address — violating ZIP-316 shielded unlinkability. Fix: call find_address after next_diversifier and advance_diversifier_to past the actual index before calling build_shielded_tx.",
+  "status": "closed",
+  "priority": 1,
+  "issue_type": "bug",
+  "owner": "mark@reviewcommit.com",
+  "created_at": "2026-04-24T21:34:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-04-24T21:37:16Z",
+  "closed_at": "2026-04-24T21:37:16Z",
+  "close_reason": "Closed"
+}

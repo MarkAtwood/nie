@@ -1,0 +1,21 @@
+{
+  "id": "agoraold-gcwe.26",
+  "title": "CLAUDE.md: proxy feature not reflected in quick-start or sources-of-truth table",
+  "description": "CLAUDE.md contains a quick-start section and a sources-of-truth table but neither mentions the --proxy flag or the SOCKS5/proxy feature. The 'Available CLI Tools' section in the global CLAUDE.md mentions ngrok for tunnels but nie's own CLAUDE.md does not document --proxy. Since agents use CLAUDE.md as their primary reference for this project, a new agent working on proxy-related tasks would not know the feature exists from CLAUDE.md alone. Fix: add --proxy to the quick-start examples and note the config.toml proxy field in the sources-of-truth table row for config.rs.",
+  "status": "closed",
+  "priority": 2,
+  "issue_type": "bug",
+  "owner": "mark@wolfssl.com",
+  "created_at": "2026-04-19T19:21:35Z",
+  "created_by": "Mark Atwood",
+  "updated_at": "2026-05-01T05:03:25Z",
+  "closed_at": "2026-04-19T19:36:21Z",
+  "close_reason": "Closed",
+  "dependencies": [
+    {
+      "dep_type": "parent_child",
+      "created_by": "Mark Atwood",
+      "created_at": "2026-04-19 12:21:34"
+    }
+  ]
+}
