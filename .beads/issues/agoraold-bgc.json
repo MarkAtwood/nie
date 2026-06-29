@@ -16,12 +16,12 @@
     {
       "dep_type": "parent_child",
       "created_by": "Mark Atwood",
-      "created_at": "2026-04-17 19:42:38"
+      "created_at": "2026-04-17T19:42:38Z"
     },
     {
       "dep_type": "parent_child",
       "created_by": "Mark Atwood",
-      "created_at": "2026-04-17 19:42:49"
+      "created_at": "2026-04-17T19:42:49Z"
     }
   ]
 }
